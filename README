@@ -1,0 +1,25 @@
+               Management system for MySQL deployments
+               =======================================
+
+This is a management system for managing a deployment of MySQL
+servers.
+
+Installation
+------------
+
+You can install the MySQL Hub using:
+
+    python setup.py build
+    python setup.py install
+
+This will install the 'mysql.hub' package (and all sub-packages) and a
+set of command-line scripts that are used to administer the hub.
+
+Running unit tests
+------------------
+
+The package also contain a bunch of unit tests that are used mainly
+during development to check that all pieces work correctly.  The tests
+can be executed using the command:
+
+    python test.py
