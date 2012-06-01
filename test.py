@@ -26,12 +26,12 @@ def get_options():
 
 def run_tests(pkg, opt, args):
     if len(args) == 0:
-        import mysql.hub.tests
-        args = mysql.hub.tests.__all__
+        import tests
+        args = tests.__all__
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
     return TextTestRunner(verbosity=opt.verbosity).run(suite)
 
 if __name__ == '__main__':
     opt, args = get_options()
-    result = run_tests('mysql.hub.tests', opt, args)
+    result = run_tests('tests', opt, args)
     sys.exit(not result.wasSuccessful())

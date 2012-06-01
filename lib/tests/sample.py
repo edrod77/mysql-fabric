@@ -19,9 +19,6 @@ class SampleTest(unittest.TestCase):
         for element in random.sample(self.seq, 5):
             self.assertTrue(element in self.seq)
 
-    def test_failure(self):
-        self.assertTrue(False)
-
 if __name__ == '__main__':
     unittest.main()
 
