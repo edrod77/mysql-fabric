@@ -29,7 +29,9 @@ def run_tests(pkg, opt, args):
         import mysql.hub.tests
         args = mysql.hub.tests.__all__
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
-    TextTestRunner(verbosity=opt.verbosity).run(suite)
+    return TextTestRunner(verbosity=opt.verbosity).run(suite)
 
 if __name__ == '__main__':
-    run_tests('mysql.hub.tests', *get_options())
+    opt, args = get_options()
+    result = run_tests('mysql.hub.tests', opt, args)
+    sys.exit(not result.wasSuccessful())
