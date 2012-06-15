@@ -10,10 +10,10 @@ class TestResourceManager(unittest.TestCase):
     """
 
     def setUp(self):
-        self.__resources = resource.ResourceManager()
+        self.resources = resource.ResourceManager()
 
     def test_basic(self):
-        resources = self.__resources
+        resources = self.resources
 
         # Test that manipulations of non-existant paths trigger an
         # error
@@ -70,7 +70,7 @@ class TestResourceManager(unittest.TestCase):
         self.assertRaises(errors.PathError, resources.get, 'mysql') 
 
     def test_versions(self):
-        resources = self.__resources
+        resources = self.resources
 
         # First create a path and check that we get the same version
         # from it for subsequent retrievals.
@@ -123,6 +123,19 @@ class TestResourceManager(unittest.TestCase):
         success, _ = resources.delete('mysql.dummy', ver3a)
         self.assertTrue(success)
         self.assertRaises(errors.PathError, resources.get, 'mysql.dummy')
+
+    def test_triggers(self):
+        resources = self.resources
+        check = []
+        def make_trigger(x):
+            def inner(value, version):
+                check.append((x, value, version))
+            return inner
+
+        resources.create('mysql.dummy', 100)
+        resources.add_trigger('mysql.dummy', make_trigger(3))
+        resources.set('mysql.dummy', 200)
+        self.assertTrue((3, 200, 2) in check and len(check) == 1)
 
 if __name__ == '__main__':
     unittest.main()

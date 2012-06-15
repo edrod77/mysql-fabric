@@ -15,16 +15,23 @@ class Resource(object):
     All leaves in the resource tree are instances of the resource class.
     """
 
-    __slots__ = ('__value', '__version', '__name')
+    __slots__ = ('__value', '__version', '__name', '__triggers')
 
     def __init__(self, value, name):
         self.__value = value
         self.__name = name
         self.__version = 1
+        self.__triggers = []
 
     def set_value(self, value):
         self.__value = value
         self.__version += 1
+
+        # Execute all the triggers associated with the resource.
+        # TODO: Queue the function to the Execute rather than execute them here.
+        for trg in self.__triggers:
+            trg(self.__value, self.__version)
+        self.__triggers = []
 
     @property
     def value(self):
@@ -38,8 +45,26 @@ class Resource(object):
     def name(self):
         return self.__name
 
+    def add_trigger(self, func):
+        """Add a function as a trigger to the resource.
+
+        The function will be called with the arguments (value,
+        version) when the value in the resource is changed.
+        """
+        self.__triggers.append(func)
 
 class ResourceManager(object):
+    """Class that manages the resource tree.
+
+    The resource tree is used to store information about the farm
+    being managed. The data is organized in a tree form, similar to a
+    directory structure, with the leaves ("files") being data
+    structures.
+
+    The resource tree is implemented to support wait-free operations,
+    meaning that there is a version assigned to each value as well.
+    """
+
     def __init__(self):
         self.__root = {}
 
@@ -130,3 +155,11 @@ class ResourceManager(object):
         message = _RES_NOTRES.format(SEP.join(path))
         raise errors.PathError(message)
 
+    def add_trigger(self, path, func, version=None):
+        tree = self._follow(path)
+        if isinstance(tree, Resource):
+            if version is None or version == tree.version:
+                tree.add_trigger(func)
+                return (True, tree.version)
+            else:
+                return (False, tree.version)
