@@ -1,0 +1,57 @@
+                      Information for developers
+                      ==========================
+
+Adding new commands
+-------------------
+
+Scripts are automatically generated in the build phase from modules in
+the mysql.hub.commands package. For each module found, a command
+"hub-<module>" is created which contain code that imports the module
+and call the "main" function of the module.
+
+Currently, there is no option parsing in this code, so each command
+have to parse the option. We will factor out option parsing into a
+separate module later, which will create default options and allow the
+command to define it's own options.
+
+Running unit tests
+------------------
+
+In order to run tests while developing it is often best to install all
+the necessary dependencies in the build directory and execute from
+there. One of the reasons is that commands are created in the build
+phase, so it is easiest to test them by building them. In addition,
+Connector/Python is one of the dependencies it will avoid conflicts on
+where the "mysql" package is installed.
+
+Something similar to this would install Connector/Python with the
+version of your choice into the build directory and allow you to run
+the unit tests.
+
+      hubdir=`pwd`
+      (
+        cd <connector-directory>
+        python setup.py build --build-dir=${hubdir}/build
+      )
+      pyhon setup.py build
+      python test.py
+
+
+Running commands
+----------------
+
+If you have built all the files you can execute a command by resetting
+the Python path. There is also a sample configuration file, so you can
+use the following command to start the hub process un-daemonized and
+print debug log messages to the terminal.
+
+    PYTHONPATH=build/lib python build/script/hub-start --config=data/sample.cfg --loglevel=DEBUG
+
+You can stop the hub using:
+
+    PYTHONPATH=build/lib python build/script/hub-stop --config=data/sample.cfg
+
+The port used for these commands is stored in the configuration file.
+
+Note that the "lib" directory name and the "script" directory name
+vary depending on the platform.

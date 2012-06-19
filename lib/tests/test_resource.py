@@ -5,12 +5,15 @@ import unittest
 import mysql.hub.resource as resource
 import mysql.hub.errors as errors
 
+from tests.utils import DummyManager
+
 class TestResourceManager(unittest.TestCase):
     """Test resource manager.
     """
 
     def setUp(self):
-        self.resources = resource.ResourceManager()
+        manager = DummyManager()
+        self.resources = resource.ResourceManager(manager)
 
     def test_basic(self):
         resources = self.resources

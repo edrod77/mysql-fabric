@@ -1,0 +1,31 @@
+   
+* Move configuration file handling to mysql.hub.config
+
+- Support multiple configuration files
+
+* Move option handling to mysql.hub.options
+
+- Add all default options
+   
+- Load command-specific options from command module
+
+- Handle that some options overload configuration options
+
+* Support killing hub process using signals
+
+- This requires storing the PID in a pid-file
+
+- Process should accept HUP and shut down cleanly
+
+* Add generation of BAT-files to support Windows
+
+- Currently, we only generate Python scripts for Unices.
+
+- We should also generate BAT scripts for Windows that call the appropriate module
+
+* Fix logger to show submodule logging
+
+- Currently, there is just one logging level, which makes it hard to debug.
+
+- We should set the logger for each module to the module name.
+

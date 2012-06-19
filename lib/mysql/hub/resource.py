@@ -65,8 +65,9 @@ class ResourceManager(object):
     meaning that there is a version assigned to each value as well.
     """
 
-    def __init__(self):
+    def __init__(self, manager):
         self.__root = {}
+        self.__manager = manager
 
     def _trail_for(self, path):
         """Compute a "trail" to the leaf node.
