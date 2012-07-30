@@ -3,9 +3,13 @@
 
 import logging
 
+class NullHandler(logging.Handler):
+    def emit(self, record):
+        pass
+
 class DummyManager(object):
     def __init__(self):
-        handler = logging.NullHandler()
+        handler = NullHandler()
         self.logger = logging.getLogger('mysql.hub')
         self.logger.addHandler(handler)
 

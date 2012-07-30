@@ -89,7 +89,7 @@ class TestResourceManager(unittest.TestCase):
         self.assertTrue(success)
         val2, ver2 = resources.get('mysql.dummy')
         self.assertEqual(val2, 200)
-        self.assertGreater(ver2, ver1, "Version should be increased")
+        self.assertTrue(ver2 > ver1)
 
         # Try to get a value with the wrong version
         value, ver2b = resources.get('mysql.dummy', ver1)
@@ -101,7 +101,7 @@ class TestResourceManager(unittest.TestCase):
         # changed.
         success, val2a, ver2a = resources.set('mysql.dummy', 300, ver1)
         self.assertFalse(success)
-        self.assertGreater(ver2a, ver1)
+        self.assertTrue(ver2a > ver1)
         self.assertEqual(ver2a, ver2)
         val2b, ver2b = resources.get('mysql.dummy')
         self.assertEqual(val2b, 200)
@@ -112,7 +112,7 @@ class TestResourceManager(unittest.TestCase):
         success, val3, ver3 = resources.set('mysql.dummy', 300, ver2b)
         self.assertTrue(success)
         self.assertEqual(val3, 300)
-        self.assertGreater(ver3, ver2b)
+        self.assertTrue(ver3 > ver2b)
 
         # Check that deleting with wrong version does not delete the
         # entry...
