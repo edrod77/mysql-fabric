@@ -1,4 +1,3 @@
-import logging
 import mysql.hub.executor
 import mysql.hub.resource
 import mysql.hub.services

@@ -14,7 +14,7 @@ def main(argv):
                       metavar="FILE",
                       help="Read configuration from FILE")
     
-    opt, args = parser.parse_args(argv)
+    opt, _args = parser.parse_args(argv)
 
     # TODO: Move all config file handling to mysql.hub.config
     from ConfigParser import ConfigParser
@@ -23,7 +23,7 @@ def main(argv):
     # Read in basic configuration information
     config.readfp(open(opt.config_file), opt.config_file)
 
-    # TODO: We should support configuration files for at least: instance, user, site
+    # TODO: Support configuration files for at least: instance, user, site
 
     # Connect to the standard server and tell it to shutdown
     # TODO: We need to allow killing the server using signals
@@ -33,4 +33,4 @@ def main(argv):
     try:
         proxy.shutdown()
     except xmlrpclib.Fault, err:
-        print >>sys.stderr, "Failure (%d): %s" % (err.faultCode, err.faultString)
+        print >> sys.stderr, "Error (%d): %s" % (err.faultCode, err.faultString)

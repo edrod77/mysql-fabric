@@ -21,7 +21,7 @@ def primitive(func):
 
     # This is the undo decorator for the function
     def undo_decorate(func):
-        func._compensate = func
+        func.compensate = func
 
     # This is the function that executes the primitive and handles any
     # errors. If a com
@@ -29,12 +29,12 @@ def primitive(func):
         try:
             _LOGGER.debug("Executing %s", func.__name__)
             func(*args, **kwrd)
-        except Exception:
+        except Exception:       # pylint: disable=W0703
             _LOGGER.debug("%s failed, executing compensation", func.__name__)
-            if func._compensate is not None:
-                func._compensate(*arg, **kwrd)
+            if func.compensate is not None:
+                func.compensate(*args, **kwrd)
 
-    func._compensate = None
+    func.compensate = None
     func.undo = undo_decorate
     return execute
 

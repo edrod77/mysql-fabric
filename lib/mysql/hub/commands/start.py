@@ -12,8 +12,9 @@ def _do_fork():
     try:
         if os.fork() > 0:
             sys.exit(0)
-    except OSError, e:
-        sys.stderr.write("fork failed with errno %d: %s\n" % (e.errno, e.strerror))
+    except OSError, error:
+        sys.stderr.write("fork failed with errno %d: %s\n" %
+                         (error.errno, error.strerror))
         sys.exit(1)
 
 def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
@@ -33,9 +34,9 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     _do_fork()
     sys.stdout.flush()
     sys.stderr.flush()
-    sin = file('/dev/null', 'r')
-    sout = file('/dev/null', 'a+')
-    serr = file('/dev/null', 'a+', 0)
+    sin = file(stdin, 'r')
+    sout = file(stdout, 'a+')
+    serr = file(stderr, 'a+', 0)
     os.dup2(sin.fileno(), sys.stdin.fileno())
     os.dup2(sout.fileno(), sys.stdout.fileno())
     os.dup2(serr.fileno(), sys.stdin.fileno())
@@ -63,7 +64,7 @@ def main(argv):
                       help="Set logging level to LEVEL")
 
     # Parse options
-    opt, args = parser.parse_args(argv)
+    opt, _args = parser.parse_args(argv)
 
     # TODO: Move all config file handling to mysql.hub.config
     from ConfigParser import ConfigParser
@@ -72,9 +73,9 @@ def main(argv):
     # Read in basic configuration information
     config.readfp(open(opt.config_file), opt.config_file)
 
-    # TODO: We should support configuration files for at least: instance, user, site
+    # TODO: Support configuration files for at least: instance, user, site
 
-    # TODO: Some options replace values in config, so we should overwrite those
+    # TODO: Options replace values in config: those should be overwritten
 
     # Set up logger
     # TODO: Switch to use __name__ ?

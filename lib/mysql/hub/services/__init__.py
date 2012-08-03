@@ -7,15 +7,38 @@ import pkgutil
 import re
 import types
 
-from SimpleXMLRPCServer import SimpleXMLRPCServer
+import SimpleXMLRPCServer
+
+def _load_services_into_server(server):
+    """Load all services found in this package into a server.
+
+    If the instance already had services registered, they will be
+    removed and the new services reloaded.
+    """
+
+    services = [
+        imp.find_module(name).load_module(name)
+        for imp, name, ispkg in pkgutil.iter_modules(__path__)
+        if not ispkg
+        ]
+
+    for mod in services:
+        for sym, val in mod.__dict__.items():
+            if isinstance(val, types.FunctionType) \
+                    and re.match("[A-Za-z]\w+", sym):
+                server.register_function(val, mod.__name__ + '.' + sym)
 
 # TODO: Move this class into the mysql.hub.protocol package once we
 # have created support for loading multiple protocol servers.
-class MyXMLRPCServer(SimpleXMLRPCServer):
-    def serve_forever(self):
-	self.__running = True
-	while self.__running:
-	    self.handle_request()
+class MyXMLRPCServer(SimpleXMLRPCServer.SimpleXMLRPCServer):
+    def __init__(self):
+        SimpleXMLRPCServer.SimpleXMLRPCServer.__init__(self)
+        self.__running = False
+
+    def serve_forever(self, poll_interval=0.5):
+        self.__running = True
+        while self.__running:
+            self.handle_request()
 
     def shutdown(self):
         self.__running = False
@@ -31,12 +54,6 @@ class ServiceManager(object):
     constructed, so the load_services have to be called explicitly to
     load the services in the package.
     """
-
-    _SERVICES = [
-        imp.find_module(name).load_module(name)
-        for imp, name, ispkg in pkgutil.iter_modules(__path__)
-        if not ispkg
-        ]
 
     def _register_standard_functions(self, server):
         """Register a set of standard top-level functions with the
@@ -61,7 +78,7 @@ class ServiceManager(object):
 
         self.__manager = manager
 
-        # TODO: Move the setup of the XML-RPC protocol server into the protocols package
+        # TODO: Move setup of XML-RPC protocol server into protocols package
         port = manager.config.getint("protocol.xmlrpc", "port")
         self.__xmlrpc = MyXMLRPCServer(("localhost", port))
         self._register_standard_functions(self.__xmlrpc)
@@ -84,17 +101,4 @@ class ServiceManager(object):
         """
 
         for server in [self.__xmlrpc]:
-            self._load_services_into_server(server)
-
-    def _load_services_into_server(self, server):
-        """Load all services found in this package into a server.
-
-        If the instance already had services registered, they will be
-        removed and the new services reloaded.
-        """
-
-        for mod in self._SERVICES:
-            for sym, val in mod.__dict__.items():
-                if isinstance(val, types.FunctionType) \
-                        and re.match("[A-Za-z]\w+", sym):
-                    server.register_function(val, mod.__name__ + '.' + sym)
+            _load_services_into_server(server)
