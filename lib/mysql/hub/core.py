@@ -1,5 +1,4 @@
 import mysql.hub.executor
-import mysql.hub.resource
 import mysql.hub.services
 
 MANAGER = None
@@ -17,7 +16,6 @@ class Manager(object):
         self.__config = config
         self.__executor = mysql.hub.executor.Executor(self)
         self.__services = mysql.hub.services.ServiceManager(self)
-        self.__resources = mysql.hub.resource.ResourceManager(self)
 
     def start(self):
         self.__services.load_services()
@@ -28,10 +26,6 @@ class Manager(object):
     def shutdown(self):
         self.__executor.shutdown()
         self.__services.shutdown()
-
-    @property
-    def resource(self):
-        return self.__resources
 
     @property
     def executor(self):
