@@ -27,7 +27,7 @@ def primitive(func):
 
     def undo_decorate(undo_func):
         """ This is the undo decorator for the function.
-    
+
         It is used to define an undo decorator which is used to set a function
         that shall be called if the main execution fails.
 
@@ -92,14 +92,10 @@ class Job(object):
     identified so one can query the executor to figure out its outcome.
 
     """
-
-    ERROR = 1
-    SUCCESS = 2
+    ERROR, SUCCESS = range(1,3)
     EVENT_OUTCOME = [ERROR, SUCCESS]
 
-    ENQUEUED = 3
-    PROCESSING = 4
-    COMPLETE = 5
+    ENQUEUED, PROCESSING, COMPLETE = range(3,6)
     EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
 
     def __init__(self, action, description, sync=False):
@@ -201,12 +197,13 @@ class Job(object):
         """
         return self.__status
 
-    def __str__():
-        """Return a description on the job.
+    def __str__(self):
+        """Return a description on the job: <Job object: uuid=..., status=...>.
         """
-        ret = {"uuid" : str(self.__uuid),
-               "status": self.__status if everything else self.status[-1:]
-              }
+        ret = "<Job object: " + \
+               "uuid=" + str(self.__uuid) + ", " + \
+               "status=" + str(self.__status) + \
+               ">"
         return ret
 
 
@@ -289,7 +286,7 @@ class Executor(threading.Thread):
         _LOGGER.debug("Enqueued job (%s).", str(job.uuid))
         job.wait()
 
-        return job 
+        return job
 
     def get_job(self, job_uuid):
         """Retrieve a reference to a job.

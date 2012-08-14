@@ -3,12 +3,15 @@
 import mysql.hub.executor as _executor
 import mysql.hub.errors as _errors
 import unittest
+import logging
 
 from tests.utils import DummyManager
 
 count = []
 other = None
 inc = 0
+
+_LOGGER = logging.getLogger(__name__)
 
 def test1(job):
     global count
@@ -40,13 +43,13 @@ def test3_primitive(job):
 def test1_coordinated(job):
     global inc
     inc += 1
-    
+
 @_executor.coordinated
 def test2_coordinated(job):
     global inc
     inc += 1
     raise Exception("Error...")
-    
+
 class TestExecutor(unittest.TestCase):
     """Test executor.
     """
@@ -63,8 +66,10 @@ class TestExecutor(unittest.TestCase):
         # Scheduling actions to be executed.
         job_1 = self.executor.enqueue_job(test1,
                                           "Enqueuing action test1()", True)
+        _LOGGER.debug("Job 1:"+ str(job_1))
         job_2 = self.executor.enqueue_job(test2,
                                           "Enqueuing action test2()", True)
+        _LOGGER.debug("Job 2:"+ str(job_2))
 
         # Check information on jobs
         job = self.executor.get_job(job_1.uuid)
@@ -89,12 +94,15 @@ class TestExecutor(unittest.TestCase):
         job_primitive_1 = self.executor.enqueue_job(test1_primitive,
                                                     "Enqueuing action test1()",
                                                     True)
+        _LOGGER.debug("Job 1:"+ str(job_primitive_1))
         job_primitive_2 = self.executor.enqueue_job(test2_primitive,
                                                     "Enqueuing action test2()",
                                                     True)
+        _LOGGER.debug("Job 2:"+ str(job_primitive_2))
         job_primitive_3 = self.executor.enqueue_job(test3_primitive,
                                                     "Enqueuing action test3()",
                                                     True)
+        _LOGGER.debug("Job 3:"+ str(job_primitive_3))
 
         # Check information on jobs
         job = self.executor.get_job(job_primitive_1.uuid)
@@ -127,9 +135,11 @@ class TestExecutor(unittest.TestCase):
         job_coordinated_1 = self.executor.enqueue_job(test1_coordinated,
                                                       "Enqueuing action test1()",
                                                       True)
+        _LOGGER.debug("Job 1:"+ str(job_coordinated_1))
         job_coordinated_2 = self.executor.enqueue_job(test2_coordinated,
                                                       "Enqueuing action test2()",
                                                       True)
+        _LOGGER.debug("Job 2:"+ str(job_coordinated_2))
 
         # Check information on jobs
         job = self.executor.get_job(job_coordinated_1.uuid)
@@ -141,7 +151,7 @@ class TestExecutor(unittest.TestCase):
         self.assertTrue(job_coordinated_1.status[-1]["description"] == \
                         "Executed action (test1_coordinated).")
         job = self.executor.get_job(job_coordinated_2.uuid)
-        self.assertTrue(job_coordinated_2.uuid == job.uuid) 
+        self.assertTrue(job_coordinated_2.uuid == job.uuid)
         self.assertTrue(job_coordinated_2.status[-1]["success"] == \
                         _executor.Job.ERROR)
         self.assertTrue(job_coordinated_2.status[-1]["state"] == \
