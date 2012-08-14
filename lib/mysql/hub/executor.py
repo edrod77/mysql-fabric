@@ -2,7 +2,7 @@ import Queue
 import threading
 import logging
 
-_LOGGER = logging.getLogger('mysql.hub')
+_LOGGER = logging.getLogger(__name__)
 
 def primitive(func):
     """Decorator for decorating primitives.
@@ -77,17 +77,16 @@ class Executor(threading.Thread):
         (if they are callable).
         """
 
-        log = self.__manager.logger
         while True:
             action = self.__queue.get(block=True)
-            log.debug("Reading next action from queue, found %s", action)
+            _LOGGER.debug("Reading next action from queue, found %s.", action)
             if action is None:
                 break
             action()
-        log.debug("Exiting Executor thread")
+        _LOGGER.debug("Exiting Executor thread.")
 
     def shutdown(self):
-        self.__manager.logger.info("Shutting down executor")
+        _LOGGER.info("Shutting down executor.")
         self.__queue.put(None)
 
     def enqueue(self, action):

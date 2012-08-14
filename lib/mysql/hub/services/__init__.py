@@ -6,8 +6,10 @@ Services are interfaces accessible externally over the network.
 import pkgutil
 import re
 import types
-
+import logging
 import SimpleXMLRPCServer
+
+_LOGGER = logging.getLogger(__name__)
 
 def _load_services_into_server(server):
     """Load all services found in this package into a server.
@@ -26,13 +28,14 @@ def _load_services_into_server(server):
         for sym, val in mod.__dict__.items():
             if isinstance(val, types.FunctionType) \
                     and re.match("[A-Za-z]\w+", sym):
+                _LOGGER.debug("Registering %s.", mod.__name__ + '.' + sym)
                 server.register_function(val, mod.__name__ + '.' + sym)
 
 # TODO: Move this class into the mysql.hub.protocol package once we
 # have created support for loading multiple protocol servers.
 class MyXMLRPCServer(SimpleXMLRPCServer.SimpleXMLRPCServer):
-    def __init__(self):
-        SimpleXMLRPCServer.SimpleXMLRPCServer.__init__(self)
+    def __init__(self, address):
+        SimpleXMLRPCServer.SimpleXMLRPCServer.__init__(self, address, logRequests=False) 
         self.__running = False
 
     def serve_forever(self, poll_interval=0.5):
@@ -70,7 +73,20 @@ class ServiceManager(object):
             self.__manager.shutdown()
             return True
 
+        def _set_logging_level(module, level):
+            _LOGGER.info("Trying to set logging level (%s) for module (%s)." %\
+                          (level, module))
+            try:
+                __import__(module)
+                logger = logging.getLogger(module)
+                logger.setLevel(level)
+            except Exception as error:
+                _LOGGER.exception(error)
+                return error
+            return True
+
         server.register_function(_kill, "shutdown")
+        server.register_function(_set_logging_level, "set_logging_level")
 
     def __init__(self, manager):
         """Start all protocol services.
@@ -91,8 +107,7 @@ class ServiceManager(object):
     def shutdown(self):
         """Shut down all services managed by the service manager.
         """
-        log = self.__manager.logger
-        log.info("Shutting down service manager")
+        _LOGGER.info("Shutting down service manager")
         self.__xmlrpc.shutdown()
 
     def load_services(self):
@@ -100,5 +115,6 @@ class ServiceManager(object):
         protocol server.
         """
 
+        _LOGGER.info("Loading Services.")
         for server in [self.__xmlrpc]:
             _load_services_into_server(server)

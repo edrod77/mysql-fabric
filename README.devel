@@ -45,7 +45,7 @@ the Python path. There is also a sample configuration file, so you can
 use the following command to start the hub process un-daemonized and
 print debug log messages to the terminal.
 
-    PYTHONPATH=build/lib python build/script/hub-start --config=data/sample.cfg --loglevel=DEBUG
+    PYTHONPATH=build/lib python build/script/hub-start --config=data/sample.cfg
 
 You can stop the hub using:
 

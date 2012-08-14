@@ -97,9 +97,10 @@ class my_build_scripts(_build_scripts):
             cmdname = "hub-" + mod
             outfile = os.path.join(self.build_dir, cmdname)
             distutils.log.info("creating script %s" % (cmdname,))
-            with open(outfile, "w") as out:
+            with open(outfile, "w+") as out:
                 out.writelines(line + "\n" for line in lines)
-            os.chmod(cmdname, stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            os.chmod(outfile, stat.S_IRWXU |
+                     stat.S_IXGRP | stat.S_IXOTH | stat.S_IRGRP | stat.S_IROTH)
 
 class my_build(_build):
     def has_scripts(self):

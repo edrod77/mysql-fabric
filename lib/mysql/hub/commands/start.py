@@ -3,10 +3,12 @@
 
 import logging
 import logging.handlers
-import mysql.hub.config as _config
-import mysql.hub.core as _core
 import os
 import sys
+from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
+
+import mysql.hub.config as _config
+import mysql.hub.core as _core
 
 def _do_fork():
     try:
@@ -54,21 +56,12 @@ def main(argv):
                       dest="daemonize",
                       action="store_true", default=False,
                       help="Daemonize the manager")
-    parser.add_option("--syslog",
-                      dest="syslog",
-                      action="store_true", default=False,
-                      help="Write log messages to syslog")
-    parser.add_option("--loglevel",
-                      action="store", dest="loglevel", default='WARNING',
-                      metavar="LEVEL",
-                      help="Set logging level to LEVEL")
 
     # Parse options
     opt, _args = parser.parse_args(argv)
 
     # TODO: Move all config file handling to mysql.hub.config
-    from ConfigParser import ConfigParser
-    config = ConfigParser(_config.DEFAULTS)
+    config = SafeConfigParser(_config.DEFAULTS)
 
     # Read in basic configuration information
     config.readfp(open(opt.config_file), opt.config_file)
@@ -78,26 +71,36 @@ def main(argv):
     # TODO: Options replace values in config: those should be overwritten
 
     # Set up logger
-    # TODO: Switch to use __name__ ?
+    # We have used a fixed path here, i.e. 'mysql.hub', to make sure that all
+    # subsequent calls to getLogger(__name__) finds a properly configured root.
+    # Notice that __name__ is the module's name and that all our modules have
+    # the prefix 'mysql.hub'.
     logger = logging.getLogger('mysql.hub')
 
+
     # Set up syslog handler, if needed
-    if opt.syslog or opt.daemonize:
-        handler = logging.handlers.SysLogHandler('/dev/log')
+    if opt.daemonize:
+        try:
+            address = config.get('logging.syslog', 'address')
+        except (NoSectionError, NoOptionError) as error:
+            address = '/dev/log' 
+        handler = logging.handlers.SysLogHandler(address)
     else:
         handler = logging.StreamHandler()
 
-    level = logging.getLevelName(opt.loglevel)
-    if isinstance(level, basestring):
-        parser.error("%s is not a level" % (opt.loglevel,))
-
-    logger.setLevel(level)
+    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(threadName)s"\
+                                  " %(thread)d - %(message)s")
+    handler.setFormatter(formatter)
+    try:
+        logging_level = config.get('logging', 'level')
+    except (NoSectionError, NoOptionError) as error:
+        logging_level = logging.DEBUG 
+    logger.setLevel(logging_level)
     logger.addHandler(handler)
 
     # Daemonize ourselves, if we should
     if opt.daemonize:
         daemonize()
 
-    manager = _core.Manager(logger, config)
+    manager = _core.Manager(config)
     manager.start()
-
