@@ -1,6 +1,5 @@
 """Module holding support utilities for tests.
 """
-
 import logging
 
 class NullHandler(logging.Handler):
@@ -9,7 +8,9 @@ class NullHandler(logging.Handler):
 
 class DummyManager(object):
     def __init__(self):
-        handler = NullHandler()
-        self.logger = logging.getLogger('mysql.hub')
-        self.logger.addHandler(handler)
+        self.executor = None
+        self.server = None
+        self.resource = None
 
+_LOGGER = logging.getLogger('mysql.hub')
+_LOGGER.addHandler(NullHandler())

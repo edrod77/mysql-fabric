@@ -1,8 +1,14 @@
 import Queue
 import threading
 import logging
+import uuid
+import traceback
+
+from functools import wraps
+from weakref import WeakValueDictionary
 
 _LOGGER = logging.getLogger(__name__)
+
 
 def primitive(func):
     """Decorator for decorating primitives.
@@ -19,24 +25,33 @@ def primitive(func):
            server.sql("DELETE FROM status(id, status) VALUES (%d, 'Undone')", server.id)
     """
 
-    # This is the undo decorator for the function
-    def undo_decorate(func):
-        func.compensate = func
+    def undo_decorate(undo_func):
+        """ This is the undo decorator for the function.
+    
+        It is used to define an undo decorator which is used to set a function
+        that shall be called if the main execution fails.
 
-    # This is the function that executes the primitive and handles any
-    # errors. If a com
+        """
+        func.compensate = undo_func
+
+    @wraps(func)
     def execute(*args, **kwrd):
+        """ This is the function that executes the primitive and handles any errors.
+        """
         try:
             _LOGGER.debug("Executing %s", func.__name__)
             func(*args, **kwrd)
-        except Exception:       # pylint: disable=W0703
+        except Exception as error:       # pylint: disable=W0703
             _LOGGER.debug("%s failed, executing compensation", func.__name__)
+            _LOGGER.exception(error)
             if func.compensate is not None:
                 func.compensate(*args, **kwrd)
+            raise
 
     func.compensate = None
-    func.undo = undo_decorate
+    execute.undo = undo_decorate
     return execute
+
 
 def coordinated(func):
     """Decorator for defining coordinated function execution.
@@ -48,14 +63,152 @@ def coordinated(func):
       def do_something(server):
          server.whatever()
          server.something_else()
-    """
-    def coord_and_exec(*args, **kwrd):
-        # Here it is possible to call the coordinator
-        _LOGGER.debug("Starting execution of %s", func.__name__)
-        func(*args, **kwrd)
-        _LOGGER.debug("Finishing execution of %s", func.__name__)
 
+    """
+    @wraps(func)
+    def coord_and_exec(*args, **kwrd):
+        _LOGGER.debug("Begin transactional execution of %s.", func.__name__)
+        try:
+            commit = False
+            func(*args, **kwrd)
+            commit = True
+        finally:
+            if commit:
+                _LOGGER.debug("Commit transactional execution of %s.",
+                              func.__name__)
+            else:
+                _LOGGER.debug("Rollback transactional execution of %s.",
+                              func.__name__)
+        return commit
     return coord_and_exec
+
+
+class Job(object):
+    """Class responsible for storing information on a procedure and its
+    execution's status.
+
+    The executor process jobs, which has information on which procedures
+    shall be executed and its execution's status. Jobs are uniquely
+    identified so one can query the executor to figure out its outcome.
+
+    """
+
+    ERROR = 1
+    SUCCESS = 2
+    EVENT_OUTCOME = [ERROR, SUCCESS]
+
+    ENQUEUED = 3
+    PROCESSING = 4
+    COMPLETE = 5
+    EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
+
+    def __init__(self, action, description, sync=False):
+        """Constructor for the job.
+
+        The action is a callback function and if the caller wants to be blocked
+        while the job is being scheduled and than processed the parameter sync
+        must be set to true.
+
+        """
+        self.__uuid = uuid.uuid4()
+        self.__action = action
+        self.__lock = threading.Condition()
+        self.__sync = sync
+        self.__status = []
+        self.add_status(Job.SUCCESS, Job.ENQUEUED, description)
+
+    def add_status(self, success, state, description, diagnosis=False):
+        """Add a new status to this job.
+
+        A status has the following format:
+           { "success" : success,
+             "state" : state,
+             "description" : description,
+             "diagnosis" : trace
+           }
+
+        """
+        try:
+            self.__lock.acquire()
+            assert(success in Job.EVENT_OUTCOME)
+            assert(state in Job.EVENT_STATE)
+            if not diagnosis:
+                trace = ""
+            else:
+                trace = traceback.format_exc()
+            status = { "success" : success,
+                       "state" : state,
+                       "description" : description,
+                       "diagnosis" : trace
+                     }
+            self.__status.append(status)
+        finally:
+            self.__lock.release()
+
+    def wait(self):
+        """Block the caller until the job is complete.
+        """
+        if not self.__sync:
+           return
+        self.__lock.acquire()
+        while self.__sync:
+            self.__lock.wait()
+        self.__lock.release()
+
+    def notify(self):
+        """Notify blocked caller that the job is complete.
+        """
+        if not self.__sync:
+           return
+        self.__lock.acquire()
+        self.__sync = False
+        self.__lock.notify_all()
+        self.__lock.release()
+
+    def __eq__(self,  other):
+        """Define that two jobs are equal if they have the same uuid.
+        """
+        return self.__uuid == other.uuid
+
+    def __neq__(self,  other):
+        """Define that two jobs are not equal if they do not have the same
+        uuid.
+        """
+        return self.__uuid != other.uuid
+
+    def __hash__(self):
+        """Define that a job is hashable through the uuid.
+        """
+        return hash(self.__uuid)
+
+    @property
+    def uuid(self):
+        """Return the job's uuid.
+        """
+        return self.__uuid
+
+    @property
+    def action(self):
+        """Return a reference to the callback procedure that is called by
+           the executor.
+        """
+        return self.__action
+
+    @property
+    def status(self):
+        """Return a reference to the dictionary where the job's statuses are
+        stored.
+        """
+        return self.__status
+
+    def __str__():
+        """Return a description on the job.
+        """
+        ret = {"uuid" : str(self.__uuid),
+               "status": self.__status if everything else self.status[-1:]
+              }
+        return ret
+
 
 class Executor(threading.Thread):
     """Class responsible for dispatching execution of procedures.
@@ -69,25 +222,85 @@ class Executor(threading.Thread):
         super(Executor, self).__init__(name="Executor")
         self.__queue = Queue.Queue()
         self.__manager = manager
+        self.__jobs = WeakValueDictionary()
 
     def run(self):
         """Run the executor thread.
 
         Right now, it only read objects from the queue and call them
         (if they are callable).
+
         """
 
         while True:
-            action = self.__queue.get(block=True)
-            _LOGGER.debug("Reading next action from queue, found %s.", action)
-            if action is None:
+            job = self.__queue.get(block=True)
+            _LOGGER.debug("Reading next job from queue, found %s.", job)
+            if job is None:
                 break
-            action()
-        _LOGGER.debug("Exiting Executor thread.")
+            _LOGGER.debug("Reading next job from queue, found job "
+                          "(%s).", job.uuid)
+            try:
+                job.action(job)
+            except Exception as error:
+                _LOGGER.exception(error)
+                job.add_status(job.ERROR, job.COMPLETE,
+                "Tried to execute action ({0}).".format(job.action.__name__),
+                True)
+            else:
+                job.add_status(job.SUCCESS, job.COMPLETE,
+                "Executed action ({0}).".format(job.action.__name__))
+            finally:
+                job.notify()
+
+        # The current shutdown routine is not 100% clean in the sense
+        # that jobs may be scheduled after requesting the shutdown.
+        # Notice however that the jobs shecduled before the shutdown
+        # being requested are processed.
+        # Maybe we should define a safe and an immediate shutdown.
+        _LOGGER.debug("Checking if there is unprocessed jobs.")
+        try:
+            while True:
+                job = self.__queue.get_nowait()
+                _LOGGER.debug("Unprocessed job from queue, found job "
+                              "(%s).", job.uuid)
+        except Queue.Empty as error:
+            pass
 
     def shutdown(self):
+        """Shut down the executor.
+        """
         _LOGGER.info("Shutting down executor.")
         self.__queue.put(None)
 
-    def enqueue(self, action):
-        self.__queue.put(action)
+    def enqueue_job(self, action, description, sync=False):
+        """Schedule a job to be executed.
+
+        The action is a callback function and if the caller wants to be blocked
+        while the job is being scheduled and than processed the parameter sync
+        must be set to true.
+
+        """
+        #TODO: Check for concurrency issues.
+        job = Job(action, description, sync)
+        _LOGGER.debug("Created job (%s) whose description is (%s).",
+                      str(job.uuid), description)
+        self.__jobs[job.uuid] = job
+        self.__queue.put(job)
+        _LOGGER.debug("Enqueued job (%s).", str(job.uuid))
+        job.wait()
+
+        return job 
+
+    def get_job(self, job_uuid):
+        """Retrieve a reference to a job.
+        """
+        assert(isinstance(job_uuid, uuid.UUID))
+        _LOGGER.debug("Checking job (%s).", str(job_uuid))
+        #TODO: Check for concurrency issues.
+        try:
+            job = self.__jobs[job_uuid]
+        except (KeyError, ValueError) as error:
+            _LOGGER.exception(error)
+            job = None
+
+        return job
