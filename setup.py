@@ -106,7 +106,7 @@ class my_build_scripts(_build_scripts):
             outfile = os.path.join(self.build_dir, cmdname)
 
             distutils.log.info("creating script %s" % (cmdname,))
-            with open(outfile, "w") as out:
+            with open(outfile, "w+") as out:
                 out.writelines(line + "\n" for line in lines)
             os.chmod(outfile, 0755)
 
