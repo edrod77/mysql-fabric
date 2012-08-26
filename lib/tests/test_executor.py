@@ -50,6 +50,19 @@ def test2_coordinated(job):
     inc += 1
     raise Exception("Error...")
 
+class Action(object):
+    def __init__(self, expect):
+        self.expect = expect
+        self.descr = "{0}({1})".format(self.__class__.__name__, expect)
+        self.__name__ = self.descr
+        self.result = None
+
+    def __call__(self, job):
+        self.result = job.args[0]
+
+    def verify(self, test_case):
+        test_case.assertEqual(self.result, self.expect)
+
 class TestExecutor(unittest.TestCase):
     """Test executor.
     """
@@ -74,12 +87,10 @@ class TestExecutor(unittest.TestCase):
         # Check information on jobs
         job = self.executor.get_job(job_1.uuid)
         self.assertTrue(job_1.uuid == job.uuid)
-        self.assertTrue(job_1.status[-1]["success"] == \
-                        _executor.Job.SUCCESS)
-        self.assertTrue(job_1.status[-1]["state"] == \
-                        _executor.Job.COMPLETE)
-        self.assertTrue(job_1.status[-1]["description"] == \
-                        "Executed action (test1).")
+        status = job_1.status[-1]
+        self.assertEqual(status["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status["description"], "Executed action (test1).")
 
         job = self.executor.get_job(job_2.uuid)
         self.assertTrue(job_2.uuid == job.uuid)
@@ -167,6 +178,41 @@ class TestExecutor(unittest.TestCase):
         for cnt in range(10, 1, -1):
             self.assertTrue(cnt in count)
         self.assertEqual(other, 47)
+
+    def test_bad_cases(self):
+        "Test that error cases are caught."
+        self.assertRaises(_errors.NotCallableError, self.executor.enqueue_job,
+                          3, "Enqueue integer", True)
+
+    def test_multi_dispatch(self):
+        """Test that we can dispatch multiple events without waiting
+        for them and then reap them afterwards.
+        """
+
+        # Enqueue several jobs at the same time. Since the executor is
+        # not running, we should be able to do this despite the fact
+        # that it is not running.
+        jobs = []
+        for num in range(1, 10, 2):
+            action = Action(num)
+            job = self.executor.enqueue_job(action, action.descr,
+                                            False, [action.expect])
+            jobs.append(job)
+
+        # Check that no jobs are complete
+        for job in jobs:
+            self.assertFalse(job.complete)
+
+        self.executor.start()
+
+        # Wait for all jobs and check that they update the Action
+        # object to the correct value.
+        for job in jobs:
+            job.wait()
+            job.action.verify(self)
+
+        self.executor.shutdown()
+        self.executor.join()
 
 if __name__ == "__main__":
     unittest.main()
