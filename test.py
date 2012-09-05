@@ -1,5 +1,6 @@
-import sys
+import logging
 import os.path
+import sys
 
 # Compute the directory where this script is. We have to do this
 # fandango since the script may be called from another directory than
@@ -22,6 +23,9 @@ def get_options():
     # TODO: Fix option parsing so that -vvv and --verbosity=3 give same effect.
     parser.add_option("-v", action="count", dest="verbosity",
                       help="Verbose mode. Multiple options increase verbosity")
+    parser.add_option("--loglevel", action="store", dest="loglevel",
+                      help="Set loglevel for debug output. "
+                      "If not given, logging will be disabled.")
     return parser.parse_args()
 
 def run_tests(pkg, opt, args):
@@ -33,5 +37,13 @@ def run_tests(pkg, opt, args):
 
 if __name__ == '__main__':
     opt, args = get_options()
+    if opt.loglevel is not None:
+        logger = logging.getLogger("mysql.hub")
+        logger.setLevel(opt.loglevel)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+            "[%(levelname)s] %(asctime)s - %(threadName)s %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
     result = run_tests('tests', opt, args)
     sys.exit(not result.wasSuccessful())

@@ -2,12 +2,18 @@ import distutils
 import glob
 import os
 import stat
+import sys
 
 from distutils.command.build_scripts import build_scripts as _build_scripts
 from distutils.command.build import build as _build
 from distutils.core import setup
 from distutils.util import convert_path
 
+sys.path.insert(0, os.path.abspath('lib'))
+
+def fetch_version(module_name):
+    mod = __import__(module_name, globals(), locals(), ['__version__'])
+    return mod.__version__
 
 def find_packages(*args, **kwrds):
     """Find all packages and sub-packages and return a list of them.
@@ -42,7 +48,7 @@ def find_packages(*args, **kwrds):
 
 META_INFO = {
     'name': "mysql-hub",
-    'version': "0.1",
+    'version': fetch_version('mysql.hub'),
     'license': "GPLv2",
     'description': "Management system for MySQL deployments",
     'packages': find_packages("lib", exclude=["tests"]),
@@ -93,14 +99,16 @@ class my_build_scripts(_build_scripts):
                 "main(sys.argv[1:])",
                 ]
 
-            # Write the file contents
-            cmdname = "hub-" + mod
+            # Name of the command
+            cmdname = "hub-" + mod 
+
+            # Full path name of the output file
             outfile = os.path.join(self.build_dir, cmdname)
+
             distutils.log.info("creating script %s" % (cmdname,))
             with open(outfile, "w+") as out:
                 out.writelines(line + "\n" for line in lines)
-            os.chmod(outfile, stat.S_IRWXU |
-                     stat.S_IXGRP | stat.S_IXOTH | stat.S_IRGRP | stat.S_IROTH)
+            os.chmod(outfile, 0755)
 
 class my_build(_build):
     def has_scripts(self):

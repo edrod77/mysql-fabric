@@ -7,6 +7,8 @@ import traceback
 from functools import wraps
 from weakref import WeakValueDictionary
 
+import mysql.hub.errors as _errors
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -101,7 +103,7 @@ class Job(object):
     ENQUEUED, PROCESSING, COMPLETE = range(3, 6)
     EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
 
-    def __init__(self, action, description, sync=False):
+    def __init__(self, action, description, args):
         """Constructor for the job.
 
         The action is a callback function and if the caller wants to be blocked
@@ -109,17 +111,21 @@ class Job(object):
         must be set to true.
 
         """
+        if not callable(action):
+            raise _errors.NotCallableError("Callable expected")
+
         self.__uuid = uuid.uuid4()
         self.__action = action
         self.__lock = threading.Condition()
-        self.__sync = sync
+        self.__complete = False
         self.__status = []
+        self.__args = [] if args is None else args
         self.add_status(Job.SUCCESS, Job.ENQUEUED, description)
 
     def add_status(self, success, state, description, diagnosis=False):
         """Add a new status to this job.
 
-        A status has the following format:
+        A status has the following format::
            { "success" : success,
              "state" : state,
              "description" : description,
@@ -147,20 +153,22 @@ class Job(object):
     def wait(self):
         """Block the caller until the job is complete.
         """
-        if not self.__sync:
-            return
+        _LOGGER.debug("Waiting for %s", self.uuid)
+        if self.__complete:
+           return
         self.__lock.acquire()
-        while self.__sync:
+        while not self.__complete:
             self.__lock.wait()
         self.__lock.release()
 
     def notify(self):
         """Notify blocked caller that the job is complete.
         """
-        if not self.__sync:
-            return
+        _LOGGER.debug("Completing job %s", self.uuid)
+        if self.__complete:
+           return
         self.__lock.acquire()
-        self.__sync = False
+        self.__complete = True
         self.__lock.notify_all()
         self.__lock.release()
 
@@ -187,11 +195,24 @@ class Job(object):
         return self.__uuid
 
     @property
+    def complete(self):
+        "Is the job complete?"
+        return self.__complete
+
+    @property
     def action(self):
-        """Return a reference to the callback procedure that is called by
-           the executor.
+        """Return a reference to the callable that is called by the
+        executor.
         """
         return self.__action
+
+    @property
+    def args(self):
+        """Return the arguments passed when enqueing the job.
+
+        The arguments are always an iterable.
+        """
+        return self.__args
 
     @property
     def status(self):
@@ -237,8 +258,6 @@ class Executor(threading.Thread):
             _LOGGER.debug("Reading next job from queue, found %s.", job)
             if job is None:
                 break
-            _LOGGER.debug("Reading next job from queue, found job "
-                          "(%s).", job.uuid)
             try:
                 job.action(job)
             except Exception as error:
@@ -272,23 +291,31 @@ class Executor(threading.Thread):
         _LOGGER.info("Shutting down executor.")
         self.__queue.put(None)
 
-    def enqueue_job(self, action, description, sync=False):
+    def enqueue_job(self, action, description, sync=False, args=None):
         """Schedule a job to be executed.
 
-        The action is a callback function and if the caller wants to be blocked
-        while the job is being scheduled and than processed the parameter sync
-        must be set to true.
+        The action is a callback function and if the caller wants to
+        be blocked while the job is being scheduled and than processed
+        the parameter sync must be set to true.
 
+        :param action: Callable to execute.
+        :param description: Description of the job.
+        :param sync: If True, the caller will be blocked until the job
+                     has finished. If False, the function will return
+                     immediately.
+        :param args: Arguments to pass to the job.
+        :return: Reference to job that was scheduled
+        :rtype: Job
         """
         #TODO: Check for concurrency issues.
-        job = Job(action, description, sync)
+        job = Job(action, description, args)
         _LOGGER.debug("Created job (%s) whose description is (%s).",
                       str(job.uuid), description)
         self.__jobs[job.uuid] = job
         self.__queue.put(job)
         _LOGGER.debug("Enqueued job (%s).", str(job.uuid))
-        job.wait()
-
+        if sync:
+            job.wait()
         return job
 
     def get_job(self, job_uuid):

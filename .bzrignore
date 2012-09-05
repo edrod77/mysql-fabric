@@ -2,3 +2,6 @@
 *.py[co]
 dist
 build
+cobertura
+coverage.xml
+htmlcov
