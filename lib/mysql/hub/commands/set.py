@@ -4,37 +4,25 @@ This is handy when one wants to debug the application but does not want to
 restart it.
 """
 
-import mysql.hub.config as _config
 import sys
 import xmlrpclib
 
+import mysql.hub.config as _config
+
 def main(argv):
-    from optparse import OptionParser
+    from mysql.hub.options import OptionParser
     parser = OptionParser()
 
-    parser.add_option("--config",
-                      action="store", dest="config_file", default="hub.cfg",
-                      metavar="FILE",
-                      help="Read configuration from FILE")
-    parser.add_option("--loglevel",
-                      action="store", dest="loglevel", default='INFO',
-                      metavar="LEVEL",
-                      help="Set logging level to LEVEL")
-
     module = argv[0]
-    opt, args = parser.parse_args(argv[1:])
+    options, _args = parser.parse_args(argv[1:])
+    config = _config.Config(options.config_file, options.config_params,
+                            options.ignore_site_config)
 
-    # TODO: Move all config file handling to mysql.hub.config
-    from ConfigParser import ConfigParser
-    config = ConfigParser(_config.DEFAULTS)
-
-    # Read in basic configuration information
-    config.readfp(open(opt.config_file), opt.config_file)
-
-    # TODO: We should support configuration files for at least: instance, user, site
-    port = config.getint("protocol.xmlrpc", "port")
-    proxy = xmlrpclib.ServerProxy("http://localhost:%d/" % (port,))
+    address = config.get("protocol.xmlrpc", "address")
+    host, port = address.split(":")
+    proxy = xmlrpclib.ServerProxy("http://%s:%s/" % (host, port))
     try:
-        proxy.set_logging_level(module, opt.loglevel)
+        loglevel = config.get('logging', 'level')
+        proxy.set_logging_level(module, loglevel)
     except xmlrpclib.Fault, err:
         print >> sys.stderr, "Failure (%d): %s" % (err.faultCode, err.faultString)

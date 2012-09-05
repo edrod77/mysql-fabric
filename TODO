@@ -1,8 +1,4 @@
    
-* Move configuration file handling to mysql.hub.config
-
-- Support multiple configuration files
-
 * Move option handling to mysql.hub.options
 
 - Add all default options

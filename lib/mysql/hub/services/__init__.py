@@ -7,7 +7,7 @@ import pkgutil
 import re
 import types
 import logging
-import SimpleXMLRPCServer
+import SimpleXMLRPCServer as _xmlrpc
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,9 +33,9 @@ def _load_services_into_server(server):
 
 # TODO: Move this class into the mysql.hub.protocol package once we
 # have created support for loading multiple protocol servers.
-class MyXMLRPCServer(SimpleXMLRPCServer.SimpleXMLRPCServer):
+class MyXMLRPCServer(_xmlrpc.SimpleXMLRPCServer):
     def __init__(self, address):
-        SimpleXMLRPCServer.SimpleXMLRPCServer.__init__(self, address, logRequests=False) 
+        _xmlrpc.SimpleXMLRPCServer.__init__(self, address, logRequests=False)
         self.__running = False
 
     def serve_forever(self, poll_interval=0.5):
@@ -95,8 +95,9 @@ class ServiceManager(object):
         self.__manager = manager
 
         # TODO: Move setup of XML-RPC protocol server into protocols package
-        port = manager.config.getint("protocol.xmlrpc", "port")
-        self.__xmlrpc = MyXMLRPCServer(("localhost", port))
+        address = manager.config.get("protocol.xmlrpc", "address")
+        _host, port = address.split(':')
+        self.__xmlrpc = MyXMLRPCServer(("localhost", int(port)))
         self._register_standard_functions(self.__xmlrpc)
 
     def start(self):

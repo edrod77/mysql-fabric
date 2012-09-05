@@ -18,25 +18,28 @@ def primitive(func):
 
         @primitive
         def write_status(server):
-           server.sql("INSERT INTO status(id, status) VALUES (%d, 'In Progress')", server.id)
+           server.sql("INSERT INTO status VALUES (%d, 'In Progress')",
+                      server.id)
 
         @write_status.undo
         def unwrite_status(server):
-           server.sql("DELETE FROM status(id, status) VALUES (%d, 'Undone')", server.id)
+           server.sql("DELETE FROM status VALUES (%d, 'Undone')",
+           server.id)
     """
 
     def undo_decorate(undo_func):
         """ This is the undo decorator for the function.
 
-        It is used to define an undo decorator which is used to set a function
-        that shall be called if the main execution fails.
+        It is used to define an undo decorator which is used to set a
+        function that shall be called if the main execution fails.
 
         """
         func.compensate = undo_func
 
     @wraps(func)
     def execute(*args, **kwrd):
-        """ This is the function that executes the primitive and handles any errors.
+        """ This is the function that executes the primitive and
+        handles any errors.
         """
         try:
             _LOGGER.debug("Executing %s", func.__name__)
@@ -92,10 +95,10 @@ class Job(object):
     identified so one can query the executor to figure out its outcome.
 
     """
-    ERROR, SUCCESS = range(1,3)
+    ERROR, SUCCESS = range(1, 3)
     EVENT_OUTCOME = [ERROR, SUCCESS]
 
-    ENQUEUED, PROCESSING, COMPLETE = range(3,6)
+    ENQUEUED, PROCESSING, COMPLETE = range(3, 6)
     EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
 
     def __init__(self, action, description, sync=False):
@@ -145,7 +148,7 @@ class Job(object):
         """Block the caller until the job is complete.
         """
         if not self.__sync:
-           return
+            return
         self.__lock.acquire()
         while self.__sync:
             self.__lock.wait()
@@ -155,7 +158,7 @@ class Job(object):
         """Notify blocked caller that the job is complete.
         """
         if not self.__sync:
-           return
+            return
         self.__lock.acquire()
         self.__sync = False
         self.__lock.notify_all()

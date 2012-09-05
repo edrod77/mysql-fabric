@@ -5,10 +5,10 @@ import logging
 import logging.handlers
 import os
 import sys
-from ConfigParser import SafeConfigParser, NoSectionError, NoOptionError
 
-import mysql.hub.config as _config
 import mysql.hub.core as _core
+
+from mysql.hub.config import Config
 
 def _do_fork():
     try:
@@ -45,61 +45,45 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
 
 def main(argv):
     # TODO: Move all option file handling to mysql.hub.options
-    from optparse import OptionParser
+    from mysql.hub.options import OptionParser
     parser = OptionParser()
 
-    parser.add_option("--config",
-                      action="store", dest="config_file", default="hub.cfg",
-                      metavar="FILE",
-                      help="Read configuration from FILE")
-    parser.add_option("--daemonize",
-                      dest="daemonize",
-                      action="store_true", default=False,
-                      help="Daemonize the manager")
+    parser.add_option(
+        "--daemonize",
+        dest="daemonize",
+        action="store_true", default=False,
+        help="Daemonize the manager")
 
     # Parse options
-    opt, _args = parser.parse_args(argv)
-
-    # TODO: Move all config file handling to mysql.hub.config
-    config = SafeConfigParser(_config.DEFAULTS)
-
-    # Read in basic configuration information
-    config.readfp(open(opt.config_file), opt.config_file)
-
-    # TODO: Support configuration files for at least: instance, user, site
-
-    # TODO: Options replace values in config: those should be overwritten
+    options, _args = parser.parse_args(argv)
+    config = Config(options.config_file, options.config_params,
+                    options.ignore_site_config)
 
     # Set up logger
-    # We have used a fixed path here, i.e. 'mysql.hub', to make sure that all
-    # subsequent calls to getLogger(__name__) finds a properly configured root.
-    # Notice that __name__ is the module's name and that all our modules have
-    # the prefix 'mysql.hub'.
+    # We have used a fixed path here, i.e. 'mysql.hub', to make sure
+    # that all subsequent calls to getLogger(__name__) finds a
+    # properly configured root.  Notice that __name__ is the module's
+    # name and that all our modules have the prefix 'mysql.hub'.
     logger = logging.getLogger('mysql.hub')
 
 
     # Set up syslog handler, if needed
-    if opt.daemonize:
-        try:
-            address = config.get('logging.syslog', 'address')
-        except (NoSectionError, NoOptionError) as error:
-            address = '/dev/log' 
+    if options.daemonize:
+        address = config.get('logging.syslog', 'address')
         handler = logging.handlers.SysLogHandler(address)
     else:
         handler = logging.StreamHandler()
 
-    formatter = logging.Formatter("[%(levelname)s] %(asctime)s - %(threadName)s"\
-                                  " %(thread)d - %(message)s")
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(asctime)s - %(threadName)s"
+        " %(thread)d - %(message)s")
     handler.setFormatter(formatter)
-    try:
-        logging_level = config.get('logging', 'level')
-    except (NoSectionError, NoOptionError) as error:
-        logging_level = logging.DEBUG 
+    logging_level = config.get('logging', 'level')
     logger.setLevel(logging_level)
     logger.addHandler(handler)
 
     # Daemonize ourselves, if we should
-    if opt.daemonize:
+    if options.daemonize:
         daemonize()
 
     manager = _core.Manager(config)
