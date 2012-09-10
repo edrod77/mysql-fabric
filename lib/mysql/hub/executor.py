@@ -165,8 +165,6 @@ class Job(object):
         """Notify blocked caller that the job is complete.
         """
         _LOGGER.debug("Completing job %s", self.uuid)
-        if self.__complete:
-           return
         self.__lock.acquire()
         self.__complete = True
         self.__lock.notify_all()
@@ -175,13 +173,7 @@ class Job(object):
     def __eq__(self,  other):
         """Define that two jobs are equal if they have the same uuid.
         """
-        return self.__uuid == other.uuid
-
-    def __neq__(self,  other):
-        """Define that two jobs are not equal if they do not have the same
-        uuid.
-        """
-        return self.__uuid != other.uuid
+        return isinstance(other, Job) and self.__uuid == other.uuid
 
     def __hash__(self):
         """Define that a job is hashable through the uuid.
@@ -248,11 +240,9 @@ class Executor(threading.Thread):
     def run(self):
         """Run the executor thread.
 
-        Right now, it only read objects from the queue and call them
-        (if they are callable).
+        Read callable objects from the queue and call them.
 
         """
-
         while True:
             job = self.__queue.get(block=True)
             _LOGGER.debug("Reading next job from queue, found %s.", job)
@@ -275,7 +265,7 @@ class Executor(threading.Thread):
         # that jobs may be scheduled after requesting the shutdown.
         # Notice however that the jobs shecduled before the shutdown
         # being requested are processed.
-        # Maybe we should define a safe and an immediate shutdown.
+        # TODO: Maybe we should define a safe and an immediate shutdown.
         _LOGGER.debug("Checking if there is unprocessed jobs.")
         try:
             while True:

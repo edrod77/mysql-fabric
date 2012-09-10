@@ -1,9 +1,11 @@
 """Unit tests for the executor.
 """
-import mysql.hub.executor as _executor
-import mysql.hub.errors as _errors
 import unittest
 import logging
+import uuid
+
+import mysql.hub.executor as _executor
+import mysql.hub.errors as _errors
 
 from tests.utils import DummyManager
 
@@ -178,11 +180,31 @@ class TestExecutor(unittest.TestCase):
         for cnt in range(10, 1, -1):
             self.assertTrue(cnt in count)
         self.assertEqual(other, 47)
+ 
+    def test_job_hashable(self):
+        def action():
+          pass
+        job_1 = _executor.Job(action, "Test action.", None)
+        job_2 = _executor.Job(action, "Test action.", None)
+        set_jobs = set()
+        set_jobs.add(job_1)
+        set_jobs.add(job_2)
+        set_jobs.add(job_1)
+        set_jobs.add(job_2)
+        self.assertEqual(len(set_jobs), 2)
+        self.assertEqual(job_1, job_1)
+        self.assertNotEqual(job_1, job_2)
 
     def test_bad_cases(self):
         "Test that error cases are caught."
+        # Check if the action is callable.
         self.assertRaises(_errors.NotCallableError, self.executor.enqueue_job,
                           3, "Enqueue integer", True)
+
+        # Check unknown job.
+        job = self.executor.get_job(uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
+        self.assertEqual(job, None)
+        
 
     def test_multi_dispatch(self):
         """Test that we can dispatch multiple events without waiting
@@ -213,6 +235,7 @@ class TestExecutor(unittest.TestCase):
 
         self.executor.shutdown()
         self.executor.join()
+
 
 if __name__ == "__main__":
     unittest.main()
