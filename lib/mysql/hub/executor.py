@@ -126,26 +126,33 @@ class Job(object):
         """Add a new status to this job.
 
         A status has the following format::
-           { "success" : success,
-             "state" : state,
-             "description" : description,
-             "diagnosis" : trace
-           }
+
+          status = {
+            "success" : success,
+            "state" : state,
+            "description" : description,
+            "diagnosis" : "" if not diagnosis else \\
+                          traceback.format_exc()
+          }
+
+        :param success: Execution's outcome.
+        :param state: Execution's state.
+        :param description: Description of the state.
+        :type success: Member of Job.EVENT_OUTCOME
+        :type state: Member of Job.EVENT_STATE
 
         """
         try:
             self.__lock.acquire()
             assert(success in Job.EVENT_OUTCOME)
             assert(state in Job.EVENT_STATE)
-            if not diagnosis:
-                trace = ""
-            else:
-                trace = traceback.format_exc()
-            status = { "success" : success,
-                       "state" : state,
-                       "description" : description,
-                       "diagnosis" : trace
-                     }
+            status = {
+                      "success" : success,
+                      "state" : state,
+                      "description" : description,
+                      "diagnosis" : "" if not diagnosis else \
+                                    traceback.format_exc(),
+            }
             self.__status.append(status)
         finally:
             self.__lock.release()
@@ -294,8 +301,8 @@ class Executor(threading.Thread):
                      has finished. If False, the function will return
                      immediately.
         :param args: Arguments to pass to the job.
-        :return: Reference to job that was scheduled
-        :rtype: Job
+        :return: Reference to job that was scheduled.
+        :rtype: Job.
         """
         #TODO: Check for concurrency issues.
         job = Job(action, description, args)
