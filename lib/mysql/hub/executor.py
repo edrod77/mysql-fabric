@@ -155,7 +155,7 @@ class Job(object):
         """
         _LOGGER.debug("Waiting for %s", self.uuid)
         if self.__complete:
-           return
+            return
         self.__lock.acquire()
         while not self.__complete:
             self.__lock.wait()
@@ -171,12 +171,12 @@ class Job(object):
         self.__lock.release()
 
     def __eq__(self,  other):
-        """Define that two jobs are equal if they have the same uuid.
+        """Two jobs are equal if they have the same uuid.
         """
         return isinstance(other, Job) and self.__uuid == other.uuid
 
     def __hash__(self):
-        """Define that a job is hashable through the uuid.
+        """A job is hashable through its uuid.
         """
         return hash(self.__uuid)
 
@@ -294,7 +294,7 @@ class Executor(threading.Thread):
                      has finished. If False, the function will return
                      immediately.
         :param args: Arguments to pass to the job.
-        :return: Reference to job that was scheduled
+        :return: Reference to a job that was scheduled.
         :rtype: Job
         """
         #TODO: Check for concurrency issues.
