@@ -31,6 +31,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.autodoc',
+    'sphinxcontrib.seqdiag',
     ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -247,3 +248,6 @@ texinfo_documents = [
 
 # How to display URL addresses: 'footnote', 'no', or 'inline'.
 #texinfo_show_urls = 'footnote'
+
+# Do we show todos?
+#todo_include_todos = True

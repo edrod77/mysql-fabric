@@ -4,6 +4,17 @@
 This is a management system for managing a deployment of MySQL
 servers.
 
+
+Dependencies
+------------
+
+To build the documentation, you need to have Sphinx installed. The
+documentation also requires adding seqdiag to build. These can be
+installed from PyPI using:
+
+    pip install sphinx sphinxcontrib-seqdiag
+
+
 Installation
 ------------
 
@@ -14,6 +25,7 @@ You can install the MySQL Hub using:
 
 This will install the 'mysql.hub' package (and all sub-packages) and a
 set of command-line scripts that are used to administer the hub.
+
 
 Running unit tests
 ------------------

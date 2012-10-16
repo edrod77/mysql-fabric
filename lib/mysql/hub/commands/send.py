@@ -1,7 +1,4 @@
-"""Change logging level for an specific module.
-
-This is handy when one wants to debug the application but does not want to
-restart it.
+"""Send an event to a Fabric node.
 """
 
 import sys
@@ -19,10 +16,10 @@ def main(argv):
 
     address = config.get("protocol.xmlrpc", "address")
     host, port = address.split(":")
-    proxy = xmlrpclib.ServerProxy("http://%s:%s/" % (host, port))
-    module = args.pop()
+    proxy = xmlrpclib.ServerProxy("http://%s:%s" % (host, port))
+    event = args.pop(0)
     try:
-        loglevel = config.get('logging', 'level')
-        proxy.set_logging_level(module, loglevel)
+        return proxy.event.trigger(event, *args)
     except xmlrpclib.Fault, err:
-        print >> sys.stderr, "Failure (%d): %s" % (err.faultCode, err.faultString)
+        msg = "Failure (%d): %s" % (err.faultCode, err.faultString)
+        print >> sys.stderr, msg

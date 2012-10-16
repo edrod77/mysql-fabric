@@ -9,3 +9,4 @@ Contents
    core
    errors
    executor
+   events

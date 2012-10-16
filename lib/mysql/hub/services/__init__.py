@@ -3,11 +3,12 @@
 Services are interfaces accessible externally over the network.
 """
 
+import SimpleXMLRPCServer as _xmlrpc
+import logging
 import pkgutil
 import re
+import threading
 import types
-import logging
-import SimpleXMLRPCServer as _xmlrpc
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class MyXMLRPCServer(_xmlrpc.SimpleXMLRPCServer):
     def shutdown(self):
         self.__running = False
 
-class ServiceManager(object):
+class ServiceManager(threading.Thread):
     """This is the service manager, which processes service requests.
 
     The service manager is currently implemented as an XML-RPC server,
@@ -63,7 +64,10 @@ class ServiceManager(object):
         protocol server.
 
         shutdown
-           Shutdown the entire manager.
+           Shutdown the entire Fabric node.
+
+        set_logging_level
+           Set the logging level of the Fabric node.
         """
 
         # It is necessary to create a separate function since the
@@ -89,9 +93,9 @@ class ServiceManager(object):
         server.register_function(_set_logging_level, "set_logging_level")
 
     def __init__(self, manager):
-        """Start all protocol services.
+        """Setup all protocol services.
         """
-
+        super(ServiceManager, self).__init__(name="ServiceManager")
         self.__manager = manager
 
         # TODO: Move setup of XML-RPC protocol server into protocols package
@@ -100,10 +104,16 @@ class ServiceManager(object):
         self.__xmlrpc = MyXMLRPCServer(("localhost", int(port)))
         self._register_standard_functions(self.__xmlrpc)
 
-    def start(self):
-        """Start all services managed by the service manager.
+    def run(self):
+        """Start and run all services managed by the service manager.
+
+        There can be multiple protocol servers active, so this
+        function will just dispatch the threads for handling those
+        servers and then return.
         """
+        _LOGGER.info("XML-RPC protocol server started")
         self.__xmlrpc.serve_forever()
+        _LOGGER.info("XML-RPC protocol server stopped")
 
     def shutdown(self):
         """Shut down all services managed by the service manager.
@@ -117,5 +127,6 @@ class ServiceManager(object):
         """
 
         _LOGGER.info("Loading Services.")
+        self.__xmlrpc.register_introspection_functions()
         for server in [self.__xmlrpc]:
             _load_services_into_server(server)

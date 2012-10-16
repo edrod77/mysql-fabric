@@ -188,6 +188,11 @@ class Job(object):
         """
         return hash(self.__uuid)
 
+    def execute(self):
+        """Execute the job.
+        """
+        return self.__action(self)
+
     @property
     def uuid(self):
         """Return the job's uuid.
@@ -259,7 +264,7 @@ class Executor(threading.Thread):
             if job is None:
                 break
             try:
-                job.action(job)
+                job.execute()
             except Exception as error:
                 _LOGGER.exception(error)
                 job.add_status(job.ERROR, job.COMPLETE,
@@ -269,6 +274,7 @@ class Executor(threading.Thread):
                 job.add_status(job.SUCCESS, job.COMPLETE,
                 "Executed action ({0}).".format(job.action.__name__))
             finally:
+                self.__queue.task_done()
                 job.notify()
 
         # The current shutdown routine is not 100% clean in the sense

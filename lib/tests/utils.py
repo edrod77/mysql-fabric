@@ -1,6 +1,8 @@
 """Module holding support utilities for tests.
 """
 import logging
+import sys
+import unittest
 
 class NullHandler(logging.Handler):
     def emit(self, record):
