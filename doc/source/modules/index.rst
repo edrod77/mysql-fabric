@@ -10,3 +10,4 @@ Contents
    errors
    executor
    events
+   server
