@@ -217,7 +217,7 @@ class TestService(unittest.TestCase):
 
     def setUp(self):
         logger = logging.getLogger('mysql.hub')
-        logger.addHandler(logging.NullHandler())
+        logger.addHandler(_utils.NullHandler())
         params = {
             'protocol.xmlrpc': {
                 'address': 'localhost:13000'
