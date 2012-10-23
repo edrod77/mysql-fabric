@@ -31,7 +31,7 @@ Running unit tests
 ------------------
 
 The package also contain a bunch of unit tests that are used mainly
-during development to check that all pieces work correctly.  The tests
+during development to check that all pieces work correctly. The tests
 can be executed using the command:
 
     python test.py

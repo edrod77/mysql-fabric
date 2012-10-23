@@ -31,11 +31,12 @@ the unit tests.
       hubdir=`pwd`
       (
         cd <connector-directory>
-        python setup.py build --build-dir=${hubdir}/build
+        python setup.py build --build-base=${hubdir}/build
       )
-      pyhon setup.py build
-      python test.py
+      python setup.py build
+      python test.py --build-dir=${hubdir}/build/lib
 
+Note that the "lib" directory name varies depending on the platform.
 
 Running commands
 ----------------

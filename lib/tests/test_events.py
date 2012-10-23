@@ -1,7 +1,6 @@
 """Unit tests for the event handler.
 """
 
-import logging
 import types
 import unittest
 import xmlrpclib
@@ -216,8 +215,6 @@ class TestService(unittest.TestCase):
     "Test the service interface"
 
     def setUp(self):
-        logger = logging.getLogger('mysql.hub')
-        logger.addHandler(_utils.NullHandler())
         params = {
             'protocol.xmlrpc': {
                 'address': 'localhost:13000'
