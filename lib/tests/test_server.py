@@ -5,36 +5,36 @@ import unittest
 import uuid as _uuid
 
 import mysql.hub.errors as _errors
+import tests.utils as _utils
 
 from mysql.hub.server import *
 
-class ConcreteServer(Server):
-    def __init__(self, uuid, uri=None, running=None):
-        super(ConcreteServer, self).__init__(uuid, uri, running)
 
-    def do_connection(*args, **kwargs):
+class ConcreteServer(Server):
+    def __init__(self, uuid, uri=None):
+        super(ConcreteServer, self).__init__(uuid, uri)
+
+    def _do_connection(*args, **kwargs):
         return "Connection ", args, kwargs
 
+
 class TestServer(unittest.TestCase):
+
+    __metaclass__ = _utils.SkipTests
+
     def test_properties(self):
         set_of_servers = set()
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_1.mysql.com:3060",
-            "running" : True
         }
         server_1 = Server(**options_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_2.mysql.com:3060",
-            "running" : True
         }
         server_2 = Server(**options_2)
 
-        server_1.uri = "server_1.mysql.com:3666"
-        self.assertEqual(server_1.uri, "server_1.mysql.com:3666")
-        server_1.running = False
-        self.assertEqual(server_1.running, False)
         self.assertEqual(server_1, server_1)
         self.assertNotEqual(server_1, server_2)
 
@@ -48,7 +48,6 @@ class TestServer(unittest.TestCase):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_1.mysql.com:3060",
-            "running" : True
         }
         server_1 = Server(**options_1)
         server_2 = ConcreteServer(**options_1)
@@ -71,8 +70,48 @@ class TestServer(unittest.TestCase):
         # instead of a real connection.
         self.assertRaises(AttributeError, server_2.purge_connections)
 
+    def test_utilities(self):
+        # Test a function that gets host and port and returns
+        # host:port
+        uri = Server.combine_host_port(None, None, 3306)
+        self.assertEqual(uri, "unknown host:3306")
+
+        uri = Server.combine_host_port("", None, 3306)
+        self.assertEqual(uri, "unknown host:3306")
+
+        uri = Server.combine_host_port(None, "", 3306)
+        self.assertEqual(uri, "unknown host:3306")
+
+        uri = Server.combine_host_port("host", "port", 3306)
+        self.assertEqual(uri, "host:port")
+
+        uri = Server.combine_host_port("host", 1500, 3306)
+        self.assertEqual(uri, "host:1500")
+
+        # Test a function that gets host:port and returns (host, port)
+        host_port = Server.split_host_port(None, 3306)
+        self.assertEqual(host_port, (None, 3306))
+
+        host_port = Server.split_host_port("", 3306)
+        self.assertEqual(host_port, ("", 3306))
+
+        host_port = Server.split_host_port(":", 3306)
+        self.assertEqual(host_port, ("", ""))
+
+        host_port = Server.split_host_port("host:", 3306)
+        self.assertEqual(host_port, ("host", ""))
+
+        host_port = Server.split_host_port(":port", 3306)
+        self.assertEqual(host_port, ("", "port"))
+
+        host_port = Server.split_host_port("host:port", 3306)
+        self.assertEqual(host_port, ("host", "port"))
+
 
 class TestGroup(unittest.TestCase):
+
+    __metaclass__ = _utils.SkipTests
+
     def test_properties(self):
         set_of_groups = set()
         group_1 = Group("mysql.com", "First description.")
@@ -93,13 +132,11 @@ class TestGroup(unittest.TestCase):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_1.mysql.com:3060",
-            "running" : True
         }
         server_1 = Server(**options_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_2.mysql.com:3060",
-            "running" : True
         }
         server_2 = Server(**options_2)
         group_1 = Group("mysql.com", "First description.")

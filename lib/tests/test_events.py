@@ -217,7 +217,7 @@ class TestService(unittest.TestCase):
     def setUp(self):
         params = {
             'protocol.xmlrpc': {
-                'address': 'localhost:13000'
+                'address': 'localhost:13500'
                 },
             }
         config = _config.Config(None, params, True)

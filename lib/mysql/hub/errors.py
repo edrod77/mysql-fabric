@@ -25,3 +25,25 @@ class UnknownEventError(Error):
     in a situation where a known event was expected.
     """
     pass
+
+class DatabaseError(Error):
+    """Exception raised when something bad happens while accessing a
+    database.
+    """
+    pass
+
+class MismatchUuidError(DatabaseError):
+    """Exception raised when server object and server process' uuids
+    do not match.
+    """
+    pass
+
+class ResultSetError(DatabaseError):
+    """Exception raised when the result set is not properly configured.
+    """
+    pass
+
+class ConfigurationError(DatabaseError):
+    """Exception raised when access parameters are not properly configured.
+    """
+    pass
