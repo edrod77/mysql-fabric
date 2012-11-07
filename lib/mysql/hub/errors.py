@@ -47,3 +47,8 @@ class ConfigurationError(DatabaseError):
     """Exception raised when access parameters are not properly configured.
     """
     pass
+
+class PersistenceError(Error):
+    """Raised to indicate exception while accessing the state store.
+    """
+    pass

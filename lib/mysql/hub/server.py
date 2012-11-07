@@ -50,22 +50,115 @@ def server_logging(function):
         return ret
     return wrapper_check
 
+class Persistable(object):
+    @staticmethod
+    def create(persistence_server):
+        """Create the tables to represent the current object in the state store.
+        """
+        raise NotImplementedError("Trying to execute abstract method create")
 
-class Group(object):
+    @staticmethod
+    def drop(persistence_server):
+        """Drop the tables to represent the current object in the state store.
+        """
+        raise NotImplementedError("Trying to execute abstract method drop")
+
+    @staticmethod
+    def add(persistence_server):
+        """Add the current object to the state store.
+        """
+        raise NotImplementedError("Trying to execute abstract method add")
+
+    @staticmethod
+    def remove(persistence_server):
+        """remove the current object from the state store.
+        """
+        raise NotImplementedError("Trying to execute abstract method remove")
+
+    @staticmethod
+    def fetch(persistence_server):
+        """Fetch the current object from the state store.
+        """
+        raise NotImplementedError("Trying to execute abstract method fetch")
+
+class Group(Persistable):
     """Provide interfaces to organize servers into groups.
 
     This class does not provide any monitoring feature and this becomes
     necessary one should extend it or rely on an external service.
 
     """
-    def __init__(self, group_id, description=None):
-        """Constructor for the Group.
+
+    CREATE_GROUP = ("CREATE TABLE groups"
+                        "(group_id VARCHAR NOT NULL, "
+                        "description VARCHAR, "
+                        "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
+
+    #SQL Statement for creating the table for storing the relationship
+    #between a group and the server.
+
+#TODO: Check if it is worth introducing FOREIGN KEY constraints.
+    CREATE_GROUP_SERVER = \
+                ("CREATE TABLE group_server"
+               "(server_uuid VARCHAR NOT NULL, group_id VARCHAR NOT NULL, "
+               "CONSTRAINT pk_server_uuid_group_uuid "
+               "PRIMARY KEY(group_id, server_uuid))")
+
+    #SQL Statements for dropping the table created for storing the Group
+    #information
+    DROP_GROUP = ("DROP TABLE groups")
+
+    #SQL Statements for dropping the table used for storing the relation
+    #between Group and the servers
+    DROP_GROUP_SERVER = ("DROP TABLE group_server")
+
+    #SQL statement for inserting a new group into the table
+    INSERT_GROUP = ("INSERT INTO groups VALUES(?, ?)")
+
+    #SQL statement for inserting a new server into a group
+    INSERT_GROUP_SERVER = ("INSERT INTO group_server VALUES(?, ?)")
+
+    #SQL statement for checking for the presence of a server within a group
+    SELECT_GROUP_SERVER = ("SELECT server_uuid from group_server where "
+                           "group_id = ? AND server_uuid = ?")
+
+    #SQL statement for selecting all the servers from a group
+    SELECT_GROUP_SERVERS = ("SELECT server_uuid from group_server where "
+                           "group_id = ?")
+
+    #SQL statement for updating the group table identified by the group id.
+    UPDATE_GROUP = ("UPDATE groups SET description = ? "
+                    "WHERE group_id = ?")
+
+    #SQL statement used for deleting the group identified by the group id.
+    REMOVE_GROUP = ("DELETE FROM groups WHERE group_id = ?")
+
+    #SQL Statement to delete a server from a group.
+    DELETE_GROUP_SERVER = ("DELETE FROM group_server WHERE group_id=? AND "
+                           "server_uuid = ?")
+
+    #SQL Statement to retrieve a specific group from the state_store.
+    QUERY_GROUP = ("SELECT group_id, description FROM groups WHERE "
+                   "group_id = ?")
+
+
+    def __init__(self, persistence_server, group_id, description=None):
+        """Constructor for the Group. Check to see if the Group is already
+        present in the state store, if it is, then load the information from
+        the state store, else persist the input information into the state
+        store.
+
+        :param persistence_server The server that is used to store the
+                                    group information.
+        :param group_id The id that uniquely identifies the group
+        :param description The description of the group
         """
         assert(isinstance(group_id, basestring))
+        if persistence_server is None:
+            raise _error.PersistenceError("Missing handle to the state store")
+        self.__persistence_server = persistence_server
         self.__group_id = group_id
-        self.description = description
-        self.__lock = threading.RLock()
-        self.__servers = {}
+        self.__description = description
 
     def __eq__(self,  other):
         """Two groups are equal if they have the same id.
@@ -86,34 +179,164 @@ class Group(object):
 
     def add_server(self, server):
         """Add a server into this group.
+
+        :param The Server object that needs to be added to this Group.
         """
         assert(isinstance(server, Server))
-        with self.__lock:
-            self.__servers[server.uuid] = server
+        self.__persistence_server.exec_query (Group.INSERT_GROUP_SERVER,
+                                              {"params":(str(server.uuid),
+                                                   self.__group_id)})
 
     def remove_server(self, server):
         """Remove a server from this group.
+
+        :param The Server object that needs to be removed from this Group.
         """
         assert(isinstance(server, Server))
-        with self.__lock:
-            if server.uuid in self.__servers:
-                del self.__servers[server.uuid]
+        self.__persistence_server.exec_query(Group.DELETE_GROUP_SERVER,
+                                             {"params":(str(self.__group_id),
+                                                   str(server.uuid))})
+
+    @property
+    def description(self):
+        """Return the description for the group. Load the Group from the state
+        store and return the description.
+        """
+        return self.__description
+
+    @description.setter
+    def description(self, description):
+        """Set the description for this group. Update the description for the
+        Group in the state store.
+
+        :param description The new description for the group that needs to be
+                            updated.
+        """
+        self.__persistence_server.exec_query(Group.UPDATE_GROUP,
+                                    {"params":(description, self.__group_id)})
+        self.__description = description
+
 
     @property
     def servers(self):
-        """Return the set of servers in this group.
-
-        Specifically, this method returns a copy of the dictionary that
-        contains the set of servers in this group.
+        """Return the uuids for the set of servers in this group.
         """
-        with self.__lock:
-            return self.__servers.copy()
 
+#TODO: After retrieving the parameters for the servers that belong to the group
+#TODO: how can we decide which object of the server to create ? For example
+#TODO: If there are two server implementations one with MySQLServer and another
+#TODO: with SQLite then how would we know which to use for the retrieved
+#TODO: objects ?
+
+#TODO: To solve the above problem we would need a mapping between the server
+#TODO: uuid and the type of server.
+#TODO: Something Like
+#TODO: uuid  Type
+#TODO:  1    MySQL
+#TODO:  2    SQLite
+#TODO: For now we just return uuids
+
+        cur = self.__persistence_server.exec_query(Group.SELECT_GROUP_SERVERS,
+                                {"raw" : False,
+                                "fetch" : False,
+                                "params" : (self.__group_id,)})
+        rows = cur.fetchall()
+        return rows
+
+    def remove(self):
+        """Remove the Group object from the state store.
+        """
+        self.__persistence_server.exec_query(Group.REMOVE_GROUP,
+                                             {"params" : (self.__group_id,)})
+
+    def check_server_membership(self, uuid):
+        """Check if the server represented by the uuid is part of the
+        current Group.
+
+        :param uuid The uuid of the server whose membership needs to be
+                            verified.
+        :return True if the server is part of the Group.
+                False if the server is not part of the Group.
+        """
+        cur = self.__persistence_server.exec_query(Group.SELECT_GROUP_SERVER,
+                                            {"raw" : False, "fetch" : False,
+                                            "params":(self.__group_id,
+                                                      str(uuid))})
+        row = cur.fetchone()
+
+        if row:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def fetch(persistence_server, group_id):
+        """Return the group object, by loading the attributes for the group_id
+        from the state store.
+
+        :param persistence_store The persistence store object that can be used
+                        to access the state store.
+        :param group_id The group_id for the Group object that needs to be
+                        retrieved.
+        :return The Group object corresponding to the group_id
+                None if the Group object does not exist.
+        """
+        cur = persistence_server.exec_query(Group.QUERY_GROUP,
+                                            {"raw" : False, \
+                                            "fetch" : False, \
+                                            "params" : (group_id,)})
+        row = cur.fetchone()
+        if row:
+            return Group(persistence_server, row[0], row[1])
+
+    @staticmethod
+    def add(persistence_server, group_id, description):
+        """Create a Group and return the Group object.
+
+        :param persistence_server The DB server that can be used to access the
+                                    state store.
+        """
+        persistence_server.exec_query(Group.INSERT_GROUP, {"params":
+                                                           (group_id,
+                                                            description)})
+        return Group(persistence_server, group_id, description)
+
+
+    @staticmethod
+    def create(persistence_server):
+        """Create the objects(tables) that will store the Group information in
+        the state store.
+
+        :param persistence_server The DB server that can be used to access the
+                                    state store.
+        :raises: DatabaseError If the table already exists.
+        """
+        persistence_server.exec_query(Group.CREATE_GROUP)
+        try:
+            persistence_server.exec_query(Group.CREATE_GROUP_SERVER)
+        except:
+            #If the creation of the second table fails Drop the first
+            #table.
+            persistence_server.exec_query(Group.DROP_GROUP)
+            raise
+
+
+    @staticmethod
+    def drop(persistence_server):
+        """Drop the objects(tables) that represent the Group information in
+        the persistent store.
+
+        :param persistence_server The DB server that can be used to access the
+                                    state store.
+        :raises: DatabaseError If the drop of the related table fails.
+        """
+        persistence_server.exec_query(Group.DROP_GROUP_SERVER)
+        persistence_server.exec_query(Group.DROP_GROUP)
 
 #TODO: Remove this after pushing the persistence layer HAM-28. Pylint will
 #      stop complaining after as there will be more than one class derived
 #      from Server.
-class Server(object): #pylint: disable=R0922
+class Server(Persistable): #pylint: disable=R0922
     """Abstract class used to provide interfaces to access a server.
 
     Notice that a server may be only a wrapper to a remote server.
@@ -343,15 +566,62 @@ class MySQLServer(Server):
     Changing the value of the properties user or password triggers a call to
     disconnect.
     """
+
+#TODO: Figure out the exact length that should be supplied with VARCHAR.
+
+    #SQL Statement for creating the table used to store details about the
+    #server.
+    CREATE_SERVER = ("CREATE TABLE "
+                        "servers "
+                        "(server_id VARCHAR NOT NULL, "
+                        "server_uri VARCHAR, "
+                        "user VARCHAR, "
+                        "password VARCHAR, "
+                        "read_only BOOLEAN, "
+                        "CONSTRAINT pk_server_id PRIMARY KEY (server_id))")
+
+    #SQL Statement for dropping the table used to store the details about the
+    #server.
+    DROP_SERVER = ("DROP TABLE servers")
+
+    #SQL statement for inserting a new server into the table
+    INSERT_SERVER = ("INSERT INTO servers values(?, ?, ?, ?, ?)")
+
+    #SQL statement for updating the server table identified by the server id.
+    UPDATE_SERVER_USER = ("UPDATE servers SET user = ? WHERE server_id = ?")
+    UPDATE_SERVER_PASSWD = ("UPDATE servers SET password = ? "
+                                "WHERE server_id = ?")
+    UPDATE_SERVER_READ_ONLY = ("UPDATE servers SET read_only = ? "
+                                "WHERE server_id = ?")
+
+    #SQL statement used for deleting the server identified by the server id.
+    REMOVE_SERVER = ("DELETE FROM servers WHERE server_id = ?")
+
+    #SQL Statement to retrieve the server from the state_store.
+    QUERY_SERVER = ("SELECT * FROM servers where server_id = ?")
+
     SESSION_CONTEXT, GLOBAL_CONTEXT = range(0, 2)
     CONTEXT_STR = ["SESSION", "GLOBAL"]
     DEFAULT_PORT = 3306
 
-    def __init__(self, uuid, uri, user=None, passwd=None,
-                 default_charset="latin1"):
-        """Constructor for MySQLServer.
+    def __init__(self, persistence_server, uuid, uri=None, user=None,
+                 passwd=None, default_charset="latin1"):
+        """Constructor for MySQLServer. The constructor searches for the uuid
+        in the state store and if the uuid is present it loads the server from
+        the state store. otherwise it creates and persists a new Server object.
+
+        :param persistence_server The DB server object that will be used to
+                                    access the state store.
+        :param uuid The uuid of the server
+        :param uri  The uri of the server
+        :param user The username used to access the server
+        :param passwd The password used to access the server
+        :param default_charset The default charset that will be used
         """
         super(MySQLServer, self).__init__(uuid=uuid, uri=uri)
+        if persistence_server is None:
+            raise _error.PersistenceError("Missing handle to the state store")
+        self.__persistence_server = persistence_server
         self.__user = user
         self.__passwd = passwd
         self.__cnx = None
@@ -526,13 +796,23 @@ class MySQLServer(Server):
     @property
     def read_only(self):
         """Check read only mode on/off.
+
+        :return True If read_only is set
+                False If read_only is not set.
         """
         return self.__read_only
 
     @read_only.setter
     def read_only(self, enabled):
-        """Turn read only mode on/off.
+        """Turn read only mode on/off. Persist the information in the state
+        store.
+
+        :param enabled The read_only flag value.
         """
+        self.__persistence_server.exec_query(
+                                        MySQLServer.UPDATE_SERVER_READ_ONLY,
+                                        {"params":("read_only", 1,
+                                                   str(self.uuid))})
         self.set_variable("READ_ONLY", "ON" if enabled else "OFF")
         self._check_read_only()
 
@@ -574,25 +854,39 @@ class MySQLServer(Server):
 
     @user.setter
     def user(self, user):
-        """Set user's name who is used to connect to a server.
+        """Set user's name who is used to connect to a server. Persist the
+        user information in the state store.
+
+        :param user The user name.
         """
         if self.__user != user:
             self.disconnect()
+            self.__persistence_server.exec_query(
+                                        MySQLServer.UPDATE_SERVER_USER,
+                                        {"params":(user, str(self.uuid))})
             self.__user = user
 
     @property
     def passwd(self):
-        """Return user's password who is used to connect to a server.
+        """Return user's password who is used to connect to a server. Load
+        the server information from the state store and return the password.
         """
         return self.__passwd
 
     @passwd.setter
     def passwd(self, passwd):
-        """Set user's passord who is used to connect to a server.
+        """Set user's passord who is used to connect to a server. Persist the
+        password information in the state store.
+
+        :param passwd The password that needs to be set.
         """
         if self.__passwd != passwd:
             self.disconnect()
+            self.__persistence_server.exec_query(
+                                    MySQLServer.UPDATE_SERVER_PASSWD,
+                                    {"params":(passwd, str(self.uuid))})
             self.__passwd = passwd
+
 
     def check_version_compat(self, expected_version):
         """Check version of the server against requested version.
@@ -821,3 +1115,70 @@ class MySQLServer(Server):
         except Exception as error:
             raise _errors.DatabaseError("Error tyring to disconnect. "\
                                         "Error %s" % (str(error)))
+
+    def remove(self):
+        """remove the server information from the persistent store.
+        """
+        self.__persistence_server.exec_query(MySQLServer.REMOVE_SERVER,
+                                             {"params":
+                                              (str(self.uuid),)})
+
+    @staticmethod
+    def fetch(persistence_server, uuid):
+        """Return the server object corresponding to the uuid.
+
+        :param persistence_server The persistence server object that will be
+                                    used to access the state store.
+        :param uuid The server id of the server object that needs to be
+                            returned.
+        :return The server object that corresponds to the server id
+                None if the server id does not exist.
+        """
+        cur = persistence_server.exec_query(MySQLServer.QUERY_SERVER,
+                                            {"raw" : False, "fetch" : False,
+                                            "params":(str(uuid),)})
+        row = cur.fetchone()
+        if row:
+            return MySQLServer(persistence_server,  _uuid.UUID(row[0]), row[1],
+                               row[2], row[3], row[4])
+
+    @staticmethod
+    def create(persistence_server):
+        """Create the objects(tables) that will store the Server information in
+        the state store.
+
+        :param persistence_server The DB server that can be used to access the
+                                    state store.
+        :raises: DatabaseError If the table already exists.
+        """
+        persistence_server.exec_query(MySQLServer.CREATE_SERVER)
+
+    @staticmethod
+    def drop(persistence_server):
+        """Drop the objects(tables) that represent the Server information in
+        the persistent store.
+
+        :param persistence_server The DB server that can be used to access the
+                                    state store.
+        :raises: DatabaseError If the drop of the related table fails.
+        """
+        persistence_server.exec_query(MySQLServer.DROP_SERVER)
+
+    @staticmethod
+    def add(persistence_server, uuid, uri=None, user=None, passwd=None,
+                                                default_charset="latin1"):
+        """Persist the Server information and return the Server object.
+
+        :param uuid The uuid of the server being created
+        :param uri  The uri  of the server being created
+        :param user The user name to be used for logging into the server
+        :param passwd The password to be used for logging into the server
+        :return a Server object
+        """
+        persistence_server.exec_query(MySQLServer.INSERT_SERVER,
+                                      {"params":(str(uuid),
+                                                 uri,
+                                                 user,
+                                                 passwd,
+                                                 None)})
+        return MySQLServer(persistence_server, uuid, uri, user, passwd)
