@@ -59,7 +59,7 @@ if __name__ == '__main__':
         # Configuring handler.
         handler = logging.FileHandler(opt.log_file, 'w')
         formatter = logging.Formatter(
-            "[%(levelname)s] %(asctime)s - %(threadName)s %(message)s")
+            "[%(levelname)s] %(asctime)s - %(threadName)s - %(message)s")
         handler.setFormatter(formatter)
     else:
         handler = NullHandler()

@@ -6,7 +6,9 @@ import logging.handlers
 import os
 import sys
 
-import mysql.hub.core as _core
+import mysql.hub.executor as _executor
+import mysql.hub.services as _services
+import mysql.hub.events as _events
 
 from mysql.hub.config import Config
 
@@ -43,6 +45,22 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(sout.fileno(), sys.stdout.fileno())
     os.dup2(serr.fileno(), sys.stdin.fileno())
 
+def start(config):
+    service_manager = _services.ServiceManager(config, shutdown)
+    handler = _events.Handler()
+
+    handler.start()
+    service_manager.load_services()
+    service_manager.start()
+
+def shutdown():
+    service_manager = _services.ServiceManager()
+    handler = _events.Handler()
+
+    service_manager.shutdown()
+    handler.shutdown()
+    return True
+
 def main(argv):
     # TODO: Move all option file handling to mysql.hub.options
     from mysql.hub.options import OptionParser
@@ -66,7 +84,6 @@ def main(argv):
     # name and that all our modules have the prefix 'mysql.hub'.
     logger = logging.getLogger('mysql.hub')
 
-
     # Set up syslog handler, if needed
     if options.daemonize:
         address = config.get('logging.syslog', 'address')
@@ -86,5 +103,4 @@ def main(argv):
     if options.daemonize:
         daemonize()
 
-    manager = _core.Manager(config)
-    manager.start()
+    start(config)

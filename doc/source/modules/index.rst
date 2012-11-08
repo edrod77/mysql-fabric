@@ -6,8 +6,10 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   core
    errors
+   config
+   options
+   utils
    executor
    events
    server

@@ -9,6 +9,8 @@ from weakref import WeakValueDictionary
 
 import mysql.hub.errors as _errors
 
+from mysql.hub.utils import Singleton
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -159,30 +161,31 @@ class Job(object):
         return ret
 
 
-class Executor(threading.Thread):
+class Executor(Singleton):
     """Class responsible for dispatching execution of procedures.
 
     Procedures to be executed are queued to the executor, which then
     will execute them in order.
 
     """
-
-    def __init__(self, manager):
-        super(Executor, self).__init__(name="Executor")
+    def __init__(self):
+        super(Executor, self).__init__()
         self.__queue = Queue.Queue()
-        self.__manager = manager
+        self.__jobs_lock = threading.RLock()
         self.__jobs = WeakValueDictionary()
+        self.__thread_lock = threading.RLock()
+        self.__thread = None
 
-    def run(self):
+    def _run(self):
         """Run the executor thread.
 
         Read callable objects from the queue and call them.
-
         """
         while True:
             job = self.__queue.get(block=True)
             _LOGGER.debug("Reading next job from queue, found %s.", job)
             if job is None:
+                self.__queue.task_done()
                 break
             try:
                 job.execute()
@@ -198,51 +201,47 @@ class Executor(threading.Thread):
                 self.__queue.task_done()
                 job.notify()
 
-        # The current shutdown routine is not 100% clean in the sense
-        # that jobs may be scheduled after requesting the shutdown.
-        # Notice however that the jobs shecduled before the shutdown
-        # being requested are processed.
-        # TODO: Maybe we should define a safe and an immediate shutdown.
-        _LOGGER.debug("Checking if there is unprocessed jobs.")
-        try:
-            while True:
-                job = self.__queue.get_nowait()
-                _LOGGER.debug("Unprocessed job from queue, found job "
-                              "(%s).", job.uuid)
-        except Queue.Empty as error:
-            pass
+    def start(self):
+        """Start the executor.
+        """
+        with self.__thread_lock:
+            if not self.__thread:
+                self.__thread = threading.Thread(target=self._run, name="Executor")
+                self.__thread.start()
+            else:
+                raise _errors.ExecutorError("Executor is already running.")
 
     def shutdown(self):
         """Shut down the executor.
         """
-        _LOGGER.info("Shutting down executor.")
-        self.__queue.put(None)
+        _LOGGER.info("Shutting down Executor.")
+        with self.__thread_lock:
+            if self.__thread and self.__thread.is_alive():
+                self.__queue.put(None)
+                self.__thread.join()
+            self.__thread = None
 
-    def enqueue_job(self, action, description, sync=False, args=None):
+    # TODO: args should be *args, **kwargs. ? ? ?
+    def enqueue_job(self, action, description, args=None):
         """Schedule a job to be executed.
-
-        The action is a callback function and if the caller wants to
-        be blocked while the job is being scheduled and than processed
-        the parameter sync must be set to true.
 
         :param action: Callable to execute.
         :param description: Description of the job.
-        :param sync: If True, the caller will be blocked until the job
-                     has finished. If False, the function will return
-                     immediately.
         :param args: Arguments to pass to the job.
         :return: Reference to a job that was scheduled.
         :rtype: Job
         """
-        #TODO: Check for concurrency issues.
-        job = Job(action, description, args)
-        _LOGGER.debug("Created job (%s) whose description is (%s).",
-                      str(job.uuid), description)
-        self.__jobs[job.uuid] = job
-        self.__queue.put(job)
-        _LOGGER.debug("Enqueued job (%s).", str(job.uuid))
-        if sync:
-            job.wait()
+        with self.__thread_lock:
+            if self.__thread and self.__thread.is_alive():
+                job = Job(action, description, args)
+                _LOGGER.debug("Created job (%s) whose description is (%s).",
+                              str(job.uuid), description)
+                with self.__jobs_lock:
+                    self.__jobs[job.uuid] = job
+                self.__queue.put(job)
+                _LOGGER.debug("Enqueued job (%s).", str(job.uuid))
+            else:
+                raise _errors.ExecutorError("Executor is not running.")
         return job
 
     def get_job(self, job_uuid):
@@ -250,9 +249,9 @@ class Executor(threading.Thread):
         """
         assert(isinstance(job_uuid, uuid.UUID))
         _LOGGER.debug("Checking job (%s).", str(job_uuid))
-        #TODO: Check for concurrency issues.
         try:
-            job = self.__jobs[job_uuid]
+            with self.__jobs_lock:
+                job = self.__jobs[job_uuid]
         except (KeyError, ValueError) as error:
             _LOGGER.exception(error)
             job = None

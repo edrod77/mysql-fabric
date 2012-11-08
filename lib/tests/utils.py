@@ -1,15 +1,5 @@
 """Module holding support utilities for tests.
 """
-class DummyManager(object):
-    """Create a dummy manager.
-    """
-    def __init__(self):
-        """Constructor for DummyManager.
-        """
-        self.executor = None
-        self.server = None
-        self.resource = None
-
 class SkipTests(type):
     """Metaclass which is used to skip test cases as follows::
 

@@ -7,8 +7,6 @@ import uuid
 import mysql.hub.executor as _executor
 import mysql.hub.errors as _errors
 
-from tests.utils import DummyManager
-
 count = []
 other = None
 
@@ -41,8 +39,7 @@ class TestExecutor(unittest.TestCase):
     """
 
     def setUp(self):
-        manager = DummyManager()
-        self.executor = _executor.Executor(manager)
+        self.executor = _executor.Executor()
 
     def test_basic(self):
         global other
@@ -50,11 +47,11 @@ class TestExecutor(unittest.TestCase):
         self.executor.start()
 
         # Scheduling actions to be executed.
-        job_1 = self.executor.enqueue_job(test1,
-                                          "Enqueuing action test1()", True)
+        job_1 = self.executor.enqueue_job(test1, "Enqueuing action test1()")
+        job_1.wait()
         _LOGGER.debug("Job 1:"+ str(job_1))
-        job_2 = self.executor.enqueue_job(test2,
-                                          "Enqueuing action test2()", True)
+        job_2 = self.executor.enqueue_job(test2, "Enqueuing action test2()")
+        job_2.wait()
         _LOGGER.debug("Job 2:"+ str(job_2))
 
         # Check information on jobs
@@ -76,7 +73,6 @@ class TestExecutor(unittest.TestCase):
 
         # Shutdown the executor and wait until its main thread returns.
         self.executor.shutdown()
-        self.executor.join()
 
         for cnt in range(10, 1, -1):
             self.assertTrue(cnt in count)
@@ -98,9 +94,15 @@ class TestExecutor(unittest.TestCase):
 
     def test_bad_cases(self):
         "Test that error cases are caught."
+        # Check what happens when the Executor is not running.
+        self.assertRaises(_errors.ExecutorError, self.executor.enqueue_job,
+                          3, "Enqueue integer")
+
         # Check if the action is callable.
+        self.executor.start()
         self.assertRaises(_errors.NotCallableError, self.executor.enqueue_job,
-                          3, "Enqueue integer", True)
+                          3, "Enqueue integer")
+        self.executor.shutdown()
 
         # Check unknown job.
         job = self.executor.get_job(uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
@@ -111,22 +113,16 @@ class TestExecutor(unittest.TestCase):
         """Test that we can dispatch multiple events without waiting
         for them and then reap them afterwards.
         """
+        self.executor.start()
 
-        # Enqueue several jobs at the same time. Since the executor is
-        # not running, we should be able to do this despite the fact
-        # that it is not running.
+        # Enqueue several jobs at the same time. 
         jobs = []
         for num in range(1, 10, 2):
             action = Action(num)
             job = self.executor.enqueue_job(action, action.descr,
-                                            False, [action.expect])
+                                            [action.expect])
             jobs.append(job)
 
-        # Check that no jobs are complete
-        for job in jobs:
-            self.assertFalse(job.complete)
-
-        self.executor.start()
 
         # Wait for all jobs and check that they update the Action
         # object to the correct value.
@@ -135,7 +131,10 @@ class TestExecutor(unittest.TestCase):
             job.action.verify(self)
 
         self.executor.shutdown()
-        self.executor.join()
+
+        # Check that all jobs are complete
+        for job in jobs:
+            self.assertTrue(job.complete)
 
 
 if __name__ == "__main__":
