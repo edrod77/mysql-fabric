@@ -5,7 +5,8 @@ import unittest
 import uuid as _uuid
 
 import mysql.hub.errors as _errors
-import tests.utils as _utils
+import mysql.hub.utils as _utils
+import tests.utils as _test_utils
 
 from mysql.hub.server import *
 
@@ -20,7 +21,7 @@ class ConcreteServer(Server):
 
 class TestServer(unittest.TestCase):
 
-    __metaclass__ = _utils.SkipTests
+    __metaclass__ = _test_utils.SkipTests
 
     def test_properties(self):
         set_of_servers = set()
@@ -73,49 +74,56 @@ class TestServer(unittest.TestCase):
     def test_utilities(self):
         # Test a function that gets host and port and returns
         # host:port
-        uri = Server.combine_host_port(None, None, 3306)
+        uri = _utils.combine_host_port(None, None, 3306)
         self.assertEqual(uri, "unknown host:3306")
 
-        uri = Server.combine_host_port("", None, 3306)
+        uri = _utils.combine_host_port("", None, 3306)
         self.assertEqual(uri, "unknown host:3306")
 
-        uri = Server.combine_host_port(None, "", 3306)
+        uri = _utils.combine_host_port(None, "", 3306)
         self.assertEqual(uri, "unknown host:3306")
 
-        uri = Server.combine_host_port("host", "port", 3306)
+        uri = _utils.combine_host_port("host", "port", 3306)
         self.assertEqual(uri, "host:port")
 
-        uri = Server.combine_host_port("host", 1500, 3306)
+        uri = _utils.combine_host_port("host", 1500, 3306)
         self.assertEqual(uri, "host:1500")
 
         # Test a function that gets host:port and returns (host, port)
-        host_port = Server.split_host_port(None, 3306)
-        self.assertEqual(host_port, (None, 3306))
-
-        host_port = Server.split_host_port("", 3306)
+        host_port = _utils.split_host_port("", 3306)
         self.assertEqual(host_port, ("", 3306))
 
-        host_port = Server.split_host_port(":", 3306)
+        host_port = _utils.split_host_port(":", 3306)
         self.assertEqual(host_port, ("", ""))
 
-        host_port = Server.split_host_port("host:", 3306)
+        host_port = _utils.split_host_port("host:", 3306)
         self.assertEqual(host_port, ("host", ""))
 
-        host_port = Server.split_host_port(":port", 3306)
+        host_port = _utils.split_host_port(":port", 3306)
         self.assertEqual(host_port, ("", "port"))
 
-        host_port = Server.split_host_port("host:port", 3306)
+        host_port = _utils.split_host_port("host:port", 3306)
         self.assertEqual(host_port, ("host", "port"))
 
 
 class TestGroup(unittest.TestCase):
 
-    __metaclass__ = _utils.SkipTests
+    __metaclass__ = _test_utils.SkipTests
+
+    def setUp(self):
+        uuid = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
+        self.persistence_server = _test_utils.PersistenceServer(uuid, None)
+        Group.create(self.persistence_server)
+
+    def tearDown(self):
+        Group.drop(self.persistence_server)
 
     def test_properties(self):
         set_of_groups = set()
-        group_1 = Group("mysql.com", "First description.")
-        group_2 = Group("oracle.com", "First description.")
+        group_1 = Group(self.persistence_server, "mysql.com",
+                        "First description.")
+        group_2 = Group(self.persistence_server, "oracle.com",
+                        "First description.")
         self.assertEqual(group_1.group_id, "mysql.com")
         group_1.description = "New description."
         self.assertEqual(group_1.description, "New description.")
@@ -139,11 +147,14 @@ class TestGroup(unittest.TestCase):
             "uri"  : "server_2.mysql.com:3060",
         }
         server_2 = Server(**options_2)
-        group_1 = Group("mysql.com", "First description.")
+        group_1 = Group(self.persistence_server, "oracle.com",
+                        "First description.")
 
         # Add servers to a group
         group_1.add_server(server_1)
         group_1.add_server(server_2)
+        # TODO: This is not raising any error but printing out messages
+        # to stderr.
         group_1.add_server(server_1)
         self.assertEqual(len(group_1.servers), 2)
 

@@ -38,15 +38,14 @@ class MismatchUuidError(DatabaseError):
     """
     pass
 
-class ResultSetError(DatabaseError):
-    """Exception raised when the result set is not properly configured.
-    """
-    pass
-
 class ConfigurationError(DatabaseError):
     """Exception raised when access parameters are not properly configured.
     """
     pass
+
+class TimeoutError(DatabaseError):
+    """Exception raised when there is a timeout.
+    """
 
 class PersistenceError(Error):
     """Raised to indicate exception while accessing the state store.

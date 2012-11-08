@@ -20,13 +20,16 @@ import threading
 import uuid as _uuid
 import logging
 import functools
+import collections
 
 try:
     import mysql.connector
+    import mysql.connector.cursor.MySQLCursor
 except ImportError:
     pass
 
 import mysql.hub.errors as _errors
+import mysql.hub.utils as _utils
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,7 +41,7 @@ def server_logging(function):
     def wrapper_check(*args, **keywargs):
         """Inner function that logs information on wrapped function.
         """
-        _LOGGER.debug("Executing function: %s.", function.__name__)
+        _LOGGER.debug("Start executing function: %s.", function.__name__)
         try:
             ret = function(*args, **keywargs)
         except Exception as error:
@@ -46,7 +49,7 @@ def server_logging(function):
             _LOGGER.exception(error)
             raise
         else:
-            _LOGGER.debug("Executed function: %s.", function.__name__)
+            _LOGGER.debug("Finish executing function: %s.", function.__name__)
         return ret
     return wrapper_check
 
@@ -97,7 +100,7 @@ class Group(Persistable):
     #SQL Statement for creating the table for storing the relationship
     #between a group and the server.
 
-#TODO: Check if it is worth introducing FOREIGN KEY constraints.
+    #TODO: Check if it is worth introducing FOREIGN KEY constraints.
     CREATE_GROUP_SERVER = \
                 ("CREATE TABLE group_server"
                "(server_uuid VARCHAR NOT NULL, group_id VARCHAR NOT NULL, "
@@ -221,21 +224,6 @@ class Group(Persistable):
     def servers(self):
         """Return the uuids for the set of servers in this group.
         """
-
-#TODO: After retrieving the parameters for the servers that belong to the group
-#TODO: how can we decide which object of the server to create ? For example
-#TODO: If there are two server implementations one with MySQLServer and another
-#TODO: with SQLite then how would we know which to use for the retrieved
-#TODO: objects ?
-
-#TODO: To solve the above problem we would need a mapping between the server
-#TODO: uuid and the type of server.
-#TODO: Something Like
-#TODO: uuid  Type
-#TODO:  1    MySQL
-#TODO:  2    SQLite
-#TODO: For now we just return uuids
-
         cur = self.__persistence_server.exec_query(Group.SELECT_GROUP_SERVERS,
                                 {"raw" : False,
                                 "fetch" : False,
@@ -249,6 +237,7 @@ class Group(Persistable):
         self.__persistence_server.exec_query(Group.REMOVE_GROUP,
                                              {"params" : (self.__group_id,)})
 
+    # TODO: Rename this function. Maybe contains().
     def check_server_membership(self, uuid):
         """Check if the server represented by the uuid is part of the
         current Group.
@@ -333,14 +322,13 @@ class Group(Persistable):
         persistence_server.exec_query(Group.DROP_GROUP_SERVER)
         persistence_server.exec_query(Group.DROP_GROUP)
 
-#TODO: Remove this after pushing the persistence layer HAM-28. Pylint will
-#      stop complaining after as there will be more than one class derived
-#      from Server.
-class Server(Persistable): #pylint: disable=R0922
+
+class Server(Persistable):
     """Abstract class used to provide interfaces to access a server.
 
     Notice that a server may be only a wrapper to a remote server.
     """
+    #TODO: Check if uri is the correct term.
     def __init__(self, uuid, uri):
         """Constructor for the Server.
 
@@ -360,7 +348,7 @@ class Server(Persistable): #pylint: disable=R0922
         It is user's responsibility to provide the appropriate arguments
         which vary according to the server type, e.g. MySQL, Oracle.
         """
-        raise NotImplementedError("Trying to execute abstract method "\
+        raise NotImplementedError("Trying to execute abstract method "
                                   "connect(*args, **kwargs).")
 
     def connection(self, *args, **kwargs):
@@ -378,6 +366,24 @@ class Server(Persistable): #pylint: disable=R0922
             else:
                 cnx = self._do_connection(*args, **kwargs)
         return cnx
+
+    def commit(self):
+        """Commit an on-going transaction.
+        """
+        raise NotImplementedError("Trying to execute abstract method "
+                                  "commit().")
+
+    def rollback(self):
+        """Roll back an on-going transaction.
+        """
+        raise NotImplementedError("Trying to execute abstract method "
+                                  "rollback().")
+
+    def exec_query(self, query_str, options=None):
+        """Execute statements against the server.
+        """
+        raise NotImplementedError("Trying to execute abstract method "\
+                                  "exec_query(query_str, options).")
 
     def release_connection(self, cnx):
         """Release a connection to the pool.
@@ -432,100 +438,25 @@ class Server(Persistable): #pylint: disable=R0922
         """
         return self.__uri
 
-    @staticmethod
-    def split_host_port(uri, default_port):
-        """Return a tuple with host and port.
 
-        If a port is not found in the uri, the default port is returned.
+try:
+    class MySQLCursorNamedTuple(mysql.connector.cursor.MySQLCursor):
+        """Create a cursor with named columns.
         """
-        if uri is not None and uri.find(":") >= 0:
-            host, port = uri.split(":")
-        else:
-            host, port = (uri, default_port)
-        return host, port
-
-    @staticmethod
-    def combine_host_port(host, port, default_port):
-        """Return a string with the parameters host and port.
-
-        :return: String host:port.
-        """
-        if host:
-            host_info = host
-        else:
-            host_info = "unknown host"
-
-        if port:
-            port_info = port
-        else:
-            port_info = default_port
-
-        return "%s:%s" % (host_info, port_info)
-
-
-class MySQLResultSet(object):
-    """Used to easily iterate through a result set.
-
-    This class defines an iterator and gets as input the names of the columns
-    and tuples (i.e. records) where both para tuples. It returns itself as an
-    iterator so that cannot be used in nested loops.
-
-    It can be used as follows::
-
-      for record in result_set:
-        record.get_value(column)
-
-    where column is either a position or a name.
-    """
-    def __init__(self, metadata, tuples=None):
-        """Constructor for MySQLResultSet.
-
-        :param metadata: Names of columns.
-        :type metada: tuple
-        :param tuples: List of tuples (i.e. records).
-        :type tuples: tuple
-        """
-        assert(metadata is None or isinstance(metadata, list))
-        assert(isinstance(tuples, list))
-        self.__metadata = {}
-        self.__tuples = tuples
-        self.__max_tuples = len(tuples)
-        self.__fetch_tuple = 0
-        for position, item in enumerate(metadata):
-            self.__metadata[item] = position
-
-    def __iter__(self):
-        """Return an iterator.
-        """
-        self.__fetch_tuple = 0
-        return self
-
-    def next(self):
-        """Return the next record.
-        """
-        if self.__fetch_tuple >= self.__max_tuples:
-            raise StopIteration
-        self.__fetch_tuple += 1
-        return self
-
-    def get_value(self, column):
-        """Enables to get column's value.
-
-        :param: Either column's name or position.
-        :return: Column's value.
-        """
-        if self.__fetch_tuple == 0:
-            raise _errors.ResultSetError("Result set is not initialized. "\
-                                         "Please, call next().")
-        by_name = isinstance(column, str)
-        by_pos = isinstance(column, int)
-        assert((by_name or by_pos) and (not by_name or not by_pos))
-        try:
-            pos = column if by_pos else self.__metadata[column]
-            return self.__tuples[self.__fetch_tuple - 1][pos]
-        except (KeyError, IndexError):
-            raise _errors.ResultSetError("Column %s has not been found." % \
-                                         (column))
+        def _row_to_python(self, rowdata, desc=None):
+            try:
+                if not desc:
+                    desc = self.description
+                to_python = self._connection.converter.to_python
+                gen = (to_python(desc[i], v) for i, v in enumerate(rowdata))
+                tuple_factory = \
+                    collections.namedtuple('Row', self.column_names)._make
+                return tuple_factory(gen)
+            except StandardError as error:
+                raise mysql.connector.errors.InterfaceError(
+                    "Failed converting row to Python types; %s" % error)
+except NameError:
+    pass
 
 
 class MySQLServer(Server):
@@ -643,16 +574,13 @@ class MySQLServer(Server):
         params = kwargs.copy()
         keys = params.keys()
 
-        if "uri" in params.keys():
-            host, port = MySQLServer.split_host_port(params["uri"],
-                                                     MySQLServer.DEFAULT_PORT)
-        if host:
-            params.setdefault("host", host)
-        if port:
-            params.setdefault("port", int(port))
-
         if "uri" in keys:
+            host, port = _utils.split_host_port(params["uri"],
+                                                MySQLServer.DEFAULT_PORT)
+            params.setdefault("host", host)
+            params.setdefault("port", int(port))
             del params["uri"]
+
         if "uuid" in keys:
             del params["uuid"]
 
@@ -671,7 +599,7 @@ class MySQLServer(Server):
         return server_uuid
 
     def connection(self):
-        """Override the method connetion defined at Server to avoid that users
+        """Override the method connection defined at Server to avoid that users
         can create different connections to access a MySQL Server.
 
         Any access to a MySQL Server should be done through exec_query() and
@@ -686,22 +614,20 @@ class MySQLServer(Server):
         cannot_override = ["host", "port", "user", "passwd"]
         wrong_parameters = \
             [key for key in kwargs.keys() if key in cannot_override]
-        if wrong_parameters != []:
+        if wrong_parameters:
             raise _errors.ConfigurationError(
                 "Option(s) %s cannot be overridden.", wrong_parameters)
 
         params = kwargs.copy()
-        host, port = MySQLServer.split_host_port(self.uri,
-                                                 MySQLServer.DEFAULT_PORT)
-        if host:
-            params["host"] = host
-        if port:
-            params["port"] = int(port)
+        host, port = _utils.split_host_port(self.uri,
+                                            MySQLServer.DEFAULT_PORT)
+        params["host"] = host
+        params["port"] = int(port)
         if self.__user:
             params["user"] = self.__user
         if self.__passwd:
             params["passwd"] = self.__passwd
-
+        params.setdefault("autocommit", True)
         params.setdefault("charset", self.__default_charset)
 
         return MySQLServer._create_connection(**params)
@@ -710,6 +636,11 @@ class MySQLServer(Server):
     def connect(self, **kwargs):
         """Connect to a MySQL Server instance.
         """
+        # TODO: We need to revisit how the connection pool is implemented.
+        # The current design assumes a pool per object. However, after some
+        # discussions on the persistence layer, I think there should be a
+        # single pool shared by all objects.
+
         # We disconnect first and connect again.
         self.disconnect()
 
@@ -811,8 +742,7 @@ class MySQLServer(Server):
         """
         self.__persistence_server.exec_query(
                                         MySQLServer.UPDATE_SERVER_READ_ONLY,
-                                        {"params":("read_only", 1,
-                                                   str(self.uuid))})
+                                        {"params":(1, str(self.uuid))})
         self.set_variable("READ_ONLY", "ON" if enabled else "OFF")
         self._check_read_only()
 
@@ -912,7 +842,15 @@ class MySQLServer(Server):
         does not have GTID turned on or does not support GTID, the method
         will throw the exception DatabaseError.
 
-        :return: A MySQLResultSet with GTID information.
+        :return: A named tuple with GTID information.
+
+        In order to access the result set one may do what follows::
+
+          ret = server.get_gtid_status()
+          for record in ret:
+            print "GTID_DONE", record.GTID_DONE, record[0]
+            print "GTID_LOST", record.GTID_LOST, record[1]
+            print "GTID_OWNED", record_GTID_OWNED, record[2]
         """
         # Check servers for GTID support
         if not self.__gtid_enabled:
@@ -925,8 +863,7 @@ class MySQLServer(Server):
             "@@GLOBAL.GTID_OWNED as GTID_OWNED"
         )
 
-        ret = self.exec_query(query_str, {"columns" : True})
-        return MySQLResultSet(ret[0], ret[1])
+        return self.exec_query(query_str, {"columns" : True})
 
     def has_storage_engine(self, target):
         """Check to see if an engine exists and is supported.
@@ -951,16 +888,13 @@ class MySQLServer(Server):
                     return True
         return False
 
-    def get_binary_logs(self, options=None):
-        """Return information on the binary logs.
+    def get_binary_logs(self):
+        """Return information on binary logs. Look up `SHOW BINARY LOGS` in
+        the MySQL Manual for further details.
 
-        :param options: Query options.
-        :return: A MySQLResultSet with information on the binary logs.
+        :return: A named tuple with information on binary logs.
         """
-        options = options if options is not None else {}
-        options.update({"columns": True})
-        ret = self.exec_query("SHOW BINARY LOGS", options)
-        return MySQLResultSet(ret[0], ret[1])
+        return self.exec_query("SHOW BINARY LOGS", {"columns" : True})
 
     def set_session_binlog(self, enabled=True):
         """Enable or disable binary logging for the client.
@@ -1020,22 +954,23 @@ class MySQLServer(Server):
 
         This is the singular method to execute queries. It should be the only
         method used as it contains critical error code to catch the issue
-        with mysql.connector throwing an error on an empty result set.
-
-        Note: will handle exception and print error if query fails
-
-        Note: if fetchall is False, the method returns the cursor instance
+        with mysql.connector throwing an error on an empty result set. If
+        something goes wrong while executing a statement, the exception
+        :class:`mysql.hub.errors.DatabaseError` is raised.
 
         :param query_str: The query to execute
         :param options: Options to control behavior:
 
-        - params - Parameters for query.
-        - columns - Add column headings as first row (default is False).
-        - fetch - Execute the fetch as part of the operation and use a
-                  buffered cursor (default is True)
-        - raw - If True, use a buffered raw cursor (default is True)
+                        - params - Parameters for query.
+                        - columns - If true, return a rows as named tuples
+                          (default is False).
+                        - raw - If true, use a buffered raw cursor
+                          (default is True).
+                        - fetch - If true, execute the fetch as part of the
+                          operation and use a buffered cursor (default is True).
 
-        It returns a result set or a cursor.
+        :return: Either a result set as list of tuples (either named or unamed)
+                 or a cursor.
         """
         _LOGGER.debug("Query (%s).", query_str)
 
@@ -1049,7 +984,8 @@ class MySQLServer(Server):
         raw = options.get('raw', True)
 
         results = ()
-        cur = self.__cnx.cursor(fetch, raw)
+        cur = self.__cnx.cursor(fetch, raw,
+                                MySQLCursorNamedTuple if columns else None)
 
         try:
             cur.execute(query_str, params)
@@ -1074,14 +1010,7 @@ class MySQLServer(Server):
                     raise _errors.DatabaseError(
                         "Error (%s) fetching data for command: (%s)." % \
                         (str(error), query_str))
-            if columns:
-                col_headings = cur.column_names
-                col_names = []
-                for col in col_headings:
-                    col_names.append(col)
-                results = col_names, results
             cur.close()
-            self.__cnx.commit()
             return results
         else:
             return cur

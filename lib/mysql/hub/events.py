@@ -109,10 +109,11 @@ class Event(object):
     names can be triggered externally, but any event can be triggered
     internally.
 
+    :param string name: The name of the event instance.
+
     For an example on how to trigger an event internally, see
     :meth:`Handler.trigger`.
 
-    :param string name: The name of the event instance.
     """
 
     def __init__(self, name=None):

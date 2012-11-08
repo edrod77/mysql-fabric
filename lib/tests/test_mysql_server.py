@@ -5,7 +5,7 @@ import unittest
 import uuid as _uuid
 
 import mysql.hub.errors as _errors
-import tests.utils as _utils
+import tests.utils as _test_utils
 
 from mysql.hub.server import *
 
@@ -19,20 +19,25 @@ OPTIONS = {
 class TestMySQLServer(unittest.TestCase):
     """Unit test for testing MySQLServer.
     """
-    __metaclass__ = _utils.SkipTests
+
+    __metaclass__ = _test_utils.SkipTests
 
     def setUp(self):
+        uuid = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
+        self.persistence_server = _test_utils.PersistenceServer(uuid, None)
+        MySQLServer.create(self.persistence_server)
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
-        self.server = MySQLServer(**OPTIONS)
+        self.server = MySQLServer(self.persistence_server, **OPTIONS)
 
     def tearDown(self):
         self.server.disconnect()
+        MySQLServer.drop(self.persistence_server)
 
     def test_wrong_uuid(self):
         # Check wrong uuid.
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
-        server = MySQLServer(**OPTIONS)
+        server = MySQLServer(self.persistence_server, **OPTIONS)
         self.assertRaises(_errors.MismatchUuidError, server.connect)
 
     def test_wrong_connection(self):
@@ -53,18 +58,6 @@ class TestMySQLServer(unittest.TestCase):
         server.disconnect()
         self.assertRaises(_errors.DatabaseError, server.exec_query,
                           "SELECT VERSION()")
-
-    def test_wrong_result_set(self):
-        server = self.server
-        server.connect()
-
-        res = server.get_gtid_status()
-
-        self.assertRaises(_errors.ResultSetError, res.get_value, "GTID_DONE")
-        res.next()
-        self.assertRaises(_errors.ResultSetError, res.get_value, 20)
-        self.assertRaises(_errors.ResultSetError, res.get_value,
-                          "UNKNOWN_COLUMN")
 
     def test_properties(self):
         server = self.server
@@ -121,9 +114,9 @@ class TestMySQLServer(unittest.TestCase):
         # Executed gtids cannot be compared because we may have executed
         # some statements in other tests.
         for record in server.get_gtid_status():
-           self.assertTrue(record.get_value("GTID_DONE").find(str(server.uuid).upper()) != -1)
-           self.assertEqual(record.get_value("GTID_LOST"), "")
-           self.assertEqual(record.get_value("GTID_OWNED"), "")
+           self.assertTrue(record.GTID_DONE.find(str(server.uuid).upper()) != -1)
+           self.assertEqual(record.GTID_LOST, "")
+           self.assertEqual(record.GTID_OWNED, "")
         #TODO: Test with gtids disabled.
 
     def test_storage(self):
@@ -152,7 +145,7 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         for record in server.get_binary_logs():
-           self.assertEqual(record.get_value("Log_name"), "master-bin.000001")
+           self.assertEqual(record.Log_name, "master-bin.000001")
         # TODO: Test with binlog disabled.
 
     def test_exec_query_options(self):
@@ -200,10 +193,10 @@ class TestMySQLServer(unittest.TestCase):
                           "SELECT * FROM test_3")
 
         # Test option columns
-        ret = server.exec_query("SELECT COUNT(*) FROM test_1",
+        ret = server.exec_query("SELECT COUNT(*) COUNT FROM test_1",
                                 {"columns" : True})
-        self.assertEqual(ret[0][0], u'COUNT(*)')
-        self.assertEqual(int(ret[1][0][0]), 9)
+        self.assertEqual(int(ret[0][0]), 9)
+        self.assertEqual(int(ret[0].COUNT), 9)
 
     def test_is_alive(self):
         # Check if server is alive.
