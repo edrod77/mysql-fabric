@@ -26,6 +26,16 @@ class UnknownEventError(Error):
     """
     pass
 
+class ServiceError(Error):
+    """Exception raised when the Services fail due to any reason. For example,
+    when the wrong parameters to start them up are provided.
+    """
+
+class ExecutorError(Error):
+    """Exception raised when the one tries to access the executor that is
+    not properly configured.
+    """
+
 class DatabaseError(Error):
     """Exception raised when something bad happens while accessing a
     database.

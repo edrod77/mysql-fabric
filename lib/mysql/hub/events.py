@@ -27,9 +27,11 @@ import functools
 import logging
 
 import mysql.hub.errors as _errors
+import mysql.hub.executor as _executor
+
+from mysql.hub.utils import Singleton
 
 _LOGGER = logging.getLogger(__name__)
-_HANDLER = None
 
 def on_event(event):
     """Decorator to attach a callable to one event.
@@ -95,7 +97,7 @@ def on_event(event):
 
         func.compensate = None
         wrapped.undo = undo_decorate
-        _HANDLER.register(event, wrapped)
+        Handler().register(event, wrapped)
         return wrapped
 
     return register_func
@@ -115,7 +117,6 @@ class Event(object):
     :meth:`Handler.trigger`.
 
     """
-
     def __init__(self, name=None):
         self.__name = name
 
@@ -129,24 +130,31 @@ class Event(object):
         return self.__name
 
 
-class Handler(object):
+class Handler(Singleton):
     """An event handler to manage and trigger events in the system.
 
     The event handler is responsible for keeping track of all events
     and will also keep track of what code blocks should be executed
     when an event is triggered.
 
-    :param executor: The executor to post jobs to on reception of events.
-    :type executor: An instance of :class:`~mysql.hub.executor.Executor`.
     """
-
-    def __init__(self, executor):
-        global _HANDLER
-
-        self.__executor = executor
+    def __init__(self):
+        """Constructor for Handler.
+        """
+        super(Handler, self).__init__()
+        self.__executor = _executor.Executor()
         self.__instance_for = {}
         self.__blocks_for = {}
-        _HANDLER = self
+
+    def start(self):
+        """Start a defined executor.
+        """
+        self.__executor.start()
+
+    def shutdown(self):
+        """Shutdown the executor.
+        """
+        self.__executor.shutdown()
 
     def register(self, event, blocks):
         """Register code blocks with an event in the event handler.
@@ -292,7 +300,7 @@ class Handler(object):
         # Enqueue the jobs and return a list of the jobs scheduled
         return [
             self.__executor.enqueue_job(block, "Triggered by %s" % (event,),
-                                        False, args)
+                                        args)
             for block in self.__blocks_for.get(event, [])
             ]
 
@@ -302,9 +310,10 @@ def trigger(event, *args):
     :param event: The event to trigger.
     :type event: Event name or event instance.
     """
+    handler = Handler()
     _LOGGER.debug("Triggering event %s in handler %s",
-                  event, _HANDLER)
-    return _HANDLER.trigger(event, *args)
+                  event, handler)
+    return handler.trigger(event, *args)
 
 # Some pre-defined events. These are documented directly in the documentation
 # and not using autodoc.

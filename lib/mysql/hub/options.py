@@ -32,11 +32,11 @@ class OptionParser(optparse.OptionParser):
     .. attribute:: config_file
 
        File name for extra configuration file to read, provided by the
-       :opt:`--config` option. Defaults to ``hub.cfg``.
+       :option:`--config` option. Defaults to ``hub.cfg``.
 
     .. attribute:: config_param
 
-       The configuration parameters provided with :opt:`--param` as a
+       The configuration parameters provided with :option:`--param` as a
        dictionary of dictionaries, for example::
 
          {

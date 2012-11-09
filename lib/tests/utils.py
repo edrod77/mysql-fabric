@@ -4,17 +4,6 @@ import sqlite3
 
 from mysql.hub.server import Server
 
-class DummyManager(object):
-    """Create a dummy manager.
-    """
-    def __init__(self):
-        """Constructor for DummyManager.
-        """
-        self.executor = None
-        self.server = None
-        self.resource = None
-
-
 class SkipTests(type):
     """Metaclass which is used to skip test cases as follows::
 
