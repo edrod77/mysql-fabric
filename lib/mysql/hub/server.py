@@ -296,8 +296,8 @@ class Group(Persistable):
         """Create the objects(tables) that will store the Group information in
         the state store.
 
-        :param persistence_server The DB server that can be used to access the
-                                    state store.
+        :param persistence_server: The DB server that can be used to access the
+                                   state store.
         :raises: DatabaseError If the table already exists.
         """
         persistence_server.exec_query(Group.CREATE_GROUP)
@@ -315,8 +315,8 @@ class Group(Persistable):
         """Drop the objects(tables) that represent the Group information in
         the persistent store.
 
-        :param persistence_server The DB server that can be used to access the
-                                    state store.
+        :param persistence_server: The DB server that can be used to access the
+                                   state store.
         :raises: DatabaseError If the drop of the related table fails.
         """
         persistence_server.exec_query(Group.DROP_GROUP_SERVER)
@@ -1076,8 +1076,8 @@ class MySQLServer(Server):
         """Create the objects(tables) that will store the Server information in
         the state store.
 
-        :param persistence_server The DB server that can be used to access the
-                                    state store.
+        :param persistence_server: The DB server that can be used to access the
+                                   state store.
         :raises: DatabaseError If the table already exists.
         """
         persistence_server.exec_query(MySQLServer.CREATE_SERVER)
@@ -1087,8 +1087,8 @@ class MySQLServer(Server):
         """Drop the objects(tables) that represent the Server information in
         the persistent store.
 
-        :param persistence_server The DB server that can be used to access the
-                                    state store.
+        :param persistence_server: The DB server that can be used to access the
+                                   state store.
         :raises: DatabaseError If the drop of the related table fails.
         """
         persistence_server.exec_query(MySQLServer.DROP_SERVER)
