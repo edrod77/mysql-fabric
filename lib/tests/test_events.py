@@ -10,7 +10,6 @@ import mysql.hub.config as _config
 import mysql.hub.errors as _errors
 import mysql.hub.events as _events
 import mysql.hub.executor as _executor
-import tests.utils as _utils
 
 _TEST1 = None
 
@@ -79,7 +78,10 @@ class TestHandler(unittest.TestCase):
 
         # Check unregistration of callables that are not functions
         for obj in callables:
-            self.handler.unregister(_events.SERVER_LOST, obj)
+            self.assertRaises(
+                _errors.UnknownCallableError,
+                self.handler.unregister, _events.SERVER_LOST, obj
+                )
 
         # Check that they are indeed gone
         for obj in callables:
@@ -205,7 +207,7 @@ class TestService(unittest.TestCase):
     def setUp(self):
         params = {
                 'protocol.xmlrpc': {
-                'address': 'localhost:13500'
+                'address': 'localhost:15500'
                 },
             }
         config = _config.Config(None, params, True)

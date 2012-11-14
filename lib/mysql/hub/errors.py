@@ -61,3 +61,22 @@ class PersistenceError(Error):
     """Raised to indicate exception while accessing the state store.
     """
     pass
+
+class GroupError(Error):
+    """Exception raised when one tries to execute an invalid operation on a
+    group. For example, it is not possible to create two groups with the
+    same id or remove a group that has associated servers.
+    """
+    pass
+
+class ServerError(Error):
+    """Exception raised when one tries to execute an invalid operation on a
+    server. For example, it is not possible to create two servers with the
+    same uuid.
+    """
+    pass
+
+class JobError(Error):
+    """Exception raised when a job is not found.
+    """
+    pass

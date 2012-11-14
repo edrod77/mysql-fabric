@@ -81,8 +81,8 @@ class TestExecutor(unittest.TestCase):
     def test_job_hashable(self):
         def action():
           pass
-        job_1 = _executor.Job(action, "Test action.", None)
-        job_2 = _executor.Job(action, "Test action.", None)
+        job_1 = _executor.Job(None, action, "Test action.", None)
+        job_2 = _executor.Job(None, action, "Test action.", None)
         set_jobs = set()
         set_jobs.add(job_1)
         set_jobs.add(job_2)

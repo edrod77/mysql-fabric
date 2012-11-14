@@ -7,7 +7,8 @@ import uuid as _uuid
 import mysql.hub.errors as _errors
 import tests.utils as _test_utils
 
-from mysql.hub.server import *
+from mysql.hub.server import MySQLServer
+from mysql.hub.persistence import MySQLPersister
 
 # TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS = {
@@ -23,21 +24,20 @@ class TestMySQLServer(unittest.TestCase):
     __metaclass__ = _test_utils.SkipTests
 
     def setUp(self):
-        uuid = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
-        self.persistence_server = _test_utils.PersistenceServer(uuid, None)
-        MySQLServer.create(self.persistence_server)
+        self.persister = MySQLPersister("localhost:13000", "root", "")
+        MySQLServer.create(self.persister)
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
-        self.server = MySQLServer(self.persistence_server, **OPTIONS)
+        self.server = MySQLServer(self.persister, **OPTIONS)
 
     def tearDown(self):
         self.server.disconnect()
-        MySQLServer.drop(self.persistence_server)
+        MySQLServer.drop(self.persister)
 
     def test_wrong_uuid(self):
         # Check wrong uuid.
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
-        server = MySQLServer(self.persistence_server, **OPTIONS)
+        server = MySQLServer(self.persister, **OPTIONS)
         self.assertRaises(_errors.MismatchUuidError, server.connect)
 
     def test_wrong_connection(self):

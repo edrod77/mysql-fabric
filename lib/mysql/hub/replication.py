@@ -5,6 +5,7 @@ import logging
 
 import mysql.hub.errors as _errors
 import mysql.hub.utils as _utils
+import mysql.hub.server_utils as _server_utils
 
 from mysql.hub.server import MySQLServer, server_logging
 
@@ -359,7 +360,8 @@ def wait_for_slave_gtid(server, master_gtids, timeout=3):
     slave_wait_ok = True
     gtid = master_gtids[0].GTID_DONE
     _LOGGER.debug("Slave (%s).",
-        _utils.split_host_port(server.uri, MySQLServer.DEFAULT_PORT))
+        _server_utils.split_host_port(server.uri,
+                                      _server_utils.MYSQL_DEFAULT_PORT))
     _LOGGER.debug("Query (%s).", _GTID_WAIT % (gtid.strip(','), timeout))
     res = server.exec_query(_GTID_WAIT % (gtid.strip(','), timeout),
                             {"raw" : False })
@@ -396,8 +398,8 @@ def switch_master(slave, master, master_user, master_passwd=None,
     :param master_log_file: Master's log file (not needed for GTID).
     :param master_log_pos: master's log file position (not needed for GTID).
     """
-    master_host, master_port = _utils.split_host_port(master.uri,
-                                                      MySQLServer.DEFAULT_PORT)
+    master_host, master_port = _server_utils.split_host_port(master.uri,
+        _server_utils.MYSQL_DEFAULT_PORT)
     params = []
     params.append("MASTER_HOST = '%s'" % master_host)
     params.append("MASTER_PORT = %s" % master_port)

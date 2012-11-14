@@ -29,7 +29,7 @@ class Job(object):
     ENQUEUED, PROCESSING, COMPLETE = range(3, 6)
     EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
 
-    def __init__(self, action, description, args):
+    def __init__(self, persister, action, description, args):
         """Constructor for the job.
 
         The action is a callback function and if the caller wants to be blocked
@@ -45,7 +45,9 @@ class Job(object):
         self.__lock = threading.Condition()
         self.__complete = False
         self.__status = []
-        self.__args = [] if args is None else args
+        self.__args = args or []
+        self.result = None
+        self.__persister = persister
         self.add_status(Job.SUCCESS, Job.ENQUEUED, description)
 
     def add_status(self, success, state, description, diagnosis=False):
@@ -151,6 +153,10 @@ class Job(object):
         """
         return self.__status
 
+    @property
+    def persister(self):
+        return self.__persister
+
     def __str__(self):
         """Return a description on the job: <Job object: uuid=..., status=...>.
         """
@@ -166,7 +172,6 @@ class Executor(Singleton):
 
     Procedures to be executed are queued to the executor, which then
     will execute them in order.
-
     """
     def __init__(self):
         super(Executor, self).__init__()
@@ -175,6 +180,7 @@ class Executor(Singleton):
         self.__jobs = WeakValueDictionary()
         self.__thread_lock = threading.RLock()
         self.__thread = None
+        self.persister = None
 
     def _run(self):
         """Run the executor thread.
@@ -188,15 +194,24 @@ class Executor(Singleton):
                 self.__queue.task_done()
                 break
             try:
-                job.execute()
+                job.result = "None"
+                if self.persister:
+                    self.persister.begin()
+                result = job.execute()
+                if result is not None:
+                    job.result = result
             except Exception as error:
                 _LOGGER.exception(error)
                 job.add_status(job.ERROR, job.COMPLETE,
                 "Tried to execute action ({0}).".format(job.action.__name__),
                 True)
+                if self.persister:
+                    self.persister.rollback()
             else:
                 job.add_status(job.SUCCESS, job.COMPLETE,
                 "Executed action ({0}).".format(job.action.__name__))
+                if self.persister:
+                    self.persister.commit()
             finally:
                 self.__queue.task_done()
                 job.notify()
@@ -233,7 +248,7 @@ class Executor(Singleton):
         """
         with self.__thread_lock:
             if self.__thread and self.__thread.is_alive():
-                job = Job(action, description, args)
+                job = Job(self.persister, action, description, args)
                 _LOGGER.debug("Created job (%s) whose description is (%s).",
                               str(job.uuid), description)
                 with self.__jobs_lock:
@@ -257,3 +272,22 @@ class Executor(Singleton):
             job = None
 
         return job
+
+# TODO: What does it happen if some the first job in the list fail?
+# TODO: Is this the best place to add this function?
+# TODO: We need to revisit the format of the information returned
+#       after executing a service.
+def process_jobs(jobs, synchronous):
+    """Wait until a list of jobs complete its execution and
+    return information on the latest job in the list::
+
+      str(job.uuid), job.status, job.result
+
+    :param jobs: List of jobs.
+    :param synchronous: Whether should wait until all the
+                        jobs finish their execution or not.
+    """
+    if synchronous:
+        for job in jobs:
+            job.wait()
+    return str(jobs[-1].uuid), jobs[-1].status, jobs[-1].result
