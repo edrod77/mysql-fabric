@@ -273,19 +273,18 @@ class Executor(Singleton):
 
         return job
 
-# TODO: What does it happen if some the first job in the list fail?
 # TODO: Is this the best place to add this function?
 # TODO: We need to revisit the format of the information returned
 #       after executing a service.
 def process_jobs(jobs, synchronous):
     """Wait until a list of jobs complete its execution and
-    return information on the latest job in the list::
-
-      str(job.uuid), job.status, job.result
+    return information on the latest job in the list.
 
     :param jobs: List of jobs.
     :param synchronous: Whether should wait until all the
                         jobs finish their execution or not.
+    :return: Information on the latest job executed.
+    :rtype: str(job.uuid), job.status, job.result.
     """
     if synchronous:
         for job in jobs:
