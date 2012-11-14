@@ -4,6 +4,7 @@ Services are interfaces accessible externally over the network.
 """
 
 import SimpleXMLRPCServer as _xmlrpc
+import socket
 import logging
 import pkgutil
 import re
@@ -42,6 +43,10 @@ class MyXMLRPCServer(_xmlrpc.SimpleXMLRPCServer):
         _xmlrpc.SimpleXMLRPCServer.__init__(self, address, logRequests=False)
         self.__running = False
 
+    def server_bind(self):
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        _xmlrpc.SimpleXMLRPCServer.server_bind(self)
+
     def serve_forever(self, poll_interval=0.5):
         self.__running = True
         while self.__running:
@@ -50,7 +55,7 @@ class MyXMLRPCServer(_xmlrpc.SimpleXMLRPCServer):
     def shutdown(self):
         self.__running = False
 
-class ServiceManager(Singleton, threading.Thread):
+class ServiceManager(Singleton):
     """This is the service manager, which processes service requests.
 
     The service manager is currently implemented as an XML-RPC server,
@@ -64,10 +69,9 @@ class ServiceManager(Singleton, threading.Thread):
     def __init__(self, config=None, shutdown=None):
         """Setup all protocol services.
         """
-        assert(config is not None and shutdown is not None)
-
+        assert(config is not None or shutdown is not None)
         Singleton.__init__(self)
-        threading.Thread.__init__(self, name="ServiceManager")
+        self.__xmlrpc_thread = None
 
         # TODO: Move setup of XML-RPC protocol server into protocols package
         address = config.get("protocol.xmlrpc", "address")
@@ -75,7 +79,7 @@ class ServiceManager(Singleton, threading.Thread):
         self.__xmlrpc = MyXMLRPCServer(("localhost", int(port)))
         self.__xmlrpc.register_function(shutdown, "shutdown")
 
-    def run(self):
+    def start(self):
         """Start and run all services managed by the service manager.
 
         There can be multiple protocol servers active, so this
@@ -83,14 +87,20 @@ class ServiceManager(Singleton, threading.Thread):
         servers and then return.
         """
         _LOGGER.info("XML-RPC protocol server started.")
-        self.__xmlrpc.serve_forever()
-        _LOGGER.info("XML-RPC protocol server stopped.")
+        self.__xmlrpc_thread = threading.Thread(
+            target=self.__xmlrpc.serve_forever, name="ServiceManager")
+        self.__xmlrpc_thread.start()
 
     def shutdown(self):
         """Shut down all services managed by the service manager.
         """
-        _LOGGER.info("Unloading Services.")
         self.__xmlrpc.shutdown()
+        def xmlrpc_wait():
+            self.__xmlrpc_thread.join()
+            _LOGGER.info("XML-RPC protocol server stopped.")
+        thread = threading.Thread(target=xmlrpc_wait,
+                                  name="WaitServiceManager")
+        thread.start()
 
     def load_services(self):
         """Set up protocol servers and load services into each

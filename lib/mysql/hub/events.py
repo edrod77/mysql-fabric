@@ -5,7 +5,7 @@ node and events can trigger execution of jobs.
 
 Central to the reception and processing of events is the **Event
 Handler** (or just **Handler** when it is clear from the context),
-which recieves events from an external or intenal source and enqueues
+which receives events from an external or internal source and enqueues
 zero or more jobs for each code block that has been registered with
 the event.
 
@@ -86,7 +86,7 @@ def on_event(event):
             "Wrapper that execute undo function on an exception."
             try:
                 _LOGGER.debug("Executing %s", func.__name__)
-                func(job)
+                return func(job)
             except Exception as error:       # pylint: disable=W0703
                 _LOGGER.debug("%s failed, executing compensation",
                               func.__name__)
@@ -147,12 +147,12 @@ class Handler(Singleton):
         self.__blocks_for = {}
 
     def start(self):
-        """Start a defined executor.
+        """Start the executor which is responsible for scheduling events.
         """
         self.__executor.start()
 
     def shutdown(self):
-        """Shutdown the executor.
+        """Shutdown the executor which is responsible for scheduling events.
         """
         self.__executor.shutdown()
 
@@ -226,9 +226,11 @@ class Handler(Singleton):
 
         try:
             self.__blocks_for[event].remove(block)
+            if self.__blocks_for[event]:
+                del self.__blocks_for[event]
         except KeyError:
             raise _errors.UnknownCallableError(
-                "Not possible to unregister a non-existant block")
+                "Not possible to unregister a non-existing block")
 
     def is_registered(self, event, block):
         """Check if a callable is registered with an event.

@@ -8,9 +8,11 @@ from collections import namedtuple
 
 import mysql.hub.errors as _errors
 import mysql.hub.utils as _utils
+import mysql.hub.server_utils as _server_utils
 import tests.utils as _test_utils
 
 from mysql.hub.server import MySQLServer
+from mysql.hub.persistence import MySQLPersister
 from mysql.hub.replication import *
 
 # TODO: When the FakeMysql is pushed, change it and take care of the todos.
@@ -33,13 +35,12 @@ class TestMySQLMaster(unittest.TestCase):
     __metaclass__ = _test_utils.SkipTests
 
     def setUp(self):
-        uuid = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
-        self.persistence_server = _test_utils.PersistenceServer(uuid, None)
-        MySQLServer.create(self.persistence_server)
+        self.persister = MySQLPersister("localhost:13000", "root", "")
+        MySQLServer.create(self.persister)
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         # TODO: Change the initialization style.
-        self.master = MySQLServer(self.persistence_server, **OPTIONS_MASTER)
+        self.master = MySQLServer(self.persister, **OPTIONS_MASTER)
         self.master.connect()
         reset_master(self.master)
         self.master.read_only = True
@@ -47,7 +48,7 @@ class TestMySQLMaster(unittest.TestCase):
 
     def tearDown(self):
         self.master.disconnect()
-        MySQLServer.drop(self.persistence_server)
+        MySQLServer.drop(self.persister)
 
     def test_master_binary_log(self):
         master = self.master
@@ -90,7 +91,7 @@ class TestMySQLMaster(unittest.TestCase):
         # Configure slave and check command.
         uuid = MySQLServer.discover_uuid(**OPTIONS_SLAVE)
         OPTIONS_SLAVE["uuid"] = _uuid.UUID(uuid)
-        slave = MySQLServer(self.persistence_server, **OPTIONS_SLAVE)
+        slave = MySQLServer(self.persister, **OPTIONS_SLAVE)
         slave.connect()
         stop_slave(slave, wait=True)
         switch_master(slave, master, "root", "")
@@ -98,9 +99,10 @@ class TestMySQLMaster(unittest.TestCase):
 
         # Get Master slaves
         ret = get_master_slaves(master)
-        uri = _utils.combine_host_port(ret[0].Host, ret[0].Port,
-                                       MySQLServer.DEFAULT_PORT)
-        self.assertEqual(uri, "127.0.0.1:13001")
+        if ret:
+            uri = _server_utils.combine_host_port(ret[0].Host, ret[0].Port,
+                _server_utils.MYSQL_DEFAULT_PORT)
+            self.assertEqual(uri, "127.0.0.1:13001")
 
 
 class TestMySQLSlave(unittest.TestCase):
@@ -110,18 +112,17 @@ class TestMySQLSlave(unittest.TestCase):
     __metaclass__ = _test_utils.SkipTests
 
     def setUp(self):
-        uuid = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
-        self.persistence_server = _test_utils.PersistenceServer(uuid, None)
-        MySQLServer.create(self.persistence_server)
+        self.persister = MySQLPersister("localhost:13000", "root", "")
+        MySQLServer.create(self.persister)
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
-        self.master = MySQLServer(self.persistence_server, **OPTIONS_MASTER)
+        self.master = MySQLServer(self.persister, **OPTIONS_MASTER)
         self.master.connect()
         reset_master(self.master)
 
         uuid = MySQLServer.discover_uuid(**OPTIONS_SLAVE)
         OPTIONS_SLAVE["uuid"] = _uuid.UUID(uuid)
-        self.slave = MySQLServer(self.persistence_server, **OPTIONS_SLAVE)
+        self.slave = MySQLServer(self.persister, **OPTIONS_SLAVE)
         self.slave.connect()
         stop_slave(self.slave, wait=True)
         reset_master(self.slave)
@@ -131,7 +132,7 @@ class TestMySQLSlave(unittest.TestCase):
         stop_slave(self.slave, wait=True)
         self.slave.disconnect()
         self.master.disconnect()
-        MySQLServer.drop(self.persistence_server)
+        MySQLServer.drop(self.persister)
 
     def test_switch_master(self):
         # TODO: Test it also without gtis so we can define binary
