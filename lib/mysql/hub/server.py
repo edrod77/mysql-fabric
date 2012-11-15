@@ -235,10 +235,10 @@ class Group(_persistence.Persistable):
 
         :param persister: The persistence store object that can be used
                           to access the state store.
-        :param group_id The group_id for the Group object that needs to be
-                        retrieved.
-        :return The Group object corresponding to the group_id
-                None if the Group object does not exist.
+        :param group_id: The group_id for the Group object that needs to be
+                         retrieved.
+        :return: The Group object corresponding to the group_id
+                 None if the Group object does not exist.
         """
         cur = persister.exec_query(Group.QUERY_GROUP,
                                             {"raw" : False, \
@@ -897,12 +897,12 @@ class MySQLServer(Server):
     def fetch(persister, uuid):
         """Return the server object corresponding to the uuid.
 
-        :param persister The persistence server object that will be
-                                    used to access the state store.
-        :param uuid The server id of the server object that needs to be
-                            returned.
-        :return The server object that corresponds to the server id
-                None if the server id does not exist.
+        :param persister: The persistence server object that will be
+                          used to access the state store.
+        :param uuid: The server id of the server object that needs to be
+                     returned.
+        :return: The server object that corresponds to the server id
+                 None if the server id does not exist.
         """
         cur = persister.exec_query(MySQLServer.QUERY_SERVER,
                                             {"raw" : False, "fetch" : False,

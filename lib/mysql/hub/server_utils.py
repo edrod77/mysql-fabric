@@ -27,11 +27,14 @@ def split_host_port(uri, default_port):
 
 def combine_host_port(host, port, default_port):
     """Return a string with the parameters host and port.
-        
+
     :return: String host:port.
     """
     if host:
-        host_info = host
+        if host == "127.0.0.1":
+            host_info = "localhost"
+        else:
+            host_info = host
     else:
         host_info = "unknown host"
 

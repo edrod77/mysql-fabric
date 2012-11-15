@@ -102,7 +102,7 @@ class TestMySQLMaster(unittest.TestCase):
         if ret:
             uri = _server_utils.combine_host_port(ret[0].Host, ret[0].Port,
                 _server_utils.MYSQL_DEFAULT_PORT)
-            self.assertEqual(uri, "127.0.0.1:13001")
+            self.assertEqual(uri, "localhost:13001")
 
 
 class TestMySQLSlave(unittest.TestCase):

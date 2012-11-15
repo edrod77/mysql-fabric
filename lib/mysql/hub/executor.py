@@ -194,7 +194,7 @@ class Executor(Singleton):
                 self.__queue.task_done()
                 break
             try:
-                job.result = "None"
+                job.result = False
                 if self.persister:
                     self.persister.begin()
                 result = job.execute()

@@ -77,7 +77,7 @@ class TestExecutor(unittest.TestCase):
         for cnt in range(10, 1, -1):
             self.assertTrue(cnt in count)
         self.assertEqual(other, 47)
- 
+
     def test_job_hashable(self):
         def action():
           pass
@@ -107,7 +107,7 @@ class TestExecutor(unittest.TestCase):
         # Check unknown job.
         job = self.executor.get_job(uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
         self.assertEqual(job, None)
-        
+
 
     def test_multi_dispatch(self):
         """Test that we can dispatch multiple events without waiting
@@ -115,7 +115,7 @@ class TestExecutor(unittest.TestCase):
         """
         self.executor.start()
 
-        # Enqueue several jobs at the same time. 
+        # Enqueue several jobs at the same time.
         jobs = []
         for num in range(1, 10, 2):
             action = Action(num)

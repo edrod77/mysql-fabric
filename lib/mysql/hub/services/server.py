@@ -9,13 +9,13 @@ Search functions are also provided so that one may look up groups and servers.
 Given a server's uri, one may also find out the server's uuid if the server is
 alive and kicking.
 
-Functions are scheduled to be asynchronously executed and return a scheduling's
+Functions are scheduled to be asynchronously executed and return a schedule's
 description, i.e. a job's description. If users are not interestered in the
 result produced by a function, they must set the synchronous parameter to false.
 It is set to true by default which means that the call is blocked until the
 execution finishes.
 
-The scheduling is made through the executor which enqueues functions, named
+The scheduling is made through the executor which enqueues functions, namely
 jobs, and then serializes their execution within a Fabric Server. Any job object
 encapsulates a function to be executed, its parameters, its execution's status
 and its result. Due to its asynchronous nature, a job accesses a snapshot
@@ -48,12 +48,12 @@ _LOGGER = logging.getLogger("mysql.hub.services.server")
 
 LOOKUP_GROUPS = _events.Event("LOOKUP_GROUPS")
 def lookup_groups(synchronous=True):
-    """Return a list of existing groups::
+    """Return a list with existing groups.
 
-      [[group], ....]
-
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
+    :return: A list with existing groups.
+    :rtype: [[group], ....].
     """
     jobs = _events.trigger(LOOKUP_GROUPS)
     assert(len(jobs) == 1)
@@ -64,14 +64,13 @@ def lookup_group(group_id, synchronous=True):
     """Look up a group identified by an id.
 
     :param group_id: Group's id.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
+    :return: Return group's information.
+    :rtype: {"group_id" : group_id, "description": description}.
 
     If the group does not exist, the :class:`mysql.hub.errors.GroupError`
-    exception is thrown. Otherwise, the group's description is returned as
-    follows::
-
-      {"group_id" : group_id, "description": description}
+    exception is thrown. Otherwise, the group's information is returned.
     """
     jobs = _events.trigger(LOOKUP_GROUP, group_id)
     assert(len(jobs) == 1)
@@ -83,7 +82,7 @@ def create_group(group_id, description, synchronous=True):
 
     :param group_id: Group's id.
     :param description: Group's description.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """
@@ -97,7 +96,7 @@ def update_group(group_id, description, synchronous=True):
 
     :param group_id: Group's id.
     :param description: Group's description.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """
@@ -110,7 +109,7 @@ def remove_group(group_id, synchronous=True):
     """Remove a group.
 
     :param group_id: Group's id.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """
@@ -123,7 +122,7 @@ def lookup_servers(group_id, synchronous=True):
     """Return list of existing servers in a group.
 
     :param group_id: Group's id.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: List of existing servers.
 
@@ -144,7 +143,7 @@ def lookup_uuid(uri, user, passwd, synchronous=True):
     :param uri: Server's uri.
     :param user: Server's user.
     :param passwd: Server's passwd.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: uuid.
     """
@@ -158,13 +157,10 @@ def lookup_server(group_id, uuid, synchronous=True):
 
     :param group_id: Group's id.
     :param uuid: Server's uuid.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: List of existing servers.
-
-    Return server's description as follows::
-
-      {"uuid" : uuid, "uri": uri, "user": user, "passwd": passwd}
+    :rtype: {"uuid" : uuid, "uri": uri, "user": user, "passwd": passwd}.
     """
     jobs = _events.trigger(LOOKUP_SERVER, group_id, uuid)
     assert(len(jobs) == 1)
@@ -178,7 +174,7 @@ def create_server(group_id, uri, user, passwd, synchronous=True):
     :param uri: Server's uri.
     :param user: Server's user.
     :param passwd: Server's passwd.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """
@@ -192,7 +188,7 @@ def remove_server(group_id, uuid, synchronous=True):
 
     :param uuid: Server's uuid.
     :param group_id: Group's id.
-    :param synchromous: Whether one should wait until the execution finishes
+    :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """

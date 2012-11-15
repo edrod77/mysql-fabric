@@ -6,6 +6,8 @@ import uuid as _uuid
 import mysql.hub.errors as _errors
 import mysql.hub.executor as _executor
 
+# TODO: Revisit this and check if it is possible to encapsulate some of these
+# functions int the executor.py.
 def wait_for_job(job_uuid):
     """Wait until a job uniquely identified by job_uuid finishes its execution.
     If the job is not found the :class:`mysql.hub.errors.JobError` exception
@@ -13,7 +15,7 @@ def wait_for_job(job_uuid):
 
     :param job_uuid: Job's uuid.
     :return: Job's status.
-    """    
+    """
     executor = _executor.Executor()
     job_uuid = _uuid.UUID(job_uuid)
     job = executor.get_job(job_uuid)
@@ -28,7 +30,7 @@ def get_job_details(job_uuid):
 
     :param job_uuid: Job's uuid.
     :return: Job's status.
-    """    
+    """
     executor = _executor.Executor()
     job_uuid = _uuid.UUID(job_uuid)
     job = executor.get_job(job_uuid)

@@ -1,4 +1,4 @@
-"""Define a set of classes and interfaces that are responsible for persite
+"""Define a set of classes and interfaces that are responsible for persisting
 information into a state store.
 """
 
@@ -65,7 +65,7 @@ class MySQLPersister(object):
 
     def begin(self):
         """Start a new transaction.
-        """        
+        """
         self.exec_query("BEGIN")
 
     def commit(self):

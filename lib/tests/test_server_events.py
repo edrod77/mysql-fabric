@@ -95,7 +95,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_group).")
-        self.assertEqual(status[2], "None")
+        self.assertEqual(status[2], False)
 
         # Update a group.
         status = self.proxy.server.update_group("group", "Test Test Test")
@@ -156,7 +156,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_servers).")
-        self.assertEqual(status[2], "None")
+        self.assertEqual(status[2], False)
 
         # Look up a server.
         status = self.proxy.server.lookup_server("group_1", status_uuid[2])
@@ -173,7 +173,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_server).")
-        self.assertEqual(status[2], "None")
+        self.assertEqual(status[2], False)
 
         # Try to look up a server that does not exist.
         status = self.proxy.server.lookup_server("group_1",
@@ -182,7 +182,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_server).")
-        self.assertEqual(status[2], "None")
+        self.assertEqual(status[2], False)
 
         # Try to look up a server that does not exist
         status = self.proxy.server.lookup_uuid("localhost:15000", "root", "")
@@ -190,7 +190,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_uuid).")
-        self.assertEqual(status[2], "None")
+        self.assertEqual(status[2], False)
 
     def test_remove_group_events(self):
         # Prepare group and servers
