@@ -21,6 +21,8 @@ import tests.utils as _test_utils
 class TestServerServices(unittest.TestCase):
     "Test the service interface"
 
+    __metaclass__ = _test_utils.SkipTests
+
     def setUp(self):
         params = {
                 "protocol.xmlrpc": {

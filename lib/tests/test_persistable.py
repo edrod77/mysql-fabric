@@ -9,6 +9,9 @@ from mysql.hub.server import MySQLServer, Group
 from mysql.hub.persistence import MySQLPersister
 
 class TestGroup(unittest.TestCase):
+
+    __metaclass__ = _test_utils.SkipTests
+
     def setUp(self):
         self.__persister = MySQLPersister("localhost:13000","root", "")
         Group.create(self.__persister)
