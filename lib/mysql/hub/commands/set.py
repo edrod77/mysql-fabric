@@ -25,4 +25,5 @@ def main(argv):
         loglevel = config.get('logging', 'level')
         proxy.set_logging_level(module, loglevel)
     except xmlrpclib.Fault, err:
-        print >> sys.stderr, "Failure (%d): %s" % (err.faultCode, err.faultString)
+        print >> sys.stderr, "Failure (%d): %s" % \
+            (err.faultCode, err.faultString)

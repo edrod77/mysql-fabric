@@ -125,7 +125,7 @@ class Group(_persistence.Persistable):
         """
         assert(isinstance(group_id, basestring))
         if persister is None:
-            raise _error.PersistenceError("Missing handle to the state store")
+            raise _errors.PersistenceError("Missing handle to the state store")
         self.__persister = persister
         self.__group_id = group_id
         self.__description = description
@@ -483,7 +483,7 @@ class MySQLServer(Server):
         """
         super(MySQLServer, self).__init__(uuid=uuid, uri=uri)
         if persister is None:
-            raise _error.PersistenceError("Missing handle to the state store")
+            raise _errors.PersistenceError("Missing handle to the state store")
         self.__persister = persister
         self.__user = user
         self.__passwd = passwd

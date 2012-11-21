@@ -9,10 +9,11 @@ class SingletonMeta(type):
       ...
     """
     _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+    def __call__(mcs, *args, **kwargs):
+        if mcs not in mcs._instances:
+            mcs._instances[mcs] = super(SingletonMeta, mcs).__call__(*args,
+                                                                     **kwargs)
+        return mcs._instances[mcs]
 
 
 class Singleton(object):

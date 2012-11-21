@@ -4,7 +4,6 @@ import logging
 import uuid
 import traceback
 
-from functools import wraps
 from weakref import WeakValueDictionary
 
 import mysql.hub.errors as _errors
@@ -155,6 +154,9 @@ class Job(object):
 
     @property
     def persister(self):
+        """Return a reference to the persister object which is used to access
+        the state store.
+        """
         return self.__persister
 
     def __str__(self):
@@ -200,7 +202,7 @@ class Executor(Singleton):
                 result = job.execute()
                 if result is not None:
                     job.result = result
-            except Exception as error:
+            except Exception as error: # pylint: disable=W0703
                 _LOGGER.exception(error)
                 job.add_status(job.ERROR, job.COMPLETE,
                 "Tried to execute action ({0}).".format(job.action.__name__),
@@ -221,7 +223,8 @@ class Executor(Singleton):
         """
         with self.__thread_lock:
             if not self.__thread:
-                self.__thread = threading.Thread(target=self._run, name="Executor")
+                self.__thread = threading.Thread(target=self._run,
+                                                 name="Executor")
                 self.__thread.start()
             else:
                 raise _errors.ExecutorError("Executor is already running.")

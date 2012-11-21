@@ -16,7 +16,8 @@ the event.
      Handler -> Handler [ label = "lookup(event)" ]
      Handler <-- Handler [ label = "blocks" ]
      Handler -> Executor [ label = "enqueue_job(block)",
-                           note = "for block in blocks:\n  executor.enqueue_job(block)" ]
+                           note = "for block in blocks: \ \n
+                           executor.enqueue_job(block)" ]
      Handler <-- Executor [ label = "job", note = "jobs.append(job)" ]
      Source <-- Handler [ label = "jobs" ]
    }

@@ -7,5 +7,5 @@ def trigger(event, *args):
     try:
         _events.trigger(event, *args)
         return True
-    except Exception as err:
-        return err
+    except Exception as error: # pylint: disable=W0703
+        return error

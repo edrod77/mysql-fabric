@@ -2,6 +2,10 @@
 order to allow users to dynamically set logging level and ease debugging
 and eventually make it easier to catch errors.
 """
+import logging
+
+_LOGGER = logging.getLogger("mysql.hub.services.set_logging")
+
 def set_logging_level(module, level):
     """Set logging level.
 
@@ -14,7 +18,7 @@ def set_logging_level(module, level):
         __import__(module)
         logger = logging.getLogger(module)
         logger.setLevel(level)
-    except Exception as error:
+    except Exception as error: # pylint: disable=W0703
         _LOGGER.exception(error)
         return error
     return True

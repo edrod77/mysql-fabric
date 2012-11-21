@@ -3,9 +3,12 @@ information into a state store.
 """
 
 import mysql.hub.server_utils as _server_utils
-import mysql.hub.utils as _utils
+
 
 class Persistable(object):
+    """Interface that every class that wants to be persisted to state store
+    must implement.
+    """
     @staticmethod
     def create(persister):
         """Create the tables to represent the current object in the state store.
