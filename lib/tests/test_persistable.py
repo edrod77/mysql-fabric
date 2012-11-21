@@ -1,5 +1,4 @@
 import unittest
-import sqlite3
 import uuid as _uuid
 
 import mysql.hub.errors as _errors
