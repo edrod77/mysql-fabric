@@ -6,7 +6,6 @@ import logging.handlers
 import os
 import sys
 
-import mysql.hub.executor as _executor
 import mysql.hub.services as _services
 import mysql.hub.events as _events
 

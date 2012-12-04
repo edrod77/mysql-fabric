@@ -43,7 +43,6 @@ import mysql.hub.executor as _executor
 # There is something wrong sometimes __name__ is server.
 # See line lib/mysql/hub/services/__init__.py", line 25.
 # Is this expected?
-# TODO: The logging is not working.
 _LOGGER = logging.getLogger("mysql.hub.services.server")
 
 LOOKUP_GROUPS = _events.Event("LOOKUP_GROUPS")
@@ -91,7 +90,7 @@ def create_group(group_id, description, synchronous=True):
     return _executor.process_jobs(jobs, synchronous)
 
 UPDATE_GROUP = _events.Event("UPDATE_GROUP")
-def update_group(group_id, description, synchronous=True):
+def update_group(group_id, description=None, master=None, synchronous=True):
     """Update a group.
 
     :param group_id: Group's id.
@@ -100,7 +99,7 @@ def update_group(group_id, description, synchronous=True):
                         or not.
     :return: Tuple with job's uuid and status.
     """
-    jobs = _events.trigger(UPDATE_GROUP, group_id, description)
+    jobs = _events.trigger(UPDATE_GROUP, group_id, description, master)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
@@ -211,7 +210,8 @@ def _lookup_group(job):
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    return {"group_id" : group.group_id, "description": group.description}
+    return {
+        "group_id" : group.group_id, "description": group.get_description()}
 
 @_events.on_event(CREATE_GROUP)
 def _create_group(job):
@@ -221,14 +221,18 @@ def _create_group(job):
     group = _server.Group.add(job.persister, group_id, description)
     _LOGGER.debug("Added group (%s).", str(group))
 
+# TODO: test with None # TODO: CREATE DIFFERENT FUNCTIONS ONE FOR EACH COLUMN?
 @_events.on_event(UPDATE_GROUP)
 def _update_group(job):
     """Update a group."""
-    group_id, description = job.args
+    group_id, description, master = job.args
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    group.description = description
+    group.set_description(job.persister, description)
+    if master:
+        master = _uuid.UUID(master)
+    group.set_master(job.persister, master)
     _LOGGER.debug("Updated group (%s).", str(group))
 
 @_events.on_event(REMOVE_GROUP)
@@ -238,9 +242,9 @@ def _remove_group(job):
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if group.servers():
+    if group.servers(job.persister):
         raise _errors.GroupError("Group (%s) is not empty." % (group_id))
-    group.remove()
+    group.remove(job.persister)
     _LOGGER.debug("Removed group (%s).", str(group))
 
 @_events.on_event(LOOKUP_SERVERS)
@@ -251,9 +255,13 @@ def _lookup_servers(job):
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    # TODO: WHO IS MASTER? WHO ACCEPTS WRITES?
-    # TODO: ADD SOME INFORMATION FROM LOOKUP_SERVER?
-    return [server for server in group.servers()]
+    ret = []
+    for row in group.servers(job.persister):
+        server = _server.MySQLServer.fetch(job.persister,
+                                           _uuid.UUID(row[0]))
+        ret.append([str(server.uuid), server.uri,
+                   group.get_master() == server.uuid])
+    return ret
 
 @_events.on_event(LOOKUP_UUID)
 def _lookup_uuid(job):
@@ -270,12 +278,12 @@ def _lookup_server(job):
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if not group.contains_server(uuid):
+    if not group.contains_server(job.persister, uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, uuid))
     server = _server.MySQLServer.fetch(job.persister, uuid)
     return {"uuid": str(server.uuid), "uri": server.uri,
-            "user": server.user, "passwd": server.passwd}
+           "user": server.get_user(), "passwd": server.get_passwd()}
 
 @_events.on_event(CREATE_SERVER)
 def _create_server(job):
@@ -288,11 +296,11 @@ def _create_server(job):
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if group.contains_server(uuid):
+    if group.contains_server(job.persister, uuid):
         raise _errors.ServerError("Server (%s) already exists in group (%s)." \
                                   % (str(uuid), group_id))
     server = _server.MySQLServer.add(job.persister, uuid, uri, user, passwd)
-    group.add_server(server)
+    group.add_server(job.persister, server)
     _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
 
 @_events.on_event(REMOVE_SERVER)
@@ -303,11 +311,11 @@ def _remove_server(job):
     group = _server.Group.fetch(job.persister, group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if not group.contains_server(uuid):
+    if not group.contains_server(job.persister, uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, uuid))
     server = _server.MySQLServer.fetch(job.persister, uuid)
-    group.remove_server(server)
-    server.remove()
+    group.remove_server(job.persister, server)
+    server.remove(job.persister)
     _LOGGER.debug("Removed server (%s) from group (%s).", str(server),
                   str(group))

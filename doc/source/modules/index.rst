@@ -14,3 +14,5 @@ Contents
    events
    server
    replication
+   replication_services
+   server_services

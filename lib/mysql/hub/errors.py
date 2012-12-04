@@ -29,11 +29,6 @@ class UnknownEventError(Error):
     """
     pass
 
-class ServiceError(Error):
-    """Exception raised when the Services fail due to any reason. For example,
-    when the wrong parameters to start them up are provided.
-    """
-
 class ExecutorError(Error):
     """Exception raised when the one tries to access the executor that is
     not properly configured.
@@ -51,35 +46,48 @@ class MismatchUuidError(DatabaseError):
     """
     pass
 
-class ConfigurationError(DatabaseError):
+class ProgrammingError(Error):
+    """Exception raised when a developer tries to use the interfaces and
+    executes an invalid operation.
+    """
+    pass
+
+class ConfigurationError(ProgrammingError):
     """Exception raised when access parameters are not properly configured.
     """
     pass
 
-class TimeoutError(DatabaseError):
+class TimeoutError(ProgrammingError):
     """Exception raised when there is a timeout.
     """
 
 class PersistenceError(Error):
-    """Raised to indicate exception while accessing the state store.
+    """Exception raised when something wrong happens while accessing the
+    state store.
     """
     pass
 
-class GroupError(Error):
+class ServiceError(Error):
+    """Exception raised when one tries to use the service interface and
+    executes an invalid operation.
+    """
+    pass
+
+class GroupError(ServiceError):
     """Exception raised when one tries to execute an invalid operation on a
     group. For example, it is not possible to create two groups with the
     same id or remove a group that has associated servers.
     """
     pass
 
-class ServerError(Error):
+class ServerError(ServiceError):
     """Exception raised when one tries to execute an invalid operation on a
     server. For example, it is not possible to create two servers with the
     same uuid.
     """
     pass
 
-class JobError(Error):
+class JobError(ServiceError):
     """Exception raised when a job is not found.
     """
     pass

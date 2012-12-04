@@ -22,7 +22,6 @@ import logging
 import functools
 
 import mysql.hub.errors as _errors
-import mysql.hub.utils as _utils
 import mysql.hub.persistence as _persistence
 import mysql.hub.server_utils as _server_utils
 
@@ -55,20 +54,22 @@ class Group(_persistence.Persistable):
     This class does not provide any monitoring feature and this becomes
     necessary one should extend it or rely on an external service.
     """
+    #TODO: DEFINE FOREIGN KEY constraints.
     CREATE_GROUP = ("CREATE TABLE groups"
-                        "(group_id VARCHAR(64) NOT NULL, "
-                        "description VARCHAR(256), "
-                        "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
+                    "(group_id VARCHAR(64) NOT NULL, "
+                    "description VARCHAR(256), "
+                    "master_uuid VARCHAR(40), "
+                    "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
 
     #SQL Statement for creating the table for storing the relationship
     #between a group and the server.
 
     #TODO: DEFINE FOREIGN KEY constraints.
     CREATE_GROUP_SERVER = \
-                ("CREATE TABLE group_server"
-                 "(server_uuid VARCHAR(40) NOT NULL, "
-                 "group_id VARCHAR(64) NOT NULL, "
-                 "CONSTRAINT pk_server_uuid_group_uuid "
+                ("CREATE TABLE groups_servers"
+                 "(group_id VARCHAR(64) NOT NULL, "
+                 "server_uuid VARCHAR(40) NOT NULL, "
+                 "CONSTRAINT pk_group_id_server_uuid "
                  "PRIMARY KEY(group_id, server_uuid))")
 
     #SQL Statements for dropping the table created for storing the Group
@@ -77,58 +78,65 @@ class Group(_persistence.Persistable):
 
     #SQL Statements for dropping the table used for storing the relation
     #between Group and the servers
-    DROP_GROUP_SERVER = ("DROP TABLE group_server")
+    DROP_GROUP_SERVER = ("DROP TABLE groups_servers")
 
     #SQL statement for inserting a new group into the table
-    INSERT_GROUP = ("INSERT INTO groups VALUES(%s, %s)")
+    INSERT_GROUP = ("INSERT INTO groups(group_id, description) "
+                    "VALUES(%s, %s)")
 
     #SQL statement for inserting a new server into a group
-    INSERT_GROUP_SERVER = ("INSERT INTO group_server VALUES(%s, %s)")
+    INSERT_GROUP_SERVER = ("INSERT INTO groups_servers(group_id, server_uuid) "
+                           "VALUES(%s, %s)")
 
     #SQL statement for checking for the presence of a server within a group
-    QUERY_GROUP_SERVER = ("SELECT server_uuid from group_server where "
+    QUERY_GROUP_SERVER = ("SELECT server_uuid from groups_servers where "
                           "group_id = %s AND server_uuid = %s")
 
     #SQL statement for selecting all groups
     QUERY_GROUPS = ("SELECT group_id from groups")
 
     #SQL statement for selecting all the servers from a group
-    QUERY_GROUP_SERVERS = ("SELECT server_uuid from group_server where "
+    QUERY_GROUP_SERVERS = ("SELECT server_uuid from groups_servers where "
                            "group_id = %s")
 
     #SQL statement for updating the group table identified by the group id.
-    UPDATE_GROUP = ("UPDATE groups SET description = %s "
-                    "WHERE group_id = %s")
+    UPDATE_GROUP = ("UPDATE groups SET description = %s WHERE group_id = %s")
 
     #SQL statement used for deleting the group identified by the group id.
     REMOVE_GROUP = ("DELETE FROM groups WHERE group_id = %s")
 
     #SQL Statement to delete a server from a group.
-    DELETE_GROUP_SERVER = ("DELETE FROM group_server WHERE group_id = %s AND "
+    DELETE_GROUP_SERVER = ("DELETE FROM groups_servers WHERE group_id = %s AND "
                            "server_uuid = %s")
 
     #SQL Statement to retrieve a specific group from the state_store.
-    QUERY_GROUP = ("SELECT group_id, description FROM groups WHERE "
-                   "group_id = %s")
+    QUERY_GROUP = ("SELECT group_id, description, master_uuid FROM groups "
+                   "WHERE group_id = %s")
 
+    #SQL Statement to update the group's master.
+    UPDATE_MASTER = ("UPDATE groups SET master_uuid = %s WHERE group_id = %s")
 
-    def __init__(self, persister, group_id, description=None):
+    #SQL Statement to update the group's master with NULL.
+    # TODO: Is there a better way of doing this?
+    UPDATE_NULL_MASTER = ("UPDATE groups SET master_uuid = NULL WHERE "
+                          "group_id = %s")
+
+    def __init__(self, group_id, description=None, master=None):
         """Constructor for the Group. Check to see if the Group is already
         present in the state store, if it is, then load the information from
         the state store, else persist the input information into the state
         store.
 
-        :param persister The server that is used to store the
-                                   group information.
-        :param group_id The id that uniquely identifies the group
-        :param description The description of the group
+        :param group_id: The id that uniquely identifies the group.
+        :param description: The group's description.
+        :param master: The master's uuid in the group.
+        :rtype master: UUID
         """
         assert(isinstance(group_id, basestring))
-        if persister is None:
-            raise _errors.PersistenceError("Missing handle to the state store")
-        self.__persister = persister
+        assert(master is None or isinstance(master, _uuid.UUID))
         self.__group_id = group_id
         self.__description = description
+        self.__master = master
 
     def __eq__(self,  other):
         """Two groups are equal if they have the same id.
@@ -147,80 +155,111 @@ class Group(_persistence.Persistable):
         """
         return self.__group_id
 
-    def add_server(self, server):
+    def add_server(self, persister, server):
         """Add a server into this group.
 
-        :param The Server object that needs to be added to this Group.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param server: The Server object that needs to be added to this
+                       Group.
         """
         assert(isinstance(server, Server))
-        self.__persister.exec_query (Group.INSERT_GROUP_SERVER,
-                                              {"params":(str(server.uuid),
-                                                   self.__group_id)})
+        persister.exec_stmt(Group.INSERT_GROUP_SERVER,
+                            {"params": (self.__group_id, str(server.uuid))})
 
-    def remove_server(self, server):
+    def remove_server(self, persister, server):
         """Remove a server from this group.
 
-        :param The Server object that needs to be removed from this Group.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param server: The Server object that needs to be removed from this
+                       Group.
         """
         assert(isinstance(server, Server))
-        self.__persister.exec_query(Group.DELETE_GROUP_SERVER,
-                                             {"params":(str(self.__group_id),
-                                                   str(server.uuid))})
+        persister.exec_stmt(Group.DELETE_GROUP_SERVER,
+                            {"params":(self.__group_id, str(server.uuid))})
 
-    @property
-    def description(self):
+    def get_description(self):
         """Return the description for the group.
         """
         return self.__description
 
-    @description.setter
-    def description(self, description):
-        """Set the description for this group. Update the description for the
-        Group in the state store.
+    def set_description(self, persister, description):
+        """Set the description for this group.
 
-        :param description The new description for the group that needs to be
-                           updated.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param description: The new description for the group that needs to be
+                            updated.
         """
-        self.__persister.exec_query(Group.UPDATE_GROUP,
-                                    {"params":(description, self.__group_id)})
+        persister.exec_stmt(Group.UPDATE_GROUP,
+            {"params":(description, self.__group_id)})
         self.__description = description
 
-    def servers(self):
+    def servers(self, persister):
         """Return the uuids for the set of servers in this group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
-        cur = self.__persister.exec_query(Group.QUERY_GROUP_SERVERS,
-                                {"raw" : False,
-                                "fetch" : False,
-                                "params" : (self.__group_id,)})
-        rows = cur.fetchall()
-        return rows
+        # TODO: This should return MySQLServer objects not rows.
+        return persister.exec_stmt(Group.QUERY_GROUP_SERVERS,
+                                   {"params" : (self.__group_id,)})
+
+    def get_master(self):
+        """Return the master for the group.
+        """
+        return self.__master
+
+    def set_master(self, persister, master):
+        """Set the master for this group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param master: The master for the group that needs to be updated.
+        """
+        assert(master is None or isinstance(master, _uuid.UUID))
+        if not master:
+            persister.exec_stmt(Group.UPDATE_NULL_MASTER,
+                {"params":(self.__group_id, )})
+        else:
+            persister.exec_stmt(Group.UPDATE_MASTER,
+                {"params":(str(master), self.__group_id)})
+        self.__master = master
 
     @staticmethod
     def groups(persister):
         """Return the group_ids of all the available groups.
-        """
-        return persister.exec_query(Group.QUERY_GROUPS,
-                                    {"raw" : False, "fetch" : True})
 
-    def remove(self):
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        return persister.exec_stmt(Group.QUERY_GROUPS)
+
+    def remove(self, persister):
         """Remove the Group object from the state store.
-        """
-        self.__persister.exec_query(Group.REMOVE_GROUP,
-                                             {"params" : (self.__group_id,)})
 
-    def contains_server(self, uuid):
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        persister.exec_stmt(Group.REMOVE_GROUP,
+                            {"params" : (self.__group_id,)})
+
+    def contains_server(self, persister, server):
         """Check if the server represented by the uuid is part of the
         current Group.
 
-        :param uuid The uuid of the server whose membership needs to be
-                            verified.
-        :return True if the server is part of the Group.
-                False if the server is not part of the Group.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param server: The uuid of the server whose membership needs to be
+                       verified.
+        :return: True if the server is part of the Group. False if the server
+                 is not part of the Group.
         """
-        cur = self.__persister.exec_query(Group.QUERY_GROUP_SERVER,
-                                            {"raw" : False, "fetch" : False,
-                                            "params":(self.__group_id,
-                                                      str(uuid))})
+        assert(isinstance(server, _uuid.UUID) or \
+               isinstance(server, basestring))
+        cur = persister.exec_stmt(Group.QUERY_GROUP_SERVER,
+            {"fetch" : False, "params":(self.__group_id, str(server))})
         row = cur.fetchone()
 
         if row:
@@ -228,6 +267,7 @@ class Group(_persistence.Persistable):
         else:
             return False
 
+    # TODO: Create tests with description = None.
     @staticmethod
     def fetch(persister, group_id):
         """Return the group object, by loading the attributes for the group_id
@@ -240,26 +280,30 @@ class Group(_persistence.Persistable):
         :return: The Group object corresponding to the group_id
                  None if the Group object does not exist.
         """
-        cur = persister.exec_query(Group.QUERY_GROUP,
-                                            {"raw" : False, \
-                                            "fetch" : False, \
-                                            "params" : (group_id,)})
+        group = None
+        cur = persister.exec_stmt(Group.QUERY_GROUP,
+                                  {"fetch" : False, "params" : (group_id,)})
         row = cur.fetchone()
         if row:
-            return Group(persister, row[0], row[1])
+            master_uuid = None
+            if row[2]:
+                master_uuid = _uuid.UUID(row[2])
+            group = Group(row[0], row[1], master_uuid)
+        return group
 
+    # TODO: Create tests with description = None.
     @staticmethod
-    def add(persister, group_id, description):
+    def add(persister, group_id, description=None):
         """Create a Group and return the Group object.
 
-        :param persister The DB server that can be used to access the
-                                    state store.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param description: The group's description.
         """
-        persister.exec_query(Group.INSERT_GROUP, {"params":
-                                                           (group_id,
-                                                            description)})
-        return Group(persister, group_id, description)
 
+        persister.exec_stmt(Group.INSERT_GROUP,
+                            {"params": (group_id, description)})
+        return Group(group_id, description)
 
     @staticmethod
     def create(persister):
@@ -270,15 +314,14 @@ class Group(_persistence.Persistable):
                           state store.
         :raises: DatabaseError If the table already exists.
         """
-        persister.exec_query(Group.CREATE_GROUP)
+        persister.exec_stmt(Group.CREATE_GROUP)
         try:
-            persister.exec_query(Group.CREATE_GROUP_SERVER)
+            persister.exec_stmt(Group.CREATE_GROUP_SERVER)
         except:
             #If the creation of the second table fails Drop the first
             #table.
-            persister.exec_query(Group.DROP_GROUP)
+            persister.exec_stmt(Group.DROP_GROUP)
             raise
-
 
     @staticmethod
     def drop(persister):
@@ -289,8 +332,8 @@ class Group(_persistence.Persistable):
                           state store.
         :raises: DatabaseError If the drop of the related table fails.
         """
-        persister.exec_query(Group.DROP_GROUP_SERVER)
-        persister.exec_query(Group.DROP_GROUP)
+        persister.exec_stmt(Group.DROP_GROUP_SERVER)
+        persister.exec_stmt(Group.DROP_GROUP)
 
 
 class Server(_persistence.Persistable):
@@ -337,11 +380,12 @@ class Server(_persistence.Persistable):
                 cnx = self._do_connection(*args, **kwargs)
         return cnx
 
-    def exec_query(self, query_str, options=None):
+    def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
+        See :meth:`mysql.hub.server_utils.exec_stmt`.
         """
         raise NotImplementedError("Trying to execute abstract method "
-                                  "exec_query.")
+                                  "exec_stmt.")
 
     def release_connection(self, cnx):
         """Release a connection to the pool.
@@ -426,10 +470,10 @@ class MySQLServer(Server):
     before reading its state from a persistence layer and setting them.
 
     So after connecting the object to a server, users may execute statements
-    by calling exec_query() as follows::
+    by calling exec_stmt() as follows::
 
       server.connect()
-      ret = server.exec_query("SELECT VERSION()")
+      ret = server.exec_stmt("SELECT VERSION()")
       print "MySQL Server has version", ret[0][0]
 
     Changing the value of the properties user or password triggers a call to
@@ -450,7 +494,8 @@ class MySQLServer(Server):
     DROP_SERVER = ("DROP TABLE servers")
 
     #SQL statement for inserting a new server into the table
-    INSERT_SERVER = ("INSERT INTO servers values(%s, %s, %s, %s)")
+    INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_uri, user, "
+                     "passwd) values(%s, %s, %s, %s)")
 
     #SQL statement for updating the server table identified by the server id.
     UPDATE_SERVER_USER = ("UPDATE servers SET user = %s WHERE server_uuid = %s")
@@ -467,14 +512,12 @@ class MySQLServer(Server):
     SESSION_CONTEXT, GLOBAL_CONTEXT = range(0, 2)
     CONTEXT_STR = ["SESSION", "GLOBAL"]
 
-    def __init__(self, persister, uuid, uri=None, user=None,
-                 passwd=None, default_charset="latin1"):
+    def __init__(self, uuid, uri=None, user=None, passwd=None,
+                 default_charset="latin1"):
         """Constructor for MySQLServer. The constructor searches for the uuid
         in the state store and if the uuid is present it loads the server from
         the state store. otherwise it creates and persists a new Server object.
 
-        :param persister The DB server object that will be used to
-                                    access the state store.
         :param uuid The uuid of the server
         :param uri  The uri of the server
         :param user The username used to access the server
@@ -482,9 +525,6 @@ class MySQLServer(Server):
         :param default_charset The default charset that will be used
         """
         super(MySQLServer, self).__init__(uuid=uuid, uri=uri)
-        if persister is None:
-            raise _errors.PersistenceError("Missing handle to the state store")
-        self.__persister = persister
         self.__user = user
         self.__passwd = passwd
         self.__cnx = None
@@ -506,6 +546,9 @@ class MySQLServer(Server):
         params = kwargs.copy()
         keys = params.keys()
 
+        params.setdefault("autocommit", True)
+        params.setdefault("use_unicode", False)
+
         if "uri" in keys:
             host, port = _server_utils.split_host_port(params["uri"],
                 _server_utils.MYSQL_DEFAULT_PORT)
@@ -523,7 +566,7 @@ class MySQLServer(Server):
             server_uuid = cur.fetchall()[0][0]
         except Exception as error:
             raise _errors.DatabaseError(
-                "Error trying get server_uuid: %s." % str(error))
+                "Error trying get server_uuid: %s." % (str(error), ))
         finally:
             cur.close()
             _server_utils.destroy_mysql_connection(cnx)
@@ -534,7 +577,7 @@ class MySQLServer(Server):
         """Override the method connection defined at Server to avoid that users
         can create different connections to access a MySQL Server.
 
-        Any access to a MySQL Server should be done through exec_query() and
+        Any access to a MySQL Server should be done through exec_stmt() and
         any other method provided in this class.
         """
         raise _errors.DatabaseError("It is not possible to create a new "
@@ -552,7 +595,7 @@ class MySQLServer(Server):
 
         params = kwargs.copy()
         host, port = _server_utils.split_host_port(self.uri,
-                                            _server_utils.MYSQL_DEFAULT_PORT)
+            _server_utils.MYSQL_DEFAULT_PORT)
         params["host"] = host
         params["port"] = int(port)
         if self.__user:
@@ -560,6 +603,7 @@ class MySQLServer(Server):
         if self.__passwd:
             params["passwd"] = self.__passwd
         params.setdefault("autocommit", True)
+        params.setdefault("use_unicode", False)
         params.setdefault("charset", self.__default_charset)
 
         return _server_utils.create_mysql_connection(**params)
@@ -637,7 +681,7 @@ class MySQLServer(Server):
     def is_alive(self):
         """Determine if connection to server is still alive.
 
-        Ping and is_connected only work partially, try exec_query to make
+        Ping and is_connected only work partially, try exec_stmt to make
         sure connection is really alive.
         """
         res = True
@@ -645,7 +689,7 @@ class MySQLServer(Server):
             if self.__cnx is None:
                 res = False
             elif self.__cnx.is_connected():
-                self.exec_query("SHOW DATABASES")
+                self.exec_stmt("SHOW DATABASES")
         except _errors.DatabaseError:
             res = False
         return res
@@ -705,44 +749,43 @@ class MySQLServer(Server):
         """
         return self.__default_charset
 
-    @property
-    def user(self):
+    def get_user(self):
         """Return user's name who is used to connect to a server.
         """
         return self.__user
 
-    @user.setter
-    def user(self, user):
+    def set_user(self, persister, user):
         """Set user's name who is used to connect to a server. Persist the
         user information in the state store.
 
-        :param user The user name.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param user: The user name.
         """
         if self.__user != user:
             self.disconnect()
-            self.__persister.exec_query(MySQLServer.UPDATE_SERVER_USER,
-                                        {"params":(user, str(self.uuid))})
+            persister.exec_stmt(MySQLServer.UPDATE_SERVER_USER,
+                                {"params":(user, str(self.uuid))})
             self.__user = user
 
-    @property
-    def passwd(self):
+    def get_passwd(self):
         """Return user's password who is used to connect to a server. Load
         the server information from the state store and return the password.
         """
         return self.__passwd
 
-    @passwd.setter
-    def passwd(self, passwd):
+    def set_passwd(self, persister, passwd):
         """Set user's passord who is used to connect to a server. Persist the
         password information in the state store.
 
-        :param passwd The password that needs to be set.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :param passwd: The password that needs to be set.
         """
         if self.__passwd != passwd:
             self.disconnect()
-            self.__persister.exec_query(
-                                    MySQLServer.UPDATE_SERVER_PASSWD,
-                                    {"params":(passwd, str(self.uuid))})
+            persister.exec_stmt(MySQLServer.UPDATE_SERVER_PASSWD,
+                                {"params":(passwd, str(self.uuid))})
             self.__passwd = passwd
 
 
@@ -782,8 +825,8 @@ class MySQLServer(Server):
         """
         # Check servers for GTID support
         if not self.__gtid_enabled:
-            raise _errors.DatabaseError("Global Transaction IDs are not "\
-                                        "supported.")
+            raise _errors.ProgrammingError("Global Transaction IDs are not "\
+                                           "supported.")
 
         query_str = (
             "SELECT @@GLOBAL.GTID_DONE as GTID_DONE, "
@@ -791,7 +834,7 @@ class MySQLServer(Server):
             "@@GLOBAL.GTID_OWNED as GTID_OWNED"
         )
 
-        return self.exec_query(query_str, {"columns" : True})
+        return self.exec_stmt(query_str, {"columns" : True})
 
     def has_storage_engine(self, target):
         """Check to see if an engine exists and is supported.
@@ -809,7 +852,7 @@ class MySQLServer(Server):
         )
 
         if target:
-            engines = self.exec_query(query_str)
+            engines = self.exec_stmt(query_str)
             for engine in engines:
                 if engine[0].upper() == target.upper() and \
                    engine[1].upper() in ['YES', 'DEFAULT']:
@@ -822,7 +865,7 @@ class MySQLServer(Server):
 
         :return: A named tuple with information on binary logs.
         """
-        return self.exec_query("SHOW BINARY LOGS", {"columns" : True})
+        return self.exec_stmt("SHOW BINARY LOGS", {"columns" : True})
 
     def set_session_binlog(self, enabled=True):
         """Enable or disable binary logging for the client.
@@ -863,8 +906,8 @@ class MySQLServer(Server):
         """
         context_str = MySQLServer.CONTEXT_STR[\
             context if context is not None else MySQLServer.GLOBAL_CONTEXT]
-        ret = self.exec_query("SELECT @@%s.%s as %s" % \
-                              (context_str, variable, variable))
+        ret = self.exec_stmt("SELECT @@%s.%s as %s" % \
+                             (context_str, variable, variable))
         return ret[0][0]
 
     def set_variable(self, variable, value, context=None):
@@ -872,11 +915,14 @@ class MySQLServer(Server):
         """
         context_str = MySQLServer.CONTEXT_STR[\
             context if context is not None else MySQLServer.GLOBAL_CONTEXT]
-        return self.exec_query("SET @@%s.%s = %s" \
-                               % (context_str, variable, value))
+        return self.exec_stmt("SET @@%s.%s = %s" \
+                              % (context_str, variable, value))
 
-    def exec_query(self, query_str, options=None):
-        return _server_utils.exec_mysql_query(self.__cnx, query_str, options)
+    def exec_stmt(self, stmt_str, options=None):
+        """Execute statements against the server.
+        See :meth:`mysql.hub.server_utils.exec_stmt`.
+        """
+        return _server_utils.exec_mysql_stmt(self.__cnx, stmt_str, options)
 
     def __del__(self):
         """Destructor for MySQLServer.
@@ -886,31 +932,31 @@ class MySQLServer(Server):
         except AttributeError:
             pass
 
-    def remove(self):
+    def remove(self, persister):
         """remove the server information from the persistent store.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
-        self.__persister.exec_query(MySQLServer.REMOVE_SERVER,
-                                             {"params":
-                                              (str(self.uuid),)})
+        persister.exec_stmt(MySQLServer.REMOVE_SERVER,
+                            {"params": (str(self.uuid),)})
 
     @staticmethod
     def fetch(persister, uuid):
         """Return the server object corresponding to the uuid.
 
-        :param persister: The persistence server object that will be
-                          used to access the state store.
+        :param persister: The DB server that can be used to access the
+                          state store.
         :param uuid: The server id of the server object that needs to be
                      returned.
         :return: The server object that corresponds to the server id
                  None if the server id does not exist.
         """
-        cur = persister.exec_query(MySQLServer.QUERY_SERVER,
-                                            {"raw" : False, "fetch" : False,
-                                            "params":(str(uuid),)})
+        cur = persister.exec_stmt(MySQLServer.QUERY_SERVER,
+                                  {"fetch" : False, "params":(str(uuid),)})
         row = cur.fetchone()
         if row:
-            return MySQLServer(persister, _uuid.UUID(row[0]), row[1],
-                               row[2], row[3])
+            return MySQLServer(_uuid.UUID(row[0]), row[1], row[2], row[3])
 
     @staticmethod
     def create(persister):
@@ -921,7 +967,7 @@ class MySQLServer(Server):
                           state store.
         :raises: DatabaseError If the table already exists.
         """
-        persister.exec_query(MySQLServer.CREATE_SERVER)
+        persister.exec_stmt(MySQLServer.CREATE_SERVER)
 
     @staticmethod
     def drop(persister):
@@ -932,7 +978,7 @@ class MySQLServer(Server):
                           state store.
         :raises: DatabaseError If the drop of the related table fails.
         """
-        persister.exec_query(MySQLServer.DROP_SERVER)
+        persister.exec_stmt(MySQLServer.DROP_SERVER)
 
     @staticmethod
     def add(persister, uuid, uri=None, user=None, passwd=None,
@@ -945,10 +991,7 @@ class MySQLServer(Server):
         :param passwd The password to be used for logging into the server
         :return a Server object
         """
-        persister.exec_query(MySQLServer.INSERT_SERVER,
-                                      {"params":(str(uuid),
-                                                 uri,
-                                                 user,
-                                                 passwd)})
-        return MySQLServer(persister, uuid, uri, user, passwd,
-                           default_charset)
+        assert(isinstance(uuid, _uuid.UUID))
+        persister.exec_stmt(MySQLServer.INSERT_SERVER,
+                            {"params":(str(uuid), uri, user, passwd)})
+        return MySQLServer(uuid, uri, user, passwd, default_charset)

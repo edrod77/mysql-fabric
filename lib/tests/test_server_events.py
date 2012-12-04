@@ -19,7 +19,7 @@ import mysql.hub.persistence as _persistence
 import tests.utils as _test_utils
 
 class TestServerServices(unittest.TestCase):
-    "Test the service interface"
+    "Test server service interface"
 
     __metaclass__ = _test_utils.SkipTests
 
@@ -150,7 +150,8 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status_uuid[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status_uuid[1][-1]["description"],
                          "Executed action (_lookup_uuid).")
-        self.assertEqual(status_servers[2], [[status_uuid[2]]])
+        self.assertEqual(status_servers[2], [[status_uuid[2],
+                         "localhost:13000", False]])
 
         # Try to look up servers in a group that does not exist.
         status = self.proxy.server.lookup_servers("group_x")

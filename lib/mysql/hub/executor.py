@@ -46,8 +46,18 @@ class Job(object):
         self.__status = []
         self.__args = args or []
         self.result = None
+        self.jobs = []
         self.__persister = persister
         self.add_status(Job.SUCCESS, Job.ENQUEUED, description)
+
+    def merge_status(self, status):
+        """Given a list of statuses, merge it into the current job.
+
+        :param status: List of statuses.
+        """
+        assert(isinstance(status, list))
+        with self.__lock:
+            self.__status.extend(status)
 
     def add_status(self, success, state, description, diagnosis=False):
         """Add a new status to this job.
@@ -292,4 +302,7 @@ def process_jobs(jobs, synchronous):
     if synchronous:
         for job in jobs:
             job.wait()
+            if job.jobs:
+                ret = process_jobs(job.jobs, synchronous)
+                job.merge_status(ret[1])
     return str(jobs[-1].uuid), jobs[-1].status, jobs[-1].result

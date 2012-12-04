@@ -37,6 +37,15 @@ def get_options():
                       "found.")
     return parser.parse_args()
 
+def discover_servers(servers):
+    # TODO: We need to load this information from a file that is dynamically
+    # created by any external tool.
+    servers.add_uri("localhost:13000")
+    servers.add_uri("localhost:13001")
+    servers.add_uri("localhost:13002")
+    servers.add_uri("localhost:13003")
+    servers.add_uri("localhost:13004")
+
 def run_tests(pkg, opt, args):
     if len(args) == 0:
         import tests
@@ -48,6 +57,12 @@ def run_tests(pkg, opt, args):
     build_dir = "lib" if opt.build_dir is None else opt.build_dir
     sys.path[0] = os.path.join(script_dir, build_dir)
 
+    # Find out which MySQL Instances can be used for the for the tests.
+    import tests.utils as _test_utils
+    servers = _test_utils.MySQLInstances()
+    discover_servers(servers)
+
+    # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
     return TextTestRunner(verbosity=opt.verbosity).run(suite)
 

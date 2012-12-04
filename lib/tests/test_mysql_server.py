@@ -28,7 +28,7 @@ class TestMySQLServer(unittest.TestCase):
         MySQLServer.create(self.persister)
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
-        self.server = MySQLServer(self.persister, **OPTIONS)
+        self.server = MySQLServer(**OPTIONS)
 
     def tearDown(self):
         self.server.disconnect()
@@ -37,7 +37,7 @@ class TestMySQLServer(unittest.TestCase):
     def test_wrong_uuid(self):
         # Check wrong uuid.
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
-        server = MySQLServer(self.persister, **OPTIONS)
+        server = MySQLServer(**OPTIONS)
         self.assertRaises(_errors.MismatchUuidError, server.connect)
 
     def test_wrong_connection(self):
@@ -47,32 +47,32 @@ class TestMySQLServer(unittest.TestCase):
         self.assertRaises(_errors.DatabaseError, server.connection)
 
         # Check what happens when an attempt to connect fails.
-        server.passwd = "wrong"
+        server.set_passwd(self.persister, "wrong")
         self.assertRaises(_errors.DatabaseError, server.connect)
-        server.passwd = ""
+        server.set_passwd(self.persister, "")
 
-        self.assertRaises(_errors.DatabaseError, server.exec_query,
+        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
                           "SELECT VERSION()")
         server.connect()
-        server.exec_query("SELECT VERSION()")
+        server.exec_stmt("SELECT VERSION()")
         server.disconnect()
-        self.assertRaises(_errors.DatabaseError, server.exec_query,
+        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
                           "SELECT VERSION()")
 
     def test_properties(self):
         server = self.server
 
         # Check property user.
-        self.assertEqual(server.user, "root")
-        server.user = "user"
-        self.assertEqual(server.user, "user")
-        server.user = "root"
+        self.assertEqual(server.get_user(), "root")
+        server.set_user(self.persister, "user")
+        self.assertEqual(server.get_user(), "user")
+        server.set_user(self.persister, "root")
 
         # Check property passwd.
-        self.assertEqual(server.passwd, None)
-        server.passwd = "passwd"
-        self.assertEqual(server.passwd, "passwd")
-        server.passwd = None
+        self.assertEqual(server.get_passwd(), None)
+        server.set_passwd(self.persister, "passwd")
+        self.assertEqual(server.get_passwd(), "passwd")
+        server.set_passwd(self.persister, None)
 
         # Create instance without connecting it with a server.
         self.assertEqual(server.read_only, None)
@@ -148,53 +148,53 @@ class TestMySQLServer(unittest.TestCase):
            self.assertEqual(record.Log_name, "master-bin.000001")
         # TODO: Test with binlog disabled.
 
-    def test_exec_query_options(self):
+    def test_exec_stmt_options(self):
         server = self.server
         server.connect()
 
         # Populate testing tables.
-        server.exec_query("USE test")
-        server.exec_query("DROP TABLE IF EXISTS test_1")
-        server.exec_query("CREATE TABLE test_1(id INTEGER)")
-        server.exec_query("DROP TABLE IF EXISTS test_2")
-        server.exec_query("CREATE TABLE test_2(id INTEGER)")
+        server.exec_stmt("USE test")
+        server.exec_stmt("DROP TABLE IF EXISTS test_1")
+        server.exec_stmt("CREATE TABLE test_1(id INTEGER)")
+        server.exec_stmt("DROP TABLE IF EXISTS test_2")
+        server.exec_stmt("CREATE TABLE test_2(id INTEGER)")
         for cont in range(1,10):
-            server.exec_query("INSERT INTO test_1 VALUES(%s)",
-                              {"params" : (cont,)})
+            server.exec_stmt("INSERT INTO test_1 VALUES(%s)",
+                             {"params" : (cont,)})
 
         # Test raw: True fetch : True
-        ret = server.exec_query("SELECT COUNT(*) FROM test_1",
-                                {"raw" : True, "fetch" : True})
+        ret = server.exec_stmt("SELECT COUNT(*) FROM test_1",
+                               {"raw" : True, "fetch" : True})
         self.assertEqual(int(ret[0][0]), 9)
 
         # Test raw: False fetch : True
-        ret = server.exec_query("SELECT COUNT(*) FROM test_1",
-                                {"raw" : False, "fetch" : True})
+        ret = server.exec_stmt("SELECT COUNT(*) FROM test_1",
+                               {"raw" : False, "fetch" : True})
         self.assertEqual(ret[0][0], 9)
 
         # Test raw: False fetch : False
-        cursor = server.exec_query("SELECT COUNT(*) FROM test_1",
-                                   {"raw" : False, "fetch" : False})
+        cursor = server.exec_stmt("SELECT COUNT(*) FROM test_1",
+                                  {"raw" : False, "fetch" : False})
         ret = cursor.fetchone()
         self.assertEqual(ret[0], 9)
 
         # Test raw: True fetch : False
-        cursor = server.exec_query("SELECT COUNT(*) FROM test_1",
-                                   {"raw" : False, "fetch" : False})
+        cursor = server.exec_stmt("SELECT COUNT(*) FROM test_1",
+                                  {"raw" : False, "fetch" : False})
         ret = cursor.fetchone()
         self.assertEqual(int(ret[0]), 9)
 
         # Nothing to be fetched.
-        ret = server.exec_query("SELECT * FROM test_2")
+        ret = server.exec_stmt("SELECT * FROM test_2")
         self.assertEqual(ret, [])
 
         # Unknown table.
-        self.assertRaises(_errors.DatabaseError, server.exec_query,
+        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
                           "SELECT * FROM test_3")
 
         # Test option columns
-        ret = server.exec_query("SELECT COUNT(*) COUNT FROM test_1",
-                                {"columns" : True})
+        ret = server.exec_stmt("SELECT COUNT(*) COUNT FROM test_1",
+                               {"columns" : True})
         self.assertEqual(int(ret[0][0]), 9)
         self.assertEqual(int(ret[0].COUNT), 9)
 
@@ -211,18 +211,18 @@ class TestMySQLServer(unittest.TestCase):
 
         # Trying to create a new connection overriding the host.
         params= {"host" : "unknown"}
-        self.assertRaises(_errors.DatabaseError, server.connect, **params)
+        self.assertRaises(_errors.ConfigurationError, server.connect, **params)
         self.assertEqual(server.uri, "localhost:13000")
 
         # Create a new connection but notice that default database
         # is not set.
         server.connect()
-        self.assertRaises(_errors.DatabaseError, server.exec_query,
+        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
                           "DROP TABLE IF EXISTS test")
         server.disconnect()
         params= {"database" : "test"}
         server.connect(**params)
-        server.exec_query("DROP TABLE IF EXISTS test")
+        server.exec_stmt("DROP TABLE IF EXISTS test")
         server.disconnect()
 
 if __name__ == "__main__":

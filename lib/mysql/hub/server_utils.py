@@ -4,7 +4,7 @@ import logging
 import collections
 try:
     import mysql.connector
-    import mysql.connector.cursor.MySQLCursor
+    from mysql.connector.cursor import MySQLCursor, MySQLCursorRaw
 except ImportError:
     pass
 
@@ -46,91 +46,114 @@ def combine_host_port(host, port, default_port):
     return "%s:%s" % (host_info, port_info)
 
 try:
-    class MySQLCursorNamedTuple(mysql.connector.cursor.MySQLCursor):
-        """Create a cursor with named columns.
+    def _null_converter(description, value):
+        """Return the value passed as parameter without any conversion.
+        """
+        return value
+
+    def _do_row_to_python(self, convert, rowdata, desc=None):
+        """Created a named tuple with retrived data from a database.
+        """
+        try:
+            if not desc:
+                desc = self.description
+            row = (convert(desc[i], v) for i, v in enumerate(rowdata))
+            tuple_factory = \
+                collections.namedtuple('Row', self.column_names)._make
+            return tuple_factory(row)
+        except StandardError as error:
+            raise mysql.connector.errors.InterfaceError(
+                "Failed converting row to Python types; %s" % error)
+
+    class MySQLCursorNamedTuple(MySQLCursor):
+        """Create a cursor with named columns and non-raw data.
         """
         def _row_to_python(self, rowdata, desc=None):
-            try:
-                if not desc:
-                    desc = self.description
-                to_python = self._connection.converter.to_python
-                gen = (to_python(desc[i], v) for i, v in enumerate(rowdata))
-                tuple_factory = \
-                    collections.namedtuple('Row', self.column_names)._make
-                return tuple_factory(gen)
-            except StandardError as error:
-                raise mysql.connector.errors.InterfaceError(
-                    "Failed converting row to Python types; %s" % error)
+            return _do_row_to_python(self,
+                                     self._connection.converter.to_python,
+                                     rowdata, desc)
+
+    class MySQLCursorRawNamedTuple(MySQLCursor):
+        """Create a cursor with named columns and raw data.
+        """
+        def _row_to_python(self, rowdata, desc=None):
+            return _do_row_to_python(self, _null_converter, rowdata, desc)
 except NameError:
     pass
 
-def exec_mysql_query(cnx, query_str, options=None):
-    """Execute a query for the client and return a result set or a
+# TODO: Extend this to accept list of statements.
+def exec_mysql_stmt(cnx, stmt_str, options=None):
+    """Execute a statement for the client and return a result set or a
     cursor.
 
-    This is the singular method to execute queries. It should be the only
-    method used as it contains critical error code to catch the issue
-    with mysql.connector throwing an error on an empty result set. If
-    something goes wrong while executing a statement, the exception
-    :class:`mysql.hub.errors.DatabaseError` is raised.
+    This is the singular method to execute queries. If something goes
+    wrong while executing a statement, the exception
+   :class:`mysql.hub.errors.DatabaseError` is raised.
 
     :param cnx: Database connection.
-    :param query_str: The query to execute
+    :param stmt_str: The statement (e.g. query, updates, etc) to execute.
     :param options: Options to control behavior:
 
-                    - params - Parameters for query.
+                    - params - Parameters for statement.
                     - columns - If true, return a rows as named tuples
                       (default is False).
-                    - raw - If true, use a buffered raw cursor
-                      (default is True).
+                    - raw - If true, do not convert MySQL's types to
+                      Python's types (default is True).
                     - fetch - If true, execute the fetch as part of the
-                      operation and use a buffered cursor (default is True).
+                      operation (default is True).
 
-    :return: Either a result set as list of tuples (either named or unamed)
+    :return: Either a result set as list of tuples (either named or unnamed)
              or a cursor.
     """
-    _LOGGER.debug("Query (%s).", query_str)
-
     if cnx is None or not cnx.is_connected():
         raise _errors.DatabaseError("Connection is invalid.")
 
-    options = options if options is not None else {}
+    options = options or {}
     params = options.get('params', ())
     columns = options.get('columns', False)
     fetch = options.get('fetch', True)
     raw = options.get('raw', True)
 
-    results = ()
-    cur = cnx.cursor(fetch, raw,
-                     MySQLCursorNamedTuple if columns else None)
+    if raw and columns:
+        cursor_class = MySQLCursorRawNamedTuple
+    elif not raw and columns:
+        cursor_class = MySQLCursorNamedTuple
+    elif raw and not columns:
+        cursor_class = MySQLCursorRaw
+    elif not raw and not columns:
+        cursor_class = MySQLCursor
+
+    _LOGGER.debug("Statement (%s), Params(%s).", stmt_str, params)
+
+    cur = cnx.cursor(cursor_class=cursor_class)
 
     try:
-        cur.execute(query_str, params)
+        cur.execute(stmt_str, params)
     except mysql.connector.Error as error:
         cur.close()
         raise _errors.DatabaseError(
-            "Command (%s, %s) failed: %s" % (query_str, params, str(error)),
+            "Command (%s, %s) failed: %s" % (stmt_str, params, str(error)),
             error.errno)
     except Exception as error:
         cur.close()
         raise _errors.DatabaseError(
-            "Unknown error. Command: (%s, %s) failed: %s" % (query_str, \
+            "Unknown error. Command: (%s, %s) failed: %s" % (stmt_str, \
             params, str(error)))
 
-    if fetch or columns:
+    if fetch:
+        results = None
         try:
-            results = cur.fetchall()
+            if cur._have_result:
+                results = cur.fetchall()
         except mysql.connector.errors.InterfaceError as error:
-            if error.msg.lower() == "no result set to fetch from.":
-                pass # This error means there were no results.
-            else:    # otherwise, re-raise error
-                raise _errors.DatabaseError(
-                    "Error (%s) fetching data for command: (%s)." % \
-                    (str(error), query_str))
-        cur.close()
+            raise _errors.DatabaseError(
+                "Error (%s) fetching data for statement: (%s)." % \
+                (str(error), stmt_str))
+        finally:
+            cur.close()
         return results
-    else:
-        return cur
+
+    return cur
 
 def create_mysql_connection(**kwargs):
     """Create a connection.
