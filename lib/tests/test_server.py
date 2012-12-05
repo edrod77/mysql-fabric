@@ -8,7 +8,7 @@ import mysql.hub.errors as _errors
 import mysql.hub.server_utils as _server_utils
 import tests.utils as _test_utils
 
-from mysql.hub.server import Group, Server, MySQLServer
+from mysql.hub.server import Group, Server
 from mysql.hub.persistence import MySQLPersister
 
 

@@ -7,7 +7,6 @@ import uuid as _uuid
 from collections import namedtuple
 
 import mysql.hub.errors as _errors
-import mysql.hub.utils as _utils
 import mysql.hub.server_utils as _server_utils
 import tests.utils as _test_utils
 

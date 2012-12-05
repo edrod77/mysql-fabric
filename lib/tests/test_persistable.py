@@ -1,7 +1,6 @@
 import unittest
 import uuid as _uuid
 
-import mysql.hub.errors as _errors
 import tests.utils as _test_utils
 
 from mysql.hub.server import MySQLServer, Group

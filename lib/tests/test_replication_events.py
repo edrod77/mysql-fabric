@@ -1,20 +1,13 @@
 """Unit tests for administrative on servers.
 """
 
-import logging
-import types
 import unittest
 import xmlrpclib
-import time
 import uuid as _uuid
-import time
+import os
 
-import mysql.hub.replication as _replication
 import mysql.hub.config as _config
-import mysql.hub.errors as _errors
 import mysql.hub.executor as _executor
-import mysql.hub.events as _events
-import mysql.hub.services.server as _service
 import mysql.hub.server as _server
 import mysql.hub.replication as _repl
 import mysql.hub.persistence as _persistence
@@ -29,7 +22,7 @@ class TestReplicationServices(unittest.TestCase):
     def setUp(self):
         params = {
                 "protocol.xmlrpc": {
-                "address": "localhost:15500"
+                "address": "localhost:" + os.getenv("HTTP_PORT", "15500")
                 },
             }
         config = _config.Config(None, params, True)
@@ -382,7 +375,7 @@ class TestReplicationServices(unittest.TestCase):
         group = _server.Group.fetch(self.persister, "group_id")
         group.add_server(self.persister, invalid_server)
         _repl.stop_slave(slave_3, wait=True)
-        _replication.switch_master(slave_3, slave_2, user, passwd)
+        _repl.switch_master(slave_3, slave_2, user, passwd)
 
         # Look up servers.
         servers = self.proxy.server.lookup_servers("group_id")
@@ -573,4 +566,4 @@ class TestReplicationServices(unittest.TestCase):
                             [str(slave_2.uuid), slave_2.uri, False]])
 
 if __name__ == "__main__":
-    unittest.main(argv=sys.argv)
+    unittest.main()

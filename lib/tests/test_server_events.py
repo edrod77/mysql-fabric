@@ -1,18 +1,12 @@
 """Unit tests for administrative on servers.
 """
 
-import logging
-import types
 import unittest
 import xmlrpclib
-import time
-import uuid as _uuid
+import os
 
 import mysql.hub.config as _config
-import mysql.hub.errors as _errors
 import mysql.hub.executor as _executor
-import mysql.hub.events as _events
-import mysql.hub.services.server as _service
 import mysql.hub.server as _server
 import mysql.hub.persistence as _persistence
 
@@ -26,7 +20,7 @@ class TestServerServices(unittest.TestCase):
     def setUp(self):
         params = {
                 "protocol.xmlrpc": {
-                "address": "localhost:15500"
+                "address": "localhost:" + os.getenv("HTTP_PORT", "15500")
                 },
             }
         config = _config.Config(None, params, True)
@@ -268,4 +262,4 @@ class TestServerServices(unittest.TestCase):
                          "Executed action (_remove_server).")
 
 if __name__ == "__main__":
-    unittest.main(argv=sys.argv)
+    unittest.main()

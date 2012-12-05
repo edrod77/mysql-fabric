@@ -1,15 +1,13 @@
 """Unit tests for the event handler.
 """
 
-import types
 import unittest
 import xmlrpclib
-import time
+import os
 
 import mysql.hub.config as _config
 import mysql.hub.errors as _errors
 import mysql.hub.events as _events
-import mysql.hub.executor as _executor
 
 _TEST1 = None
 
@@ -207,7 +205,7 @@ class TestService(unittest.TestCase):
     def setUp(self):
         params = {
                 'protocol.xmlrpc': {
-                'address': 'localhost:15500'
+                "address": "localhost:" + os.getenv("HTTP_PORT", "15500")
                 },
             }
         config = _config.Config(None, params, True)
@@ -230,4 +228,4 @@ class TestService(unittest.TestCase):
         self.assertEqual(promoted[0], "my.example.com")
 
 if __name__ == "__main__":
-    unittest.main(argv=sys.argv)
+    unittest.main()
