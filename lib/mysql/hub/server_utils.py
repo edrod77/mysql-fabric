@@ -143,12 +143,17 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     if fetch:
         results = None
         try:
-            if cur._have_result:
                 results = cur.fetchall()
         except mysql.connector.errors.InterfaceError as error:
-            raise _errors.DatabaseError(
-                "Error (%s) fetching data for statement: (%s)." % \
-                (str(error), stmt_str))
+            # TODO: This is a temporary solution. In the future, the
+            # python connector should provide a function to return
+            # cur._have_result.
+            if error.msg.lower() == "no result set to fetch from.":
+                pass # This error means there were no results.
+            else:    # otherwise, re-raise error
+                raise _errors.DatabaseError(
+                    "Error (%s) fetching data for statement: (%s)." % \
+                    (str(error), stmt_str))
         finally:
             cur.close()
         return results
