@@ -7,6 +7,8 @@ import mysql.hub.server as _server
 import mysql.hub.replication as _replication
 import mysql.hub.executor as _executor
 
+from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
+
 class SkipTests(type):
     """Metaclass which is used to skip test cases as follows::
 
@@ -71,3 +73,52 @@ class MySQLInstances(_utils.Singleton):
                 _replication.switch_master(slave, master, user, passwd)
                 _replication.start_slave(slave, wait=True)
             return master
+
+class ShardingUtils(object):
+
+    @staticmethod
+    def compare_shard_mapping(shard_mapping_1, shard_mapping_2):
+        """Compare two sharding mappings with each other. Two sharding
+        specifications are equal if they are defined on the same table, on
+        the same column, are of the same type and use the same sharding
+        specification.
+
+        :param shard_mapping_1: shard mapping
+        :param shard_mapping_2: shard mapping
+
+        :return True if shard mappings are equal
+                False if shard mappings are not equal
+        """
+        return isinstance(shard_mapping_1, ShardMapping) and \
+                isinstance(shard_mapping_2, ShardMapping) and \
+               shard_mapping_1.table_name == \
+                        shard_mapping_2.table_name and \
+                shard_mapping_1.column_name == \
+                        shard_mapping_2.column_name and \
+                shard_mapping_1.type_name == \
+                            shard_mapping_2.type_name and \
+                shard_mapping_1.sharding_specification == \
+                            shard_mapping_2.sharding_specification
+    @staticmethod
+    def compare_range_specifications(range_specification_1,
+                                         range_specification_2):
+        """Compare two RANGE specification definitions. They are equal if they
+        belong to the same sharding scheme, define the same upper and lower
+        bound and map to the same server.
+
+        :param range_specification_1: Range Sharding Specification
+        :param range_specification_2: Range Sharding Specification
+
+        :return True if Range Sharding Specifications are equal
+                False if Range Sharding Specifications are not equal
+        """
+        return isinstance(range_specification_1, RangeShardingSpecification) and \
+                isinstance(range_specification_2, RangeShardingSpecification) and \
+                range_specification_1.name == \
+                        range_specification_2.name and \
+                range_specification_1.lower_bound == \
+                        range_specification_2.lower_bound and \
+                range_specification_1.upper_bound == \
+                        range_specification_2.upper_bound and \
+                range_specification_1.uuid == range_specification_2.uuid
+

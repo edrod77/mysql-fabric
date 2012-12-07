@@ -27,14 +27,13 @@ class Persistable(object):
         """
         raise NotImplementedError("Trying to execute abstract method add")
 
-    @staticmethod
-    def remove(persister):
+    def remove(self, persister):
         """remove the current object from the state store.
         """
         raise NotImplementedError("Trying to execute abstract method remove")
 
     @staticmethod
-    def fetch(persister):
+    def fetch(persister, attr):
         """Fetch the current object from the state store.
         """
         raise NotImplementedError("Trying to execute abstract method fetch")
