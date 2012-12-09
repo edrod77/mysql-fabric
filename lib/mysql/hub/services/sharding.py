@@ -86,7 +86,7 @@ def list(sharding_type, synchronous=True):
     return _executor.process_jobs(jobs, synchronous)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
-def add_shard(schema_type, name, lower_bound, upper_bound, uuid,
+def add_shard(schema_type, name, lower_bound, upper_bound, group_id,
                   synchronous=True):
     """Add the RANGE shard specification. This represents a single instance
     of a shard specification that maps a key RANGE to a server.
@@ -96,7 +96,7 @@ def add_shard(schema_type, name, lower_bound, upper_bound, uuid,
                                 this definition belongs.
     :param lower_bound: The lower bound of the range sharding definition.
     :param upper_bound: The upper bound of the range sharding definition
-    :param uuid: The unique identifier of the Group where the current
+    :param group_id: The unique identifier of the Group where the current
                     KEY range belongs.
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
@@ -105,7 +105,7 @@ def add_shard(schema_type, name, lower_bound, upper_bound, uuid,
     """
 
     jobs = _events.trigger(ADD_SHARD, schema_type, name, lower_bound,
-                           upper_bound, uuid)
+                           upper_bound, group_id)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
@@ -271,9 +271,9 @@ def _add_shard(job):
 
     schema_type = job.args[0]
     if schema_type == "RANGE":
-        schema_type, name, lower_bound, upper_bound, uuid = job.args
+        schema_type, name, lower_bound, upper_bound, group_id = job.args
         range_sharding_specification = RangeShardingSpecification.add(
-            job.persister, name, lower_bound, upper_bound, uuid)
+            job.persister, name, lower_bound, upper_bound, group_id)
         if range_sharding_specification is not None:
             return True
         else:
@@ -311,9 +311,9 @@ def _lookup(job):
     """
 
     table_name, key = job.args
-    uuid = _sharding.lookup(job.persister, table_name, key)
-    if uuid is not None:
-        return uuid
+    group_id = _sharding.lookup(job.persister, table_name, key)
+    if group_id is not None:
+        return group_id
     else:
         return ""
 

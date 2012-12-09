@@ -5,6 +5,7 @@ import tests.utils as _test_utils
 
 from mysql.hub.sharding import ShardMapping
 from mysql.hub.sharding import RangeShardingSpecification
+from mysql.hub.server import Group, Server
 
 from mysql.hub.persistence import MySQLPersister
 from tests.utils import ShardingUtils
@@ -15,6 +16,55 @@ class TestSharding(unittest.TestCase):
 
     def setUp(self):
         self.__persister = MySQLPersister("localhost:13000","root", "")
+        Group.create(self.__persister)
+        self.__options_1 = {
+            "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_1.mysql.com:3060",
+        }
+        self.__server_1 = Server(**self.__options_1)
+        self.__options_2 = {
+            "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_2.mysql.com:3060",
+        }
+        self.__server_2 = Server(**self.__options_2)
+        self.__group_1 = Group.add(self.__persister, "GROUPID1",
+                                   "First description.")
+        self.__group_1.add_server(self.__persister, self.__server_1)
+        self.__group_1.add_server(self.__persister, self.__server_2)
+        self.__group_1.set_master(self.__persister, self.__options_1["uuid"])
+
+        self.__options_3 = {
+            "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_3.mysql.com:3060",
+        }
+        self.__server_3 = Server(**self.__options_3)
+        self.__options_4 = {
+            "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_4.mysql.com:3060",
+        }
+        self.__server_4 = Server(**self.__options_4)
+        self.__group_2 = Group.add(self.__persister, "GROUPID2",
+                                   "Second description.")
+        self.__group_2.add_server(self.__persister, self.__server_3)
+        self.__group_2.add_server(self.__persister, self.__server_4)
+        self.__group_2.set_master(self.__persister, self.__options_3["uuid"])
+
+        self.__options_5 = {
+            "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_5.mysql.com:3060",
+        }
+        self.__server_5 = Server(**self.__options_5)
+        self.__options_6 = {
+            "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_6.mysql.com:3060",
+        }
+        self.__server_6 = Server(**self.__options_6)
+        self.__group_3 = Group.add(self.__persister, "GROUPID3",
+                                   "Third description.")
+        self.__group_3.add_server(self.__persister, self.__server_5)
+        self.__group_3.add_server(self.__persister, self.__server_6)
+        self.__group_3.set_master(self.__persister, self.__options_5["uuid"])
+
         ShardMapping.create(self.__persister)
 
         self.__shard_mapping_1 = ShardMapping.add(self.__persister,
@@ -88,6 +138,7 @@ class TestSharding(unittest.TestCase):
         self.__shard_mapping_4.remove(self.__persister)
         RangeShardingSpecification.drop(self.__persister)
         ShardMapping.drop(self.__persister)
+        Group.drop(self.__persister)
 
     def test_fetch_shard_mapping(self):
         shard_mapping_1 = ShardMapping.fetch(self.__persister,
@@ -126,32 +177,26 @@ class TestSharding(unittest.TestCase):
         serverid1 = RangeShardingSpecification.lookup(self.__persister,
                                                       500,
                                                       "SM1")
-        self.assertEqual(serverid1.uuid, "GROUPID1")
+        self.assertEqual(serverid1.group_id, "GROUPID1")
         serverid2 = RangeShardingSpecification.lookup(self.__persister,
                                                       3500,
                                                       "SM2")
-        self.assertEqual(serverid2.uuid, "GROUPID4")
+        self.assertEqual(serverid2.group_id, "GROUPID4")
         serverid3 = RangeShardingSpecification.lookup(self.__persister,
                                                       6500,
                                                       "SM3")
-        self.assertEqual(serverid3.uuid, "GROUPID6")
+        self.assertEqual(serverid3.group_id, "GROUPID6")
 
     def test_lookup(self):
         serveruuid1 = _sharding.lookup(self.__persister, "db1.t1", 500)
-        self.assertEqual(serveruuid1, "GROUPID1")
-        serveruuid2 = _sharding.lookup(self.__persister, "db2.t2",
-                                       3500)
-        self.assertEqual(serveruuid2, "GROUPID4")
-        serveruuid3 = _sharding.lookup(self.__persister, "db3.t3",
-                                       6500)
-        self.assertEqual(serveruuid3, "GROUPID6")
+        self.assertEqual(serveruuid1, str(self.__options_1["uuid"]))
 
     def test_go_fish_lookup(self):
         server_list = _sharding.go_fish_lookup(self.__persister,
                                                "db1.t1")
-        self.assertEqual(server_list[0], "GROUPID1")
-        self.assertEqual(server_list[1], "GROUPID2")
-        self.assertEqual(server_list[2], "GROUPID3")
+        self.assertEqual(server_list[0], str(self.__options_1["uuid"]))
+        self.assertEqual(server_list[1], str(self.__options_3["uuid"]))
+        self.assertEqual(server_list[2], str(self.__options_5["uuid"]))
 
     def test_shard_mapping_list_mappings(self):
         shard_mappings = ShardMapping.list(self.__persister, "RANGE")
@@ -177,5 +222,5 @@ class TestSharding(unittest.TestCase):
                          0)
         self.assertEqual(self.__range_sharding_specification_1.upper_bound,
                          1000)
-        self.assertEqual(self.__range_sharding_specification_1.uuid,
+        self.assertEqual(self.__range_sharding_specification_1.group_id,
                          "GROUPID1")

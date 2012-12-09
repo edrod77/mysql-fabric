@@ -9,6 +9,7 @@ import tests.utils as _test_utils
 
 from mysql.hub.persistence import MySQLPersister
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
+from mysql.hub.server import Group, Server
 
 class TestShardingServices(unittest.TestCase):
 
@@ -32,6 +33,56 @@ class TestShardingServices(unittest.TestCase):
 
         executor = _executor.Executor()
         executor.persister = MySQLPersister("localhost:13000","root", "")
+
+        Group.create(executor.persister)
+
+        self.__options_1 = {
+            "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_1.mysql.com:3060",
+        }
+        self.__server_1 = Server(**self.__options_1)
+        self.__options_2 = {
+            "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_2.mysql.com:3060",
+        }
+        self.__server_2 = Server(**self.__options_2)
+        self.__group_1 = Group.add(executor.persister, "GROUPID1",
+                                   "First description.")
+        self.__group_1.add_server(executor.persister, self.__server_1)
+        self.__group_1.add_server(executor.persister, self.__server_2)
+        self.__group_1.set_master(executor.persister, self.__options_1["uuid"])
+
+        self.__options_3 = {
+            "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_3.mysql.com:3060",
+        }
+        self.__server_3 = Server(**self.__options_3)
+        self.__options_4 = {
+            "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_4.mysql.com:3060",
+        }
+        self.__server_4 = Server(**self.__options_4)
+        self.__group_2 = Group.add(executor.persister, "GROUPID2",
+                                   "Second description.")
+        self.__group_2.add_server(executor.persister, self.__server_3)
+        self.__group_2.add_server(executor.persister, self.__server_4)
+        self.__group_2.set_master(executor.persister, self.__options_3["uuid"])
+
+        self.__options_5 = {
+            "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_5.mysql.com:3060",
+        }
+        self.__server_5 = Server(**self.__options_5)
+        self.__options_6 = {
+            "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_6.mysql.com:3060",
+        }
+        self.__server_6 = Server(**self.__options_6)
+        self.__group_3 = Group.add(executor.persister, "GROUPID3",
+                                   "Third description.")
+        self.__group_3.add_server(executor.persister, self.__server_5)
+        self.__group_3.add_server(executor.persister, self.__server_6)
+        self.__group_3.set_master(executor.persister, self.__options_5["uuid"])
 
         ShardMapping.create(executor.persister)
 
@@ -138,6 +189,7 @@ class TestShardingServices(unittest.TestCase):
         executor = _executor.Executor()
         RangeShardingSpecification.drop(executor.persister)
         ShardMapping.drop(executor.persister)
+        Group.drop(executor.persister)
 
     def test_remove_shard_mapping(self):
         status = self.proxy.sharding.remove_shard_mapping("db1.t1")
@@ -239,21 +291,7 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_lookup).")
-        self.assertEqual(status[2], "GROUPID1")
-
-        status = self.proxy.sharding.lookup("db2.t2", 4500)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        self.assertEqual(status[2], "GROUPID5")
-
-        status = self.proxy.sharding.lookup("db3.t3", 6500)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        self.assertEqual(status[2], "GROUPID6")
+        self.assertEqual(status[2], str(self.__options_1["uuid"]))
 
     def test_go_fish_lookup(self):
         status = self.proxy.sharding.go_fish_lookup("db1.t1")
@@ -261,14 +299,6 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_go_fish_lookup).")
-        self.assertEqual(status[2], ["GROUPID1",
-                                     "GROUPID2",
-                                     "GROUPID3"])
-
-        status = self.proxy.sharding.go_fish_lookup("db2.t2")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_go_fish_lookup).")
-        self.assertEqual(status[2], ["GROUPID4",
-                                     "GROUPID5"])
+        self.assertEqual(status[2], [str(self.__options_1["uuid"]),
+                                     str(self.__options_3["uuid"]),
+                                     str(self.__options_5["uuid"])])

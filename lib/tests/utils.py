@@ -120,5 +120,5 @@ class ShardingUtils(object):
                         range_specification_2.lower_bound and \
                 range_specification_1.upper_bound == \
                         range_specification_2.upper_bound and \
-                range_specification_1.uuid == range_specification_2.uuid
+                range_specification_1.group_id == range_specification_2.group_id
 
