@@ -6,6 +6,7 @@ import traceback
 
 from weakref import WeakValueDictionary
 
+import mysql.hub.persistence as _persistence
 import mysql.hub.errors as _errors
 
 from mysql.hub.utils import Singleton
@@ -14,28 +15,29 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class Job(object):
-    """Class responsible for storing information on a procedure and its
-    execution's status.
+    """A job to be executed.
 
     The executor process jobs, which has information on which procedures
     shall be executed and its execution's status. Jobs are uniquely
     identified so one can query the executor to figure out its outcome.
 
     """
+
     ERROR, SUCCESS = range(1, 3)
     EVENT_OUTCOME = [ERROR, SUCCESS]
 
     ENQUEUED, PROCESSING, COMPLETE = range(3, 6)
     EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
 
-    def __init__(self, persister, action, description, args):
+    def __init__(self, action, description, args):
         """Constructor for the job.
 
-        The action is a callback function and if the caller wants to be blocked
-        while the job is being scheduled and than processed the parameter sync
-        must be set to true.
+        The action is a callback function and if the caller wants to
+        be blocked while the job is being scheduled and than processed
+        the parameter sync must be set to true.
 
         """
+
         if not callable(action):
             raise _errors.NotCallableError("Callable expected")
 
@@ -47,7 +49,6 @@ class Job(object):
         self.__args = args or []
         self.result = None
         self.jobs = []
-        self.__persister = persister
         self.add_status(Job.SUCCESS, Job.ENQUEUED, description)
 
     def merge_status(self, status):
@@ -162,13 +163,6 @@ class Job(object):
         """
         return self.__status
 
-    @property
-    def persister(self):
-        """Return a reference to the persister object which is used to access
-        the state store.
-        """
-        return self.__persister
-
     def __str__(self):
         """Return a description on the job: <Job object: uuid=..., status=...>.
         """
@@ -177,6 +171,70 @@ class Job(object):
                "status=" + str(self.__status) + \
                ">"
         return ret
+
+
+class ExecutorThread(threading.Thread):
+    """Class representing an executor thread for executing jobs.
+
+    The thread will repeatedly read from the executor queue and
+    execute a job. Note that the job queue is shared between all
+    thread instances.
+
+    Each thread will create a persister and register it with the
+    persistance system so that objects manipulated as part of the job
+    execution can be persisted to the persistent store.
+
+    :param Queue.Queue queue: Queue to read jobs from.
+    """
+
+    def __init__(self, queue):
+        "Constructor for ExecutorThread."
+        super(ExecutorThread, self).__init__()
+        self.__queue = queue
+        self.__persister = None
+
+    def run(self):
+        """Run the executor thread.
+
+        This function will repeatedly read jobs from the queue and
+        execute them.
+        """
+
+        _LOGGER.debug("Initializing Executor thread %s", self.name)
+        self.__persister = _persistence.MySQLPersister()
+        _persistence.PersistentMeta.init_thread(self.__persister)
+
+        while True:
+            job = self.__queue.get(block=True)
+            _LOGGER.debug("Reading next job from queue, found %s.", job)
+            if job is None:
+                self.__queue.task_done()
+                break
+
+            # TODO: Move execution into Job method to encapsule the
+            # Job properly. Right now, the Executor set a number of
+            # fields of the job that can be handled inside the job
+            # methods.
+            try:
+                job.result = False
+                self.__persister.begin()
+                result = job.execute()
+                if result is not None:
+                    job.result = result
+            except Exception as error: # pylint: disable=W0703
+                _LOGGER.exception(error)
+                message = "Tried to execute action ({0}).".format(
+                    job.action.__name__
+                    )
+                job.add_status(job.ERROR, job.COMPLETE, message, True)
+                self.__persister.rollback()
+            else:
+                job.add_status(job.SUCCESS, job.COMPLETE,
+                "Executed action ({0}).".format(job.action.__name__))
+                self.__persister.commit()
+            finally:
+                self.__queue.task_done()
+                job.notify()
 
 
 class Executor(Singleton):
@@ -192,50 +250,16 @@ class Executor(Singleton):
         self.__jobs = WeakValueDictionary()
         self.__thread_lock = threading.RLock()
         self.__thread = None
-        self.persister = None
-
-    def _run(self):
-        """Run the executor thread.
-
-        Read callable objects from the queue and call them.
-        """
-        while True:
-            job = self.__queue.get(block=True)
-            _LOGGER.debug("Reading next job from queue, found %s.", job)
-            if job is None:
-                self.__queue.task_done()
-                break
-            try:
-                job.result = False
-                if self.persister:
-                    self.persister.begin()
-                result = job.execute()
-                if result is not None:
-                    job.result = result
-            except Exception as error: # pylint: disable=W0703
-                _LOGGER.exception(error)
-                job.add_status(job.ERROR, job.COMPLETE,
-                "Tried to execute action ({0}).".format(job.action.__name__),
-                True)
-                if self.persister:
-                    self.persister.rollback()
-            else:
-                job.add_status(job.SUCCESS, job.COMPLETE,
-                "Executed action ({0}).".format(job.action.__name__))
-                if self.persister:
-                    self.persister.commit()
-            finally:
-                self.__queue.task_done()
-                job.notify()
 
     def start(self):
         """Start the executor.
         """
         with self.__thread_lock:
+            _LOGGER.info("Starting Executor")
             if not self.__thread:
-                self.__thread = threading.Thread(target=self._run,
-                                                 name="Executor")
+                self.__thread = ExecutorThread(self.__queue)
                 self.__thread.start()
+                _LOGGER.info("Executor started")
             else:
                 raise _errors.ExecutorError("Executor is already running.")
 
@@ -248,6 +272,7 @@ class Executor(Singleton):
                 self.__queue.put(None)
                 self.__thread.join()
             self.__thread = None
+        _LOGGER.info("Executor has stopped")
 
     # TODO: args should be *args, **kwargs. ? ? ?
     def enqueue_job(self, action, description, args=None):
@@ -261,7 +286,7 @@ class Executor(Singleton):
         """
         with self.__thread_lock:
             if self.__thread and self.__thread.is_alive():
-                job = Job(self.persister, action, description, args)
+                job = Job(action, description, args)
                 _LOGGER.debug("Created job (%s) whose description is (%s).",
                               str(job.uuid), description)
                 with self.__jobs_lock:

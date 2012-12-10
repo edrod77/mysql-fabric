@@ -186,7 +186,7 @@ def _add_shard_mapping(job):
     """
 
     table_name, column_name, type_name, sharding_specification = job.args
-    shard_mapping = ShardMapping.add(job.persister, table_name, column_name,
+    shard_mapping = ShardMapping.add(table_name, column_name,
                                      type_name, sharding_specification)
     if shard_mapping is not None:
         return True
@@ -204,9 +204,9 @@ def _remove_shard_mapping(job):
     """
 
     table_name = job.args[0]
-    shard_mapping = ShardMapping.fetch(job.persister, table_name)
+    shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is not None:
-        return shard_mapping.remove(job.persister)
+        return shard_mapping.remove()
     else:
         return False
 
@@ -222,7 +222,7 @@ def _lookup_shard_mapping(job):
     """
 
     table_name = job.args[0]
-    shard_mapping = ShardMapping.fetch(job.persister, table_name)
+    shard_mapping = ShardMapping.fetch(table_name)
 
     if shard_mapping is not None:
         return {"table_name":shard_mapping.table_name,
@@ -250,7 +250,7 @@ def _list(job):
 
     ret_shard_mappings = []
     sharding_type = job.args[0]
-    shard_mappings = ShardMapping.list(job.persister, sharding_type)
+    shard_mappings = ShardMapping.list(sharding_type)
     for shard_mapping in shard_mappings:
         ret_shard_mappings.append({"table_name":shard_mapping.table_name,
                                    "column_name":shard_mapping.column_name,
@@ -273,7 +273,7 @@ def _add_shard(job):
     if schema_type == "RANGE":
         schema_type, name, lower_bound, upper_bound, group_id = job.args
         range_sharding_specification = RangeShardingSpecification.add(
-            job.persister, name, lower_bound, upper_bound, group_id)
+            name, lower_bound, upper_bound, group_id)
         if range_sharding_specification is not None:
             return True
         else:
@@ -294,9 +294,9 @@ def _remove_shard(job):
     if schema_type == "RANGE":
         schema_type, name, key = job.args
         range_sharding_specification = \
-            RangeShardingSpecification.lookup(job.persister, key, name)
+            RangeShardingSpecification.lookup(key, name)
         if range_sharding_specification is not None:
-            return range_sharding_specification.remove(job.persister)
+            return range_sharding_specification.remove()
         else:
             return False
 
@@ -311,7 +311,7 @@ def _lookup(job):
     """
 
     table_name, key = job.args
-    group_id = _sharding.lookup(job.persister, table_name, key)
+    group_id = _sharding.lookup(table_name, key)
     if group_id is not None:
         return group_id
     else:
@@ -328,7 +328,7 @@ def _go_fish_lookup(job):
     """
 
     table_name = job.args[0]
-    return _sharding.go_fish_lookup(job.persister, table_name)
+    return _sharding.go_fish_lookup(table_name)
 
 @_events.on_event(PRUNE_SHARD_TABLES)
 def _prune_shard_tables(job):
@@ -348,5 +348,4 @@ def _prune_shard_tables(job):
     """
 
     table_name = job.args[0]
-    return RangeShardingSpecification.delete_from_shard_db \
-                                (job.persister, table_name)
+    return RangeShardingSpecification.delete_from_shard_db(table_name)

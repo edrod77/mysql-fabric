@@ -1,49 +1,64 @@
 """Unit tests for administrative on servers.
 """
 
-import unittest
-import xmlrpclib
+import logging
 import os
+import threading
+import time
+import types
+import unittest
+import uuid as _uuid
+import xmlrpclib
+import sys
 
-import mysql.hub.config as _config
-import mysql.hub.executor as _executor
-import mysql.hub.server as _server
-import mysql.hub.persistence as _persistence
+from mysql.hub import (
+    config as _config,
+    executor as _executor,
+    events as _events,
+    server as _server,
+    persistence as _persistence,
+    )
 
 import tests.utils as _test_utils
 
 class TestServerServices(unittest.TestCase):
     "Test server service interface"
 
-    __metaclass__ = _test_utils.SkipTests
-
     def setUp(self):
+        from __main__ import options, xmlrpc_next_port
+
         params = {
-                "protocol.xmlrpc": {
-                "address": "localhost:" + os.getenv("HTTP_PORT", "15500")
+            "protocol.xmlrpc": {
+                "address": "localhost:%d" % (xmlrpc_next_port,),
+                },
+            'storage': {
+                'address': options.host + ":" + str(options.port),
+                'user': options.user, 'password': options.password,
+                'database': options.database,
                 },
             }
         config = _config.Config(None, params, True)
+        xmlrpc_next_port += 1
 
         # Set up the manager
         from mysql.hub.commands.start import start
-        start(config)
+        self.manager_thread = threading.Thread(target=start, args=(config,))
+        self.manager_thread.start()
 
         # Set up the client
         url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
         self.proxy = xmlrpclib.ServerProxy(url)
-
-        executor = _executor.Executor()
-        executor.persister = _persistence.MySQLPersister("localhost:13000",
-                                                         "root", "")
-        _server.MySQLServer.create(executor.persister)
-        _server.Group.create(executor.persister)
+        while True:
+            try:
+                self.proxy.ping()
+                break
+            except Exception as err:
+                time.sleep(1)
 
     def tearDown(self):
         self.proxy.shutdown()
-        executor = _executor.Executor()
-        _server.Group.drop(executor.persister)
-        _server.MySQLServer.drop(executor.persister)
+        self.manager_thread.join()
+        _persistence.deinit()
 
     def test_group_events(self):
         # Look up groups.

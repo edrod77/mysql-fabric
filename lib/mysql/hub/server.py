@@ -20,6 +20,7 @@ import threading
 import uuid as _uuid
 import logging
 import functools
+import sys
 
 import mysql.hub.errors as _errors
 import mysql.hub.persistence as _persistence
@@ -155,7 +156,7 @@ class Group(_persistence.Persistable):
         """
         return self.__group_id
 
-    def add_server(self, persister, server):
+    def add_server(self, server, persister=None):
         """Add a server into this group.
 
         :param persister: The DB server that can be used to access the
@@ -167,7 +168,7 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.INSERT_GROUP_SERVER,
                             {"params": (self.__group_id, str(server.uuid))})
 
-    def remove_server(self, persister, server):
+    def remove_server(self, server, persister=None):
         """Remove a server from this group.
 
         :param persister: The DB server that can be used to access the
@@ -179,13 +180,16 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.DELETE_GROUP_SERVER,
                             {"params":(self.__group_id, str(server.uuid))})
 
-    def get_description(self):
+    @property
+    def description(self):
         """Return the description for the group.
         """
         return self.__description
 
-    def set_description(self, persister, description):
-        """Set the description for this group.
+    @description.setter
+    def description(self, description, persister=None):
+        """Set the description for this group. Update the description for the
+        Group in the state store.
 
         :param persister: The DB server that can be used to access the
                           state store.
@@ -196,7 +200,7 @@ class Group(_persistence.Persistable):
             {"params":(description, self.__group_id)})
         self.__description = description
 
-    def servers(self, persister):
+    def servers(self, persister=None):
         """Return the uuids for the set of servers in this group.
 
         :param persister: The DB server that can be used to access the
@@ -206,12 +210,14 @@ class Group(_persistence.Persistable):
         return persister.exec_stmt(Group.QUERY_GROUP_SERVERS,
                                    {"params" : (self.__group_id,)})
 
-    def get_master(self):
+    @property
+    def master(self):
         """Return the master for the group.
         """
         return self.__master
 
-    def set_master(self, persister, master):
+    @master.setter
+    def master(self, master, persister=None):
         """Set the master for this group.
 
         :param persister: The DB server that can be used to access the
@@ -228,38 +234,35 @@ class Group(_persistence.Persistable):
         self.__master = master
 
     @staticmethod
-    def groups(persister):
+    def groups(persister=None):
         """Return the group_ids of all the available groups.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
+        :param persister: Persister to persist the object to.
         """
         return persister.exec_stmt(Group.QUERY_GROUPS)
 
-    def remove(self, persister):
+    def remove(self, persister=None):
         """Remove the Group object from the state store.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
+        :param persister: Persister to persist the object to.
+
         """
         persister.exec_stmt(Group.REMOVE_GROUP,
                             {"params" : (self.__group_id,)})
 
-    def contains_server(self, persister, server):
+    def contains_server(self, uuid, persister=None):
         """Check if the server represented by the uuid is part of the
         current Group.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
-        :param server: The uuid of the server whose membership needs to be
-                       verified.
-        :return: True if the server is part of the Group. False if the server
-                 is not part of the Group.
+        :param uuid The uuid of the server whose membership needs to be
+                            verified.
+        :param persister: Persister to persist the object to.
+        :return True if the server is part of the Group.
+                False if the server is not part of the Group.
         """
-        assert(isinstance(server, _uuid.UUID) or \
-               isinstance(server, basestring))
+        assert isinstance(uuid, (_uuid.UUID, basestring))
         cur = persister.exec_stmt(Group.QUERY_GROUP_SERVER,
-            {"fetch" : False, "params":(self.__group_id, str(server))})
+            {"fetch" : False, "params":(self.__group_id, str(uuid))})
         row = cur.fetchone()
 
         if row:
@@ -269,14 +272,13 @@ class Group(_persistence.Persistable):
 
     # TODO: Create tests with description = None.
     @staticmethod
-    def fetch(persister, group_id):
+    def fetch(group_id, persister=None):
         """Return the group object, by loading the attributes for the group_id
         from the state store.
 
-        :param persister: The persistence store object that can be used
-                          to access the state store.
         :param group_id: The group_id for the Group object that needs to be
                          retrieved.
+        :param persister: Persister to persist the object to.
         :return: The Group object corresponding to the group_id
                  None if the Group object does not exist.
         """
@@ -293,12 +295,12 @@ class Group(_persistence.Persistable):
 
     # TODO: Create tests with description = None.
     @staticmethod
-    def add(persister, group_id, description=None):
+    def add(group_id, description=None, persister=None):
         """Create a Group and return the Group object.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
-        :param description: The group's description.
+        :param string group_id: The group ID.
+        :param string description: The group's description.
+        :param persister: Persister to persist the object to.
         """
 
         persister.exec_stmt(Group.INSERT_GROUP,
@@ -306,7 +308,7 @@ class Group(_persistence.Persistable):
         return Group(group_id, description)
 
     @staticmethod
-    def create(persister):
+    def create(persister=None):
         """Create the objects(tables) that will store the Group information in
         the state store.
 
@@ -324,7 +326,7 @@ class Group(_persistence.Persistable):
             raise
 
     @staticmethod
-    def drop(persister):
+    def drop(persister=None):
         """Drop the objects(tables) that represent the Group information in
         the persistent store.
 
@@ -482,12 +484,12 @@ class MySQLServer(Server):
     #SQL Statement for creating the table used to store details about the
     #server.
     CREATE_SERVER = ("CREATE TABLE "
-                        "servers "
-                        "(server_uuid VARCHAR(40) NOT NULL, "
-                        "server_uri VARCHAR(128), "
-                        "user CHAR(16), "
-                        "passwd TEXT, "
-                        "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
+                     "servers "
+                     "(server_uuid VARCHAR(40) NOT NULL, "
+                     "server_uri VARCHAR(128), "
+                     "user CHAR(16), "
+                     "passwd TEXT, "
+                     "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
 
     #SQL Statement for dropping the table used to store the details about the
     #server.
@@ -609,7 +611,7 @@ class MySQLServer(Server):
         return _server_utils.create_mysql_connection(**params)
 
     @server_logging
-    def connect(self, **kwargs):
+    def connect(self):
         """Connect to a MySQL Server instance.
         """
         # TODO: We need to revisit how the connection pool is implemented.
@@ -621,7 +623,10 @@ class MySQLServer(Server):
         self.disconnect()
 
         # Set up an internal connection.
-        self.__cnx = super(MySQLServer, self).connection(**kwargs)
+        self.__cnx = super(MySQLServer, self).connection(
+            host=host, port=port,
+            user=user, password=password,
+            database=database)
 
         # Get server's uuid
         ret_uuid = self.get_variable("SERVER_UUID")
@@ -749,12 +754,14 @@ class MySQLServer(Server):
         """
         return self.__default_charset
 
-    def get_user(self):
+    @property
+    def user(self):
         """Return user's name who is used to connect to a server.
         """
         return self.__user
 
-    def set_user(self, persister, user):
+    @user.setter
+    def user(self, user, persister=None):
         """Set user's name who is used to connect to a server. Persist the
         user information in the state store.
 
@@ -768,13 +775,15 @@ class MySQLServer(Server):
                                 {"params":(user, str(self.uuid))})
             self.__user = user
 
-    def get_passwd(self):
+    @property
+    def passwd(self):
         """Return user's password who is used to connect to a server. Load
         the server information from the state store and return the password.
         """
         return self.__passwd
 
-    def set_passwd(self, persister, passwd):
+    @passwd.setter
+    def passwd(self, passwd, persister=None):
         """Set user's passord who is used to connect to a server. Persist the
         password information in the state store.
 
@@ -932,21 +941,18 @@ class MySQLServer(Server):
         except AttributeError:
             pass
 
-    def remove(self, persister):
+    def remove(self, persister=None):
         """remove the server information from the persistent store.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
+        :param persister: Persister to persist the object to.
         """
         persister.exec_stmt(MySQLServer.REMOVE_SERVER,
                             {"params": (str(self.uuid),)})
 
     @staticmethod
-    def fetch(persister, uuid):
+    def fetch(uuid, persister=None):
         """Return the server object corresponding to the uuid.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
+        :param persister: Persister to persist the object to.
         :param uuid: The server id of the server object that needs to be
                      returned.
         :return: The server object that corresponds to the server id
@@ -959,36 +965,35 @@ class MySQLServer(Server):
             return MySQLServer(_uuid.UUID(row[0]), row[1], row[2], row[3])
 
     @staticmethod
-    def create(persister):
-        """Create the objects(tables) that will store the Server information in
-        the state store.
+    def create(persister=None):
+        """Create the objects(tables) that will store the Server
+        information in the state store.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
+        :param persister: Persister to persist the object to.
         :raises: DatabaseError If the table already exists.
         """
         persister.exec_stmt(MySQLServer.CREATE_SERVER)
 
     @staticmethod
-    def drop(persister):
+    def drop(persister=None):
         """Drop the objects(tables) that represent the Server information in
         the persistent store.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
+        :param persister: Persister to persist the object to.
         :raises: DatabaseError If the drop of the related table fails.
         """
         persister.exec_stmt(MySQLServer.DROP_SERVER)
 
     @staticmethod
-    def add(persister, uuid, uri=None, user=None, passwd=None,
-            default_charset="latin1"):
+    def add(uuid, uri=None, user=None, passwd=None,
+            default_charset="latin1", persister=None):
         """Persist the Server information and return the Server object.
 
         :param uuid The uuid of the server being created
         :param uri  The uri  of the server being created
         :param user The user name to be used for logging into the server
         :param passwd The password to be used for logging into the server
+        :param persister: Persister to persist the object to.
         :return a Server object
         """
         assert(isinstance(uuid, _uuid.UUID))

@@ -4,8 +4,13 @@ import unittest
 import logging
 import uuid
 
-import mysql.hub.executor as _executor
-import mysql.hub.errors as _errors
+from mysql.hub import (
+    executor as _executor,
+    errors as _errors,
+    persistence as _persistence,
+    )
+
+import tests.utils as _test_utils
 
 count = []
 other = None
@@ -39,7 +44,15 @@ class TestExecutor(unittest.TestCase):
     """
 
     def setUp(self):
+        from __main__ import options
+        _persistence.init(host=options.host, port=options.port,
+                          user=options.user, password=options.password)
+        _persistence.init_thread()
         self.executor = _executor.Executor()
+
+    def tearDown(self):
+        _persistence.deinit_thread()
+        _persistence.deinit()
 
     def test_basic(self):
         global other
@@ -81,8 +94,8 @@ class TestExecutor(unittest.TestCase):
     def test_job_hashable(self):
         def action():
           pass
-        job_1 = _executor.Job(None, action, "Test action.", None)
-        job_2 = _executor.Job(None, action, "Test action.", None)
+        job_1 = _executor.Job(action, "Test action.", None)
+        job_2 = _executor.Job(action, "Test action.", None)
         set_jobs = set()
         set_jobs.add(job_1)
         set_jobs.add(job_2)

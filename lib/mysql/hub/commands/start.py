@@ -1,4 +1,7 @@
 """Start the hub daemon.
+
+The daemon is started using ``hub-start`` command-line program.
+
 """
 
 import logging
@@ -8,6 +11,7 @@ import sys
 
 import mysql.hub.services as _services
 import mysql.hub.events as _events
+import mysql.hub.persistence as _persistence
 
 from mysql.hub.config import Config
 
@@ -45,19 +49,39 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(serr.fileno(), sys.stdin.fileno())
 
 def start(config):
-    service_manager = _services.ServiceManager(config, shutdown)
-    handler = _events.Handler()
+    address = config.get('storage', 'address')
+    try:
+        host, port = address.split(':')
+        port = int(port)
+    except ValueError:
+        host = address
+        port = 3306
 
-    handler.start()
+    user = config.get('storage', 'user')
+    password = config.get('storage', 'password')
+    database = config.get('storage', 'database')
+
+    # Set up the components
+    service_manager = _services.ServiceManager(config, shutdown)
+
+    # Load all services into the service manager
     service_manager.load_services()
+
+    # Initialize the persistence system. This have to be after the
+    # services are loaded to ensure that all persistent classes are
+    # defined (hence added to the list of persistent classes).
+    _persistence.init(host=host, port=port,
+                      user=user, password=password,
+                      database=database)
+
+    # Start the executor and then service manager
+    _events.Handler().start()
     service_manager.start()
 
-def shutdown():
-    service_manager = _services.ServiceManager()
-    handler = _events.Handler()
 
-    service_manager.shutdown()
-    handler.shutdown()
+def shutdown():
+    _services.ServiceManager().shutdown()
+    _events.Handler().shutdown()
     return True
 
 def main(argv):
@@ -102,4 +126,6 @@ def main(argv):
     if options.daemonize:
         daemonize()
 
+    logger.info("Fabric node starting")
     start(config)
+    logger.info("Fabric node stopped")

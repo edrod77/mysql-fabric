@@ -4,12 +4,15 @@
 import unittest
 import uuid as _uuid
 
-import mysql.hub.errors as _errors
-import mysql.hub.server_utils as _server_utils
+from mysql.hub import (
+    errors as _errors,
+    persistence,
+    server_utils as _server_utils,
+    )
 import tests.utils as _test_utils
 
-from mysql.hub.server import Group, Server
 from mysql.hub.persistence import MySQLPersister
+from mysql.hub.server import Group, Server, MySQLServer
 
 
 class ConcreteServer(Server):
@@ -21,9 +24,6 @@ class ConcreteServer(Server):
 
 
 class TestServer(unittest.TestCase):
-
-    __metaclass__ = _test_utils.SkipTests
-
     def test_properties(self):
         set_of_servers = set()
         options_1 = {
@@ -109,22 +109,23 @@ class TestServer(unittest.TestCase):
 
 class TestGroup(unittest.TestCase):
 
-    __metaclass__ = _test_utils.SkipTests
-
     def setUp(self):
-        self.persister = MySQLPersister("localhost:13000", "root", "")
-        Group.create(self.persister)
+        from __main__ import options
+        persistence.init(host=options.host, port=options.port,
+                         user=options.user, password=options.password)
+        persistence.init_thread()
 
     def tearDown(self):
-        Group.drop(self.persister)
+        persistence.deinit_thread()
+        persistence.deinit()
 
     def test_properties(self):
         set_of_groups = set()
-        group_1 = Group("mysql.com", "First description.")
-        group_2 = Group("oracle.com", "First description.")
+        group_1 = Group.add("mysql.com", "First description.")
+        group_2 = Group.add("oracle.com", "First description.")
         self.assertEqual(group_1.group_id, "mysql.com")
-        group_1.set_description(self.persister, "New description.")
-        self.assertEqual(group_1.get_description(), "New description.")
+        group_1.description = "New description."
+        self.assertEqual(group_1.description, "New description.")
         self.assertEqual(group_1, group_1)
         self.assertFalse(group_1 == group_2)
 
@@ -133,6 +134,8 @@ class TestGroup(unittest.TestCase):
         self.assertEqual(len(set_of_groups), 2)
         set_of_groups.add(group_1)
         self.assertEqual(len(set_of_groups), 2)
+        group_1.remove()
+        group_2.remove()
 
     def test_managment(self):
         options_1 = {
@@ -145,20 +148,19 @@ class TestGroup(unittest.TestCase):
             "uri"  : "server_2.mysql.com:3060",
         }
         server_2 = Server(**options_2)
-        group_1 = Group("oracle.com", "First description.")
+        group_1 = Group.add("oracle.com", "First description.")
 
         # Add servers to a group
-        group_1.add_server(self.persister, server_1)
-        group_1.add_server(self.persister, server_2)
-        self.assertRaises(_errors.DatabaseError, group_1.add_server,
-                          self.persister, server_1)
-        self.assertEqual(len(group_1.servers(self.persister)), 2)
+        group_1.add_server(server_1)
+        group_1.add_server(server_2)
+        self.assertRaises(_errors.DatabaseError, group_1.add_server, server_1)
+        self.assertEqual(len(group_1.servers()), 2)
 
         # Remove servers to a group
-        group_1.remove_server(self.persister, server_1)
-        group_1.remove_server(self.persister, server_2)
-        group_1.remove_server(self.persister, server_1)
-        self.assertEqual(len(group_1.servers(self.persister)), 0)
+        group_1.remove_server(server_1)
+        group_1.remove_server(server_2)
+        group_1.remove_server(server_1)
+        self.assertEqual(len(group_1.servers()), 0)
 
 
 if __name__ == "__main__":

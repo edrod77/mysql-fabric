@@ -1,11 +1,18 @@
 """Module holding support utilities for tests.
 """
-import uuid as _uuid
 
-import mysql.hub.utils as _utils
-import mysql.hub.server as _server
-import mysql.hub.replication as _replication
-import mysql.hub.executor as _executor
+import sys
+import threading
+import time
+import uuid as _uuid
+import xmlrpclib
+
+from mysql.hub import (
+    config as _config,
+    persistence as _persistence,
+    replication as _replication,
+    utils as _utils,
+    )
 
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
 
@@ -18,13 +25,13 @@ class SkipTests(type):
       class TestCaseClass(unittest.TestCase):
         __metaclass__ = _utils.SkipTests
     """
-    def __new__(cls, name, bases, dct):
+    def __new__(mcs, name, bases, dct):
         """Create a new instance for SkipTests.
         """
         for name, item in dct.items():
             if callable(item) and name.startswith("test"):
                 dct[name] = None
-        return type.__new__(cls, name, bases, dct)
+        return type.__new__(mcs, name, bases, dct)
 
 class MySQLInstances(_utils.Singleton):
     """Contain a reference to the available set of MySQL Instances that can be
@@ -122,3 +129,41 @@ class ShardingUtils(object):
                         range_specification_2.upper_bound and \
                 range_specification_1.group_id == range_specification_2.group_id
 
+def setup_xmlrpc():
+    from __main__ import options, xmlrpc_next_port
+    params = {
+        'protocol.xmlrpc': {
+            'address': 'localhost:%d' % (xmlrpc_next_port,),
+            },
+        'storage': {
+            'address': options.host + ":" + str(options.port),
+            'user': options.user,
+            'password': options.password,
+            'database': 'fabric',
+            },
+        }
+    config = _config.Config(None, params, True)
+    xmlrpc_next_port += 1
+
+    # Set up the manager
+    from mysql.hub.commands.start import start
+    manager_thread = threading.Thread(target=start, args=(config,))
+    manager_thread.start()
+    
+    # Set up the client
+    url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
+    proxy = xmlrpclib.ServerProxy(url)
+
+    while True:
+        try:
+            proxy.ping()
+            break
+        except Exception as err:
+            time.sleep(1)
+
+    return (manager_thread, proxy)
+    
+def teardown_xmlrpc(manager, proxy):
+    proxy.shutdown()
+    manager.join()
+    _persistence.deinit()

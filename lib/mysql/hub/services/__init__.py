@@ -65,19 +65,23 @@ class ServiceManager(Singleton):
     Services are not automatically loaded when the service manager is
     constructed, so the load_services have to be called explicitly to
     load the services in the package.
+
     """
+
     def __init__(self, config=None, shutdown=None):
         """Setup all protocol services.
         """
         assert(config is not None or shutdown is not None)
         Singleton.__init__(self)
-        self.__xmlrpc_thread = None
 
         # TODO: Move setup of XML-RPC protocol server into protocols package
         address = config.get("protocol.xmlrpc", "address")
         _host, port = address.split(':')
+        _LOGGER.info("XML-RPC protocol server configured for listening on port %s.",
+                     str(port))
         self.__xmlrpc = MyXMLRPCServer(("localhost", int(port)))
         self.__xmlrpc.register_function(shutdown, "shutdown")
+        self.__xmlrpc.register_function(lambda: True, "ping")
 
     def start(self):
         """Start and run all services managed by the service manager.
@@ -87,20 +91,12 @@ class ServiceManager(Singleton):
         servers and then return.
         """
         _LOGGER.info("XML-RPC protocol server started.")
-        self.__xmlrpc_thread = threading.Thread(
-            target=self.__xmlrpc.serve_forever, name="ServiceManager")
-        self.__xmlrpc_thread.start()
+        self.__xmlrpc.serve_forever()
 
     def shutdown(self):
         """Shut down all services managed by the service manager.
         """
         self.__xmlrpc.shutdown()
-        def xmlrpc_wait():
-            self.__xmlrpc_thread.join()
-            _LOGGER.info("XML-RPC protocol server stopped.")
-        thread = threading.Thread(target=xmlrpc_wait,
-                                  name="WaitServiceManager")
-        thread.start()
 
     def load_services(self):
         """Set up protocol servers and load services into each

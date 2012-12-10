@@ -225,7 +225,7 @@ def _discover_topology(job):
     pattern_group_id, group_description, uri, user, passwd = job.args
     user = user or "root"
     passwd = passwd or ""
-    topology = _do_discover_topology(job.persister, uri, user, passwd)
+    topology = _do_discover_topology(uri, user, passwd)
     jobs = _events.trigger(IMPORT_TOPOLOGY, pattern_group_id,
                            group_description, topology, user, passwd)
     job.jobs = jobs
@@ -296,8 +296,8 @@ def _import_topology(job):
     """Import topology.
     """
     pattern_group_id, group_description, topology, user, passwd = job.args
-    _do_import_topology(job.persister, pattern_group_id, group_description,
-                         topology, user, passwd)
+    _do_import_topology(pattern_group_id, group_description,
+                        topology, user, passwd)
 
 def _do_import_topology(persister, pattern_group_id, group_description,
                         topology, user, passwd):
@@ -317,17 +317,17 @@ def _do_import_topology(persister, pattern_group_id, group_description,
     group_id = base_group_id + "-" + str(number_group_id)
 
     # Create group.
-    group = _server.Group.add(persister, group_id, group_description)
+    group = _server.Group.add(group_id, group_description)
     _LOGGER.debug("Added group (%s).", str(group))
 
     # Create master of the group.
     master_uri = topology[master_uuid]["uri"]
-    server = _server.MySQLServer.add(persister, _uuid.UUID(master_uuid),
+    server = _server.MySQLServer.add(_uuid.UUID(master_uuid),
                                      master_uri, user, passwd)
 
     # Added created master to the group.
-    group.add_server(persister, server)
-    group.set_master(persister, server.uuid)
+    group.add_server(server)
+    group.master = server.uuid
     _LOGGER.debug("Added server (%s) as master to group (%s).", str(server),
                   str(group))
 
@@ -337,14 +337,13 @@ def _do_import_topology(persister, pattern_group_id, group_description,
         new_slaves = slave[slave_uuid]["slaves"]
         if not new_slaves:
             slave_uri = slave[slave_uuid]["uri"]
-            server = _server.MySQLServer.add(persister, _uuid.UUID(slave_uuid),
+            server = _server.MySQLServer.add(_uuid.UUID(slave_uuid),
                                              slave_uri, user, passwd)
         else:
             _do_import_topology(persister, group_id, group_description,
                                 slave, user, passwd)
-            server = _server.MySQLServer.fetch(persister,
-                                               _uuid.UUID(slave_uuid))
-        group.add_server(persister, server)
+            server = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
+        group.add_server(server)
         _LOGGER.debug("Added server (%s) as slave to group (%s).", str(server),
                       str(group))
 
@@ -354,7 +353,7 @@ def _find_candidate_switch(job):
     """
     group_id = job.args[0]
 
-    slave_uuid = _do_find_candidate(job.persister, group_id)
+    slave_uuid = _do_find_candidate(group_id)
 
     jobs = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id, slave_uuid)
     job.jobs = jobs
@@ -371,22 +370,21 @@ def _do_find_candidate(persister, group_id):
              group.
     """
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
-    group = _server.Group.fetch(persister, group_id)
+    group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
 
     master_uuid = None
-    if group.get_master():
-        master_uuid = str(group.get_master())
+    if group.master:
+        master_uuid = str(group.master)
 
     chosen_uuid = None
     chosen_gtid_status = None
-    for row in group.servers(persister):
+    for row in group.servers():
         candidate_uuid = row[0]
         if master_uuid != candidate_uuid:
             try:
-                candidate = _server.MySQLServer.fetch(persister,
-                    _uuid.UUID(candidate_uuid))
+                candidate = _server.MySQLServer.fetch(_uuid.UUID(candidate_uuid))
                 candidate.connect()
                 gtid_status = candidate.get_gtid_status()
                 health = _replication.check_master_health(candidate)
@@ -424,15 +422,15 @@ def _check_candidate_switch(job):
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
     group_id, slave_uuid = job.args
 
-    group = _server.Group.fetch(job.persister, group_id)
+    group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
 
-    if not group.contains_server(job.persister, slave_uuid):
+    if not group.contains_server(slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, slave_uuid))
 
-    slave = _server.MySQLServer.fetch(job.persister, _uuid.UUID(slave_uuid))
+    slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
     health = _replication.check_master_health(slave)
@@ -446,11 +444,11 @@ def _check_candidate_switch(job):
                                   "due to the following reason: (%s).", health)
     master_uuid = _replication.slave_has_master(slave)
 
-    if not group.contains_server(job.persister, master_uuid):
+    if not group.contains_server(master_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, master_uuid))
 
-    if not group.get_master() or str(group.get_master()) != master_uuid:
+    if not group.master or str(group.master) != master_uuid:
         raise _errors.GroupError("Group (%s) does not contain correct " \
                                  "master (%s)." % (group_id, master_uuid))
 
@@ -465,10 +463,10 @@ def _block_write_master(job):
     group_id, master_uuid, slave_uuid = job.args
     # TODO: IN THE FUTURUE, KILL CONNECTIONS AND MAKE THIS FASTER.
 
-    group = _server.Group.fetch(job.persister, group_id)
-    group.set_master(job.persister, None)
+    group = _server.Group.fetch(group_id)
+    group.master = None
 
-    server = _server.MySQLServer.fetch(job.persister, _uuid.UUID(master_uuid))
+    server = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     server.connect()
     server.read_only = True
 
@@ -488,19 +486,18 @@ def _wait_candidate_catch(job):
     """
     group_id, master_uuid, slave_uuid = job.args
 
-    master = _server.MySQLServer.fetch(job.persister, _uuid.UUID(master_uuid))
+    master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
-    slave = _server.MySQLServer.fetch(job.persister, _uuid.UUID(slave_uuid))
+    slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
     _synchronize(slave, master)
-    group = _server.Group.fetch(job.persister, group_id)
-    for row in group.servers(job.persister):
+    group = _server.Group.fetch(group_id)
+    for row in group.servers():
         server_uuid = row[0]
         if server_uuid not in (master_uuid, slave_uuid):
             try:
-                server = _server.MySQLServer.fetch(job.persister,
-                                                   _uuid.UUID(server_uuid))
+                server = _server.MySQLServer.fetch(_uuid.UUID(server_uuid))
                 server.connect()
                 used_master_uuid = _replication.slave_has_master(server)
                 if  master_uuid == used_master_uuid:
@@ -520,20 +517,19 @@ def _change_to_candidate(job):
     """
     group_id, master_uuid = job.args
 
-    master = _server.MySQLServer.fetch(job.persister, _uuid.UUID(master_uuid))
+    master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
     _replication.stop_slave(master, wait=True)
     master.read_only = False
 
-    group = _server.Group.fetch(job.persister, group_id)
-    group.set_master(job.persister, master.uuid)
+    group = _server.Group.fetch(group_id)
+    group.master = master.uuid
 
-    for row in group.servers(job.persister):
+    for row in group.servers():
         server_uuid = row[0]
         if server_uuid != master_uuid:
             try:
-                server = _server.MySQLServer.fetch(job.persister,
-                                                   _uuid.UUID(server_uuid))
+                server = _server.MySQLServer.fetch(_uuid.UUID(server_uuid))
                 server.connect()
                 _replication.stop_slave(server, wait=True)
                 _replication.switch_master(server, master, master.get_user(),
@@ -551,7 +547,7 @@ def _find_candidate_fail(job):
     """
     group_id = job.args[0]
 
-    slave_uuid = _do_find_candidate(job.persister, group_id)
+    slave_uuid = _do_find_candidate(group_id)
 
     jobs = _events.trigger(CHECK_CANDIDATE_FAIL, group_id, slave_uuid)
     job.jobs = jobs
@@ -564,15 +560,15 @@ def _check_candidate_fail(job):
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
     group_id, slave_uuid = job.args
 
-    group = _server.Group.fetch(job.persister, group_id)
+    group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
 
-    if not group.contains_server(job.persister, slave_uuid):
+    if not group.contains_server(slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, slave_uuid))
 
-    slave = _server.MySQLServer.fetch(job.persister, _uuid.UUID(slave_uuid))
+    slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
     health = _replication.check_master_health(slave)
@@ -581,14 +577,13 @@ def _check_candidate_fail(job):
                                   "due to the following reason: (%s).", health)
 
     master_uuid = _replication.slave_has_master(slave)
-    if not group.contains_server(job.persister, master_uuid):
+    if not group.contains_server(master_uuid):
         raise _errors.GroupError("Group (%s) does not contain the master "
                                  "(%s) reported by server (%s)." \
                                  % (group_id, master_uuid, slave_uuid))
-    if group.get_master():
+    if group.master:
         try:
-            server = _server.MySQLServer.fetch(job.persister,
-                                               group.get_master())
+            server = _server.MySQLServer.fetch(group.master)
             server.connect()
             if server.is_alive():
                 _LOGGER.debug("Failover is not possible because "
@@ -596,7 +591,7 @@ def _check_candidate_fail(job):
         except _errors.DatabaseError as error:
             _LOGGER.debug(error)
 
-        if str(group.get_master()) != master_uuid:
+        if str(group.master) != master_uuid:
             raise _errors.GroupError("Group (%s) does not contain correct " \
                                      "master (%s)." % (group_id, master_uuid))
 
@@ -608,7 +603,7 @@ def _synchronize(slave, master):
     """
     synced = False
     _replication.start_slave(slave, wait=True)
-    master_gtids = master.get_gtid_status()
+    master_gtids = master.gtid_status
     while _replication.is_slave_thread_running(slave) and not synced:
         try:
             _replication.wait_for_slave_gtid(slave, master_gtids, timeout=3)

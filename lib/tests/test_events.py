@@ -1,13 +1,22 @@
 """Unit tests for the event handler.
 """
 
+import os
+import sys
+import threading
+import time
+import types
 import unittest
 import xmlrpclib
-import os
 
-import mysql.hub.config as _config
-import mysql.hub.errors as _errors
-import mysql.hub.events as _events
+from mysql.hub import (
+    config as _config,
+    errors as _errors,
+    events as _events,
+    persistence as _persistence,
+    )
+
+import tests.utils as _test_utils
 
 _TEST1 = None
 
@@ -31,11 +40,15 @@ class TestHandler(unittest.TestCase):
     """
 
     def setUp(self):
+        from __main__ import options
+        _persistence.init(host=options.host, port=options.port,
+                          user=options.user, password=options.password)
         self.handler = _events.Handler()
         self.handler.start()
 
     def tearDown(self):
         self.handler.shutdown()
+        _persistence.deinit()
 
     def test_events(self):
         "Test creating events."
@@ -154,12 +167,17 @@ _DEMOTED = None
 class TestDecorator(unittest.TestCase):
     "Test the decorators related to events"
 
+    handler = _events.Handler()
+
     def setUp(self):
-        self.handler = _events.Handler()
+        from __main__ import options
+        _persistence.init(host=options.host, port=options.port,
+                          user=options.user, password=options.password)
         self.handler.start()
 
     def tearDown(self):
         self.handler.shutdown()
+        _persistence.deinit()
 
     def test_decorator(self):
         global _PROMOTED, _DEMOTED
@@ -203,28 +221,18 @@ class TestService(unittest.TestCase):
     "Test the service interface"
 
     def setUp(self):
-        params = {
-                'protocol.xmlrpc': {
-                "address": "localhost:" + os.getenv("HTTP_PORT", "15500")
-                },
-            }
-        config = _config.Config(None, params, True)
+        self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
-        # Set up the manager
-        from mysql.hub.commands.start import start
-        start(config)
-
-        # Set up the client
-        url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
-        self.proxy = xmlrpclib.ServerProxy(url)
+    def tearDown(self):
+        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_trigger(self):
         promoted = [None]
         def my_event(job):
             promoted[0] = job.args[0]
         _events.Handler().register(_events.SERVER_PROMOTED, my_event)
-        self.proxy.event.trigger('SERVER_PROMOTED', "my.example.com")
-        self.proxy.shutdown()
+        jobs = self.proxy.event.trigger('SERVER_PROMOTED', "my.example.com")
+        self.proxy.event.wait_for(jobs)
         self.assertEqual(promoted[0], "my.example.com")
 
 if __name__ == "__main__":

@@ -64,7 +64,7 @@ class ShardMapping(_persistence.Persistable):
 
 
     def __init__(self, table_name, column_name, type_name,
-                    sharding_specification):
+                 sharding_specification):
         """Initialize the Shard Specification Mapping for a given table.
 
         :param table_name: The table for which the mapping is being created.
@@ -107,7 +107,7 @@ class ShardMapping(_persistence.Persistable):
         return self.__sharding_specification
 
     @staticmethod
-    def list(persister, sharding_type):
+    def list(sharding_type, persister=None):
         """The method returns all the shard mappings (names) of a
         particular sharding_type. For example if the method is called
         with 'range' it returns all the sharding specifications that exist
@@ -132,7 +132,7 @@ class ShardMapping(_persistence.Persistable):
         return shard_mappings
 
 
-    def remove(self, persister):
+    def remove(self, persister=None):
         """Remove the shard mapping represented by the Shard Mapping object.
         The method basically results in removing the association between a
         table and the sharding specification used to shard this table.
@@ -149,7 +149,7 @@ class ShardMapping(_persistence.Persistable):
         return True
 
     @staticmethod
-    def create(persister):
+    def create(persister=None):
         """Create the schema to store the mapping between the table and
         the sharding specification.
 
@@ -163,7 +163,7 @@ class ShardMapping(_persistence.Persistable):
         return True
 
     @staticmethod
-    def drop(persister):
+    def drop(persister=None):
         """Drop the schema for the table used to store the mapping between
         the table and the sharding specificaton.
 
@@ -177,7 +177,7 @@ class ShardMapping(_persistence.Persistable):
         return True
 
     @staticmethod
-    def fetch(persister, table_name):
+    def fetch(table_name, persister=None):
         """Fetch the shard specification mapping for the given table
 
         :param persister: Represents a valid handle to the state store.
@@ -197,9 +197,10 @@ class ShardMapping(_persistence.Persistable):
             return ShardMapping(row[0], row[1], row[2], row[3])
 
     @staticmethod
-    def add(persister, table_name, column_name, type_name,
-                                        sharding_specification):
-        """Add the shard specification mapping information for the given table.
+    def add(table_name, column_name, type_name, sharding_specification,
+            persister=None):
+        """Add the shard specification mapping information for the
+        given table.
 
         :param persister: A valid handle to the state store.
         :param table_name: The name of the table being sharded.
@@ -328,7 +329,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         return self.__group_id
 
-    def remove(self, persister):
+    def remove(self, persister=None):
         """Remove the RANGE specification mapping represented by the current
         RANGE shard specification object.
 
@@ -344,8 +345,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return True
 
     @staticmethod
-    def add(persister, name, lower_bound,
-                         upper_bound, group_id):
+    def add(name, lower_bound, upper_bound, group_id, persister=None):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
@@ -370,7 +370,7 @@ class RangeShardingSpecification(_persistence.Persistable):
                                           upper_bound, group_id)
 
     @staticmethod
-    def create(persister):
+    def create(persister=None):
         """Create the schema to store the current RANGE sharding specification.
 
         :param persister: A valid handle to the state store.
@@ -384,7 +384,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return True
 
     @staticmethod
-    def drop(persister):
+    def drop(persister=None):
         """Drop the Range shard specification schema.
 
         :param persister: A valid handle to the state store.
@@ -397,7 +397,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return True
 
     @staticmethod
-    def fetch(persister, name):
+    def fetch(name, persister=None):
         """Return the RangeShardingSpecification objects corresponding to the
         given sharding scheme.
 
@@ -423,7 +423,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return  range_sharding_specifications
 
     @staticmethod
-    def lookup(persister, key, name):
+    def lookup(key, name, persister):
         """Return the Group UUID in whose key range the input key falls.
 
         :param persister: A valid handle to the state store.
@@ -448,7 +448,7 @@ class RangeShardingSpecification(_persistence.Persistable):
                                               0, 0, "")
 
     @staticmethod
-    def delete_from_shard_db(persister, table_name):
+    def delete_from_shard_db(table_name, persister=None):
         """Delete the data from the copied data directories based on the
         sharding configuration uploaded in the sharding tables of the state
         store. The basic logic consists of
@@ -467,15 +467,14 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
 
         #Get the shard mapping for the table from the state store.
-        shard_mapping = ShardMapping.fetch(persister, table_name)
+        shard_mapping = ShardMapping.fetch(table_name)
 
         #Get the sharding specification from the shard mapping information
         sharding_specification = ShardMapping.sharding_specification
 
         #Query the range sharding specifications defined for the given sharding
         #scheme name
-        range_sharding_specs = RangeShardingSpecification.fetch(persister,
-                                                        sharding_specification)
+        range_sharding_specs = RangeShardingSpecification.fetch(sharding_specification)
 
         #Use the information in each of the range sharding specs to prune the
         #tables.
@@ -490,13 +489,12 @@ class RangeShardingSpecification(_persistence.Persistable):
                                                 range_sharding_spec.upper_bound)
             #Fetch the server object  using the group uuid in the range
             #sharding specification table
-            server = MySQLServer.fetch(persister,
-                                       RangeShardingSpecification.group_id)
+            server = MySQLServer.fetch(RangeShardingSpecification.group_id)
             #Fire the DELETE query
             server.exec_stmt(delete_query)
         return True
 
-def lookup(persister, table_name, key):
+def lookup(table_name, key, persister=None):
     """Given a table name and a key return the server where the shard of this
     table can be found
 
@@ -508,17 +506,16 @@ def lookup(persister, table_name, key):
     :return The master UUID of the Group that contains the range in which the
             key belongs None if lookup fails.
     """
-    shard_mapping = ShardMapping.fetch(persister, table_name)
+    shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping.type_name == "RANGE":
         range_sharding_specification = RangeShardingSpecification.lookup \
-                                    (persister, key,
-                                    shard_mapping.sharding_specification)
-        group = Group.fetch(persister,
-                            str(range_sharding_specification.group_id))
+                                    (key,
+                                     shard_mapping.sharding_specification)
+        group = Group.fetch(str(range_sharding_specification.group_id))
         if group is not None:
-            return str(group.get_master())
+            return str(group.master)
 
-def go_fish_lookup(persister, table_name):
+def go_fish_lookup(table_name, persister=None):
     """Given table name return all the servers that contain the shards for
     this table.
 
@@ -529,14 +526,12 @@ def go_fish_lookup(persister, table_name):
             the table. None if lookup fails.
     """
     server_list = []
-    shard_mapping = ShardMapping.fetch(persister, table_name)
+    shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping.type_name == "RANGE":
         range_sharding_specifications = RangeShardingSpecification.fetch(
-                                    persister,
                                     shard_mapping.sharding_specification)
     for range_sharding_specification in range_sharding_specifications:
-        group = Group.fetch(persister,
-                            str(range_sharding_specification.group_id))
+        group = Group.fetch(str(range_sharding_specification.group_id))
         if group is not None:
-            server_list.append(str(group.get_master()))
+            server_list.append(str(group.master))
     return server_list
