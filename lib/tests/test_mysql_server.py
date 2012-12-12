@@ -101,10 +101,8 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         # Check version.
+        self.assertFalse(server.check_version_compat((7,0,0)))
         self.assertFalse(server.check_version_compat((6,0,0)))
-        self.assertFalse(server.check_version_compat((5,8,0)))
-        self.assertFalse(server.check_version_compat((5,7,1)))
-        self.assertTrue(server.check_version_compat((5,7,0)))
         #TODO: Check when version is composed only with numbers 5.5.7.
 
     def test_gtid(self):
@@ -114,8 +112,8 @@ class TestMySQLServer(unittest.TestCase):
         # Executed gtids cannot be compared because we may have executed
         # some statements in other tests.
         for record in server.get_gtid_status():
-           self.assertTrue(record.GTID_DONE.find(str(server.uuid).upper()) != -1)
-           self.assertEqual(record.GTID_LOST, "")
+           self.assertTrue(record.GTID_EXECUTED.find(str(server.uuid) != -1)
+           self.assertEqual(record.GTID_PURGED, "")
            self.assertEqual(record.GTID_OWNED, "")
         #TODO: Test with gtids disabled.
 

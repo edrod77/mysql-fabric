@@ -258,9 +258,9 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertTrue(wait_for_slave_gtid(slave, gtid_status, timeout=0))
 
         # This times out because there are no new events.
-        Row = namedtuple("Row", ["GTID_DONE", "GTID_LOST", "GTID_OWNED"])
-        gtid_done = "%s:%s" % (str(master.uuid), "1-20")
-        gtid_status = [Row(gtid_done, "", "")]
+        Row = namedtuple("Row", ["GTID_EXECUTED", "GTID_PURGED", "GTID_OWNED"])
+        gtid_executed = "%s:%s" % (str(master.uuid), "1-20")
+        gtid_status = [Row(gtid_executed, "", "")]
         self.assertRaises(_errors.TimeoutError, wait_for_slave_gtid, slave,
                           gtid_status)
 
@@ -371,8 +371,8 @@ class TestMySQLSlave(unittest.TestCase):
         slave_gtid_status = slave.get_gtid_status()
         ret = get_slave_num_gtid_behind(slave, master_gtid_status)
         self.assertEqual(ret, 0)
-        self.assertEqual(slave_gtid_status[0].GTID_DONE, "")
-        self.assertEqual(master_gtid_status[0].GTID_DONE, "")
+        self.assertEqual(slave_gtid_status[0].GTID_EXECUTED, "")
+        self.assertEqual(master_gtid_status[0].GTID_EXECUTED, "")
 
         # It is not possible to do any comparison if the master_gtid_status
         # is empty.
@@ -382,8 +382,8 @@ class TestMySQLSlave(unittest.TestCase):
         slave_gtid_status = slave.get_gtid_status()
         self.assertRaises(_errors.ProgrammingError, get_slave_num_gtid_behind,
                           slave, master_gtid_status)
-        self.assertNotEqual(slave_gtid_status[0].GTID_DONE, "")
-        self.assertEqual(master_gtid_status[0].GTID_DONE, "")
+        self.assertNotEqual(slave_gtid_status[0].GTID_EXECUTED, "")
+        self.assertEqual(master_gtid_status[0].GTID_EXECUTED, "")
 
         # Check what happens if there are different sets of transactions.
         master.exec_stmt("USE test")
@@ -392,8 +392,8 @@ class TestMySQLSlave(unittest.TestCase):
         slave_gtid_status = slave.get_gtid_status()
         ret = get_slave_num_gtid_behind(slave, master_gtid_status)
         self.assertEqual(ret, 1)
-        self.assertNotEqual(slave_gtid_status[0].GTID_DONE, "")
-        self.assertNotEqual(master_gtid_status[0].GTID_DONE, "")
+        self.assertNotEqual(slave_gtid_status[0].GTID_EXECUTED, "")
+        self.assertNotEqual(master_gtid_status[0].GTID_EXECUTED, "")
 
         # Check what happens if the slave_gtid_status is empty.
         reset_master(slave)
@@ -401,8 +401,8 @@ class TestMySQLSlave(unittest.TestCase):
         slave_gtid_status = slave.get_gtid_status()
         ret = get_slave_num_gtid_behind(slave, master_gtid_status)
         self.assertEqual(ret, 1)
-        self.assertEqual(slave_gtid_status[0].GTID_DONE, "")
-        self.assertNotEqual(master_gtid_status[0].GTID_DONE, "")
+        self.assertEqual(slave_gtid_status[0].GTID_EXECUTED, "")
+        self.assertNotEqual(master_gtid_status[0].GTID_EXECUTED, "")
 
 
 if __name__ == "__main__":

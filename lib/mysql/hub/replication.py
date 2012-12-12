@@ -17,7 +17,7 @@ _RPL_USER_QUERY = (
 
 _MASTER_POS_WAIT = "SELECT MASTER_POS_WAIT('%s', %s, %s)"
 
-_GTID_WAIT = "SELECT SQL_THREAD_WAIT_AFTER_GTIDS('%s', %s)"
+_GTID_WAIT = "SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS('%s', %s)"
 
 IO_THREAD = "IO_THREAD"
 
@@ -224,8 +224,8 @@ def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
     :return: Number of transactions behind master.
     """
     gtids = None
-    master_gtids = master_gtids[0].GTID_DONE
-    slave_gtids = server.get_gtid_status()[0].GTID_DONE
+    master_gtids = master_gtids[0].GTID_EXECUTED
+    slave_gtids = server.get_gtid_status()[0].GTID_EXECUTED
 
     # The subtract function does not accept empty strings.
     if master_gtids == "" and slave_gtids != "":
@@ -366,7 +366,7 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=3):
 def wait_for_slave_gtid(server, master_gtids, timeout=3):
     """Wait for the slave to read the master's GTIDs.
 
-    The function `SELECT SQL_THREAD_WAIT_AFTER_GTIDS` is called until the
+    The function `SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS` is called until the
     slave catches up. If the timeout period expires prior to achieving
     the condition the :class:`mysql.hub.errors.TimeoutError` exception is
     raised.
@@ -380,7 +380,7 @@ def wait_for_slave_gtid(server, master_gtids, timeout=3):
     if not server.gtid_enabled:
         raise _errors.ProgrammingError("Global Transaction IDs are not "\
                                        "supported.")
-    gtid = master_gtids[0].GTID_DONE
+    gtid = master_gtids[0].GTID_EXECUTED
     _LOGGER.debug("Slave (%s).",
         _server_utils.split_host_port(server.uri,
                                       _server_utils.MYSQL_DEFAULT_PORT))
@@ -395,12 +395,12 @@ def wait_for_slave_gtid(server, master_gtids, timeout=3):
     else:
         assert(res[0][0] == -1)
         _LOGGER.debug("Error waiting for slave to catch up. "\
-                      "GTID (%s).", master_gtids[0].GTID_DONE)
+                      "GTID (%s).", master_gtids[0].GTID_EXECUTED)
         _LOGGER.debug("Slave's status (%s) after error.",
                       get_slave_status(server))
         raise _errors.TimeoutError("Error waiting for slave to catch up. "\
                                    "GTID (%s)." %
-                                   (master_gtids[0].GTID_DONE, ))
+                                   (master_gtids[0].GTID_EXECUTED, ))
 
 @_server.server_logging
 def switch_master(slave, master, master_user, master_passwd=None,
