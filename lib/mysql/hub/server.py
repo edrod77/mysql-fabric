@@ -828,8 +828,8 @@ class MySQLServer(Server):
 
           ret = server.get_gtid_status()
           for record in ret:
-            print "GTID_DONE", record.GTID_DONE, record[0]
-            print "GTID_LOST", record.GTID_LOST, record[1]
+            print "GTID_EXECUTED", record.GTID_EXECUTED, record[0]
+            print "GTID_PURGED", record.GTID_PURGED, record[1]
             print "GTID_OWNED", record_GTID_OWNED, record[2]
         """
         # Check servers for GTID support
@@ -838,8 +838,8 @@ class MySQLServer(Server):
                                            "supported.")
 
         query_str = (
-            "SELECT @@GLOBAL.GTID_DONE as GTID_DONE, "
-            "@@GLOBAL.GTID_LOST as GTID_LOST, "
+            "SELECT @@GLOBAL.GTID_EXECUTED as GTID_EXECUTED, "
+            "@@GLOBAL.GTID_PURGED as GTID_PURGED, "
             "@@GLOBAL.GTID_OWNED as GTID_OWNED"
         )
 
