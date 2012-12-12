@@ -323,6 +323,7 @@ def init(host, user, password='', port=3306, database=None):
 
     _LOGGER.info("Initializing persister using user '%s' at server %s:%d using database '%s'",
                  user, host, port, database)
+    
     MySQLPersister.setup(host=host, port=port,
                          user=user, password=password,
                          database=database)

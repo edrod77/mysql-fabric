@@ -19,51 +19,25 @@ from mysql.hub import (
     persistence as _persistence,
     )
 
-import tests.utils as _test_utils
+import tests.utils
 
 class TestServerServices(unittest.TestCase):
     "Test server service interface"
 
+    def assertStatus(self, status, expect):
+        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
+        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
+
     def setUp(self):
-        from __main__ import options, xmlrpc_next_port
-
-        params = {
-            "protocol.xmlrpc": {
-                "address": "localhost:%d" % (xmlrpc_next_port,),
-                },
-            'storage': {
-                'address': options.host + ":" + str(options.port),
-                'user': options.user, 'password': options.password,
-                'database': options.database,
-                },
-            }
-        config = _config.Config(None, params, True)
-        xmlrpc_next_port += 1
-
-        # Set up the manager
-        from mysql.hub.commands.start import start
-        self.manager_thread = threading.Thread(target=start, args=(config,))
-        self.manager_thread.start()
-
-        # Set up the client
-        url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
-        self.proxy = xmlrpclib.ServerProxy(url)
-        while True:
-            try:
-                self.proxy.ping()
-                break
-            except Exception as err:
-                time.sleep(1)
+        self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
     def tearDown(self):
-        self.proxy.shutdown()
-        self.manager_thread.join()
-        _persistence.deinit()
+        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_group_events(self):
         # Look up groups.
         status = self.proxy.server.lookup_groups()
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_lookup_groups).")
@@ -71,21 +45,21 @@ class TestServerServices(unittest.TestCase):
 
         # Insert a new group.
         status = self.proxy.server.create_group("group", "Testing group...")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
 
         # Try to insert a group twice.
         status = self.proxy.server.create_group("group", "Testing group...")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_create_group).")
 
         # Look up groups.
         status = self.proxy.server.lookup_groups()
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_lookup_groups).")
@@ -93,7 +67,7 @@ class TestServerServices(unittest.TestCase):
 
         # Look up a group.
         status = self.proxy.server.lookup_group("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_lookup_group).")
@@ -102,7 +76,7 @@ class TestServerServices(unittest.TestCase):
 
         # Try to look up a group that does not exist.
         status = self.proxy.server.lookup_group("group_1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_group).")
@@ -110,14 +84,14 @@ class TestServerServices(unittest.TestCase):
 
         # Update a group.
         status = self.proxy.server.update_group("group", "Test Test Test")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_update_group).")
 
         # Try to update group that does not exist.
         status = self.proxy.server.update_group("group_1", "Test Test Test")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_update_group).")
@@ -127,7 +101,7 @@ class TestServerServices(unittest.TestCase):
         self.proxy.server.create_group("group_1", "Testing group...")
         status = self.proxy.server.create_server("group_1", "localhost:13000",
                                                  "root", "")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_server).")
@@ -135,7 +109,7 @@ class TestServerServices(unittest.TestCase):
         # Try to insert a server twice.
         status = self.proxy.server.create_server("group_1", "localhost:13000",
                                                  "root", "")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_create_server).")
@@ -143,7 +117,7 @@ class TestServerServices(unittest.TestCase):
         # Try to insert a server into a non-existing group.
         status = self.proxy.server.create_server("group_2", "localhost:13000",
                                                  "root", "")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_create_server).")
@@ -164,7 +138,7 @@ class TestServerServices(unittest.TestCase):
 
         # Try to look up servers in a group that does not exist.
         status = self.proxy.server.lookup_servers("group_x")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_servers).")
@@ -172,7 +146,7 @@ class TestServerServices(unittest.TestCase):
 
         # Look up a server.
         status = self.proxy.server.lookup_server("group_1", status_uuid[2])
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_lookup_server).")
@@ -181,7 +155,7 @@ class TestServerServices(unittest.TestCase):
 
         # Try to look up a server in a group that does not exist.
         status = self.proxy.server.lookup_server("group_x", status_uuid[2])
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_server).")
@@ -190,7 +164,7 @@ class TestServerServices(unittest.TestCase):
         # Try to look up a server that does not exist.
         status = self.proxy.server.lookup_server("group_1",
             "cc75b12c-98d1-414c-96af-9e9d4b179678")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_server).")
@@ -198,7 +172,7 @@ class TestServerServices(unittest.TestCase):
 
         # Try to look up a server that does not exist
         status = self.proxy.server.lookup_uuid("localhost:15000", "root", "")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_uuid).")
@@ -213,21 +187,21 @@ class TestServerServices(unittest.TestCase):
 
         # Remove a group.
         status = self.proxy.server.remove_group("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_group).")
 
         # Try to remove a group twice.
         status = self.proxy.server.remove_group("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_group).")
 
         # Try to remove a group where there are servers.
         status = self.proxy.server.remove_group("group_1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_group).")
@@ -248,7 +222,7 @@ class TestServerServices(unittest.TestCase):
         # Try to remove a server from a non-existing group.
         status = self.proxy.server.remove_server("group_2",
             "bb75b12b-98d1-414c-96af-9e9d4b179678")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_server).")
@@ -256,7 +230,7 @@ class TestServerServices(unittest.TestCase):
         # Try to remove a server with an invalid uuid.
         status = self.proxy.server.remove_server("group_1",
             "bb-98d1-414c-96af-9")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_server).")
@@ -264,14 +238,14 @@ class TestServerServices(unittest.TestCase):
         # Try to remove a server that does not exist.
         status = self.proxy.server.remove_server("group_1",
             "bb75b12c-98d1-414c-96af-9e9d4b179678")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_server).")
 
         # Remove a server.
         status = self.proxy.server.remove_server("group_1", status_uuid[2])
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_server).")

@@ -16,7 +16,7 @@ from mysql.hub import (
     persistence as _persistence,
     )
 
-import tests.utils as _test_utils
+import tests.utils
 
 _TEST1 = None
 

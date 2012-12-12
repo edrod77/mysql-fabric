@@ -6,9 +6,11 @@ import uuid as _uuid
 
 from collections import namedtuple
 
-import mysql.hub.errors as _errors
-import mysql.hub.server_utils as _server_utils
-import tests.utils as _test_utils
+from mysql.hub import (
+    errors as _errors,
+    server_utils as _server_utils,
+    persistence as persistence,
+    )
 
 from mysql.hub.server import MySQLServer
 from mysql.hub.persistence import MySQLPersister
@@ -31,11 +33,11 @@ class TestMySQLMaster(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
 
-    __metaclass__ = _test_utils.SkipTests
-
     def setUp(self):
-        self.persister = MySQLPersister("localhost:13000", "root", "")
-        MySQLServer.create(self.persister)
+        from __main__ import options
+        persistence.init(host=options.host, port=options.port,
+                          user=options.user, password=options.password)
+        persistence.init_thread()
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         # TODO: Change the initialization style.
@@ -47,7 +49,8 @@ class TestMySQLMaster(unittest.TestCase):
 
     def tearDown(self):
         self.master.disconnect()
-        MySQLServer.drop(self.persister)
+        persistence.deinit_thread()
+        persistence.deinit()
 
     def test_master_binary_log(self):
         master = self.master
@@ -108,11 +111,11 @@ class TestMySQLSlave(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
 
-    __metaclass__ = _test_utils.SkipTests
-
     def setUp(self):
-        self.persister = MySQLPersister("localhost:13000", "root", "")
-        MySQLServer.create(self.persister)
+        from __main__ import options
+        persistence.init(host=options.host, port=options.port,
+                          user=options.user, password=options.password)
+        persistence.init_thread()
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         self.master = MySQLServer(**OPTIONS_MASTER)
@@ -131,7 +134,8 @@ class TestMySQLSlave(unittest.TestCase):
         stop_slave(self.slave, wait=True)
         self.slave.disconnect()
         self.master.disconnect()
-        MySQLServer.drop(self.persister)
+        persistence.deinit_thread()
+        persistence.deinit()
 
     def test_switch_master(self):
         # TODO: Test it also without gtis so we can define binary

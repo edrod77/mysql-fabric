@@ -108,7 +108,6 @@ class TestServer(unittest.TestCase):
 
 
 class TestGroup(unittest.TestCase):
-
     def setUp(self):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,

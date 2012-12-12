@@ -231,11 +231,9 @@ def _discover_topology(job):
     job.jobs = jobs
     return topology
 
-def _do_discover_topology(persister, uri, user, passwd,
-                          discovered_servers=None):
+def _do_discover_topology(uri, user, passwd, discovered_servers=None):
     """Discover topology.
 
-    :param persister: Reference to the state store.
     :param uri: Server's uri.
     :param user: Servers' user
     :param passwd: Servers' passwd.
@@ -284,7 +282,7 @@ def _do_discover_topology(persister, uri, user, passwd,
             slave.connect()
             if str_uuid == _replication.slave_has_master(slave):
                 _LOGGER.debug("Found slave (%s).", slave_uri)
-                slave_discovery = _do_discover_topology(persister, slave_uri,
+                slave_discovery = _do_discover_topology(slave_uri,
                     user, passwd, discovered_servers)
                 if slave_discovery:
                     discovered_mapping[str_uuid]["slaves"].\
@@ -299,7 +297,7 @@ def _import_topology(job):
     _do_import_topology(pattern_group_id, group_description,
                         topology, user, passwd)
 
-def _do_import_topology(persister, pattern_group_id, group_description,
+def _do_import_topology(pattern_group_id, group_description,
                         topology, user, passwd):
     """Import topology.
     """
@@ -340,8 +338,7 @@ def _do_import_topology(persister, pattern_group_id, group_description,
             server = _server.MySQLServer.add(_uuid.UUID(slave_uuid),
                                              slave_uri, user, passwd)
         else:
-            _do_import_topology(persister, group_id, group_description,
-                                slave, user, passwd)
+            _do_import_topology(group_id, group_description, slave, user, passwd)
             server = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
         group.add_server(server)
         _LOGGER.debug("Added server (%s) as slave to group (%s).", str(server),
@@ -358,13 +355,12 @@ def _find_candidate_switch(job):
     jobs = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id, slave_uuid)
     job.jobs = jobs
 
-def _do_find_candidate(persister, group_id):
+def _do_find_candidate(group_id):
     """Find out the best candidate in a group that may be used to replace a master.
 
     It chooses the slave that has processed more transactions and may become a
     master, i.e. has the binary log enabled.
 
-    :param persister: Reference to the state store.
     :param group_id: Group's id from where a candidate will be chosen.
     :return: Return the uuid of the best candidate to become a master in the
              group.
@@ -532,8 +528,8 @@ def _change_to_candidate(job):
                 server = _server.MySQLServer.fetch(_uuid.UUID(server_uuid))
                 server.connect()
                 _replication.stop_slave(server, wait=True)
-                _replication.switch_master(server, master, master.get_user(),
-                                           master.get_passwd())
+                _replication.switch_master(server, master, master.user,
+                                           master.passwd)
                 _replication.start_slave(server, wait=True)
             except _errors.DatabaseError as error:
                 _LOGGER.exception(error)
@@ -603,7 +599,7 @@ def _synchronize(slave, master):
     """
     synced = False
     _replication.start_slave(slave, wait=True)
-    master_gtids = master.gtid_status
+    master_gtids = master.get_gtid_status()
     while _replication.is_slave_thread_running(slave) and not synced:
         try:
             _replication.wait_for_slave_gtid(slave, master_gtids, timeout=3)

@@ -11,6 +11,7 @@ from mysql.hub import (
     config as _config,
     persistence as _persistence,
     replication as _replication,
+    server as _server,
     utils as _utils,
     )
 
@@ -58,8 +59,6 @@ class MySQLInstances(_utils.Singleton):
         self.__instances = {}
 
     def configure_instances(self, topology, user, passwd):
-        persister = _executor.Executor().persister
-
         for number in topology.keys():
             master_uri = self.get_uri(number)
 
@@ -149,7 +148,12 @@ def setup_xmlrpc():
     from mysql.hub.commands.start import start
     manager_thread = threading.Thread(target=start, args=(config,))
     manager_thread.start()
-    
+
+    attempts = 10 
+    while attempts > 0 and not manager_thread.is_alive():
+        time.sleep(1)
+        attempts -= 1
+
     # Set up the client
     url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
     proxy = xmlrpclib.ServerProxy(url)

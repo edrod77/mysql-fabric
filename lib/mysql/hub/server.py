@@ -33,12 +33,12 @@ def server_logging(function):
     instances.
     """
     @functools.wraps(function)
-    def wrapper_check(*args, **keywargs):
+    def wrapper_check(*args, **kwrds):
         """Inner function that logs information on wrapped function.
         """
-        _LOGGER.debug("Start executing function: %s.", function.__name__)
+        _LOGGER.debug("Start executing function: %s(%s).", function.__name__, str(kwrds))
         try:
-            ret = function(*args, **keywargs)
+            ret = function(*args, **kwrds)
         except Exception as error:
             _LOGGER.debug("Error executing function: %s.", function.__name__)
             _LOGGER.exception(error)
@@ -623,10 +623,7 @@ class MySQLServer(Server):
         self.disconnect()
 
         # Set up an internal connection.
-        self.__cnx = super(MySQLServer, self).connection(
-            host=host, port=port,
-            user=user, password=password,
-            database=database)
+        self.__cnx = super(MySQLServer, self).connection()
 
         # Get server's uuid
         ret_uuid = self.get_variable("SERVER_UUID")

@@ -60,7 +60,7 @@ def get_options():
                             " persistance database. Default to the"
                             " empty string."))
     parser.add_option("--port",
-                      action="store", dest="port", default=3306,
+                      action="store", dest="port", default=3306, type=int,
                       help=("Port to use when connecting to persistance"
                             " database. Default to 3306."))
     parser.add_option("--database",
