@@ -174,10 +174,11 @@ def setup_xmlrpc():
 
     # Set up the manager
     from mysql.hub.commands.start import start
-    manager_thread = threading.Thread(target=start, args=(config,))
+    manager_thread = threading.Thread(target=start, args=(config, ),
+                                      name="Services")
     manager_thread.start()
 
-    attempts = 10 
+    attempts = 10
     while attempts > 0 and not manager_thread.is_alive():
         time.sleep(1)
         attempts -= 1

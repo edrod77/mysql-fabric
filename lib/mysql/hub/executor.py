@@ -189,7 +189,7 @@ class ExecutorThread(threading.Thread):
 
     def __init__(self, queue):
         "Constructor for ExecutorThread."
-        super(ExecutorThread, self).__init__()
+        super(ExecutorThread, self).__init__(name="Executor")
         self.__queue = queue
         self.__persister = None
 
