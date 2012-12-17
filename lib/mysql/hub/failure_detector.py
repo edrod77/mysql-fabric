@@ -93,14 +93,13 @@ class FailureDetector(object):
         """
         self.__check = True
         self.__thread = threading.Thread(target=self._run,
-            name="FailureDetector-" + self.__group_id)
+            name="FailureDetector(" + self.__group_id + ")")
         self.__thread.start()
 
     def shutdown(self):
         """Stop the failure detector.
         """
         self.__check = False
-        self.__thread.join()
 
     def _run(self):
         """Function that verifies servers' availabilities.
@@ -111,7 +110,6 @@ class FailureDetector(object):
 
         while (self.__check):
             try:
-                pass
                 group_availability = check_group_availability(self.__group_id)
                 if group_availability[2]:
                     for server_uuid, status in group_availability[2].items():
