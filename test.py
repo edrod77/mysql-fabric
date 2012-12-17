@@ -10,6 +10,8 @@ from logging import (
     FileHandler,
     )
 
+NUMBER_OF_SERVERS = 4
+
 if sys.version_info[0:2] < (2,7):
     class NullHandler(logging.Handler):
         def emit(self, record):
@@ -67,17 +69,37 @@ def get_options():
                       action="store", dest="database", default='fabric',
                       help=("Database name to use for persistance database."
                             " Default to 'fabric'."))
-
+    parser.add_option("--servers", action="store", dest="servers",
+                      help="Set of servers' addresses that can be used.")
     return parser.parse_args()
 
-def discover_servers(servers):
-    # TODO: We need to load this information from a file that is dynamically
-    # created by any external tool.
-    servers.add_uri("localhost:13000")
-    servers.add_uri("localhost:13001")
-    servers.add_uri("localhost:13002")
-    servers.add_uri("localhost:13003")
-    servers.add_uri("localhost:13004")
+def configure_servers(set_of_servers):
+    """Check if some MySQL's addresses were specified and the number is
+    greater than NUMBER_OF_SERVERS.
+    """
+    import tests.utils as _test_utils
+    servers = _test_utils.MySQLInstances()
+    if set_of_servers:
+        for server in set_of_servers.split():
+            servers.add_uri(server)
+    if servers.get_number_uris() < NUMBER_OF_SERVERS:
+        print "<<<<<<<<<< Some unit tests need %s MySQL Instances. " \
+              ">>>>>>>>>> " % (NUMBER_OF_SERVERS, )
+        return False
+    return True
+
+def check_connector():
+    """Check if the connector is properly configured.
+    """
+    try:
+        import mysql.connector
+    except Exception as error:
+        import mysql
+        path = os.path.dirname(mysql.__file__)
+        print "Tried to look for mysql.connector at (%s)" % (path, )
+        print "Error:", error
+        return False
+    return True
 
 def run_tests(pkg, options, args):
     # Set up path correctly. We need the build directory in the path
@@ -91,6 +113,7 @@ def run_tests(pkg, options, args):
             script_dir, options.build_dir,
             "lib.%s-%s" % (get_platform(), sys.version[0:3]),
             ),
+        os.path.join(script_dir, options.build_dir, 'lib'),
         os.path.join(script_dir, 'lib'),
         ]
 
@@ -100,9 +123,8 @@ def run_tests(pkg, options, args):
 
     # Find out which MySQL Instances can be used for the for the
     # tests.
-    import tests.utils as _test_utils
-    servers = _test_utils.MySQLInstances()
-    discover_servers(servers)
+    if not check_connector() or not configure_servers(options.servers):
+        return None
 
     # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)

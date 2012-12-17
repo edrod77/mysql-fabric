@@ -13,6 +13,7 @@ from mysql.hub.server import Group, Server
 import tests.utils
 
 class TestShardingServices(unittest.TestCase):
+
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))

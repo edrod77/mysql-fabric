@@ -1,6 +1,5 @@
 """Module holding support utilities for tests.
 """
-
 import sys
 import threading
 import time
@@ -17,48 +16,78 @@ from mysql.hub import (
 
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
 
-class SkipTests(type):
-    """Metaclass which is used to skip test cases as follows::
-
-      import unittest
-      import tests.utils as _utils
-
-      class TestCaseClass(unittest.TestCase):
-        __metaclass__ = _utils.SkipTests
-    """
-    def __new__(mcs, name, bases, dct):
-        """Create a new instance for SkipTests.
-        """
-        for name, item in dct.items():
-            if callable(item) and name.startswith("test"):
-                dct[name] = None
-        return type.__new__(mcs, name, bases, dct)
-
 class MySQLInstances(_utils.Singleton):
     """Contain a reference to the available set of MySQL Instances that can be
     used in a test case.
     """
     def __init__(self):
+        """Constructor for MySQLInstances.
+       """
         self.__uris = []
         self.__instances = {}
 
     def add_uri(self, uri):
+        """Add the address of a MySQL Instance that can be used in the test
+        cases.
+
+        :param uri: MySQL's address.
+        """
         assert(isinstance(uri, basestring))
         self.__uris.append(uri)
 
+    def get_number_uris(self):
+        """Return the number of MySQL Instances' address registered.
+        """
+        return len(self.__uris)
+
     def get_uri(self, number):
+        """Return the n-th address registerd.
+        """
+        assert(number < len(self.__uris))
         return self.__uris[number]
 
     def get_instance(self, number):
+        """Return the n-th instance created through the
+        :meth:`configure_instances` method.
+     
+        :return: Return a MySQLServer object.
+        """
+        assert(number < len(self.__uris))
         return self.__instances[number]
 
     def destroy_instances(self):
+        """Destroy the MySQLServer objects created through the
+        :meth:`configure_instances` method.
+        """
         for instance in self.__instances.values():
             _replication.stop_slave(instance, wait=True)
             _replication.reset_slave(instance, clean=True)
         self.__instances = {}
 
     def configure_instances(self, topology, user, passwd):
+        """Configure a replication topology using the MySQL Instances
+        previously registerd.
+
+        :param topology: Topology to be configured.
+        :param user: MySQL Instances' user.
+        :param passwd: MySQL Instances' password.
+
+        This method can be used as follows::
+
+          import tests.utils as _test_utils
+
+          topology = {1 : [{2 : []}, {3 : []}]}
+          instances = _test_utils.MySQLInstances()
+          instances.configure_instances(topology, "root", "")
+
+        Each instance in the topology is represented as a dictionary whose
+        keys are references to addresses that will be retrieved through
+        the :meth:`get_uri` method and values are a list of slaves.
+
+        So after calling :meth:`configure_instances` method, one can get a
+        reference to an object, MySQLServer, through the :meth:`get_instance`
+        method.
+        """
         for number in topology.keys():
             master_uri = self.get_uri(number)
 
@@ -81,7 +110,6 @@ class MySQLInstances(_utils.Singleton):
             return master
 
 class ShardingUtils(object):
-
     @staticmethod
     def compare_shard_mapping(shard_mapping_1, shard_mapping_2):
         """Compare two sharding mappings with each other. Two sharding

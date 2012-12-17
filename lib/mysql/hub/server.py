@@ -25,6 +25,7 @@ import sys
 import mysql.hub.errors as _errors
 import mysql.hub.persistence as _persistence
 import mysql.hub.server_utils as _server_utils
+import mysql.hub.failure_detector as _detector
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -254,11 +255,11 @@ class Group(_persistence.Persistable):
         """Check if the server represented by the uuid is part of the
         current Group.
 
-        :param uuid The uuid of the server whose membership needs to be
-                            verified.
+        :param uuid: The uuid of the server whose membership needs to be
+                     verified.
         :param persister: Persister to persist the object to.
-        :return True if the server is part of the Group.
-                False if the server is not part of the Group.
+        :return: True if the server is part of the Group.
+                 False if the server is not part of the Group.
         """
         assert isinstance(uuid, (_uuid.UUID, basestring))
         cur = persister.exec_stmt(Group.QUERY_GROUP_SERVER,
@@ -334,6 +335,7 @@ class Group(_persistence.Persistable):
                           state store.
         :raises: DatabaseError If the drop of the related table fails.
         """
+        _detector.FailureDetector.unregister_groups()
         persister.exec_stmt(Group.DROP_GROUP_SERVER)
         persister.exec_stmt(Group.DROP_GROUP)
 
@@ -606,6 +608,7 @@ class MySQLServer(Server):
             params["passwd"] = self.__passwd
         params.setdefault("autocommit", True)
         params.setdefault("use_unicode", False)
+        params.setdefault("database", "mysql")
         params.setdefault("charset", self.__default_charset)
 
         return _server_utils.create_mysql_connection(**params)

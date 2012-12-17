@@ -37,6 +37,7 @@ import mysql.hub.events as _events
 import mysql.hub.server as _server
 import mysql.hub.errors as _errors
 import mysql.hub.executor as _executor
+import mysql.hub.failure_detector as _detector
 
 # TODO: Fix this.
 # Due to services/__init__.py:
@@ -45,7 +46,17 @@ import mysql.hub.executor as _executor
 # Is this expected?
 _LOGGER = logging.getLogger("mysql.hub.services.server")
 
-LOOKUP_GROUPS = _events.Event("LOOKUP_GROUPS")
+def lookup_fabrics():
+    """Return a list with all the available Fabric Servers.
+
+    :return: List with existing Fabric Servers.
+    :rtype: ["host:port", ...]
+    """
+    import mysql.hub.services as _services
+    service = _services.ServiceManager()
+    return [service.address]
+
+LOOKUP_GROUPS = _events.Event()
 def lookup_groups(synchronous=True):
     """Return a list with existing groups.
 
@@ -58,7 +69,7 @@ def lookup_groups(synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-LOOKUP_GROUP = _events.Event("LOOKUP_GROUP")
+LOOKUP_GROUP = _events.Event()
 def lookup_group(group_id, synchronous=True):
     """Look up a group identified by an id.
 
@@ -75,7 +86,7 @@ def lookup_group(group_id, synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-CREATE_GROUP = _events.Event("CREATE_GROUP")
+CREATE_GROUP = _events.Event()
 def create_group(group_id, description, synchronous=True):
     """Create a group.
 
@@ -89,8 +100,8 @@ def create_group(group_id, description, synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-UPDATE_GROUP = _events.Event("UPDATE_GROUP")
-def update_group(group_id, description=None, master=None, synchronous=True):
+UPDATE_GROUP = _events.Event()
+def update_group(group_id, description, synchronous=True):
     """Update a group.
 
     :param group_id: Group's id.
@@ -99,24 +110,25 @@ def update_group(group_id, description=None, master=None, synchronous=True):
                         or not.
     :return: Tuple with job's uuid and status.
     """
-    jobs = _events.trigger(UPDATE_GROUP, group_id, description, master)
+    jobs = _events.trigger(UPDATE_GROUP, group_id, description)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-REMOVE_GROUP = _events.Event("REMOVE_GROUP")
-def remove_group(group_id, synchronous=True):
+REMOVE_GROUP = _events.Event()
+def remove_group(group_id, force=False, synchronous=True):
     """Remove a group.
 
     :param group_id: Group's id.
+    :param force: If the group is not empty, remove it serves.
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """
-    jobs = _events.trigger(REMOVE_GROUP, group_id)
+    jobs = _events.trigger(REMOVE_GROUP, group_id, force)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-LOOKUP_SERVERS = _events.Event("LOOKUP_SERVERS")
+LOOKUP_SERVERS = _events.Event()
 def lookup_servers(group_id, synchronous=True):
     """Return list of existing servers in a group.
 
@@ -135,7 +147,7 @@ def lookup_servers(group_id, synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-LOOKUP_UUID = _events.Event("LOOKUP_UUID")
+LOOKUP_UUID = _events.Event()
 def lookup_uuid(uri, user, passwd, synchronous=True):
     """Retrieve server's uuid.
 
@@ -150,7 +162,7 @@ def lookup_uuid(uri, user, passwd, synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-LOOKUP_SERVER = _events.Event("LOOKUP_SERVER")
+LOOKUP_SERVER = _events.Event()
 def lookup_server(group_id, uuid, synchronous=True):
     """Retrieve information on a server.
 
@@ -165,7 +177,7 @@ def lookup_server(group_id, uuid, synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-CREATE_SERVER = _events.Event("CREATE_SERVER")
+CREATE_SERVER = _events.Event()
 def create_server(group_id, uri, user, passwd, synchronous=True):
     """Create a server and add it into a group.
 
@@ -181,7 +193,7 @@ def create_server(group_id, uri, user, passwd, synchronous=True):
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
-REMOVE_SERVER = _events.Event("REMOVE_SERVER")
+REMOVE_SERVER = _events.Event()
 def remove_server(group_id, uuid, synchronous=True):
     """Remove a server from a group.
 
@@ -220,32 +232,34 @@ def _create_group(job):
     group_id, description = job.args
     group = _server.Group.add(group_id, description)
     _LOGGER.debug("Added group (%s).", str(group))
+    _detector.FailureDetector.register_group(group_id)
 
-# TODO: test with None # TODO: CREATE DIFFERENT FUNCTIONS ONE FOR EACH COLUMN?
 @_events.on_event(UPDATE_GROUP)
 def _update_group(job):
     """Update a group."""
-    group_id, description, master = job.args
+    group_id, description = job.args
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
     group.description = description
-    if master:
-        master = _uuid.UUID(master)
-    group.master = master
     _LOGGER.debug("Updated group (%s).", str(group))
 
 @_events.on_event(REMOVE_GROUP)
 def _remove_group(job):
     """Remove a group."""
-    group_id = job.args[0]
+    group_id, force = job.args
     group = _server.Group.fetch(group_id)
     if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if group.servers():
-        raise _errors.GroupError("Group (%s) is not empty." % (group_id))
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    servers = group.servers()
+    if servers and force:
+        for row in servers:
+            _do_remove_server(group, _uuid.UUID(row[0]))
+    elif servers:
+        raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
     group.remove()
     _LOGGER.debug("Removed group (%s).", str(group))
+    _detector.FailureDetector.unregister_group(group_id)
 
 @_events.on_event(LOOKUP_SERVERS)
 def _lookup_servers(job):
@@ -254,7 +268,7 @@ def _lookup_servers(job):
     group_id = job.args[0]
     group = _server.Group.fetch(group_id)
     if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     ret = []
     for row in group.servers():
         server = _server.MySQLServer.fetch(_uuid.UUID(row[0]))
@@ -304,7 +318,7 @@ def _create_server(job):
 
 @_events.on_event(REMOVE_SERVER)
 def _remove_server(job):
-    """Remove a server from a group."""
+    """Remove a server from a group but check some requirements first."""
     group_id, uuid = job.args
     uuid = _uuid.UUID(uuid)
     group = _server.Group.fetch(group_id)
@@ -313,6 +327,14 @@ def _remove_server(job):
     if not group.contains_server(uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, uuid))
+    if group.master == uuid:
+        raise _errors.ServerError("Cannot remove server (%s), which is master "
+                                  "in group (%s). Please, demote it first."
+                                  % (uuid, group_id))
+    _do_remove_server(group, uuid)
+
+def _do_remove_server(group, uuid):
+    """Remove a server from a group."""
     server = _server.MySQLServer.fetch(uuid)
     group.remove_server(server)
     server.remove()

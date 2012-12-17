@@ -10,22 +10,24 @@ import mysql.hub.persistence as persistence
 from mysql.hub.server import MySQLServer
 from mysql.hub.persistence import MySQLPersister
 
+import tests.utils
+
 # TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS = {
     "uuid" : None,
-    "uri"  : "localhost:13000",
+    "uri"  : tests.utils.MySQLInstances().get_uri(0),
     "user" : "root"
 }
 
 class TestMySQLServer(unittest.TestCase):
     """Unit test for testing MySQLServer.
     """
-
     def setUp(self):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
         persistence.init_thread()
+
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
         self.server = MySQLServer(**OPTIONS)
@@ -85,8 +87,8 @@ class TestMySQLServer(unittest.TestCase):
 
         # Bind instance to a server.
         server.connect()
-        self.assertEqual(server.read_only, False)
-        self.assertEqual(server.server_id, 1)
+        self.assertNotEqual(server.read_only, None)
+        self.assertNotEqual(server.server_id, 0)
         self.assertEqual(server.gtid_enabled, True)
         self.assertEqual(server.binlog_enabled, True)
         self.assertEqual(server.default_charset, "latin1")
@@ -115,7 +117,8 @@ class TestMySQLServer(unittest.TestCase):
         # Executed gtids cannot be compared because we may have executed
         # some statements in other tests.
         for record in server.get_gtid_status():
-           self.assertTrue(record.GTID_EXECUTED.find(str(server.uuid)) != -1)
+           executed = record.GTID_EXECUTED.lower()
+           self.assertTrue(executed.find(str(server.uuid)) != -1)
            self.assertEqual(record.GTID_PURGED, "")
            self.assertEqual(record.GTID_OWNED, "")
         #TODO: Test with gtids disabled.
@@ -146,7 +149,8 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         for record in server.get_binary_logs():
-           self.assertEqual(record.Log_name, "master-bin.000001")
+           self.assertTrue(record.Log_name in 
+               ("master-bin.000001", "mysqld-bin.000001", "slave-bin.000001"))
         # TODO: Test with binlog disabled.
 
     def test_exec_stmt_options(self):
@@ -205,28 +209,6 @@ class TestMySQLServer(unittest.TestCase):
         self.assertFalse(server.is_alive())
         server.connect()
         self.assertTrue(server.is_alive())
-
-    def test_connect_options(self):
-        server = self.server
-        server.connect()
-
-        return                #TODO: Figure of if this test is needed.
-
-        # Trying to create a new connection overriding the host.
-        params= {"host" : "unknown"}
-        self.assertRaises(_errors.ConfigurationError, server.connect, **params)
-        self.assertEqual(server.uri, "localhost:13000")
-
-        # Create a new connection but notice that default database
-        # is not set.
-        server.connect()
-        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
-                          "DROP TABLE IF EXISTS test")
-        server.disconnect()
-        params= {"database" : "test"}
-        server.connect(**params)
-        server.exec_stmt("DROP TABLE IF EXISTS test")
-        server.disconnect()
 
 if __name__ == "__main__":
     unittest.main()

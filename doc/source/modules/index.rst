@@ -16,3 +16,4 @@ Contents
    replication
    replication_services
    server_services
+   failure_detector

@@ -16,28 +16,30 @@ from mysql.hub.server import MySQLServer
 from mysql.hub.persistence import MySQLPersister
 from mysql.hub.replication import *
 
+import tests.utils
+
 # TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),
-    "uri"  : "localhost:13000",
+    "uri"  : tests.utils.MySQLInstances().get_uri(0),
     "user" : "root"
 }
 
 OPTIONS_SLAVE = {
     "uuid" :  _uuid.UUID("811f03ff-08ed-11e2-b7bd-f0def124dcc5"),
-    "uri"  : "localhost:13001",
+    "uri"  : tests.utils.MySQLInstances().get_uri(1),
     "user" : "root"
 }
 
 class TestMySQLMaster(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
-
     def setUp(self):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
         persistence.init_thread()
+
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         # TODO: Change the initialization style.
@@ -60,7 +62,8 @@ class TestMySQLMaster(unittest.TestCase):
 
         # Get master status.
         ret = get_master_status(master)
-        self.assertEqual(ret[0][0], "master-bin.000001")
+        self.assertTrue(ret[0][0] in \
+            ("master-bin.000001",  "mysqld-bin.000001", "slave-bin.000001"))
 
         # Reset Master.
         reset_master(master)
@@ -84,29 +87,6 @@ class TestMySQLMaster(unittest.TestCase):
         ret = check_master_health(master)
         self.assertEqual(ret, [(True, [])])
 
-    def test_master_slaves(self):
-        master = self.master
-        # TODO: Test it with slaves.
-        # These tests requires to restart the master what will be done
-        # with the FakeMySQL.
-
-        # Configure slave and check command.
-        uuid = MySQLServer.discover_uuid(**OPTIONS_SLAVE)
-        OPTIONS_SLAVE["uuid"] = _uuid.UUID(uuid)
-        slave = MySQLServer(**OPTIONS_SLAVE)
-        slave.connect()
-        stop_slave(slave, wait=True)
-        switch_master(slave, master, "root", "")
-        start_slave(slave, wait=True)
-
-        # Get Master slaves
-        ret = get_master_slaves(master)
-        if ret:
-            uri = _server_utils.combine_host_port(ret[0].Host, ret[0].Port,
-                _server_utils.MYSQL_DEFAULT_PORT)
-            self.assertEqual(uri, "localhost:13001")
-
-
 class TestMySQLSlave(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
@@ -116,6 +96,7 @@ class TestMySQLSlave(unittest.TestCase):
         persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
         persistence.init_thread()
+
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         self.master = MySQLServer(**OPTIONS_MASTER)
@@ -267,7 +248,6 @@ class TestMySQLSlave(unittest.TestCase):
         gtid_status = [Row(gtid_executed, "", "")]
         self.assertRaises(_errors.TimeoutError, wait_for_slave_gtid, slave,
                           gtid_status)
-
 
     def test_check_rpl_health(self):
         # Set up replication.

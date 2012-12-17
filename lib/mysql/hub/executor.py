@@ -222,6 +222,15 @@ class ExecutorThread(threading.Thread):
                 if result is not None:
                     job.result = result
             except Exception as error: # pylint: disable=W0703
+                # The rollback and commit cannot fail. Otherwise, there will
+                # be problems. This can be broken easily, for example by
+                # calling "SELECT * FROM TABLE WHERE name = %s" % (False, )
+                # 
+                # What does it happen if the connection is idle for a long
+                # time?
+                #
+                # We need to investigate this.
+                #
                 _LOGGER.exception(error)
                 message = "Tried to execute action ({0}).".format(
                     job.action.__name__
@@ -230,7 +239,7 @@ class ExecutorThread(threading.Thread):
                 self.__persister.rollback()
             else:
                 job.add_status(job.SUCCESS, job.COMPLETE,
-                "Executed action ({0}).".format(job.action.__name__))
+                    "Executed action ({0}).".format(job.action.__name__))
                 self.__persister.commit()
             finally:
                 self.__queue.task_done()
@@ -267,11 +276,15 @@ class Executor(Singleton):
         """Shut down the executor.
         """
         _LOGGER.info("Shutting down Executor.")
+        thread = None
         with self.__thread_lock:
             if self.__thread and self.__thread.is_alive():
                 self.__queue.put(None)
-                self.__thread.join()
+                thread = self.__thread
             self.__thread = None
+        if thread:
+            _LOGGER.debug("Waiting until the Executor stops.")
+            thread.join()
         _LOGGER.info("Executor has stopped")
 
     # TODO: args should be *args, **kwargs. ? ? ?
@@ -330,4 +343,8 @@ def process_jobs(jobs, synchronous):
             if job.jobs:
                 ret = process_jobs(job.jobs, synchronous)
                 job.merge_status(ret[1])
+    # TODO: Investigate possible concurrency issue as we are accessing
+    # the job statuses without any lock. If the call is not synchronous,
+    # we are accessing the job.status and job.result without acquiring
+    # any sort of locking.
     return str(jobs[-1].uuid), jobs[-1].status, jobs[-1].result

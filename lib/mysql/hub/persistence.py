@@ -27,13 +27,10 @@ code for initializing the persister system for a thread is::
    persistence.init_thread()
 
 """
-
 import functools
 import inspect
 import logging
 import threading
-
-import mysql.connector as _connector
 
 import mysql.hub.server_utils as _server_utils
 
@@ -181,7 +178,6 @@ class MySQLPersister(object):
     to set itself up by calling the class init method.
 
     """
-
     # Information for connecting to the database
     connection_info = None
 

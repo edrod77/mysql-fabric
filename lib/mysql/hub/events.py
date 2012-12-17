@@ -298,7 +298,10 @@ class Handler(Singleton):
         _LOGGER.debug("Triggering event %s", event)
 
         if isinstance(event, basestring):
-            event = self.__instance_for[event]
+            if event in self.__instance_for:
+                event = self.__instance_for[event]
+            else:
+                event = None
 
         # Enqueue the jobs and return a list of the jobs scheduled
         return [

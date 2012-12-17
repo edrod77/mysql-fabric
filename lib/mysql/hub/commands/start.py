@@ -12,6 +12,7 @@ import sys
 import mysql.hub.services as _services
 import mysql.hub.events as _events
 import mysql.hub.persistence as _persistence
+import mysql.hub.failure_detector as _detector
 
 from mysql.hub.config import Config
 
@@ -31,9 +32,7 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     background. When daemonized, logs are written to syslog.
 
     [1] Python Cookbook by Martelli, Ravenscropt, and Ascher.
-
     """
-
     _do_fork()
     os.chdir("/")        # The current directory might be removed.
     os.umask(0)
@@ -73,13 +72,15 @@ def start(config):
     _persistence.init(host=host, port=port,
                       user=user, password=password,
                       database=database)
+    _persistence.init_thread()
 
-    # Start the executor and then service manager
+    # Start the executor, failure detector and then service manager.
     _events.Handler().start()
+    _detector.FailureDetector.register_groups()
     service_manager.start()
 
-
 def shutdown():
+    _detector.FailureDetector.unregister_groups()
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
     return True

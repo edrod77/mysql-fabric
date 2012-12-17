@@ -30,11 +30,13 @@ class TestServerServices(unittest.TestCase):
 
     def setUp(self):
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
+        _persistence.init_thread()
 
     def tearDown(self):
+        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
-    def test_group_events(self):
+    def test_create_group_events(self):
         # Look up groups.
         status = self.proxy.server.lookup_groups()
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -96,7 +98,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_update_group).")
 
-    def test_server_events(self):
+    def test_create_server_events(self):
         # Insert a new server.
         self.proxy.server.create_group("group_1", "Testing group...")
         status = self.proxy.server.create_server("group_1", "localhost:13000",
@@ -206,6 +208,13 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_group).")
 
+        # Remove a group where there are servers.
+        status = self.proxy.server.remove_group("group_1", True)
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_remove_group).")
+
     def test_remove_server_events(self):
         # Prepare group and servers
         self.proxy.server.create_group("group", "Testing group...")
@@ -243,12 +252,28 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_server).")
 
+        # Try to remove a server that is master within the group.
+        group = _server.Group.fetch("group_1")
+        group.master = _uuid.UUID(status_uuid[2])
+        status = self.proxy.server.remove_server("group_1", status_uuid[2])
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_remove_server).")
+
         # Remove a server.
+        group = _server.Group.fetch("group_1")
+        group.master = None
         status = self.proxy.server.remove_server("group_1", status_uuid[2])
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_server).")
+
+    def test_lookup_fabrics(self):
+        from __main__ import xmlrpc_next_port
+        status = self.proxy.server.lookup_fabrics()
+        self.assertEqual(status, ["localhost:%d" % (xmlrpc_next_port, )])
 
 if __name__ == "__main__":
     unittest.main()

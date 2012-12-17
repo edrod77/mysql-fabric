@@ -75,13 +75,22 @@ class ServiceManager(Singleton):
         Singleton.__init__(self)
 
         # TODO: Move setup of XML-RPC protocol server into protocols package
-        address = config.get("protocol.xmlrpc", "address")
-        _host, port = address.split(':')
-        _LOGGER.info("XML-RPC protocol server configured for listening on port %s.",
-                     str(port))
-        self.__xmlrpc = MyXMLRPCServer(("localhost", int(port)))
+        self.__address = config.get("protocol.xmlrpc", "address")
+        host, port = self.__address.split(':')
+        _LOGGER.info("XML-RPC protocol server configured for listening on %s:%s.",
+                     host, str(port))
+        self.__xmlrpc = MyXMLRPCServer((host, int(port)))
         self.__xmlrpc.register_function(shutdown, "shutdown")
         self.__xmlrpc.register_function(lambda: True, "ping")
+
+    @property
+    def address(self):
+        """Return address in use by the service.
+
+        :return: Address as host:port.
+        :rtype: String.
+        """
+        return self.__address
 
     def start(self):
         """Start and run all services managed by the service manager.
