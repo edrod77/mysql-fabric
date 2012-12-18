@@ -34,4 +34,5 @@ The package also contain a bunch of unit tests that are used mainly
 during development to check that all pieces work correctly. The tests
 can be executed using the command:
 
-    python test.py
+    python test.py --host=<host> --port=<port> --user=<user> \
+    --password=<password> --servers="<servers's addresses>"
