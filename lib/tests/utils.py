@@ -160,7 +160,7 @@ def setup_xmlrpc():
     from __main__ import options, xmlrpc_next_port
     params = {
         'protocol.xmlrpc': {
-            'address': 'localhost:%d' % (xmlrpc_next_port,),
+            'address': 'localhost:%d' % (xmlrpc_next_port, ),
             },
         'storage': {
             'address': options.host + ":" + str(options.port),
@@ -170,18 +170,12 @@ def setup_xmlrpc():
             },
         }
     config = _config.Config(None, params, True)
-    xmlrpc_next_port += 1
 
     # Set up the manager
     from mysql.hub.commands.start import start
     manager_thread = threading.Thread(target=start, args=(config, ),
                                       name="Services")
     manager_thread.start()
-
-    attempts = 10
-    while attempts > 0 and not manager_thread.is_alive():
-        time.sleep(1)
-        attempts -= 1
 
     # Set up the client
     url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
