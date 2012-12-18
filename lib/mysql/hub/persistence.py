@@ -141,7 +141,7 @@ class PersistentMeta(type):
             elif isinstance(func, (staticmethod, classmethod)):
                 # Wrap the inner function of static and class methods
                 # and re-wrap using the type constructor.
-                cdict[name] = type(func)(mcs.wrapfunc(func.__func__))
+                cdict[name] = type(func)(mcs.wrapfunc(func.__get__(True)))
             elif isinstance(func, property) and func.fset is not None:
                 # Properties are re-constructed from its parts and
                 # wrap the fset, fget, and fdel functions.
