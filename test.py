@@ -77,6 +77,7 @@ def configure_servers(set_of_servers):
     """Check if some MySQL's addresses were specified and the number is
     greater than NUMBER_OF_SERVERS.
     """
+    # TODO: Check if the servers exist and are alive.
     import tests.utils as _test_utils
     servers = _test_utils.MySQLInstances()
     if set_of_servers:

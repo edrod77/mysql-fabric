@@ -49,7 +49,7 @@ class MySQLInstances(_utils.Singleton):
     def get_instance(self, number):
         """Return the n-th instance created through the
         :meth:`configure_instances` method.
-     
+
         :return: Return a MySQLServer object.
         """
         assert(number < len(self.__uris))
@@ -189,7 +189,7 @@ def setup_xmlrpc():
             time.sleep(1)
 
     return (manager_thread, proxy)
-    
+
 def teardown_xmlrpc(manager, proxy):
     proxy.shutdown()
     manager.join()

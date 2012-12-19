@@ -31,6 +31,8 @@ class FailureDetector(object):
     """
     LOCK = threading.Condition()
     GROUPS = {}
+    # By default, every second the failure detector checks if the servers
+    # within a group are alive.
     CHECK_PERIOD = 1
 
     @staticmethod
@@ -54,11 +56,11 @@ class FailureDetector(object):
                 detector = FailureDetector(group_id)
                 detector.start()
                 FailureDetector.GROUPS[group_id] = detector
-        
+
     @staticmethod
     def unregister_group(group_id):
         """Stop a failure detector for a group.
-        
+
         :param group_id: Group's id.
         """
         with FailureDetector.LOCK:
@@ -82,7 +84,6 @@ class FailureDetector(object):
     def __init__(self, group_id, sleep=None):
         """Constructor for FailureDetector.
         """
-        FailureDetector
         self.__group_id = group_id
         self.__thread = None
         self.__check = False
