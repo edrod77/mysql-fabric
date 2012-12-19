@@ -606,6 +606,8 @@ def _change_to_candidate(job):
 
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
+    _replication.stop_slave(master, wait=True)
+    _replication.reset_slave(master)
     master.read_only = False
 
     group = _server.Group.fetch(group_id)
