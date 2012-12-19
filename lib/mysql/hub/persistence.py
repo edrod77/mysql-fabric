@@ -34,8 +34,8 @@ import threading
 
 import mysql.hub.server_utils as _server_utils
 
-# TODO: W:934:MySQLServer.remove: Arguments number differs from overridden method
-
+# TODO: W:934:MySQLServer.remove: Arguments number differs from overridden
+#       method
 DEFAULT_DATABASE = 'fabric'
 
 class PersistentMeta(type):
@@ -317,8 +317,8 @@ def init(host, user, password='', port=3306, database=None):
     if database is None:
         database = DEFAULT_DATABASE
 
-    _LOGGER.info("Initializing persister using user '%s' at server %s:%d using database '%s'",
-                 user, host, port, database)
+    _LOGGER.info("Initializing persister using user '%s' at server %s:%d "
+                 "using database '%s'.", user, host, port, database)
     
     MySQLPersister.setup(host=host, port=port,
                          user=user, password=password,
@@ -345,4 +345,3 @@ def deinit():
             _LOGGER.debug("Deinitializing %s", cls.__name__)
             cls.drop(persister=persister)
     MySQLPersister.teardown()
-

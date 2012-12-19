@@ -143,7 +143,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     if fetch:
         results = None
         try:
-                results = cur.fetchall()
+            results = cur.fetchall()
         except mysql.connector.errors.InterfaceError as error:
             # TODO: This is a temporary solution. In the future, the
             # python connector should provide a function to return

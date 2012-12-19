@@ -211,6 +211,7 @@ def remove_server(group_id, uuid, synchronous=True):
 def _lookup_groups(job):
     """Return a list of existing groups.
     """
+    _LOGGER.debug("Looking up groups in job %s.", job)
     ret = _server.Group.groups()
     return ret
 

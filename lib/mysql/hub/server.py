@@ -20,7 +20,6 @@ import threading
 import uuid as _uuid
 import logging
 import functools
-import sys
 
 import mysql.hub.errors as _errors
 import mysql.hub.persistence as _persistence
@@ -37,7 +36,8 @@ def server_logging(function):
     def wrapper_check(*args, **kwrds):
         """Inner function that logs information on wrapped function.
         """
-        _LOGGER.debug("Start executing function: %s(%s).", function.__name__, str(kwrds))
+        _LOGGER.debug("Start executing function: %s(%s).", function.__name__,
+                      str(kwrds))
         try:
             ret = function(*args, **kwrds)
         except Exception as error:
@@ -136,6 +136,7 @@ class Group(_persistence.Persistable):
         """
         assert(isinstance(group_id, basestring))
         assert(master is None or isinstance(master, _uuid.UUID))
+        super(Group, self).__init__()
         self.__group_id = group_id
         self.__description = description
         self.__master = master
@@ -353,6 +354,7 @@ class Server(_persistence.Persistable):
         :param uri: Used to connect to the server
         """
         assert(isinstance(uuid, _uuid.UUID))
+        super(Server, self).__init__()
         self.__uuid = uuid
         self.__uri = uri
         self.__available_cnxs = 0

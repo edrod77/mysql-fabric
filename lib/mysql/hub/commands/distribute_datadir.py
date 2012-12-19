@@ -6,23 +6,19 @@
 
 import os
 import Queue
-import string
 import subprocess
 import sys
 import threading
-import time
 from optparse import OptionParser
 
-"""The maximum number of times a copy operation between a given pair
-    (source, destination) can be tried (re-tried). The operation is aborted once
-    the maximum number of retries is reached.
-"""
+# The maximum number of times a copy operation between a given pair
+# (source, destination) can be tried (re-tried). The operation is aborted once
+# the maximum number of retries is reached.
 MAX_ALLOWED_RETRIES = 3
 
-"""When doing a single source opy the following constant defines the maximum
-    number of simultaneous copy threads that can be started from the same
-    source
-"""
+# When doing a single source opy the following constant defines the maximum
+# number of simultaneous copy threads that can be started from the same
+# source
 MAX_CONCURRENT_TRANSFERS = 3
 
 class DataDirCopy(threading.Thread):
@@ -72,8 +68,8 @@ class DataDirCopy(threading.Thread):
                 #If the code comes here it means that scp was successful.
                 #Hence we do not need to retry anymore.
                 break
-            except subprocess.CalledProcessErrors as e:
-                print_error(e.output,  self.__quiet)
+            except subprocess.CalledProcessError as error:
+                print_error(error.output,  self.__quiet)
             transfer_attempts += 1
 
         if self.__source_free is not None:
@@ -109,12 +105,12 @@ def single_source_copy_initate(source, destinations,
                 be printed.
     """
     print_msg("Initiating Transfers\n",  quiet)
-    source = string.replace(source, " ", "\ ")
+    source = source.replace(" ", "\ ")
     dir_copy_threads = []
     pool_sema = threading.BoundedSemaphore(max_concurrent_transfers)
     for dst in destinations:
         pool_sema.acquire(True)
-        dst = string.replace(dst, " ", "\ ")
+        dst = dst.replace(" ", "\ ")
         print_msg("Initiating copy from %s -> %s\n" %
                   (source,  dst),  quiet)
         ssc = DataDirCopy(None, source, dst, max_allowed_retries, quiet,
@@ -180,9 +176,9 @@ def data_dir_copy_initiate(source, destinations, max_allowed_retries,
     print_msg("Initiating Transfers\n",  quiet)
     for dst in destinations:
         pool_sema.acquire(True)
-        dst = string.replace(dst, " ", "\ ")
+        dst = dst.replace(" ", "\ ")
         src = source_free.get(True)
-        src = string.replace(src, " ", "\ ")
+        src = src.replace(" ", "\ ")
         print_msg("Initiating copy from %s -> %s\n" %
                   (src,  dst),  quiet)
         ddc = DataDirCopy(source_free, src, dst, max_allowed_retries, quiet,
@@ -243,10 +239,10 @@ def main():
     scp_destinations = []
 
     if options.user is not None:
-      scp_destinations = [options.user + "@" + destination
-                          for destination in destinations]
+        scp_destinations = [options.user + "@" + destination
+                            for destination in destinations]
     else:
-      scp_destinations = destinations
+        scp_destinations = destinations
 
     #Initiate the remote copy
     if options.user is not None:

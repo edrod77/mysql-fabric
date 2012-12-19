@@ -429,7 +429,8 @@ def _find_candidate_switch(job):
     job.jobs = jobs
 
 def _do_find_candidate(group_id):
-    """Find out the best candidate in a group that may be used to replace a master.
+    """Find out the best candidate in a group that may be used to replace a
+    master.
 
     It chooses the slave that has processed more transactions and may become a
     master, i.e. has the binary log enabled.
@@ -453,7 +454,8 @@ def _do_find_candidate(group_id):
         candidate_uuid = row[0]
         if master_uuid != candidate_uuid:
             try:
-                candidate = _server.MySQLServer.fetch(_uuid.UUID(candidate_uuid))
+                candidate = \
+                    _server.MySQLServer.fetch(_uuid.UUID(candidate_uuid))
                 candidate.connect()
                 gtid_status = candidate.get_gtid_status()
                 health = _replication.check_master_health(candidate)
@@ -538,6 +540,8 @@ def _block_write_switch(job):
     job.jobs = jobs
 
 def _do_block_write_master(group_id, master_uuid):
+    """Block and disable write access to the current master.
+    """
     group = _server.Group.fetch(group_id)
 
     # Temporarily unset the master in this group.

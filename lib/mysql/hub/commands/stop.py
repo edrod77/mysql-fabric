@@ -6,6 +6,8 @@ import sys
 import xmlrpclib
 
 def main(argv):
+    """Stop the hub daemon.
+    """
     from mysql.hub.options import OptionParser
     parser = OptionParser()
 

@@ -7,6 +7,8 @@ import xmlrpclib
 import mysql.hub.config as _config
 
 def main(argv):
+    """Send an event to a Fabric node.
+    """
     from mysql.hub.options import OptionParser
     parser = OptionParser()
 

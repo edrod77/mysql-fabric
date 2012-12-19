@@ -77,8 +77,8 @@ class ServiceManager(Singleton):
         # TODO: Move setup of XML-RPC protocol server into protocols package
         self.__address = config.get("protocol.xmlrpc", "address")
         host, port = self.__address.split(':')
-        _LOGGER.info("XML-RPC protocol server configured for listening on %s:%s.",
-                     host, str(port))
+        _LOGGER.info("XML-RPC protocol server configured for listening "
+                     "on %s:%s.", host, str(port))
         self.__xmlrpc = MyXMLRPCServer((host, int(port)))
         self.__xmlrpc.register_function(shutdown, "shutdown")
         self.__xmlrpc.register_function(lambda: True, "ping")

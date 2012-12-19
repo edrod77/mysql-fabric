@@ -2,7 +2,6 @@
 querying the sharding information from the state stores.
 """
 import mysql.hub.persistence as _persistence
-import mysql.hub.errors as _errors
 
 from mysql.hub.server import MySQLServer, Group
 
@@ -115,6 +114,7 @@ class ShardMapping(_persistence.Persistable):
 
         :param sharding_type: The sharding type for which the sharding
                               specification needs to be returned.
+        :param persister: A valid handle to the state store.
 
         :return: A list of sharding specification names that are of the
                   sharding type.
@@ -153,8 +153,7 @@ class ShardMapping(_persistence.Persistable):
         """Create the schema to store the mapping between the table and
         the sharding specification.
 
-        :param persister: Represents a valid handle to the state
-                          store.
+        :param persister: A valid handle to the state store.
         :return True if the query succeeded but there is no result set
                 False if the query failed
         """
@@ -167,8 +166,7 @@ class ShardMapping(_persistence.Persistable):
         """Drop the schema for the table used to store the mapping between
         the table and the sharding specificaton.
 
-        :param persister: Represents a valid handle to the state
-                                    store.
+        :param persister: A valid handle to the state store.
         :return True if the query succeeded but there is no result set
                 False if the query failed
         """
@@ -180,9 +178,9 @@ class ShardMapping(_persistence.Persistable):
     def fetch(table_name, persister=None):
         """Fetch the shard specification mapping for the given table
 
-        :param persister: Represents a valid handle to the state store.
         :param table_name: The name of the table for which the sharding
                             specification is being queried.
+        :param persister: A valid handle to the state store.
 
         :returns The ShardMapping object that encapsulates the shard mapping
                     information for the given table.
@@ -202,15 +200,16 @@ class ShardMapping(_persistence.Persistable):
         """Add the shard specification mapping information for the
         given table.
 
-        :param persister: A valid handle to the state store.
         :param table_name: The name of the table being sharded.
         :param column_name: The column whose value is used in the sharding
                             scheme being applied
         :param type_name: The type of sharding being used, RANGE, HASH etc.
         :param sharding_specification: The name of the sharding specification
                                         the given table is being mapped to.
-        :returns The ShardMapping object for the mapping created.
-                    None if the insert failed
+        :param persister: A valid handle to the state store.
+
+        :return: The ShardMapping object for the mapping created.
+                 None if the insert failed.
 
         """
         persister.exec_stmt(
@@ -349,13 +348,14 @@ class RangeShardingSpecification(_persistence.Persistable):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
-        :param persister: Represents a valid handle to the state store.
         :param name: The name of the sharding scheme to which
                                     this definition belongs.
         :param lower_bound: The lower bound of the range sharding definition.
         :param upper_bound: The upper bound of the range sharding definition
         :param group_id: The unique identifier of the Group where the
                             current KEY range belongs.
+        :param persister: A valid handle to the state store.
+
         :return A RangeShardSpecification object representing the current
                 Range specification.
                 None if the insert into the state store failed
@@ -401,9 +401,9 @@ class RangeShardingSpecification(_persistence.Persistable):
         """Return the RangeShardingSpecification objects corresponding to the
         given sharding scheme.
 
-        :param persister: A valid handle to the state store.
         :param name: The sharding specifications whose RANGE
                                     definition are fetched.
+        :param persister: A valid handle to the state store.
 
         :return A  list of RangeShardingSpecification objects which belong to
                 to this shard specification.
@@ -423,14 +423,15 @@ class RangeShardingSpecification(_persistence.Persistable):
         return  range_sharding_specifications
 
     @staticmethod
-    def lookup(key, name, persister):
+    def lookup(key, name, persister=None):
         """Return the Group UUID in whose key range the input key falls.
 
-        :param persister: A valid handle to the state store.
         :param key: The key which needs to be checked to see which range it falls
                     into
         :param name: The set of shrading scheme definitions that
-                                    need to be looked up for the key
+                     need to be looked up for the key
+        :param persister: A valid handle to the state store.
+
         :return The Group UUID that contains the range in which the key belongs.
                 None if the lookup fails
         """
@@ -448,7 +449,7 @@ class RangeShardingSpecification(_persistence.Persistable):
                                               0, 0, "")
 
     @staticmethod
-    def delete_from_shard_db(table_name, persister=None):
+    def delete_from_shard_db(table_name):
         """Delete the data from the copied data directories based on the
         sharding configuration uploaded in the sharding tables of the state
         store. The basic logic consists of
@@ -459,7 +460,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         * c) Deleting the sharding keys that fall outside the range for a given
             server.
 
-        :param persister: A valid handle to the state store.
         :param table_name: The table being sharded.
 
         :return False If the delete fails
@@ -474,7 +474,8 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         #Query the range sharding specifications defined for the given sharding
         #scheme name
-        range_sharding_specs = RangeShardingSpecification.fetch(sharding_specification)
+        range_sharding_specs = \
+            RangeShardingSpecification.fetch(sharding_specification)
 
         #Use the information in each of the range sharding specs to prune the
         #tables.
@@ -494,11 +495,10 @@ class RangeShardingSpecification(_persistence.Persistable):
             server.exec_stmt(delete_query)
         return True
 
-def lookup(table_name, key, persister=None):
+def lookup(table_name, key):
     """Given a table name and a key return the server where the shard of this
     table can be found
 
-    :param persister: A valid handle to the state store.
     :param table_name: The table whose sharding specification needs to be
                         looked up.
     :param key: The key value that needs to be looked up
@@ -515,11 +515,10 @@ def lookup(table_name, key, persister=None):
         if group is not None:
             return str(group.master)
 
-def go_fish_lookup(table_name, persister=None):
+def go_fish_lookup(table_name):
     """Given table name return all the servers that contain the shards for
     this table.
 
-    :param persister: A valid handle to the state store.
     :param table_name: The table whose shards need to be found
 
     :return The set of master UUIDs of the Groups that contain the shards of

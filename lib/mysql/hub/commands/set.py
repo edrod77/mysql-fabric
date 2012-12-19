@@ -10,6 +10,8 @@ import xmlrpclib
 import mysql.hub.config as _config
 
 def main(argv):
+    """Change the logging level for an specific module.
+    """
     from mysql.hub.options import OptionParser
     parser = OptionParser()
 
