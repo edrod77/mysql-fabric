@@ -17,3 +17,5 @@ Contents
    replication_services
    server_services
    failure_detector
+   sharding
+   sharding_services
