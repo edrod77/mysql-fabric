@@ -321,7 +321,7 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.CREATE_GROUP)
         try:
             persister.exec_stmt(Group.CREATE_GROUP_SERVER)
-        except:
+        except _errors.DatabaseError:
             #If the creation of the second table fails Drop the first
             #table.
             persister.exec_stmt(Group.DROP_GROUP)
@@ -566,15 +566,11 @@ class MySQLServer(Server):
             del params["uuid"]
 
         cnx = _server_utils.create_mysql_connection(**params)
-        cur = cnx.cursor()
         try:
-            cur.execute("SELECT @@GLOBAL.SERVER_UUID")
-            server_uuid = cur.fetchall()[0][0]
-        except Exception as error:
-            raise _errors.DatabaseError(
-                "Error trying get server_uuid: %s." % (str(error), ))
-        finally:
-            cur.close()
+            row = _server_utils.exec_mysql_stmt(cnx,
+                "SELECT @@GLOBAL.SERVER_UUID")
+            server_uuid = row[0][0]
+        finally: 
             _server_utils.destroy_mysql_connection(cnx)
 
         return server_uuid
@@ -691,14 +687,13 @@ class MySQLServer(Server):
         Ping and is_connected only work partially, try exec_stmt to make
         sure connection is really alive.
         """
-        res = True
+        res = False
         try:
-            if self.__cnx is None:
-                res = False
-            elif self.__cnx.is_connected():
+            if self.__cnx is not None and self.__cnx.is_connected():
                 self.exec_stmt("SHOW DATABASES")
+                res = True
         except _errors.DatabaseError:
-            res = False
+            pass
         return res
 
     def _check_read_only(self):
@@ -938,10 +933,7 @@ class MySQLServer(Server):
     def __del__(self):
         """Destructor for MySQLServer.
         """
-        try:
-            self.disconnect()
-        except AttributeError:
-            pass
+        self.disconnect()
 
     def remove(self, persister=None):
         """remove the server information from the persistent store.

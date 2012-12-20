@@ -102,7 +102,7 @@ def check_master_health(server):
       ret = check_master_health(server)
       assert ret == [(False, ["There are no users with replication "
         privileges."])],
-        ("This is what happens when there no users with the appropriate "
+        ("This is what happens when there are no users with the appropriate "
          "privileges.")
 
     In other words, one needs to check whether ret[0][0] is True or False.
@@ -177,7 +177,7 @@ def slave_has_master(server):
         return ret[0].Master_UUID
 
 @_server.server_logging
-def get_num_gtid_behind(gtids, server_uuid=None):
+def get_num_gtid(gtids, server_uuid=None):
     """Return the number of transactions represented in gtids.
 
     By default this function considers any server in gtids. So if one wants
@@ -241,7 +241,7 @@ def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
                                  (master_gtids, slave_gtids))[0][0]
         if gtids == "":
             return 0
-    return get_num_gtid_behind(gtids, master_uuid)
+    return get_num_gtid(gtids, master_uuid)
 
 #TODO: In the WAIT FUNCTION, we need to verify if any problem is
 #      reported so that we don't wait forever.

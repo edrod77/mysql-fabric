@@ -321,33 +321,31 @@ class TestMySQLSlave(unittest.TestCase):
         switch_master(slave, master, "root")
 
         # Check gtid that has no information on server_uuid.
-        self.assertRaises(_errors.ProgrammingError, get_num_gtid_behind, "1")
+        self.assertRaises(_errors.ProgrammingError, get_num_gtid, "1")
 
         sid_1 = "80139491-08ed-11e2-b7bd-f0def124dcc5"
         sid_2 = "99939491-08ed-11e2-b7bd-f0def124dcc5"
 
         # Check the pattern sid:trx_id.
-        ret = get_num_gtid_behind("%s:%s" % (sid_1, "5"))
+        ret = get_num_gtid("%s:%s" % (sid_1, "5"))
         self.assertEqual(ret, 1)
 
         # Check the pattern sid:trx_id-trx_id.
-        ret = get_num_gtid_behind("%s:%s" % (sid_1, "5-10"))
+        ret = get_num_gtid("%s:%s" % (sid_1, "5-10"))
         self.assertEqual(ret, 6)
 
         # Check the pattern sid:trx_id-trx_id, trx_id, trx_id-trx-id.
-        ret = get_num_gtid_behind("%s:%s,%s,%s" % \
-                                             (sid_1, "5-10", "20", "25-30"))
+        ret = get_num_gtid("%s:%s,%s,%s" % (sid_1, "5-10", "20", "25-30"))
         self.assertEqual(ret, 13)
 
         # Check the pattern sid:trx_id-trx_id, sid:trx_id-trx-id.
-        ret = get_num_gtid_behind("%s:%s,%s:%s" %
-                                  (sid_1, "5-10", sid_2, "5-6"))
+        ret = get_num_gtid("%s:%s,%s:%s" % (sid_1, "5-10", sid_2, "5-6"))
         self.assertEqual(ret, 8)
 
         # Check the pattern sid:trx_id-trx_id, sid:trx_id-trx-id but filtering
         # server_uuids that are different from sid_2.
-        ret = get_num_gtid_behind("%s:%s,%s:%s" %
-                                  (sid_1, "5-10", sid_2, "5-6"), sid_2)
+        ret = get_num_gtid("%s:%s,%s:%s" %
+                           (sid_1, "5-10", sid_2, "5-6"), sid_2)
         self.assertEqual(ret, 2)
 
         # Check empty master_gtid_status and empty slave_gtid_status.

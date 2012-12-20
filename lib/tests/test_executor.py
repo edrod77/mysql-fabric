@@ -54,6 +54,11 @@ class TestExecutor(unittest.TestCase):
         _persistence.deinit_thread()
         _persistence.deinit()
 
+    def test_start_executor(self):
+        self.executor.start()
+        self.assertRaises(_errors.ExecutorError, self.executor.start)
+        self.executor.shutdown()
+
     def test_basic(self):
         global other
         global count

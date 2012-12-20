@@ -2,11 +2,9 @@
 """
 import logging
 import collections
-try:
-    import mysql.connector
-    from mysql.connector.cursor import MySQLCursor, MySQLCursorRaw
-except ImportError:
-    pass
+import mysql.connector
+
+from mysql.connector.cursor import MySQLCursor, MySQLCursorRaw
 
 import mysql.hub.errors as _errors
 
@@ -45,41 +43,38 @@ def combine_host_port(host, port, default_port):
 
     return "%s:%s" % (host_info, port_info)
 
-try:
-    def _null_converter(description, value):
-        """Return the value passed as parameter without any conversion.
-        """
-        return value
+def _null_converter(description, value):
+    """Return the value passed as parameter without any conversion.
+    """
+    return value
 
-    def _do_row_to_python(self, convert, rowdata, desc=None):
-        """Created a named tuple with retrived data from a database.
-        """
-        try:
-            if not desc:
-                desc = self.description
-            row = (convert(desc[i], v) for i, v in enumerate(rowdata))
-            tuple_factory = \
-                collections.namedtuple('Row', self.column_names)._make
-            return tuple_factory(row)
-        except StandardError as error:
-            raise mysql.connector.errors.InterfaceError(
-                "Failed converting row to Python types; %s" % error)
+def _do_row_to_python(self, convert, rowdata, desc=None):
+    """Created a named tuple with retrived data from a database.
+    """
+    try:
+        if not desc:
+            desc = self.description
+        row = (convert(desc[i], v) for i, v in enumerate(rowdata))
+        tuple_factory = \
+            collections.namedtuple('Row', self.column_names)._make
+        return tuple_factory(row)
+    except StandardError as error:
+        raise mysql.connector.errors.InterfaceError(
+            "Failed converting row to Python types; %s" % error)
 
-    class MySQLCursorNamedTuple(MySQLCursor):
-        """Create a cursor with named columns and non-raw data.
-        """
-        def _row_to_python(self, rowdata, desc=None):
-            return _do_row_to_python(self,
-                                     self._connection.converter.to_python,
-                                     rowdata, desc)
+class MySQLCursorNamedTuple(MySQLCursor):
+    """Create a cursor with named columns and non-raw data.
+    """
+    def _row_to_python(self, rowdata, desc=None):
+        return _do_row_to_python(self,
+                                 self._connection.converter.to_python,
+                                 rowdata, desc)
 
-    class MySQLCursorRawNamedTuple(MySQLCursor):
-        """Create a cursor with named columns and raw data.
-        """
-        def _row_to_python(self, rowdata, desc=None):
-            return _do_row_to_python(self, _null_converter, rowdata, desc)
-except NameError:
-    pass
+class MySQLCursorRawNamedTuple(MySQLCursor):
+    """Create a cursor with named columns and raw data.
+    """
+    def _row_to_python(self, rowdata, desc=None):
+        return _do_row_to_python(self, _null_converter, rowdata, desc)
 
 # TODO: Extend this to accept list of statements.
 def exec_mysql_stmt(cnx, stmt_str, options=None):

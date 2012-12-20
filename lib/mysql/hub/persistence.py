@@ -253,11 +253,8 @@ class MySQLPersister(object):
     def __del__(self):
         """Destructor for MySQLPersister.
         """
-        try:
-            if self.__cnx:
-                _server_utils.destroy_mysql_connection(self.__cnx)
-        except AttributeError:
-            pass
+        if self.__cnx:
+            _server_utils.destroy_mysql_connection(self.__cnx)
 
     def begin(self):
         """Start a new transaction.

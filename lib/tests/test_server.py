@@ -90,6 +90,9 @@ class TestServer(unittest.TestCase):
         uri = _server_utils.combine_host_port("host", 1500, 3306)
         self.assertEqual(uri, "host:1500")
 
+        uri = _server_utils.combine_host_port("127.0.0.1", 1500, 3306)
+        self.assertEqual(uri, "localhost:1500")
+
         # Test a function that gets host:port and returns (host, port)
         host_port = _server_utils.split_host_port("", 3306)
         self.assertEqual(host_port, ("", 3306))

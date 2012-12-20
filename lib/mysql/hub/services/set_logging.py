@@ -18,7 +18,7 @@ def set_logging_level(module, level):
         __import__(module)
         logger = logging.getLogger(module)
         logger.setLevel(level)
-    except Exception as error: # pylint: disable=W0703
+    except ImportError as error:
         _LOGGER.exception(error)
-        return error
+        return False
     return True

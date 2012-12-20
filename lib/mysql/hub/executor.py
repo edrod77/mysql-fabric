@@ -47,7 +47,7 @@ class Job(object):
         self.__complete = False
         self.__status = []
         self.__args = args or []
-        self.result = None
+        self.result = False
         self.jobs = []
         self.add_status(Job.SUCCESS, Job.ENQUEUED, description)
 
@@ -347,4 +347,5 @@ def process_jobs(jobs, synchronous):
     # the job statuses without any lock. If the call is not synchronous,
     # we are accessing the job.status and job.result without acquiring
     # any sort of locking.
+    # There are other places where .status is used.
     return str(jobs[-1].uuid), jobs[-1].status, jobs[-1].result

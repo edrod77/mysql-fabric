@@ -71,6 +71,12 @@ class TestHandler(unittest.TestCase):
         # Check registration of a list of callables
         self.handler.register(_events.SERVER_LOST, callables[1:])
 
+        # Check registration of an object that is not callable or iterable.
+        self.assertRaises(
+            _errors.NotCallableError,
+            self.handler.register, _events.SERVER_LOST, None
+            )
+
         # Check that all callables are now registered
         for obj in callables:
             self.assertTrue(
@@ -157,6 +163,9 @@ class TestHandler(unittest.TestCase):
         for idx, obj in enumerate(callables):
             self.assertEqual(obj.result, idx + 3)
 
+        # Try to trigger an unknown event.
+        self.assertEqual(self.handler.trigger('UNKNOWN_EVENT'), [])
+
 #
 # Testing the decorator to see that it works
 #
@@ -222,8 +231,10 @@ class TestService(unittest.TestCase):
 
     def setUp(self):
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
+        _persistence.init_thread()
 
     def tearDown(self):
+        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_trigger(self):
@@ -232,8 +243,34 @@ class TestService(unittest.TestCase):
             promoted[0] = job.args[0]
         _events.Handler().register(_events.SERVER_PROMOTED, my_event)
         jobs = self.proxy.event.trigger('SERVER_PROMOTED', "my.example.com")
-        self.proxy.event.wait_for(jobs)
+        try:
+            self.proxy.event.wait_for(jobs)
+        except Exception as error:
+            pass
         self.assertEqual(promoted[0], "my.example.com")
+
+    def test_jobs(self):
+        job = self.proxy.server.lookup_groups(False)
+        try:
+            job_status_1 = self.proxy.event.wait_for_job(job[0])
+            job_status_2 = self.proxy.event.get_job_details(job[0])
+            self.assertEqual(job_status_1, job_status_2)
+        except Exception as error:
+            pass
+
+        try:
+            self.proxy.jobs.wait_for_job(
+                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
+            self.assertTrue(False)
+        except Exception as error:
+            pass
+
+        try:
+            self.proxy.jobs.wait_job_details(
+                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
+            self.assertTrue(False)
+        except Exception as error:
+            pass
 
 if __name__ == "__main__":
     unittest.main()
