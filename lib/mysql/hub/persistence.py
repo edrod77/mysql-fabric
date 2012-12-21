@@ -294,7 +294,7 @@ _LOGGER = logging.getLogger(__name__)
 def init(host, user, password='', port=3306, database=None):
     """Initialize the persistence system globally.
 
-    This means creating any tables and databases necessary in the
+    This means creating any databases, tables and constraints necessary in the
     persistence database.  The function is idempotent in the sense
     that it can be executed multiple times without destroying
     anything.  This property is important since normally the
@@ -316,7 +316,7 @@ def init(host, user, password='', port=3306, database=None):
 
     _LOGGER.info("Initializing persister using user '%s' at server %s:%d "
                  "using database '%s'.", user, host, port, database)
-    
+
     MySQLPersister.setup(host=host, port=port,
                          user=user, password=password,
                          database=database)
@@ -325,11 +325,20 @@ def init(host, user, password='', port=3306, database=None):
         if hasattr(cls, 'create'):
             _LOGGER.debug("Initializing %s", cls.__name__)
             cls.create(persister=persister)
+#TODO : The constraints will not need to be created separately after this
+#TODO: After the sharded system is modified to boot the HA layer.
+    #Initialize the constraints after creating the tables.
+    for cls in PersistentMeta.classes:
+        #Call the add_constraints method of those classes that sub-class from
+        #Persistence and those which have an implementation of add_constraints.
+        if hasattr(cls, 'add_constraints'):
+            _LOGGER.debug("Initializing Constraints for %s", cls.__name__)
+            cls.add_constraints(persister=persister)
 
 def deinit():
     """De-initialize the persistence system globally.
 
-    This means removing any tables created. Normally, this function
+    This means removing any tables,constraints created. Normally, this function
     does not have to be executed on shutdown since that would remove
     all necessary tables.
 
@@ -338,7 +347,16 @@ def deinit():
     _LOGGER.info("De-initializing persister")
     persister = MySQLPersister()
     for cls in PersistentMeta.classes:
+        #The constraints are dropped before dropping the tables.
+        if hasattr(cls, 'drop_constraints'):
+            #Call the drop_constraints method of those classes that
+            #sub-class from Persistence and those which have an implementation
+            #of drop_constraints.
+            _LOGGER.debug("Deinitializing Constraints for %s", cls.__name__)
+            cls.drop_constraints(persister=persister)
+    for cls in PersistentMeta.classes:
         if hasattr(cls, 'drop'):
             _LOGGER.debug("Deinitializing %s", cls.__name__)
             cls.drop(persister=persister)
+
     MySQLPersister.teardown()

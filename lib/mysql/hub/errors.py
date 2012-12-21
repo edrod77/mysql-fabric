@@ -91,3 +91,9 @@ class JobError(ServiceError):
     """Exception raised when a job is not found.
     """
     pass
+
+class ShardingError(Error):
+    """Exception raised when an invalid operation is attempted on the
+    sharding system
+    """
+    pass

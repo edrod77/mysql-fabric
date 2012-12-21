@@ -56,23 +56,59 @@ class Group(_persistence.Persistable):
     This class does not provide any monitoring feature and this becomes
     necessary one should extend it or rely on an external service.
     """
-    #TODO: DEFINE FOREIGN KEY constraints.
     CREATE_GROUP = ("CREATE TABLE groups"
                     "(group_id VARCHAR(64) NOT NULL, "
                     "description VARCHAR(256), "
                     "master_uuid VARCHAR(40), "
                     "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
 
+    #Create the referential integrity constraint with the servers table
+    ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = \
+                                ("ALTER TABLE groups "
+                                  "ADD CONSTRAINT fk_master_uuid_groups "
+                                  "FOREIGN KEY(master_uuid) REFERENCES "
+                                  "servers(server_uuid)")
+
+    #Drop the referential integrity constraint with the servers table
+    DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = \
+                                ("ALTER TABLE groups "
+                                "DROP FOREIGN KEY fk_master_uuid_groups")
+
     #SQL Statement for creating the table for storing the relationship
     #between a group and the server.
-
-    #TODO: DEFINE FOREIGN KEY constraints.
     CREATE_GROUP_SERVER = \
                 ("CREATE TABLE groups_servers"
                  "(group_id VARCHAR(64) NOT NULL, "
                  "server_uuid VARCHAR(40) NOT NULL, "
                  "CONSTRAINT pk_group_id_server_uuid "
                  "PRIMARY KEY(group_id, server_uuid))")
+
+    #Create the referential integrity constraint with the groups table
+    ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
+                                 ("ALTER TABLE groups_servers "
+                                  "ADD CONSTRAINT fk_group_id_groups_servers "
+                                  "FOREIGN KEY(group_id) REFERENCES "
+                                  "groups(group_id)")
+
+    #Drop the referential integrity constraint with the groups table
+    DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
+                                  ("ALTER TABLE groups_servers "
+                                   "DROP FOREIGN KEY "
+                                   "fk_group_id_groups_servers")
+
+    #Create the referential integrity constraint with the servers table
+    ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID = \
+                                  ("ALTER TABLE groups_servers "
+                                  "ADD CONSTRAINT "
+                                  "fk_server_uuid_groups_servers "
+                                  "FOREIGN KEY(server_uuid) REFERENCES "
+                                  "servers(server_uuid)")
+
+    #Drop the referential integrity constraint with the servers table
+    DROP_FOREIGN_KEY_CONSTRAINT_SERVER_UUID = \
+                               ("ALTER TABLE groups_servers "
+                                "DROP FOREIGN KEY "
+                                "fk_server_uuid_groups_servers")
 
     #SQL Statements for dropping the table created for storing the Group
     #information
@@ -181,6 +217,33 @@ class Group(_persistence.Persistable):
         assert(isinstance(server, Server))
         persister.exec_stmt(Group.DELETE_GROUP_SERVER,
                             {"params":(self.__group_id, str(server.uuid))})
+
+    @staticmethod
+    def add_constraints(persister=None):
+        """Add the constraints on the tables in this Group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        persister.exec_stmt(
+                Group.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
+        persister.exec_stmt(
+                Group.ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID)
+        persister.exec_stmt(
+                Group.ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID)
+        return True
+
+    @staticmethod
+    def drop_constraints(persister=None):
+        """Drop the constraints on the tables in this Group.
+
+        :param persister: The DB server that can be used to access the
+                  state store.
+        """
+        persister.exec_stmt(Group.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
+        persister.exec_stmt(Group.DROP_FOREIGN_KEY_CONSTRAINT_SERVER_UUID)
+        persister.exec_stmt(Group.DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID)
+        return True
 
     @property
     def description(self):
@@ -570,7 +633,7 @@ class MySQLServer(Server):
             row = _server_utils.exec_mysql_stmt(cnx,
                 "SELECT @@GLOBAL.SERVER_UUID")
             server_uuid = row[0][0]
-        finally: 
+        finally:
             _server_utils.destroy_mysql_connection(cnx)
 
         return server_uuid
