@@ -2,12 +2,8 @@
 """
 
 import unittest
-import xmlrpclib
 import uuid as _uuid
-import os
-import sys
 
-import mysql.hub.config as _config
 import mysql.hub.executor as _executor
 import mysql.hub.server as _server
 import mysql.hub.replication as _repl

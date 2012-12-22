@@ -8,7 +8,6 @@ import mysql.hub.errors as _errors
 import mysql.hub.persistence as persistence
 
 from mysql.hub.server import MySQLServer
-from mysql.hub.persistence import MySQLPersister
 
 import tests.utils
 
@@ -104,8 +103,8 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         # Check version.
-        self.assertFalse(server.check_version_compat((7,0,0)))
-        self.assertFalse(server.check_version_compat((6,0,0)))
+        self.assertFalse(server.check_version_compat((7, 0, 0)))
+        self.assertFalse(server.check_version_compat((6, 0, 0)))
         #TODO: Check when version is composed only with numbers 5.5.7.
         #TODO: Create a generic function so we don't need to update
         #      it every time a new release is created.
@@ -117,10 +116,10 @@ class TestMySQLServer(unittest.TestCase):
         # Executed gtids cannot be compared because we may have executed
         # some statements in other tests.
         for record in server.get_gtid_status():
-           executed = record.GTID_EXECUTED.lower()
-           self.assertTrue(executed.find(str(server.uuid)) != -1)
-           self.assertEqual(record.GTID_PURGED, "")
-           self.assertEqual(record.GTID_OWNED, "")
+            executed = record.GTID_EXECUTED.lower()
+            self.assertTrue(executed.find(str(server.uuid)) != -1)
+            self.assertEqual(record.GTID_PURGED, "")
+            self.assertEqual(record.GTID_OWNED, "")
         #TODO: Test with gtids disabled.
 
     def test_storage(self):
@@ -149,8 +148,8 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         for record in server.get_binary_logs():
-           self.assertTrue(record.Log_name in 
-               ("master-bin.000001", "mysqld-bin.000001", "slave-bin.000001"))
+            self.assertTrue(record.Log_name in 
+                ("master-bin.000001", "mysqld-bin.000001", "slave-bin.000001"))
         # TODO: Test with binlog disabled.
 
     def test_exec_stmt_options(self):
@@ -163,7 +162,7 @@ class TestMySQLServer(unittest.TestCase):
         server.exec_stmt("CREATE TABLE test_1(id INTEGER)")
         server.exec_stmt("DROP TABLE IF EXISTS test_2")
         server.exec_stmt("CREATE TABLE test_2(id INTEGER)")
-        for cont in range(1,10):
+        for cont in range(1, 10):
             server.exec_stmt("INSERT INTO test_1 VALUES(%s)",
                              {"params" : (cont,)})
 

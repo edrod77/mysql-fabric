@@ -1,13 +1,9 @@
 import unittest
-import xmlrpclib
 import uuid as _uuid
-import os
 
-import mysql.hub.config as _config
 import mysql.hub.executor as _executor
 import mysql.hub.persistence as _persistence
 
-from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
 from mysql.hub.server import Group, Server, MySQLServer
 
 import tests.utils
@@ -212,7 +208,7 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard).")
-        status = self.proxy.sharding.lookup("db1.t1",500)
+        status = self.proxy.sharding.lookup("db1.t1", 500)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

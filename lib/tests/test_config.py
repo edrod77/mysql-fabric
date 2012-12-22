@@ -23,7 +23,7 @@ class TestConfig(unittest.TestCase):
         _config.SITE_CONFIG = _resolve_config("main-1.cfg")
 
     def tearDown(self):
-         _config.SITE_CONFIG = self.__original_site_config
+        _config.SITE_CONFIG = self.__original_site_config
 
     def test_basic(self):
         "Test reading config file and default values."

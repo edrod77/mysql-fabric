@@ -1,10 +1,10 @@
 import unittest
 import uuid as _uuid
 
-import tests.utils as _test_utils
+import mysql.hub.persistence as _persistence
+import mysql.hub.errors as _errors
 
 from mysql.hub.server import MySQLServer, Group
-import mysql.hub.persistence as _persistence
 
 class TestGroup(unittest.TestCase):
 
@@ -20,12 +20,10 @@ class TestGroup(unittest.TestCase):
         _persistence.deinit()
 
     def test_group_constructor(self):
-        from mysql.hub.errors import DatabaseError
-
         group_1 = Group.add("mysql.com", "First description.")
         group_2 = Group.fetch("mysql.com") 
         self.assertEqual(group_1, group_2)
-        self.assertRaises(DatabaseError,
+        self.assertRaises(_errors.DatabaseError,
                           Group.add, "mysql.com", "Second description.")
         group_1.remove()
         group_2.remove()
@@ -81,14 +79,14 @@ class TestGroup(unittest.TestCase):
         self.assertFalse(group_1.contains_server(server_2.uuid))
 
     def test_update_description(self):
-         group_1 = Group("mysql.com", "First description.")
-         group_1.description = "Second Description."
-         self.assertEqual(group_1.description, "Second Description.")
+        group_1 = Group("mysql.com", "First description.")
+        group_1.description = "Second Description."
+        self.assertEqual(group_1.description, "Second Description.")
 
     def test_remove_group(self):
-         group_1 = Group.add("mysql.com", "First description.")
-         group_1.remove()
-         self.assertEqual(Group.fetch("mysql.com"), None)
+        group_1 = Group.add("mysql.com", "First description.")
+        group_1.remove()
+        self.assertEqual(Group.fetch("mysql.com"), None)
 
     def test_MySQLServer_create(self):
         options_1 = {
@@ -98,6 +96,7 @@ class TestGroup(unittest.TestCase):
             "passwd" : "passwd"
         }
         server_1 = MySQLServer.add(**options_1)
+
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_2.mysql.com:3060",
@@ -105,8 +104,12 @@ class TestGroup(unittest.TestCase):
             "passwd" : "passwd"
         }
         server_2 = MySQLServer.add(**options_2)
-        MySQLServer.fetch(options_1["uuid"])
-        MySQLServer.fetch(options_2["uuid"])
+
+        fetched_server_1 = MySQLServer.fetch(options_1["uuid"])
+        fetched_server_2 = MySQLServer.fetch(options_2["uuid"])
+
+        self.assertEqual(server_1, fetched_server_1)
+        self.assertEqual(server_2, fetched_server_2)
 
     def test_MySQLServer_User(self):
         options_1 = {

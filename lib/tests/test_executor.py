@@ -10,8 +10,6 @@ from mysql.hub import (
     persistence as _persistence,
     )
 
-import tests.utils as _test_utils
-
 count = []
 other = None
 
@@ -60,8 +58,6 @@ class TestExecutor(unittest.TestCase):
         self.executor.shutdown()
 
     def test_basic(self):
-        global other
-        global count
         self.executor.start()
 
         # Scheduling actions to be executed.
@@ -98,7 +94,7 @@ class TestExecutor(unittest.TestCase):
 
     def test_job_hashable(self):
         def action():
-          pass
+            pass
         job_1 = _executor.Job(action, "Test action.", None)
         job_2 = _executor.Job(action, "Test action.", None)
         set_jobs = set()
@@ -123,7 +119,8 @@ class TestExecutor(unittest.TestCase):
         self.executor.shutdown()
 
         # Check unknown job.
-        job = self.executor.get_job(uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
+        job = self.executor.get_job(
+            uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
         self.assertEqual(job, None)
 
 

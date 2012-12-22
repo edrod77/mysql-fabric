@@ -8,13 +8,15 @@ from collections import namedtuple
 
 from mysql.hub import (
     errors as _errors,
-    server_utils as _server_utils,
     persistence as persistence,
     )
 
 from mysql.hub.server import MySQLServer
-from mysql.hub.persistence import MySQLPersister
 from mysql.hub.replication import *
+# TODO: Remove the * and test the following functions:
+# Unused import get_master_rpl_users from wildcard import
+# Unused import check_slave_delay_health from wildcard import
+# Unused import get_master_slaves from wildcard import
 
 import tests.utils
 
@@ -275,7 +277,8 @@ class TestMySQLSlave(unittest.TestCase):
         ret = check_slave_health(slave, master.uuid, master_status,
                                  gtid_status, 5, 5, 5)
         self.assertEqual(ret, \
-          [(False, ['IO thread is not running.', 'SQL thread is not running.'])])
+          [(False, ['IO thread is not running.',
+          'SQL thread is not running.'])])
 
         # Try to check the health after starting one thread.
         start_slave(slave, wait=True, threads=(SQL_THREAD, ))
@@ -359,7 +362,7 @@ class TestMySQLSlave(unittest.TestCase):
         # It is not possible to do any comparison if the master_gtid_status
         # is empty.
         slave.exec_stmt("USE test")
-        slave.exec_stmt("DROP TABLE IF EXISTS test");
+        slave.exec_stmt("DROP TABLE IF EXISTS test")
         master_gtid_status = master.get_gtid_status()
         slave_gtid_status = slave.get_gtid_status()
         self.assertRaises(_errors.ProgrammingError, get_slave_num_gtid_behind,
@@ -369,7 +372,7 @@ class TestMySQLSlave(unittest.TestCase):
 
         # Check what happens if there are different sets of transactions.
         master.exec_stmt("USE test")
-        master.exec_stmt("DROP TABLE IF EXISTS test");
+        master.exec_stmt("DROP TABLE IF EXISTS test")
         master_gtid_status = master.get_gtid_status()
         slave_gtid_status = slave.get_gtid_status()
         ret = get_slave_num_gtid_behind(slave, master_gtid_status)

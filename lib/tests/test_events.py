@@ -1,16 +1,8 @@
 """Unit tests for the event handler.
 """
-
-import os
-import sys
-import threading
-import time
-import types
 import unittest
-import xmlrpclib
 
 from mysql.hub import (
-    config as _config,
     errors as _errors,
     events as _events,
     persistence as _persistence,
@@ -208,7 +200,7 @@ class TestDecorator(unittest.TestCase):
 
 # Testing that on_event decorator works as expected
 @_events.on_event(_events.SERVER_PROMOTED)
-def my_event(job):
+def _my_event(job):
     global _PROMOTED
     _PROMOTED = job.args[0]
 
@@ -239,13 +231,13 @@ class TestService(unittest.TestCase):
 
     def test_trigger(self):
         promoted = [None]
-        def my_event(job):
+        def _another_my_event(job):
             promoted[0] = job.args[0]
-        _events.Handler().register(_events.SERVER_PROMOTED, my_event)
+        _events.Handler().register(_events.SERVER_PROMOTED, _another_my_event)
         jobs = self.proxy.event.trigger('SERVER_PROMOTED', "my.example.com")
         try:
             self.proxy.event.wait_for(jobs)
-        except Exception as error:
+        except Exception:
             pass
         self.assertEqual(promoted[0], "my.example.com")
 
@@ -255,21 +247,21 @@ class TestService(unittest.TestCase):
             job_status_1 = self.proxy.event.wait_for_job(job[0])
             job_status_2 = self.proxy.event.get_job_details(job[0])
             self.assertEqual(job_status_1, job_status_2)
-        except Exception as error:
+        except Exception:
             pass
 
         try:
             self.proxy.jobs.wait_for_job(
                 "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
             self.assertTrue(False)
-        except Exception as error:
+        except Exception:
             pass
 
         try:
             self.proxy.jobs.wait_job_details(
                 "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
             self.assertTrue(False)
-        except Exception as error:
+        except Exception:
             pass
 
 if __name__ == "__main__":

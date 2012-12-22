@@ -1,20 +1,10 @@
 """Unit tests for administrative on servers.
 """
-
-import logging
-import os
-import threading
-import time
-import types
 import unittest
 import uuid as _uuid
-import xmlrpclib
-import sys
 
 from mysql.hub import (
-    config as _config,
     executor as _executor,
-    events as _events,
     server as _server,
     persistence as _persistence,
     )
@@ -124,7 +114,8 @@ class TestServerServices(unittest.TestCase):
 
         # Look up servers.
         status_servers = self.proxy.server.lookup_servers("group_1")
-        self.assertEqual(status_servers[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status_servers[1][-1]["success"],
+                         _executor.Job.SUCCESS)
         self.assertEqual(status_servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status_servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")

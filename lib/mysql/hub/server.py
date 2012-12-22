@@ -648,7 +648,7 @@ class MySQLServer(Server):
         raise _errors.DatabaseError("It is not possible to create a new "
                                     "connection.")
 
-    def _do_connection(self, **kwargs):
+    def _do_connection(self, *args, **kwargs):
         """Create a new connection.
         """
         cannot_override = ["host", "port", "user", "passwd"]

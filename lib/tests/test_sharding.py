@@ -1,14 +1,11 @@
 import unittest
 import uuid as _uuid
 import mysql.hub.sharding as _sharding
-import tests.utils as _test_utils
 import mysql.hub.errors as _errors
 
 from mysql.hub.sharding import ShardMapping
 from mysql.hub.sharding import RangeShardingSpecification
 from mysql.hub.server import Group, Server, MySQLServer
-
-from mysql.hub.persistence import MySQLPersister
 from mysql.hub import persistence
 
 from tests.utils import ShardingUtils
@@ -250,7 +247,7 @@ class TestSharding(unittest.TestCase):
                          set(GROUPID3_obtained_uuid_list))
 
     def test_go_fish_lookup_exception(self):
-         self.assertRaises(_errors.ShardingError,
+        self.assertRaises(_errors.ShardingError,
                           _sharding.go_fish_lookup, "Wrong")
 
     def test_shard_mapping_list_mappings(self):

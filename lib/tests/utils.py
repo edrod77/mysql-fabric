@@ -1,6 +1,5 @@
 """Module holding support utilities for tests.
 """
-import sys
 import threading
 import time
 import uuid as _uuid
@@ -23,6 +22,7 @@ class MySQLInstances(_utils.Singleton):
     def __init__(self):
         """Constructor for MySQLInstances.
        """
+        super(MySQLInstances, self).__init__()
         self.__uris = []
         self.__instances = {}
 
@@ -135,7 +135,7 @@ class ShardingUtils(object):
                             shard_mapping_2.sharding_specification
     @staticmethod
     def compare_range_specifications(range_specification_1,
-                                         range_specification_2):
+                                     range_specification_2):
         """Compare two RANGE specification definitions. They are equal if they
         belong to the same sharding scheme, define the same upper and lower
         bound and map to the same server.
@@ -143,11 +143,12 @@ class ShardingUtils(object):
         :param range_specification_1: Range Sharding Specification
         :param range_specification_2: Range Sharding Specification
 
-        :return True if Range Sharding Specifications are equal
-                False if Range Sharding Specifications are not equal
+        :return: If Range Sharding Specifications are equal, it returns True.
+                 False if Range Sharding Specifications are not equal
         """
-        return isinstance(range_specification_1, RangeShardingSpecification) and \
-                isinstance(range_specification_2, RangeShardingSpecification) and \
+        return \
+            isinstance(range_specification_1, RangeShardingSpecification) and \
+            isinstance(range_specification_2, RangeShardingSpecification) and \
                 range_specification_1.name == \
                         range_specification_2.name and \
                 range_specification_1.lower_bound == \
@@ -185,7 +186,7 @@ def setup_xmlrpc():
         try:
             proxy.ping()
             break
-        except Exception as err:
+        except Exception:
             time.sleep(1)
 
     return (manager_thread, proxy)

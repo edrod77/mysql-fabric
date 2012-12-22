@@ -9,17 +9,13 @@ from mysql.hub import (
     persistence,
     server_utils as _server_utils,
     )
-import tests.utils as _test_utils
-
-from mysql.hub.persistence import MySQLPersister
-from mysql.hub.server import Group, Server, MySQLServer
-
+from mysql.hub.server import Group, Server
 
 class ConcreteServer(Server):
     def __init__(self, uuid, uri=None):
         super(ConcreteServer, self).__init__(uuid, uri)
 
-    def _do_connection(*args, **kwargs):
+    def _do_connection(self, *args, **kwargs):
         return "Connection ", args, kwargs
 
 

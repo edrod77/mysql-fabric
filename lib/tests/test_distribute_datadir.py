@@ -26,10 +26,10 @@ class TestDistributeDatadir(unittest.TestCase):
 
         self.source = os.path.join(self.base_dir,  "source")
         self.source_dir1 = os.path.join(self.source,  "dir1")
-        self.source_dir1_file1 = os.path.join(self.source_dir1,  \
-                                                                "dir1_file1.txt")
-        self.source_dir1_file2 = os.path.join(self.source_dir1,  \
-                                                                "dir1_file2.txt")
+        self.source_dir1_file1 = os.path.join(self.source_dir1,
+                                              "dir1_file1.txt")
+        self.source_dir1_file2 = os.path.join(self.source_dir1,
+                                              "dir1_file2.txt")
         self.source_dir2 = os.path.join(self.source,  "dir2")
         self.source_dir3 = os.path.join(self.source,  "dir3")
 
