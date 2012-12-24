@@ -11,6 +11,8 @@ import mysql.hub.persistence as _persistence
 
 import tests.utils
 
+from mysql.hub.server import Group
+
 class TestReplicationServices(unittest.TestCase):
     "Test replication service interface."
 
@@ -72,8 +74,12 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(retrieved, expected)
 
         # Create topology: M1 ---> S2, M1 ---> S3
+        group_ = Group.fetch("group_id-1")
+        group_.master = None
+        group_.remove_server(master)
         master.remove()
         master = None
+        group_.remove_server(slave)
         slave.remove()
         slave = None
         instances = tests.utils.MySQLInstances()
@@ -121,11 +127,16 @@ class TestReplicationServices(unittest.TestCase):
         expected.sort()
         self.assertEqual(retrieved, expected)
 
+        group_ = Group.fetch("group_id-2")
         # Create topology: M1 ---> S2 ---> S3
+        group_.master = None
+        group_.remove_server(master)
         master.remove()
         master = None
+        group_.remove_server(slave_1)
         slave_1.remove()
         slave_1 = None
+        group_.remove_server(slave_2)
         slave_2.remove()
         slave_2 = None
         instances = tests.utils.MySQLInstances()

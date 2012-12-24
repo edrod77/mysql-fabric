@@ -9,7 +9,7 @@ from mysql.hub import (
     persistence,
     server_utils as _server_utils,
     )
-from mysql.hub.server import Group, Server
+from mysql.hub.server import Group, Server, MySQLServer
 
 class ConcreteServer(Server):
     def __init__(self, uuid, uri=None):
@@ -141,11 +141,13 @@ class TestGroup(unittest.TestCase):
             "uri"  : "server_1.mysql.com:3060",
         }
         server_1 = Server(**options_1)
+        MySQLServer.add(options_1["uuid"], options_1["uri"], None, None)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_2.mysql.com:3060",
         }
         server_2 = Server(**options_2)
+        MySQLServer.add(options_2["uuid"], options_2["uri"], None, None)
         group_1 = Group.add("oracle.com", "First description.")
 
         # Add servers to a group
