@@ -154,11 +154,6 @@ class Group(_persistence.Persistable):
     #SQL Statement to update the group's master.
     UPDATE_MASTER = ("UPDATE groups SET master_uuid = %s WHERE group_id = %s")
 
-    #SQL Statement to update the group's master with NULL.
-    # TODO: Is there a better way of doing this?
-    UPDATE_NULL_MASTER = ("UPDATE groups SET master_uuid = NULL WHERE "
-                          "group_id = %s")
-
     def __init__(self, group_id, description=None, master=None):
         """Constructor for the Group. Check to see if the Group is already
         present in the state store, if it is, then load the information from
@@ -252,7 +247,7 @@ class Group(_persistence.Persistable):
         return self.__description
 
     @description.setter
-    def description(self, description, persister=None):
+    def description(self, description=None, persister=None):
         """Set the description for this group. Update the description for the
         Group in the state store.
 
@@ -299,11 +294,12 @@ class Group(_persistence.Persistable):
         """
         assert(master is None or isinstance(master, _uuid.UUID))
         if not master:
-            persister.exec_stmt(Group.UPDATE_NULL_MASTER,
-                {"params":(self.__group_id, )})
+            param_master = None
         else:
-            persister.exec_stmt(Group.UPDATE_MASTER,
-                {"params":(str(master), self.__group_id)})
+            param_master = str(master)
+
+        persister.exec_stmt(Group.UPDATE_MASTER,
+            {"params":(param_master, self.__group_id)})
         self.__master = master
 
     @staticmethod
@@ -343,7 +339,6 @@ class Group(_persistence.Persistable):
         else:
             return False
 
-    # TODO: Create tests with description = None.
     @staticmethod
     def fetch(group_id, persister=None):
         """Return the group object, by loading the attributes for the group_id
@@ -360,13 +355,12 @@ class Group(_persistence.Persistable):
                                   {"fetch" : False, "params" : (group_id,)})
         row = cur.fetchone()
         if row:
-            master_uuid = None
-            if row[2]:
-                master_uuid = _uuid.UUID(row[2])
-            group = Group(row[0], row[1], master_uuid)
+            group_id, description, master = row
+            if master:
+                master = _uuid.UUID(master)
+            group = Group(group_id, description, master)
         return group
 
-    # TODO: Create tests with description = None.
     @staticmethod
     def add(group_id, description=None, persister=None):
         """Create a Group and return the Group object.
@@ -522,7 +516,7 @@ class MySQLServer(_persistence.Persistable):
     CREATE_SERVER = ("CREATE TABLE "
                      "servers "
                      "(server_uuid VARCHAR(40) NOT NULL, "
-                     "server_address VARCHAR(128), "
+                     "server_address VARCHAR(128) NOT NULL, "
                      "user CHAR(16), "
                      "passwd TEXT, "
                      "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
@@ -550,7 +544,7 @@ class MySQLServer(_persistence.Persistable):
     SESSION_CONTEXT, GLOBAL_CONTEXT = range(0, 2)
     CONTEXT_STR = ["SESSION", "GLOBAL"]
 
-    def __init__(self, uuid, address=None, user=None, passwd=None,
+    def __init__(self, uuid, address, user=None, passwd=None,
                  default_charset="latin1"):
         """Constructor for MySQLServer. The constructor searches for the uuid
         in the state store and if the uuid is present it loads the server from
@@ -1002,7 +996,7 @@ class MySQLServer(_persistence.Persistable):
         persister.exec_stmt(MySQLServer.DROP_SERVER)
 
     @staticmethod
-    def add(uuid, address=None, user=None, passwd=None,
+    def add(uuid, address, user=None, passwd=None,
             default_charset="latin1", persister=None):
         """Persist the Server information and return the Server object.
 

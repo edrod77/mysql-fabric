@@ -305,22 +305,22 @@ class TestGroup(unittest.TestCase):
 
     def test_properties(self):
         set_of_groups = set()
-        group_1 = Group.add("mysql.com", "First description.")
-        group_2 = Group.add("oracle.com", "First description.")
+        group_1 = Group.add("mysql.com")
         self.assertEqual(group_1.group_id, "mysql.com")
+        group_2 = Group.add("oracle.com", "First description.")
+        self.assertEqual(group_2.group_id, "oracle.com")
         group_1.description = "New description."
         self.assertEqual(group_1.description, "New description.")
-        self.assertEqual(group_1, group_1)
-        self.assertFalse(group_1 == group_2)
+        group_1.description = None
+        self.assertEqual(group_1.description, None)
+        fetched_group_1 = Group.fetch(group_1.group_id)
+        fetched_group_2 = Group.fetch(group_2.group_id)
+        self.assertEqual(group_1, fetched_group_1)
+        self.assertEqual(group_2, fetched_group_2)
+        self.assertNotEqual(group_1, group_2)
 
         set_of_groups.add(group_1)
         set_of_groups.add(group_2)
-        self.assertEqual(len(set_of_groups), 2)
-        set_of_groups.add(group_1)
-        self.assertEqual(len(set_of_groups), 2)
-        group_1.remove()
-        group_2.remove()
-
 
     def test_managment(self):
         options_1 = {

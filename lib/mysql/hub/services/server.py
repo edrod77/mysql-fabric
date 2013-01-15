@@ -87,7 +87,7 @@ def lookup_group(group_id, synchronous=True):
     return _executor.process_jobs(jobs, synchronous)
 
 CREATE_GROUP = _events.Event()
-def create_group(group_id, description, synchronous=True):
+def create_group(group_id, description=None, synchronous=True):
     """Create a group.
 
     :param group_id: Group's id.
@@ -101,7 +101,7 @@ def create_group(group_id, description, synchronous=True):
     return _executor.process_jobs(jobs, synchronous)
 
 UPDATE_GROUP = _events.Event()
-def update_group(group_id, description, synchronous=True):
+def update_group(group_id, description=None, synchronous=True):
     """Update a group.
 
     :param group_id: Group's id.

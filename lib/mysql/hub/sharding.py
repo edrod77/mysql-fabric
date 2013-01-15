@@ -265,10 +265,10 @@ class RangeShardingSpecification(_persistence.Persistable):
                                 "range_sharding_specification "
                                 "(name VARCHAR(64) NOT NULL, "
                                 "INDEX(name), "
-                                "lower_bound INT, "
-                                "upper_bound INT, "
+                                "lower_bound INT NOT NULL, "
+                                "upper_bound INT NOT NULL, "
                                 "INDEX(lower_bound, upper_bound), "
-                                "group_id VARCHAR(64))")
+                                "group_id VARCHAR(64) NOT NULL)")
 
     #Create the referential integrity constraint with the groups table
     ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
