@@ -3,18 +3,18 @@
 A server is uniquely identified through a *UUID* (Universally Unique
 Identifier) and has a *URI* (Uniform Resource Identifier) which is
 used to connect to it through the Python Database API. If a server
-process such as MySQL already provides a uuid, the server's concrete
-class used to create a MySQL object must ensure that they match
-otherwise the different uuids may cause problems in other modules. A
-*URI* has the following format: *host:port*.
+process such as MySQL already provides a uuid, the server's class
+used to create a MySQL object must ensure that they match otherwise
+the different uuids may cause problems in other modules. A *URI* has
+the following format: *host:port*.
 
 Any sort of provisioning must not be performed when the server object
 is instantiated. The provisioning steps must be done in other modules.
 
 Servers are organized into groups which have unique names. This aims
 at defining administrative domains and easing management activities.
-In the case of MySQL Servers, one of the servers in the group may
-become a master.
+In the case of MySQL Servers whose version is lower or equal to 5.6,
+one of the servers in the group may become a master.
 """
 import threading
 import uuid as _uuid
@@ -24,6 +24,7 @@ import functools
 import mysql.hub.errors as _errors
 import mysql.hub.persistence as _persistence
 import mysql.hub.server_utils as _server_utils
+import mysql.hub.utils as _utils
 import mysql.hub.failure_detector as _detector
 
 _LOGGER = logging.getLogger(__name__)
@@ -202,7 +203,7 @@ class Group(_persistence.Persistable):
         :param server: The Server object that needs to be added to this
                        Group.
         """
-        assert(isinstance(server, Server))
+        assert(isinstance(server, MySQLServer))
         persister.exec_stmt(Group.INSERT_GROUP_SERVER,
                             {"params": (self.__group_id, str(server.uuid))})
 
@@ -214,7 +215,7 @@ class Group(_persistence.Persistable):
         :param server: The Server object that needs to be removed from this
                        Group.
         """
-        assert(isinstance(server, Server))
+        assert(isinstance(server, MySQLServer))
         persister.exec_stmt(Group.DELETE_GROUP_SERVER,
                             {"params":(self.__group_id, str(server.uuid))})
 
@@ -403,115 +404,77 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.DROP_GROUP_SERVER)
         persister.exec_stmt(Group.DROP_GROUP)
 
+class ConnectionPool(_utils.Singleton):
+    """Manages MySQL Servers' connections.
 
-class Server(_persistence.Persistable):
-    """Abstract class used to provide interfaces to access a server.
-
-    Notice that a server may be only a wrapper to a remote server.
+    The pool is internally implemented as a dictionary that maps a server's
+    uuid to a sequence of connections.
     """
-    #TODO: Check if uri is the correct term.
-    def __init__(self, uuid, uri):
-        """Constructor for the Server.
+    def __init__(self):
+        """Creates a ConnectionPool object.
 
-        :param uuid: Uniquely identifies the server.
-        :param uri: Used to connect to the server
         """
-        assert(isinstance(uuid, _uuid.UUID))
-        super(Server, self).__init__()
-        self.__uuid = uuid
-        self.__uri = uri
-        self.__available_cnxs = 0
-        self.__pool = []
+        super(ConnectionPool, self).__init__()
+        self.__pool = {}
         self.__lock = threading.RLock()
 
-    def _do_connection(self, *args, **kwargs):
-        """Create a new connection.
-
-        It is user's responsibility to provide the appropriate arguments
-        which vary according to the server type, e.g. MySQL, Oracle.
-        """
-        raise NotImplementedError("Trying to execute abstract method "
-                                  "connect(*args, **kwargs).")
-
-    def connection(self, *args, **kwargs):
+    def get_connection(self, uuid):
         """Get a connection.
 
-        The method gets a connection from a pool if there is any. Otherwise,
-        a new connection is created. The pool does not take into account any
-        connection's property to identify the stored connections.
+        The method gets a connection from a pool if there is any.
         """
+        assert(isinstance(uuid, _uuid.UUID))
         cnx = None
         with self.__lock:
-            if self.__pool:
-                cnx = self.__pool.pop()
-                self.__available_cnxs -= 1
-            else:
-                cnx = self._do_connection(*args, **kwargs)
+            try:
+                cnx = self.__pool[uuid].pop()
+            except (KeyError, IndexError):
+                pass
+
+        if cnx and not cnx.is_connected():
+            cnx = None
+
         return cnx
 
-    def exec_stmt(self, stmt_str, options=None):
-        """Execute statements against the server.
-        See :meth:`mysql.hub.server_utils.exec_stmt`.
-        """
-        raise NotImplementedError("Trying to execute abstract method "
-                                  "exec_stmt.")
-
-    def release_connection(self, cnx):
+    def release_connection(self, uuid, cnx):
         """Release a connection to the pool.
 
-        After using a connection, it should be returned to the pool. It is
-        up to the developer to check if the connection is still valid and
-        belongs to this server before returning it to the pool.
+        It is up to the developer to check if the connection is still
+        valid and belongs to this server before returning it to the pool.
         """
-        assert(cnx is not None)
+        assert(isinstance(uuid, _uuid.UUID))
         with self.__lock:
-            self.__pool.append(cnx)
-            self.__available_cnxs += 1
+            if uuid not in self.__pool:
+                self.__pool[uuid] = []
+            self.__pool[uuid].append(cnx)
 
-    def purge_connections(self):
-        """Close and remove all connections from the pool.
-        """
-        try:
-            self.__lock.acquire()
-            for cnx in self.__pool:
-                cnx.disconnect()
-        finally:
-            self.__pool = []
-            self.__lock.release()
-
-    @property
-    def available_connections(self):
+    def get_number_connections(self, uuid):
         """Return the number of connections available in the pool.
         """
+        assert(isinstance(uuid, _uuid.UUID))
         with self.__lock:
-            ret = self.__available_cnxs
-        return ret
+            try:
+                return len(self.__pool[uuid])
+            except KeyError:
+                pass
+        return 0
 
-    def __eq__(self,  other):
-        """Two servers are equal if they have the same uuid.
+    def purge_connections(self, uuid):
+        """Close and remove all connections that belongs to a MySQL Server
+        which is identified by its uuid.
         """
-        return isinstance(other, Server) and self.__uuid == other.uuid
-
-    def __hash__(self):
-        """A server is hashable through its uuid.
-        """
-        return hash(self.__uuid)
-
-    @property
-    def uuid(self):
-        """Return the server's uuid.
-        """
-        return self.__uuid
-
-    @property
-    def uri(self):
-        """Return the server's uri.
-        """
-        return self.__uri
+        assert(isinstance(uuid, _uuid.UUID))
+        with self.__lock:
+            try:
+                for cnx in self.__pool[uuid]:
+                    cnx.disconnect()
+                del self.__pool[uuid]
+            except KeyError:
+                pass
 
 
-class MySQLServer(Server):
-    """Concrete class that provides an interface to access a MySQL Server
+class MySQLServer(_persistence.Persistable):
+    """Proxy class that provides an interface to access a MySQL Server
     Instance.
 
     To create a MySQLServer object, one needs to provide at least three
@@ -581,19 +544,23 @@ class MySQLServer(Server):
     SESSION_CONTEXT, GLOBAL_CONTEXT = range(0, 2)
     CONTEXT_STR = ["SESSION", "GLOBAL"]
 
+    #TODO: Check if uri is the correct term.
     def __init__(self, uuid, uri=None, user=None, passwd=None,
                  default_charset="latin1"):
         """Constructor for MySQLServer. The constructor searches for the uuid
         in the state store and if the uuid is present it loads the server from
         the state store. otherwise it creates and persists a new Server object.
 
-        :param uuid The uuid of the server
-        :param uri  The uri of the server
-        :param user The username used to access the server
-        :param passwd The password used to access the server
-        :param default_charset The default charset that will be used
+        :param uuid: The uuid of the server.
+        :param uri:  The uri of the server.
+        :param user: The username used to access the server.
+        :param passwd: The password used to access the server.
+        :param default_charset: The default charset that will be used.
         """
-        super(MySQLServer, self).__init__(uuid=uuid, uri=uri)
+        assert(isinstance(uuid, _uuid.UUID))
+        self.__uuid = uuid
+        self.__uri = uri
+        self.__pool = ConnectionPool()
         self.__user = user
         self.__passwd = passwd
         self.__cnx = None
@@ -606,7 +573,7 @@ class MySQLServer(Server):
 
     @staticmethod
     @server_logging
-    def discover_uuid(**kwargs):
+    def discover_uuid(**kwargs): # TODO: Change the format of the parameter.
         """Retrieve the uuid from a server.
 
         :param kwargs: Dictionary with parmaters to connect to a server.
@@ -638,56 +605,32 @@ class MySQLServer(Server):
 
         return server_uuid
 
-    def connection(self):
-        """Override the method connection defined at Server to avoid that users
-        can create different connections to access a MySQL Server.
-
-        Any access to a MySQL Server should be done through exec_stmt() and
-        any other method provided in this class.
+    def _do_connection(self):
+        """Get a connection.
         """
-        raise _errors.DatabaseError("It is not possible to create a new "
-                                    "connection.")
+        cnx = self.__pool.get_connection(self.__uuid)
+        if cnx:
+            return cnx
 
-    def _do_connection(self, *args, **kwargs):
-        """Create a new connection.
-        """
-        cannot_override = ["host", "port", "user", "passwd"]
-        wrong_parameters = \
-            [key for key in kwargs.keys() if key in cannot_override]
-        if wrong_parameters:
-            raise _errors.ConfigurationError(
-                "Option(s) %s cannot be overridden.", wrong_parameters)
-
-        params = kwargs.copy()
         host, port = _server_utils.split_host_port(self.uri,
             _server_utils.MYSQL_DEFAULT_PORT)
-        params["host"] = host
-        params["port"] = int(port)
-        if self.__user:
-            params["user"] = self.__user
-        if self.__passwd:
-            params["passwd"] = self.__passwd
-        params.setdefault("autocommit", True)
-        params.setdefault("use_unicode", False)
-        params.setdefault("database", "mysql")
-        params.setdefault("charset", self.__default_charset)
+        user = self.__user or None
+        passwd = self.__passwd or None
 
-        return _server_utils.create_mysql_connection(**params)
+        return _server_utils.create_mysql_connection(
+            autocommit=True, use_unicode=False, database="mysql",
+            charset=self.__default_charset, host=host, port=port,
+            user=user, passwd=passwd) 
+
 
     @server_logging
     def connect(self):
         """Connect to a MySQL Server instance.
         """
-        # TODO: We need to revisit how the connection pool is implemented.
-        # The current design assumes a pool per object. However, after some
-        # discussions on the persistence layer, I think there should be a
-        # single pool shared by all objects.
-
-        # We disconnect first and connect again.
         self.disconnect()
 
         # Set up an internal connection.
-        self.__cnx = super(MySQLServer, self).connection()
+        self.__cnx = self._do_connection()
 
         # Get server's uuid
         ret_uuid = self.get_variable("SERVER_UUID")
@@ -733,16 +676,13 @@ class MySQLServer(Server):
                           self.__server_id, self.__version, \
                           self.__gtid_enabled, self.__binlog_enabled, \
                           self.__read_only)
-            try:
-                _server_utils.destroy_mysql_connection(self.__cnx)
-            finally:
-                self.__cnx = None
-                self.__read_only = None
-                self.__server_id = None
-                self.__version = None
-                self.__gtid_enabled = None
-                self.__binlog_enabled = None
-        self.purge_connections()
+            self.__pool.release_connection(self.__uuid, self.__cnx)
+            self.__cnx = None
+            self.__read_only = None
+            self.__server_id = None
+            self.__version = None
+            self.__gtid_enabled = None
+            self.__binlog_enabled = None
 
     def is_alive(self):
         """Determine if connection to server is still alive.
@@ -765,6 +705,17 @@ class MySQLServer(Server):
         ret_read_only = self.get_variable("READ_ONLY")
         self.__read_only = not ret_read_only in ("OFF", "0")
 
+    @property
+    def uuid(self):
+        """Return the server's uuid.
+        """
+        return self.__uuid
+
+    @property
+    def uri(self):
+        """Return the server's uri.
+        """
+        return self.__uri
     @property
     def read_only(self):
         """Check read only mode on/off.
@@ -830,6 +781,8 @@ class MySQLServer(Server):
         :param user: The user name.
         """
         if self.__user != user:
+            # TODO: This will be removed from here when we remove the user
+            # property from the server object.
             self.disconnect()
             persister.exec_stmt(MySQLServer.UPDATE_SERVER_USER,
                                 {"params":(user, str(self.uuid))})
@@ -852,11 +805,12 @@ class MySQLServer(Server):
         :param passwd: The password that needs to be set.
         """
         if self.__passwd != passwd:
+            # TODO: This will be removed from here when we remove the passwd
+            # property from the server object.
             self.disconnect()
             persister.exec_stmt(MySQLServer.UPDATE_SERVER_PASSWD,
                                 {"params":(passwd, str(self.uuid))})
             self.__passwd = passwd
-
 
     def check_version_compat(self, expected_version):
         """Check version of the server against requested version.
@@ -1057,3 +1011,14 @@ class MySQLServer(Server):
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
                             {"params":(str(uuid), uri, user, passwd)})
         return MySQLServer(uuid, uri, user, passwd, default_charset)
+
+    def __eq__(self,  other):
+        """Two servers are equal if they are both subclasses of MySQLServer
+        and have equal UUID.
+        """
+        return isinstance(other, MySQLServer) and self.__uuid == other.uuid
+
+    def __hash__(self):
+        """A server is hashable through its uuid.
+        """
+        return hash(self.__uuid)

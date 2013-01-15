@@ -250,15 +250,21 @@ def _remove_group(job):
     """Remove a group."""
     group_id, force = job.args
     group = _server.Group.fetch(group_id)
+    servers_uuid = []
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     servers = group.servers()
     if servers and force:
         for row in servers:
-            _do_remove_server(group, _uuid.UUID(row[0]))
+            uuid = _uuid.UUID(row[0])
+            servers_uuid.append(uuid)
+            _do_remove_server(group, uuid)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
     group.remove()
+    cnx_pool = _server.ConnectionPool()
+    for uuid in servers_uuid:
+        cnx_pool.purge_connections(uuid)
     _LOGGER.debug("Removed group (%s).", str(group))
     _detector.FailureDetector.unregister_group(group_id)
 
@@ -333,6 +339,7 @@ def _remove_server(job):
                                   "in group (%s). Please, demote it first."
                                   % (uuid, group_id))
     _do_remove_server(group, uuid)
+    _server.ConnectionPool().purge_connections(uuid)
 
 def _do_remove_server(group, uuid):
     """Remove a server from a group."""

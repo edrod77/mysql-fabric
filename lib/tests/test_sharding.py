@@ -5,7 +5,7 @@ import mysql.hub.errors as _errors
 
 from mysql.hub.sharding import ShardMapping
 from mysql.hub.sharding import RangeShardingSpecification
-from mysql.hub.server import Group, Server, MySQLServer
+from mysql.hub.server import Group, MySQLServer
 from mysql.hub import persistence
 
 from tests.utils import ShardingUtils
@@ -21,14 +21,14 @@ class TestSharding(unittest.TestCase):
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_1.mysql.com:3060",
         }
-        self.__server_1 = Server(**self.__options_1)
+        self.__server_1 = MySQLServer(**self.__options_1)
         MySQLServer.add(self.__options_1["uuid"], self.__options_1["uri"],
                         None, None)
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_2.mysql.com:3060",
         }
-        self.__server_2 = Server(**self.__options_2)
+        self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__options_2["uuid"], self.__options_2["uri"],
                         None, None)
         self.__group_1 = Group.add("GROUPID1", "First description.")
@@ -40,14 +40,14 @@ class TestSharding(unittest.TestCase):
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_3.mysql.com:3060",
         }
-        self.__server_3 = Server(**self.__options_3)
+        self.__server_3 = MySQLServer(**self.__options_3)
         MySQLServer.add(self.__options_3["uuid"], self.__options_3["uri"],
                 None, None)
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_4.mysql.com:3060",
         }
-        self.__server_4 = Server(**self.__options_4)
+        self.__server_4 = MySQLServer(**self.__options_4)
         self.__group_2 = Group.add("GROUPID2", "Second description.")
         MySQLServer.add(self.__options_4["uuid"], self.__options_4["uri"],
                         None, None)
@@ -59,14 +59,14 @@ class TestSharding(unittest.TestCase):
             "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_5.mysql.com:3060",
         }
-        self.__server_5 = Server(**self.__options_5)
+        self.__server_5 = MySQLServer(**self.__options_5)
         MySQLServer.add(self.__options_5["uuid"], self.__options_5["uri"],
                         None, None)
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
             "uri"  : "server_6.mysql.com:3060",
         }
-        self.__server_6 = Server(**self.__options_6)
+        self.__server_6 = MySQLServer(**self.__options_6)
         MySQLServer.add(self.__options_6["uuid"], self.__options_6["uri"],
                         None, None)
         self.__group_3 = Group.add("GROUPID3", "Third description.")

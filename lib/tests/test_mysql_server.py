@@ -6,8 +6,9 @@ import uuid as _uuid
 
 import mysql.hub.errors as _errors
 import mysql.hub.persistence as persistence
+import mysql.hub.server_utils as _server_utils
 
-from mysql.hub.server import MySQLServer
+from mysql.hub.server import MySQLServer, Group, ConnectionPool
 
 import tests.utils
 
@@ -41,25 +42,6 @@ class TestMySQLServer(unittest.TestCase):
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
         server = MySQLServer(**OPTIONS)
         self.assertRaises(_errors.MismatchUuidError, server.connect)
-
-    def test_wrong_connection(self):
-        server = self.server
-
-        # Trying to get a new connection.
-        self.assertRaises(_errors.DatabaseError, server.connection)
-
-        # Check what happens when an attempt to connect fails.
-        server.passwd = "wrong"
-        self.assertRaises(_errors.DatabaseError, server.connect)
-        server.passwd = ""
-
-        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
-                          "SELECT VERSION()")
-        server.connect()
-        server.exec_stmt("SELECT VERSION()")
-        server.disconnect()
-        self.assertRaises(_errors.DatabaseError, server.exec_stmt,
-                          "SELECT VERSION()")
 
     def test_properties(self):
         server = self.server
@@ -208,6 +190,164 @@ class TestMySQLServer(unittest.TestCase):
         self.assertFalse(server.is_alive())
         server.connect()
         self.assertTrue(server.is_alive())
+
+    def test_utilities(self):
+        # Test a function that gets host and port and returns
+        # host:port
+        uri = _server_utils.combine_host_port(None, None, 3306)
+        self.assertEqual(uri, "unknown host:3306")
+
+        uri = _server_utils.combine_host_port("", None, 3306)
+        self.assertEqual(uri, "unknown host:3306")
+
+        uri = _server_utils.combine_host_port(None, "", 3306)
+        self.assertEqual(uri, "unknown host:3306")
+
+        uri = _server_utils.combine_host_port("host", "port", 3306)
+        self.assertEqual(uri, "host:port")
+
+        uri = _server_utils.combine_host_port("host", 1500, 3306)
+        self.assertEqual(uri, "host:1500")
+
+        uri = _server_utils.combine_host_port("127.0.0.1", 1500, 3306)
+        self.assertEqual(uri, "localhost:1500")
+
+        # Test a function that gets host:port and returns (host, port)
+        host_port = _server_utils.split_host_port("", 3306)
+        self.assertEqual(host_port, ("", 3306))
+
+        host_port = _server_utils.split_host_port(":", 3306)
+        self.assertEqual(host_port, ("", ""))
+
+        host_port = _server_utils.split_host_port("host:", 3306)
+        self.assertEqual(host_port, ("host", ""))
+
+        host_port = _server_utils.split_host_port(":port", 3306)
+        self.assertEqual(host_port, ("", "port"))
+
+        host_port = _server_utils.split_host_port("host:port", 3306)
+        self.assertEqual(host_port, ("host", "port"))
+
+    def test_server_id(self):
+        # Configure
+        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        OPTIONS["uuid"] = _uuid.UUID(uuid)
+        server_1 = MySQLServer(**OPTIONS)
+        server_2 = MySQLServer(**OPTIONS)
+
+        # Check that two different objects represent the same server.
+        self.assertEqual(server_1, server_2)
+
+        # Check that a dictionary with server_1 and server_2 has in
+        # fact only one entry.
+        hash_info = {}
+        hash_info[server_1] = server_1
+        hash_info[server_2] = server_2
+        self.assertEqual(len(hash_info), 1)
+
+class TestConnectionPool(unittest.TestCase):
+    def setUp(self):
+        from __main__ import options
+        persistence.init(host=options.host, port=options.port,
+                         user=options.user, password=options.password)
+        persistence.init_thread()
+
+    def tearDown(self):
+        persistence.deinit_thread()
+        persistence.deinit()
+
+    def test_connection_pool(self):
+        # Configuration
+        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        OPTIONS["uuid"] = uuid = _uuid.UUID(uuid)
+        server_1 = MySQLServer(**OPTIONS)
+        server_2 = MySQLServer(**OPTIONS)
+        cnx_pool = ConnectionPool()
+
+        # Purge connections and check the number of connections in
+        # the pool.
+        cnx_pool.purge_connections(uuid)
+        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+
+        # Connect and check the number of connections in the pool.
+        server_1.connect()
+        server_2.connect()
+        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+
+        # Delete one of the servers and check the number of
+        # connections in the pool.
+        del server_1
+        self.assertEqual(cnx_pool.get_number_connections(uuid), 1)
+
+        # Delete one of the servers and check the number of
+        # connections in the pool.
+        del server_2
+        self.assertEqual(cnx_pool.get_number_connections(uuid), 2)
+
+        # Purge connections and check the number of connections in
+        # the pool. However, call purge_connections twice.
+        cnx_pool.purge_connections(uuid)
+        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+        cnx_pool.purge_connections(uuid)
+        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+
+
+class TestGroup(unittest.TestCase):
+    def setUp(self):
+        from __main__ import options
+        persistence.init(host=options.host, port=options.port,
+                         user=options.user, password=options.password)
+        persistence.init_thread()
+
+    def tearDown(self):
+        persistence.deinit_thread()
+        persistence.deinit()
+
+    def test_properties(self):
+        set_of_groups = set()
+        group_1 = Group.add("mysql.com", "First description.")
+        group_2 = Group.add("oracle.com", "First description.")
+        self.assertEqual(group_1.group_id, "mysql.com")
+        group_1.description = "New description."
+        self.assertEqual(group_1.description, "New description.")
+        self.assertEqual(group_1, group_1)
+        self.assertFalse(group_1 == group_2)
+
+        set_of_groups.add(group_1)
+        set_of_groups.add(group_2)
+        self.assertEqual(len(set_of_groups), 2)
+        set_of_groups.add(group_1)
+        self.assertEqual(len(set_of_groups), 2)
+        group_1.remove()
+        group_2.remove()
+
+
+    def test_managment(self):
+        options_1 = {
+            "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_1.mysql.com:3060",
+        }
+        server_1 = MySQLServer(**options_1)
+        MySQLServer.add(options_1["uuid"], options_1["uri"], None, None)
+        options_2 = {
+            "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uri"  : "server_2.mysql.com:3060",
+        }
+        server_2 = MySQLServer(**options_2)
+        MySQLServer.add(options_2["uuid"], options_2["uri"], None, None)
+        group_1 = Group.add("oracle.com", "First description.")
+
+        # Add servers to a group
+        group_1.add_server(server_1)
+        group_1.add_server(server_2)
+        self.assertRaises(_errors.DatabaseError, group_1.add_server, server_1)
+        self.assertEqual(len(group_1.servers()), 2)
+
+        # Remove servers to a group
+        group_1.remove_server(server_1)
+        group_1.remove_server(server_2)
+        group_1.remove_server(server_1)
+        self.assertEqual(len(group_1.servers()), 0)
 
 if __name__ == "__main__":
     unittest.main()
