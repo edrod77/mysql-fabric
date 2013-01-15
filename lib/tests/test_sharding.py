@@ -19,17 +19,17 @@ class TestSharding(unittest.TestCase):
         persistence.init_thread()
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
         }
         self.__server_1 = MySQLServer(**self.__options_1)
-        MySQLServer.add(self.__options_1["uuid"], self.__options_1["uri"],
+        MySQLServer.add(self.__options_1["uuid"], self.__options_1["address"],
                         None, None)
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
         }
         self.__server_2 = MySQLServer(**self.__options_2)
-        MySQLServer.add(self.__options_2["uuid"], self.__options_2["uri"],
+        MySQLServer.add(self.__options_2["uuid"], self.__options_2["address"],
                         None, None)
         self.__group_1 = Group.add("GROUPID1", "First description.")
         self.__group_1.add_server(self.__server_1)
@@ -38,18 +38,18 @@ class TestSharding(unittest.TestCase):
 
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_3.mysql.com:3060",
+            "address"  : "server_3.mysql.com:3060",
         }
         self.__server_3 = MySQLServer(**self.__options_3)
-        MySQLServer.add(self.__options_3["uuid"], self.__options_3["uri"],
-                None, None)
+        MySQLServer.add(self.__options_3["uuid"], self.__options_3["address"],
+                        None, None)
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_4.mysql.com:3060",
+            "address"  : "server_4.mysql.com:3060",
         }
         self.__server_4 = MySQLServer(**self.__options_4)
         self.__group_2 = Group.add("GROUPID2", "Second description.")
-        MySQLServer.add(self.__options_4["uuid"], self.__options_4["uri"],
+        MySQLServer.add(self.__options_4["uuid"], self.__options_4["address"],
                         None, None)
         self.__group_2.add_server(self.__server_3)
         self.__group_2.add_server(self.__server_4)
@@ -57,17 +57,17 @@ class TestSharding(unittest.TestCase):
 
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_5.mysql.com:3060",
+            "address"  : "server_5.mysql.com:3060",
         }
         self.__server_5 = MySQLServer(**self.__options_5)
-        MySQLServer.add(self.__options_5["uuid"], self.__options_5["uri"],
+        MySQLServer.add(self.__options_5["uuid"], self.__options_5["address"],
                         None, None)
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_6.mysql.com:3060",
+            "address"  : "server_6.mysql.com:3060",
         }
         self.__server_6 = MySQLServer(**self.__options_6)
-        MySQLServer.add(self.__options_6["uuid"], self.__options_6["uri"],
+        MySQLServer.add(self.__options_6["uuid"], self.__options_6["address"],
                         None, None)
         self.__group_3 = Group.add("GROUPID3", "Third description.")
         self.__group_3.add_server(self.__server_5)
@@ -196,13 +196,13 @@ class TestSharding(unittest.TestCase):
         obtained_uuid_list = [obtained_server_list[0][0],
                               obtained_server_list[1][0]]
 
-        expected_uri_list = [expected_server_list[0][1],
-                              expected_server_list[1][1]]
-        obtained_uri_list = [obtained_server_list[0][1],
-                              obtained_server_list[1][1]]
+        expected_address_list = [expected_server_list[0][1],
+                                expected_server_list[1][1]]
+        obtained_address_list = [obtained_server_list[0][1],
+                                obtained_server_list[1][1]]
 
         self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
-        self.assertEqual(set(expected_uri_list), set(obtained_uri_list))
+        self.assertEqual(set(expected_address_list), set(obtained_address_list))
 
     def test_lookup_wrong_table_exception(self):
         self.assertRaises(_errors.ShardingError,

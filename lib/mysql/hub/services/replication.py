@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger("mysql.hub.services.replication")
 DISCOVER_TOPOLOGY = _events.Event()
 # Import the replication topology outputed in the previous step.
 IMPORT_TOPOLOGY = _events.Event()
-def import_topology(pattern_group_id, group_description, uri, user=None,
+def import_topology(pattern_group_id, group_description, address, user=None,
                     passwd=None, synchronous=True):
     """Try to figure out the replication topology and import it into the
     state store.
@@ -39,7 +39,7 @@ def import_topology(pattern_group_id, group_description, uri, user=None,
     :param description: Group's description where servers will be imported
                         into. If more than one group is created, they will
                         share the same description.
-    :param uri: Server's uri.
+    :param address: Server's address.
     :param user: Server's user.
     :param passwd: Server's passwd.
     :param synchronous: Whether one should wait until the execution finishes
@@ -68,7 +68,7 @@ def import_topology(pattern_group_id, group_description, uri, user=None,
       }
     """
     jobs = _events.trigger(DISCOVER_TOPOLOGY, pattern_group_id,
-                           group_description, uri, user, passwd)
+                           group_description, address, user, passwd)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
@@ -289,19 +289,19 @@ def check_group_availability(group_id, synchronous=True):
 def _discover_topology(job):
     """Discover topology and right after schedule a job to import it.
     """
-    pattern_group_id, group_description, uri, user, passwd = job.args
+    pattern_group_id, group_description, address, user, passwd = job.args
     user = user or "root"
     passwd = passwd or ""
-    topology = _do_discover_topology(uri, user, passwd)
+    topology = _do_discover_topology(address, user, passwd)
     jobs = _events.trigger(IMPORT_TOPOLOGY, pattern_group_id,
                            group_description, topology, user, passwd)
     job.jobs = jobs
     return topology
 
-def _do_discover_topology(uri, user, passwd, discovered_servers=None):
+def _do_discover_topology(address, user, passwd, discovered_servers=None):
     """Discover topology.
 
-    :param uri: Server's uri.
+    :param address: Server's address.
     :param user: Servers' user
     :param passwd: Servers' passwd.
     :param discovered_servers: List of servers already verified to avoid
@@ -312,44 +312,44 @@ def _do_discover_topology(uri, user, passwd, discovered_servers=None):
 
     # Check server's uuid. If the server is not found, an exception is
     # raised.
-    str_uuid = _server.MySQLServer.discover_uuid(uri=uri, user=user,
+    str_uuid = _server.MySQLServer.discover_uuid(address=address, user=user,
                                                  passwd=passwd)
     if str_uuid in discovered_servers:
         return discovered_mapping
 
     # Create a server object and connect to it.
     uuid = _uuid.UUID(str_uuid)
-    server = _server.MySQLServer(uuid, uri, user, passwd)
+    server = _server.MySQLServer(uuid, address, user, passwd)
     server.connect()
 
     # Store the server in the discovered set and create a map.
-    discovered_mapping[str_uuid] = {"uri" : uri, "slaves": []}
+    discovered_mapping[str_uuid] = {"address" : address, "slaves": []}
     discovered_servers.add(str_uuid)
-    _LOGGER.debug("Found server (%s, %s).", uri, str_uuid)
+    _LOGGER.debug("Found server (%s, %s).", address, str_uuid)
 
     # Check if the server has slaves and call _do_discover_topology
     # for each slave.
-    _LOGGER.debug("Checking slaves for server (%s, %s).", uri, str_uuid)
+    _LOGGER.debug("Checking slaves for server (%s, %s).", address, str_uuid)
     slaves = _replication.get_master_slaves(server)
     for slave in slaves:
         # If the slave does not report its host and port, the master
         # reports an empty value and zero, respectively. In these cases,
         # we skip the slave.
         if slave.Host and slave.Port:
-            slave_uri = _server_utils.combine_host_port(
+            slave_address = _server_utils.combine_host_port(
                 slave.Host, slave.Port, _server_utils.MYSQL_DEFAULT_PORT)
             # The master may sometimes report stale information. So we
             # check it before trying to use it. Note that if the server
             # does not exist, this will raise an exception and the discover
             # will abort without importing anything.
             slave_str_uuid = _server.MySQLServer.discover_uuid(
-                uri=slave_uri, user=user, passwd=passwd)
-            slave = _server.MySQLServer(_uuid.UUID(slave_str_uuid), slave_uri,
-                                        user, passwd)
+                address=slave_address, user=user, passwd=passwd)
+            slave = _server.MySQLServer(_uuid.UUID(slave_str_uuid),
+                                        slave_address, user, passwd)
             slave.connect()
             if str_uuid == _replication.slave_has_master(slave):
-                _LOGGER.debug("Found slave (%s).", slave_uri)
-                slave_discovery = _do_discover_topology(slave_uri,
+                _LOGGER.debug("Found slave (%s).", slave_address)
+                slave_discovery = _do_discover_topology(slave_address,
                     user, passwd, discovered_servers)
                 if slave_discovery:
                     discovered_mapping[str_uuid]["slaves"].\
@@ -390,9 +390,9 @@ def _do_import_topology(pattern_group_id, group_description,
     groups.add(group_id)
 
     # Create master of the group.
-    master_uri = topology[master_uuid]["uri"]
+    master_address = topology[master_uuid]["address"]
     server = _server.MySQLServer.add(_uuid.UUID(master_uuid),
-                                     master_uri, user, passwd)
+                                     master_address, user, passwd)
 
     # Added created master to the group.
     group.add_server(server)
@@ -405,9 +405,9 @@ def _do_import_topology(pattern_group_id, group_description,
         slave_uuid = slave.keys()[0]
         new_slaves = slave[slave_uuid]["slaves"]
         if not new_slaves:
-            slave_uri = slave[slave_uuid]["uri"]
+            slave_address = slave[slave_uuid]["address"]
             server = _server.MySQLServer.add(_uuid.UUID(slave_uuid),
-                                             slave_uri, user, passwd)
+                                             slave_address, user, passwd)
         else:
             groups.union(_do_import_topology(group_id, group_description,
                                              slave, user, passwd))
@@ -450,13 +450,9 @@ def _do_find_candidate(group_id):
 
     chosen_uuid = None
     chosen_gtid_status = None
-    for row in group.servers():
-        candidate_uuid = row[0]
-        if master_uuid != candidate_uuid:
+    for candidate in group.servers():
+        if master_uuid != str(candidate.uuid):
             try:
-                candidate = \
-                    _server.MySQLServer.fetch(_uuid.UUID(candidate_uuid))
-                candidate.connect()
                 gtid_status = candidate.get_gtid_status()
                 health = _replication.check_master_health(candidate)
                 has_valid_master = (master_uuid is None or \
@@ -467,16 +463,16 @@ def _do_find_candidate(group_id):
                         chosen_gtid_status)
                     if not n_trans and health[0][0] and has_valid_master:
                         chosen_gtid_status = gtid_status
-                        chosen_uuid = candidate_uuid
+                        chosen_uuid = str(candidate.uuid)
                         can_become_master = True
                 elif health[0][0] and has_valid_master:
                     chosen_gtid_status = gtid_status
-                    chosen_uuid = candidate_uuid
+                    chosen_uuid = str(candidate.uuid)
                     can_become_master = True
                 if not can_become_master:
                     _LOGGER.debug("Candidate (%s) cannot become a master due "
                         "to the following reasons: health (%s), valid master "
-                        "(%s).", candidate_uuid, health, has_valid_master)
+                        "(%s).", candidate.uuid, health, has_valid_master)
             except _errors.DatabaseError as error:
                 _LOGGER.exception(error)
 
@@ -580,12 +576,9 @@ def _do_wait_candidates_catch(group_id, master, skip_servers=None):
     skip_servers.append(str(master.uuid))
 
     group = _server.Group.fetch(group_id)
-    for row in group.servers():
-        server_uuid = row[0]
-        if server_uuid not in skip_servers:
+    for server in group.servers():
+        if str(server.uuid) not in skip_servers:
             try:
-                server = _server.MySQLServer.fetch(_uuid.UUID(server_uuid))
-                server.connect()
                 used_master_uuid = _replication.slave_has_master(server)
                 if  str(master.uuid) == used_master_uuid:
                     _synchronize(server, master)
@@ -613,12 +606,9 @@ def _change_to_candidate(job):
     group = _server.Group.fetch(group_id)
     group.master = master.uuid
 
-    for row in group.servers():
-        server_uuid = row[0]
-        if server_uuid != master_uuid:
+    for server in group.servers():
+        if str(server.uuid) != master_uuid:
             try:
-                server = _server.MySQLServer.fetch(_uuid.UUID(server_uuid))
-                server.connect()
                 _replication.stop_slave(server, wait=True)
                 _replication.switch_master(server, master, master.user,
                                            master.passwd)
@@ -728,17 +718,14 @@ def _check_group_availability(job):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
-    for row in group.servers():
-        candidate_uuid = _uuid.UUID(row[0])
+    for server in group.servers():
         alive = False
         try:
-            server = _server.MySQLServer.fetch(candidate_uuid)
-            server.connect()
             alive = server.is_alive()
         except _errors.DatabaseError as error:
             _LOGGER.exception(error)
-        availability[str(candidate_uuid)] = \
-            (alive, group.master == candidate_uuid)
+        availability[str(server.uuid)] = \
+            (alive, group.master == server.uuid)
     return availability
 
 def _synchronize(slave, master):

@@ -23,28 +23,28 @@ class MySQLInstances(_utils.Singleton):
         """Constructor for MySQLInstances.
        """
         super(MySQLInstances, self).__init__()
-        self.__uris = []
+        self.__addresses = []
         self.__instances = {}
 
-    def add_uri(self, uri):
+    def add_address(self, address):
         """Add the address of a MySQL Instance that can be used in the test
         cases.
 
-        :param uri: MySQL's address.
+        :param address: MySQL's address.
         """
-        assert(isinstance(uri, basestring))
-        self.__uris.append(uri)
+        assert(isinstance(address, basestring))
+        self.__addresses.append(address)
 
-    def get_number_uris(self):
+    def get_number_addresses(self):
         """Return the number of MySQL Instances' address registered.
         """
-        return len(self.__uris)
+        return len(self.__addresses)
 
-    def get_uri(self, number):
+    def get_address(self, number):
         """Return the n-th address registerd.
         """
-        assert(number < len(self.__uris))
-        return self.__uris[number]
+        assert(number < len(self.__addresses))
+        return self.__addresses[number]
 
     def get_instance(self, number):
         """Return the n-th instance created through the
@@ -52,7 +52,7 @@ class MySQLInstances(_utils.Singleton):
 
         :return: Return a MySQLServer object.
         """
-        assert(number < len(self.__uris))
+        assert(number < len(self.__addresses))
         return self.__instances[number]
 
     def destroy_instances(self):
@@ -82,20 +82,19 @@ class MySQLInstances(_utils.Singleton):
 
         Each instance in the topology is represented as a dictionary whose
         keys are references to addresses that will be retrieved through
-        the :meth:`get_uri` method and values are a list of slaves.
+        the :meth:`get_address` method and values are a list of slaves.
 
         So after calling :meth:`configure_instances` method, one can get a
         reference to an object, MySQLServer, through the :meth:`get_instance`
         method.
         """
         for number in topology.keys():
-            master_uri = self.get_uri(number)
+            master_address = self.get_address(number)
 
-            master_uuid = _server.MySQLServer.discover_uuid(uri=master_uri,
-                                                            user=user,
-                                                            passwd=passwd)
-            master = _server.MySQLServer(_uuid.UUID(master_uuid), master_uri,
-                                         user, passwd)
+            master_uuid = _server.MySQLServer.discover_uuid(
+                address=master_address, user=user, passwd=passwd)
+            master = _server.MySQLServer(
+                _uuid.UUID(master_uuid), master_address, user, passwd)
             master.connect()
             _replication.stop_slave(master, wait=True)
             _replication.reset_master(master)

@@ -12,15 +12,15 @@ _LOGGER = logging.getLogger(__name__)
 
 MYSQL_DEFAULT_PORT = 3306
 
-def split_host_port(uri, default_port):
+def split_host_port(address, default_port):
     """Return a tuple with host and port.
 
-    If a port is not found in the uri, the default port is returned.
+    If a port is not found in the address, the default port is returned.
     """
-    if uri.find(":") >= 0:
-        host, port = uri.split(":")
+    if address.find(":") >= 0:
+        host, port = address.split(":")
     else:
-        host, port = (uri, default_port)
+        host, port = (address, default_port)
     return host, port
 
 def combine_host_port(host, port, default_port):
@@ -138,17 +138,12 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     if fetch:
         results = None
         try:
-            results = cur.fetchall()
+            if cnx.unread_result:
+                results = cur.fetchall()
         except mysql.connector.errors.InterfaceError as error:
-            # TODO: This is a temporary solution. In the future, the
-            # python connector should provide a function to return
-            # cur._have_result.
-            if error.msg.lower() == "no result set to fetch from.":
-                pass # This error means there were no results.
-            else:    # otherwise, re-raise error
-                raise _errors.DatabaseError(
-                    "Error (%s) fetching data for statement: (%s)." % \
-                    (str(error), stmt_str))
+            raise _errors.DatabaseError(
+                "Error (%s) fetching data for statement: (%s)." % \
+                (str(error), stmt_str))
         finally:
             cur.close()
         return results

@@ -23,13 +23,13 @@ import tests.utils
 # TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),
-    "uri"  : tests.utils.MySQLInstances().get_uri(0),
+    "address"  : tests.utils.MySQLInstances().get_address(0),
     "user" : "root"
 }
 
 OPTIONS_SLAVE = {
     "uuid" :  _uuid.UUID("811f03ff-08ed-11e2-b7bd-f0def124dcc5"),
-    "uri"  : tests.utils.MySQLInstances().get_uri(1),
+    "address"  : tests.utils.MySQLInstances().get_address(1),
     "user" : "root"
 }
 

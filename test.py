@@ -82,8 +82,8 @@ def configure_servers(set_of_servers):
     servers = _test_utils.MySQLInstances()
     if set_of_servers:
         for server in set_of_servers.split():
-            servers.add_uri(server)
-    if servers.get_number_uris() < NUMBER_OF_SERVERS:
+            servers.add_address(server)
+    if servers.get_number_addresses() < NUMBER_OF_SERVERS:
         print "<<<<<<<<<< Some unit tests need %s MySQL Instances. " \
               ">>>>>>>>>> " % (NUMBER_OF_SERVERS, )
         return False

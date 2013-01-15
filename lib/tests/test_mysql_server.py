@@ -15,7 +15,7 @@ import tests.utils
 # TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS = {
     "uuid" : None,
-    "uri"  : tests.utils.MySQLInstances().get_uri(0),
+    "address"  : tests.utils.MySQLInstances().get_address(0),
     "user" : "root"
 }
 
@@ -194,23 +194,23 @@ class TestMySQLServer(unittest.TestCase):
     def test_utilities(self):
         # Test a function that gets host and port and returns
         # host:port
-        uri = _server_utils.combine_host_port(None, None, 3306)
-        self.assertEqual(uri, "unknown host:3306")
+        address = _server_utils.combine_host_port(None, None, 3306)
+        self.assertEqual(address, "unknown host:3306")
 
-        uri = _server_utils.combine_host_port("", None, 3306)
-        self.assertEqual(uri, "unknown host:3306")
+        address = _server_utils.combine_host_port("", None, 3306)
+        self.assertEqual(address, "unknown host:3306")
 
-        uri = _server_utils.combine_host_port(None, "", 3306)
-        self.assertEqual(uri, "unknown host:3306")
+        address = _server_utils.combine_host_port(None, "", 3306)
+        self.assertEqual(address, "unknown host:3306")
 
-        uri = _server_utils.combine_host_port("host", "port", 3306)
-        self.assertEqual(uri, "host:port")
+        address = _server_utils.combine_host_port("host", "port", 3306)
+        self.assertEqual(address, "host:port")
 
-        uri = _server_utils.combine_host_port("host", 1500, 3306)
-        self.assertEqual(uri, "host:1500")
+        address = _server_utils.combine_host_port("host", 1500, 3306)
+        self.assertEqual(address, "host:1500")
 
-        uri = _server_utils.combine_host_port("127.0.0.1", 1500, 3306)
-        self.assertEqual(uri, "localhost:1500")
+        address = _server_utils.combine_host_port("127.0.0.1", 1500, 3306)
+        self.assertEqual(address, "localhost:1500")
 
         # Test a function that gets host:port and returns (host, port)
         host_port = _server_utils.split_host_port("", 3306)
@@ -325,16 +325,16 @@ class TestGroup(unittest.TestCase):
     def test_managment(self):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
         }
         server_1 = MySQLServer(**options_1)
-        MySQLServer.add(options_1["uuid"], options_1["uri"], None, None)
+        MySQLServer.add(options_1["uuid"], options_1["address"], None, None)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
         }
         server_2 = MySQLServer(**options_2)
-        MySQLServer.add(options_2["uuid"], options_2["uri"], None, None)
+        MySQLServer.add(options_2["uuid"], options_2["address"], None, None)
         group_1 = Group.add("oracle.com", "First description.")
 
         # Add servers to a group

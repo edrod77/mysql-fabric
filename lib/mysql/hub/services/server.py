@@ -6,8 +6,8 @@ remove a group if there are associated servers. It should also be possible to
 add a server to a group and remove a server from a group.
 
 Search functions are also provided so that one may look up groups and servers.
-Given a server's uri, one may also find out the server's uuid if the server is
-alive and kicking.
+Given a server's address, one may also find out the server's uuid if the server
+is alive and kicking.
 
 Functions are scheduled to be asynchronously executed and return a schedule's
 description, i.e. a job's description. If users are not interestered in the
@@ -148,17 +148,17 @@ def lookup_servers(group_id, synchronous=True):
     return _executor.process_jobs(jobs, synchronous)
 
 LOOKUP_UUID = _events.Event()
-def lookup_uuid(uri, user, passwd, synchronous=True):
+def lookup_uuid(address, user, passwd, synchronous=True):
     """Retrieve server's uuid.
 
-    :param uri: Server's uri.
+    :param address: Server's address.
     :param user: Server's user.
     :param passwd: Server's passwd.
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: uuid.
     """
-    jobs = _events.trigger(LOOKUP_UUID, uri, user, passwd)
+    jobs = _events.trigger(LOOKUP_UUID, address, user, passwd)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
@@ -171,25 +171,25 @@ def lookup_server(group_id, uuid, synchronous=True):
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: List of existing servers.
-    :rtype: {"uuid" : uuid, "uri": uri, "user": user, "passwd": passwd}.
+    :rtype: {"uuid" : uuid, "address": address, "user": user, "passwd": passwd}.
     """
     jobs = _events.trigger(LOOKUP_SERVER, group_id, uuid)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
 CREATE_SERVER = _events.Event()
-def create_server(group_id, uri, user, passwd, synchronous=True):
+def create_server(group_id, address, user, passwd, synchronous=True):
     """Create a server and add it into a group.
 
     :param group_id: Group's id.
-    :param uri: Server's uri.
+    :param address: Server's address.
     :param user: Server's user.
     :param passwd: Server's passwd.
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
     :return: Tuple with job's uuid and status.
     """
-    jobs = _events.trigger(CREATE_SERVER, group_id, uri, user, passwd)
+    jobs = _events.trigger(CREATE_SERVER, group_id, address, user, passwd)
     assert(len(jobs) == 1)
     return _executor.process_jobs(jobs, synchronous)
 
@@ -255,10 +255,9 @@ def _remove_group(job):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     servers = group.servers()
     if servers and force:
-        for row in servers:
-            uuid = _uuid.UUID(row[0])
-            servers_uuid.append(uuid)
-            _do_remove_server(group, uuid)
+        for server in servers:
+            servers_uuid.append(server.uuid)
+            _do_remove_server(group, server)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
     group.remove()
@@ -277,9 +276,8 @@ def _lookup_servers(job):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     ret = []
-    for row in group.servers():
-        server = _server.MySQLServer.fetch(_uuid.UUID(row[0]))
-        ret.append([str(server.uuid), server.uri,
+    for server in group.servers():
+        ret.append([str(server.uuid), server.address,
                    group.master == server.uuid])
     return ret
 
@@ -287,8 +285,8 @@ def _lookup_servers(job):
 def _lookup_uuid(job):
     """Retrieve server's uuid.
     """
-    uri, user, passwd = job.args
-    return _server.MySQLServer.discover_uuid(uri=uri, user=user,
+    address, user, passwd = job.args
+    return _server.MySQLServer.discover_uuid(address=address, user=user,
                                              passwd=passwd)
 @_events.on_event(LOOKUP_SERVER)
 def _lookup_server(job):
@@ -302,15 +300,15 @@ def _lookup_server(job):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, uuid))
     server = _server.MySQLServer.fetch(uuid)
-    return {"uuid": str(server.uuid), "uri": server.uri,
+    return {"uuid": str(server.uuid), "address": server.address,
            "user": server.user, "passwd": server.passwd}
 
 @_events.on_event(CREATE_SERVER)
 def _create_server(job):
     """Create a server and add it to a group.
     """
-    group_id, uri, user, passwd = job.args
-    uuid = _server.MySQLServer.discover_uuid(uri=uri, user=user,
+    group_id, address, user, passwd = job.args
+    uuid = _server.MySQLServer.discover_uuid(address=address, user=user,
                                              passwd=passwd)
     uuid = _uuid.UUID(uuid)
     group = _server.Group.fetch(group_id)
@@ -319,7 +317,7 @@ def _create_server(job):
     if group.contains_server(uuid):
         raise _errors.ServerError("Server (%s) already exists in group (%s)." \
                                   % (str(uuid), group_id))
-    server = _server.MySQLServer.add(uuid, uri, user, passwd)
+    server = _server.MySQLServer.add(uuid, address, user, passwd)
     group.add_server(server)
     _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
 
@@ -338,12 +336,12 @@ def _remove_server(job):
         raise _errors.ServerError("Cannot remove server (%s), which is master "
                                   "in group (%s). Please, demote it first."
                                   % (uuid, group_id))
-    _do_remove_server(group, uuid)
+    server = _server.MySQLServer.fetch(uuid)
+    _do_remove_server(group, server)
     _server.ConnectionPool().purge_connections(uuid)
 
-def _do_remove_server(group, uuid):
+def _do_remove_server(group, server):
     """Remove a server from a group."""
-    server = _server.MySQLServer.fetch(uuid)
     group.remove_server(server)
     server.remove()
     _LOGGER.debug("Removed server (%s) from group (%s).", str(server),

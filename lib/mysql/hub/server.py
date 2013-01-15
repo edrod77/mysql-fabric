@@ -1,12 +1,11 @@
 """Define interfaces to manage servers, specifically MySQL Servers.
 
 A server is uniquely identified through a *UUID* (Universally Unique
-Identifier) and has a *URI* (Uniform Resource Identifier) which is
+Identifier) and has an *Address* (i.e., Hostname:Port) which is
 used to connect to it through the Python Database API. If a server
 process such as MySQL already provides a uuid, the server's class
 used to create a MySQL object must ensure that they match otherwise
-the different uuids may cause problems in other modules. A *URI* has
-the following format: *host:port*.
+the different uuids may cause problems in other modules.
 
 Any sort of provisioning must not be performed when the server object
 is instantiated. The provisioning steps must be done in other modules.
@@ -267,14 +266,22 @@ class Group(_persistence.Persistable):
         self.__description = description
 
     def servers(self, persister=None):
-        """Return the uuids for the set of servers in this group.
+        """Return a set with the servers in this group.
 
         :param persister: The DB server that can be used to access the
                           state store.
         """
-        # TODO: This should return MySQLServer objects not rows.
-        return persister.exec_stmt(Group.QUERY_GROUP_SERVERS,
+        ret = set()
+        rows = persister.exec_stmt(Group.QUERY_GROUP_SERVERS,
                                    {"params" : (self.__group_id,)})
+        for row in rows:
+            server = MySQLServer.fetch(_uuid.UUID(row[0]))
+            try:
+                server.connect()
+            except _errors.DatabaseError:
+                pass
+            ret.add(server)
+        return ret
 
     @property
     def master(self):
@@ -412,7 +419,6 @@ class ConnectionPool(_utils.Singleton):
     """
     def __init__(self):
         """Creates a ConnectionPool object.
-
         """
         super(ConnectionPool, self).__init__()
         self.__pool = {}
@@ -478,7 +484,7 @@ class MySQLServer(_persistence.Persistable):
     Instance.
 
     To create a MySQLServer object, one needs to provide at least three
-    parameters: uuid, uri (i.e., host:port) and user's name. Most likely,
+    parameters: uuid, address (i.e., host:port) and user's name. Most likely,
     a password is also necessary. If the uuid is not known beforehand,
     one can find this out as follows::
 
@@ -486,7 +492,7 @@ class MySQLServer(_persistence.Persistable):
 
       OPTIONS = {
         "uuid" : _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-        "uri"  : "localhost:13000",
+        "address"  : "localhost:13000",
         "user" : "root",
         "passwd" : ""
       }
@@ -516,7 +522,7 @@ class MySQLServer(_persistence.Persistable):
     CREATE_SERVER = ("CREATE TABLE "
                      "servers "
                      "(server_uuid VARCHAR(40) NOT NULL, "
-                     "server_uri VARCHAR(128), "
+                     "server_address VARCHAR(128), "
                      "user CHAR(16), "
                      "passwd TEXT, "
                      "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
@@ -526,7 +532,7 @@ class MySQLServer(_persistence.Persistable):
     DROP_SERVER = ("DROP TABLE servers")
 
     #SQL statement for inserting a new server into the table
-    INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_uri, user, "
+    INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_address, user, "
                      "passwd) values(%s, %s, %s, %s)")
 
     #SQL statement for updating the server table identified by the server id.
@@ -538,28 +544,27 @@ class MySQLServer(_persistence.Persistable):
     REMOVE_SERVER = ("DELETE FROM servers WHERE server_uuid = %s")
 
     #SQL Statement to retrieve the server from the state_store.
-    QUERY_SERVER = ("SELECT server_uuid, server_uri, user, passwd FROM "
+    QUERY_SERVER = ("SELECT server_uuid, server_address, user, passwd FROM "
                     "servers where server_uuid = %s")
 
     SESSION_CONTEXT, GLOBAL_CONTEXT = range(0, 2)
     CONTEXT_STR = ["SESSION", "GLOBAL"]
 
-    #TODO: Check if uri is the correct term.
-    def __init__(self, uuid, uri=None, user=None, passwd=None,
+    def __init__(self, uuid, address=None, user=None, passwd=None,
                  default_charset="latin1"):
         """Constructor for MySQLServer. The constructor searches for the uuid
         in the state store and if the uuid is present it loads the server from
         the state store. otherwise it creates and persists a new Server object.
 
         :param uuid: The uuid of the server.
-        :param uri:  The uri of the server.
+        :param address:  The address of the server.
         :param user: The username used to access the server.
         :param passwd: The password used to access the server.
         :param default_charset: The default charset that will be used.
         """
         assert(isinstance(uuid, _uuid.UUID))
         self.__uuid = uuid
-        self.__uri = uri
+        self.__address = address 
         self.__pool = ConnectionPool()
         self.__user = user
         self.__passwd = passwd
@@ -585,12 +590,12 @@ class MySQLServer(_persistence.Persistable):
         params.setdefault("autocommit", True)
         params.setdefault("use_unicode", False)
 
-        if "uri" in keys:
-            host, port = _server_utils.split_host_port(params["uri"],
+        if "address" in keys:
+            host, port = _server_utils.split_host_port(params["address"],
                 _server_utils.MYSQL_DEFAULT_PORT)
             params.setdefault("host", host)
             params.setdefault("port", int(port))
-            del params["uri"]
+            del params["address"]
 
         if "uuid" in keys:
             del params["uuid"]
@@ -612,7 +617,7 @@ class MySQLServer(_persistence.Persistable):
         if cnx:
             return cnx
 
-        host, port = _server_utils.split_host_port(self.uri,
+        host, port = _server_utils.split_host_port(self.address,
             _server_utils.MYSQL_DEFAULT_PORT)
         user = self.__user or None
         passwd = self.__passwd or None
@@ -712,10 +717,11 @@ class MySQLServer(_persistence.Persistable):
         return self.__uuid
 
     @property
-    def uri(self):
-        """Return the server's uri.
+    def address(self):
+        """Return the server's address.
         """
-        return self.__uri
+        return self.__address
+
     @property
     def read_only(self):
         """Check read only mode on/off.
@@ -847,7 +853,7 @@ class MySQLServer(_persistence.Persistable):
             print "GTID_OWNED", record_GTID_OWNED, record[2]
         """
         # Check servers for GTID support
-        if not self.__gtid_enabled:
+        if self.__cnx and not self.__gtid_enabled:
             raise _errors.ProgrammingError("Global Transaction IDs are not "\
                                            "supported.")
 
@@ -996,21 +1002,21 @@ class MySQLServer(_persistence.Persistable):
         persister.exec_stmt(MySQLServer.DROP_SERVER)
 
     @staticmethod
-    def add(uuid, uri=None, user=None, passwd=None,
+    def add(uuid, address=None, user=None, passwd=None,
             default_charset="latin1", persister=None):
         """Persist the Server information and return the Server object.
 
-        :param uuid The uuid of the server being created
-        :param uri  The uri  of the server being created
-        :param user The user name to be used for logging into the server
-        :param passwd The password to be used for logging into the server
+        :param uuid: The uuid of the server being created
+        :param address: The address of the server being created
+        :param user: The user name to be used for logging into the server
+        :param passwd: The password to be used for logging into the server
         :param persister: Persister to persist the object to.
         :return a Server object
         """
         assert(isinstance(uuid, _uuid.UUID))
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
-                            {"params":(str(uuid), uri, user, passwd)})
-        return MySQLServer(uuid, uri, user, passwd, default_charset)
+                            {"params":(str(uuid), address, user, passwd)})
+        return MySQLServer(uuid, address, user, passwd, default_charset)
 
     def __eq__(self,  other):
         """Two servers are equal if they are both subclasses of MySQLServer

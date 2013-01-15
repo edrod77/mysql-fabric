@@ -15,9 +15,9 @@ _RPL_USER_QUERY = (
     "WHERE repl_slave_priv = 'Y'"
 )
 
-_MASTER_POS_WAIT = "SELECT MASTER_POS_WAIT('%s', %s, %s)"
+_MASTER_POS_WAIT = "SELECT MASTER_POS_WAIT(%s, %s, %s)"
 
-_GTID_WAIT = "SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS('%s', %s)"
+_GTID_WAIT = "SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS(%s, %s)"
 
 IO_THREAD = "IO_THREAD"
 
@@ -237,8 +237,8 @@ def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
         gtids = master_gtids
     else:
         assert (not master_gtids == "" and slave_gtids != "")
-        gtids = server.exec_stmt("SELECT GTID_SUBTRACT('%s','%s')" %
-                                 (master_gtids, slave_gtids))[0][0]
+        gtids = server.exec_stmt("SELECT GTID_SUBTRACT(%s,%s)",
+                                 {"params": (master_gtids, slave_gtids)})[0][0]
         if gtids == "":
             return 0
     return get_num_gtid(gtids, master_uuid)
@@ -345,9 +345,9 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=3):
              False if slave is behind.
     """
     # Wait for slave to read the master log file
-    res = server.exec_stmt(_MASTER_POS_WAIT %
-                           (binlog_file, binlog_pos, timeout),
-                           {"raw" : False })
+    res = server.exec_stmt(_MASTER_POS_WAIT,
+        {"params": (binlog_file, binlog_pos, timeout), "raw" : False })
+    
     if res is None or res[0] is None or res[0][0] is None:
         return False
     elif res[0][0] > -1:
@@ -382,11 +382,11 @@ def wait_for_slave_gtid(server, master_gtids, timeout=3):
                                        "supported.")
     gtid = master_gtids[0].GTID_EXECUTED
     _LOGGER.debug("Slave (%s).",
-        _server_utils.split_host_port(server.uri,
+        _server_utils.split_host_port(server.address,
                                       _server_utils.MYSQL_DEFAULT_PORT))
     _LOGGER.debug("Query (%s).", _GTID_WAIT % (gtid.strip(','), timeout))
-    res = server.exec_stmt(_GTID_WAIT % (gtid.strip(','), timeout),
-                           {"raw" : False })
+    res = server.exec_stmt(_GTID_WAIT,
+        {"params": (gtid.strip(','), timeout), "raw" : False })
     _LOGGER.debug("Return code (%s).", res)
     if res is None or res[0] is None or res[0][0] is None:
         return False
@@ -420,23 +420,32 @@ def switch_master(slave, master, master_user, master_passwd=None,
     :param master_log_file: Master's log file (not needed for GTID).
     :param master_log_pos: master's log file position (not needed for GTID).
     """
-    master_host, master_port = _server_utils.split_host_port(master.uri,
-        _server_utils.MYSQL_DEFAULT_PORT)
+    commands = []
     params = []
-    params.append("MASTER_HOST = '%s'" % master_host)
-    params.append("MASTER_PORT = %s" % master_port)
-    if master_user:
-        params.append("MASTER_USER = '%s'" % master_user)
-    if master_passwd:
-        params.append("MASTER_PASSWORD = '%s'" % master_passwd)
-    if slave.gtid_enabled:
-        params.append("MASTER_AUTO_POSITION = 1")
-    elif not from_beginning:
-        params.append("READ_MASTER_LOG_FILE = '%s'" % master_log_file)
-        if master_log_pos >= 0:
-            params.append("MASTER_LOG_POS = %s" % master_log_pos)
+    master_host, master_port = _server_utils.split_host_port(master.address,
+        _server_utils.MYSQL_DEFAULT_PORT)
 
-    slave.exec_stmt("CHANGE MASTER TO " + ", ".join(params))
+    commands.append("MASTER_HOST = %s")
+    params.append(master_host)
+    commands.append("MASTER_PORT = %s")
+    params.append(int(master_port))
+    if master_user:
+        commands.append("MASTER_USER = %s")
+        params.append(master_user)
+    if master_passwd:
+        commands.append("MASTER_PASSWORD = %s")
+        params.append(master_passwd)
+    if slave.gtid_enabled:
+        commands.append("MASTER_AUTO_POSITION = 1")
+    elif not from_beginning:
+        commands.append("READ_MASTER_LOG_FILE = %s")
+        params.append(master_log_file)
+        if master_log_pos >= 0:
+            commands.append("MASTER_LOG_POS = %s" % master_log_pos)
+            params.append(master_log_pos)
+
+    slave.exec_stmt("CHANGE MASTER TO " + ", ".join(commands),
+                    {"params": tuple(params)})
 
 @_server.server_logging
 def check_slave_running_health(server):

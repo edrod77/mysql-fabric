@@ -575,9 +575,8 @@ def lookup(table_name, key):
                                      shard_mapping.sharding_specification)
         group = Group.fetch(str(range_sharding_specification.group_id))
     ret = []
-    for row in group.servers():
-        server = MySQLServer.fetch(_uuid.UUID(row[0]))
-        ret.append([str(server.uuid), server.uri,
+    for server in group.servers():
+        ret.append([str(server.uuid), server.address,
                    group.master == server.uuid])
     return ret
 
@@ -600,9 +599,8 @@ def go_fish_lookup(table_name):
         group = Group.fetch(str(range_sharding_specification.group_id))
         if group is not None:
             ret = []
-            for row in group.servers():
-                server = MySQLServer.fetch(_uuid.UUID(row[0]))
-                ret.append([str(server.uuid), server.uri,
+            for server in group.servers():
+                ret.append([str(server.uuid), server.address,
                            group.master == server.uuid])
             server_list[str(group.group_id)] = ret
     return server_list

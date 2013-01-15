@@ -40,15 +40,15 @@ class TestReplicationServices(unittest.TestCase):
 
         # Import topology.
         topology = self.proxy.replication.import_topology(
-            "group_id-0", "description...", master.uri, user, passwd)
+            "group_id-0", "description...", master.address, user, passwd)
 
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
                          "Executed action (_import_topology).")
-        expected_topology = {str(master.uuid): {"uri": master.uri,
-                             "slaves": [{str(slave.uuid): {"uri": slave.uri,
-                             "slaves": []}}]}}
+        expected_topology = {str(master.uuid): {"address": master.address,
+                             "slaves": [{str(slave.uuid): 
+                             {"address": slave.address, "slaves": []}}]}}
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
@@ -67,8 +67,8 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-            [str(slave.uuid), slave.uri, False]]
+        expected = [[str(master.uuid), master.address, True],
+            [str(slave.uuid), slave.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -91,15 +91,15 @@ class TestReplicationServices(unittest.TestCase):
 
         # Import topology.
         topology = self.proxy.replication.import_topology(
-            "group_id-1", "description...", master.uri, user, passwd)
+            "group_id-1", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
                          "Executed action (_import_topology).")
         expected_topology = {
-            str(master.uuid): {"uri": master.uri, "slaves": [
-            {str(slave_1.uuid): {"uri": slave_1.uri, "slaves": []}},
-            {str(slave_2.uuid): {"uri": slave_2.uri, "slaves": []}}]}}
+            str(master.uuid): {"address": master.address, "slaves": [
+            {str(slave_1.uuid): {"address": slave_1.address, "slaves": []}},
+            {str(slave_2.uuid): {"address": slave_2.address, "slaves": []}}]}}
         topology[2][str(master.uuid)]["slaves"].sort()
         expected_topology[str(master.uuid)]["slaves"].sort()
         self.assertEqual(topology[2], expected_topology)
@@ -120,9 +120,9 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-            [str(slave_1.uuid), slave_1.uri, False],
-            [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(master.uuid), master.address, True],
+            [str(slave_1.uuid), slave_1.address, False],
+            [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -148,7 +148,7 @@ class TestReplicationServices(unittest.TestCase):
 
         # Trying to import topology given a wrong group's id pattern.
         topology = self.proxy.replication.import_topology(
-            "group_id", "description...", master.uri, user, passwd)
+            "group_id", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.ERROR)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
@@ -156,15 +156,16 @@ class TestReplicationServices(unittest.TestCase):
 
         # Import topology.
         topology = self.proxy.replication.import_topology(
-            "group_id-2", "description...", master.uri, user, passwd)
+            "group_id-2", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
                          "Executed action (_import_topology).")
         expected_topology = {
-            str(master.uuid): {"uri": master.uri, "slaves": [
-            {str(slave_1.uuid): {"uri": slave_1.uri, "slaves": [
-            {str(slave_2.uuid): {"uri": slave_2.uri, "slaves": []}}]}}]}}
+            str(master.uuid): {"address": master.address, "slaves": [
+            {str(slave_1.uuid): {"address": slave_1.address, "slaves": [
+            {str(slave_2.uuid): {"address": slave_2.address,
+            "slaves": []}}]}}]}}
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
@@ -183,8 +184,8 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected =  [[str(master.uuid), master.uri, True],
-            [str(slave_1.uuid), slave_1.uri, False]]
+        expected =  [[str(master.uuid), master.address, True],
+            [str(slave_1.uuid), slave_1.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -205,8 +206,8 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(slave_1.uuid), slave_1.uri, True],
-            [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(slave_1.uuid), slave_1.address, True],
+            [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -240,8 +241,10 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_check_candidate_switch).")
 
         # Try to use a slave without any master.
-        self.proxy.server.create_server("group_id", slave_1.uri, user, passwd)
-        self.proxy.server.create_server("group_id", slave_2.uri, user, passwd)
+        self.proxy.server.create_server("group_id", slave_1.address, user,
+                                        passwd)
+        self.proxy.server.create_server("group_id", slave_2.address, user,
+                                        passwd)
         status = self.proxy.replication.switch_over("group_id",
                                                     str(slave_1.uuid))
         self.assertStatus(status, _executor.Job.ERROR)
@@ -251,7 +254,8 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to use a slave with an invalid master.
         # The slave is not running and connected to the master.
-        self.proxy.server.create_server("group_id", master.uri, user, passwd)
+        self.proxy.server.create_server("group_id", master.address, user,
+                                        passwd)
         group = _server.Group.fetch("group_id")
         group.master = slave_1.uuid
         status = self.proxy.replication.switch_over("group_id",
@@ -292,9 +296,9 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-            [str(slave_1.uuid), slave_1.uri, False],
-            [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(master.uuid), master.address, True],
+            [str(slave_1.uuid), slave_1.address, False],
+            [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -314,9 +318,9 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, False],
-            [str(slave_1.uuid), slave_1.uri, True],
-            [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(master.uuid), master.address, False],
+            [str(slave_1.uuid), slave_1.address, True],
+            [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -364,9 +368,12 @@ class TestReplicationServices(unittest.TestCase):
         invalid_server.remove()
 
         # Try to use a slave with an invalid master.
-        self.proxy.server.create_server("group_id", slave_1.uri, user, passwd)
-        self.proxy.server.create_server("group_id", slave_2.uri, user, passwd)
-        self.proxy.server.create_server("group_id", slave_3.uri, user, passwd)
+        self.proxy.server.create_server("group_id", slave_1.address, user,
+                                        passwd)
+        self.proxy.server.create_server("group_id", slave_2.address, user,
+                                        passwd)
+        self.proxy.server.create_server("group_id", slave_3.address, user,
+                                        passwd)
         group = _server.Group.fetch("group_id")
         group.master = slave_1.uuid
         status = self.proxy.replication.switch_over("group_id")
@@ -377,7 +384,8 @@ class TestReplicationServices(unittest.TestCase):
 
         # Configure master, an invalid candidate and make a slave point to
         # a different master.
-        self.proxy.server.create_server("group_id", master.uri, user, passwd)
+        self.proxy.server.create_server("group_id", master.address, user,
+                                        passwd)
         group.master = master.uuid
         invalid_server = _server.MySQLServer.add(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
@@ -394,11 +402,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-            [str(slave_1.uuid), slave_1.uri, False],
-            [str(slave_2.uuid), slave_2.uri, False],
-            [str(slave_3.uuid), slave_3.uri, False],
-            [str(invalid_server.uuid), invalid_server.uri,
+        expected = [[str(master.uuid), master.address, True],
+            [str(slave_1.uuid), slave_1.address, False],
+            [str(slave_2.uuid), slave_2.address, False],
+            [str(slave_3.uuid), slave_3.address, False],
+            [str(invalid_server.uuid), invalid_server.address,
             False]]
         retrieved.sort()
         expected.sort()
@@ -450,8 +458,10 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_check_candidate_fail).")
 
         # Try to use a slave without any master.
-        self.proxy.server.create_server("group_id", slave_1.uri, user, passwd)
-        self.proxy.server.create_server("group_id", slave_2.uri, user, passwd)
+        self.proxy.server.create_server("group_id", slave_1.address, user,
+                                        passwd)
+        self.proxy.server.create_server("group_id", slave_2.address, user,
+                                        passwd)
         status = self.proxy.replication.fail_over("group_id",
                                                   str(slave_1.uuid))
         self.assertStatus(status, _executor.Job.ERROR)
@@ -461,7 +471,8 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to use a slave with an invalid master.
         # The slave is not running and connected to the master.
-        self.proxy.server.create_server("group_id", master.uri, user, passwd)
+        self.proxy.server.create_server("group_id", master.address, user,
+                                        passwd)
         group = _server.Group.fetch("group_id")
         group.master = slave_1.uuid
         status = self.proxy.replication.fail_over("group_id",
@@ -496,10 +507,10 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-            [str(slave_1.uuid), slave_1.uri, False],
-            [str(slave_2.uuid), slave_2.uri, False],
-            [str(invalid_server.uuid), invalid_server.uri,
+        expected = [[str(master.uuid), master.address, True],
+            [str(slave_1.uuid), slave_1.address, False],
+            [str(slave_2.uuid), slave_2.address, False],
+            [str(invalid_server.uuid), invalid_server.address,
             False]]
         retrieved.sort()
         expected.sort()
@@ -520,10 +531,10 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, False],
-            [str(slave_1.uuid), slave_1.uri, True],
-            [str(slave_2.uuid), slave_2.uri, False],
-            [str(invalid_server.uuid), invalid_server.uri,
+        expected = [[str(master.uuid), master.address, False],
+            [str(slave_1.uuid), slave_1.address, True],
+            [str(slave_2.uuid), slave_2.address, False],
+            [str(invalid_server.uuid), invalid_server.address,
             False]]
         retrieved.sort()
         expected.sort()
@@ -546,15 +557,15 @@ class TestReplicationServices(unittest.TestCase):
 
         # Import topology.
         topology = self.proxy.replication.import_topology(
-            "group_id-0", "description...", master.uri, user, passwd)
+            "group_id-0", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
                          "Executed action (_import_topology).")
         expected_topology = {
-            str(master.uuid): {"uri": master.uri, "slaves": [
-            {str(slave_1.uuid): {"uri": slave_1.uri, "slaves": []}},
-            {str(slave_2.uuid): {"uri": slave_2.uri, "slaves": []}}]}}
+            str(master.uuid): {"address": master.address, "slaves": [
+            {str(slave_1.uuid): {"address": slave_1.address, "slaves": []}},
+            {str(slave_2.uuid): {"address": slave_2.address, "slaves": []}}]}}
         topology[2][str(master.uuid)]["slaves"].sort()
         expected_topology[str(master.uuid)]["slaves"].sort()
         self.assertEqual(topology[2], expected_topology)
@@ -566,9 +577,9 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-         [str(slave_1.uuid), slave_1.uri, False],
-         [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(master.uuid), master.address, True],
+         [str(slave_1.uuid), slave_1.address, False],
+         [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(expected, retrieved)
@@ -617,9 +628,12 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_block_write_demote).")
 
         # Configure masters and slaves.
-        self.proxy.server.create_server("group_id", slave_1.uri, user, passwd)
-        self.proxy.server.create_server("group_id", slave_2.uri, user, passwd)
-        self.proxy.server.create_server("group_id", master.uri, user, passwd)
+        self.proxy.server.create_server("group_id", slave_1.address, user,
+                                        passwd)
+        self.proxy.server.create_server("group_id", slave_2.address, user,
+                                        passwd)
+        self.proxy.server.create_server("group_id", master.address, user,
+                                        passwd)
         group = _server.Group.fetch("group_id")
         group.master = master.uuid
 
@@ -630,9 +644,9 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, True],
-            [str(slave_1.uuid), slave_1.uri, False],
-            [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(master.uuid), master.address, True],
+            [str(slave_1.uuid), slave_1.address, False],
+            [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -653,9 +667,9 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.uri, False],
-            [str(slave_1.uuid), slave_1.uri, False],
-            [str(slave_2.uuid), slave_2.uri, False]]
+        expected = [[str(master.uuid), master.address, False],
+            [str(slave_1.uuid), slave_1.address, False],
+            [str(slave_2.uuid), slave_2.address, False]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)

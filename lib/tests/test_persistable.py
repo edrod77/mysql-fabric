@@ -32,14 +32,14 @@ class TestGroup(unittest.TestCase):
         group_1 = Group.add("mysql.com", "First description.")
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
         server_1 = MySQLServer.add(**options_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -54,14 +54,14 @@ class TestGroup(unittest.TestCase):
         group_1 = Group.add("mysql.com", "First description.")
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
         server_1 = MySQLServer.add(**options_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -91,7 +91,7 @@ class TestGroup(unittest.TestCase):
     def test_MySQLServer_create(self):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -99,7 +99,7 @@ class TestGroup(unittest.TestCase):
 
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -114,7 +114,7 @@ class TestGroup(unittest.TestCase):
     def test_MySQLServer_User(self):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -122,7 +122,7 @@ class TestGroup(unittest.TestCase):
 
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -144,14 +144,14 @@ class TestGroup(unittest.TestCase):
     def test_MySQLServer_Password(self):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
         server_1 = MySQLServer.add(**options_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
@@ -172,14 +172,14 @@ class TestGroup(unittest.TestCase):
     def test_MySQLServer_Remove(self):
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_1.mysql.com:3060",
+            "address"  : "server_1.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
         server_1 = MySQLServer.add(**options_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
-            "uri"  : "server_2.mysql.com:3060",
+            "address"  : "server_2.mysql.com:3060",
             "user" : "user",
             "passwd" : "passwd"
         }
