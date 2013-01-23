@@ -523,7 +523,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         shard_mapping = ShardMapping.fetch(table_name)
 
         #Get the sharding specification from the shard mapping information
-        ssharding_specification = shard_mapping.sharding_specification
+        sharding_specification = shard_mapping.sharding_specification
 
         #Query the range sharding specifications defined for the given sharding
         #scheme name

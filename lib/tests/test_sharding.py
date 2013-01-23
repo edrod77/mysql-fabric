@@ -8,7 +8,7 @@ from mysql.hub.sharding import RangeShardingSpecification
 from mysql.hub.server import Group, MySQLServer
 from mysql.hub import persistence
 
-from tests.utils import ShardingUtils
+from tests.utils import ShardingUtils, MySQLInstances
 
 class TestSharding(unittest.TestCase):
 
@@ -38,30 +38,58 @@ class TestSharding(unittest.TestCase):
 
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "address"  : "server_3.mysql.com:3060",
+            "address"  : MySQLInstances().get_address(0),
+            "user" : "root"
         }
         self.__server_3 = MySQLServer(**self.__options_3)
+        uuid_server3 = MySQLServer.discover_uuid(**self.__options_3)
+        self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
+        self.__server_3 = MySQLServer(**self.__options_3)
+
         MySQLServer.add(self.__options_3["uuid"], self.__options_3["address"],
-                        None, None)
+                        self.__options_3["user"], None)
+        self.__server_3.connect()
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
+        self.__server_3.exec_stmt("CREATE DATABASE prune_db")
+        self.__server_3.exec_stmt("CREATE TABLE prune_db.prune_table"
+                                  "(userID INT, name VARCHAR(30))")
+        self.__server_3.exec_stmt("INSERT INTO prune_db.prune_table "
+                                  "VALUES(101, 'TEST 1')")
+        self.__server_3.exec_stmt("INSERT INTO prune_db.prune_table "
+                                  "VALUES(202, 'TEST 2')")
+
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_4.mysql.com:3060",
         }
         self.__server_4 = MySQLServer(**self.__options_4)
-        self.__group_2 = Group.add("GROUPID2", "Second description.")
         MySQLServer.add(self.__options_4["uuid"], self.__options_4["address"],
                         None, None)
+        self.__group_2 = Group.add("GROUPID2", "Second description.")
         self.__group_2.add_server(self.__server_3)
         self.__group_2.add_server(self.__server_4)
         self.__group_2.master = self.__options_3["uuid"]
 
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "address"  : "server_5.mysql.com:3060",
+            "address"  : MySQLInstances().get_address(2),
+            "user" : "root"
         }
+        uuid_server5 = MySQLServer.discover_uuid(**self.__options_5)
+        self.__options_5["uuid"] = _uuid.UUID(uuid_server5)
         self.__server_5 = MySQLServer(**self.__options_5)
         MySQLServer.add(self.__options_5["uuid"], self.__options_5["address"],
-                        None, None)
+                        self.__options_5["user"], None)
+        self.__server_5.connect()
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
+        self.__server_5.exec_stmt("CREATE DATABASE prune_db")
+        self.__server_5.exec_stmt("CREATE TABLE prune_db.prune_table"
+                                  "(userID INT, name VARCHAR(30))")
+        self.__server_5.exec_stmt("INSERT INTO prune_db.prune_table "
+                                  "VALUES(101, 'TEST 1')")
+        self.__server_5.exec_stmt("INSERT INTO prune_db.prune_table "
+                                  "VALUES(202, 'TEST 2')")
+
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_6.mysql.com:3060",
@@ -112,6 +140,11 @@ class TestSharding(unittest.TestCase):
                                                 "SM4", 10001, 11000,
                                                 "GROUPID9")
 
+        self.__range_sharding_specification_10 = RangeShardingSpecification.add(
+                                        "SM5", 100, 200, "GROUPID2")
+        self.__range_sharding_specification_11 = RangeShardingSpecification.add(
+                                                "SM5", 201, 300, "GROUPID3")
+
         self.__shard_mapping_1 = ShardMapping.add("db1.t1", "userID1", "RANGE",
                                                 "SM1")
         self.__shard_mapping_2 = ShardMapping.add("db2.t2", "userID2", "RANGE",
@@ -120,9 +153,13 @@ class TestSharding(unittest.TestCase):
                                                  "SM3")
         self.__shard_mapping_4 = ShardMapping.add("db4.t4", "userID4", "RANGE",
                                                  "SM4")
+        self.__shard_mapping_5 = ShardMapping.add("prune_db.prune_table",
+                                                  "userID", "RANGE", "SM5")
 
 
     def tearDown(self):
+        self.__server_3.exec_stmt("DROP DATABASE prune_db")
+        self.__server_5.exec_stmt("DROP DATABASE prune_db")
         persistence.deinit_thread()
         persistence.deinit()
 
@@ -285,3 +322,16 @@ class TestSharding(unittest.TestCase):
                          1000)
         self.assertEqual(self.__range_sharding_specification_1.group_id,
                          "GROUPID1")
+
+    def test_shard_prune(self):
+        RangeShardingSpecification.delete_from_shard_db("prune_db.prune_table")
+        rows = self.__server_3.exec_stmt(
+                                    "SELECT NAME FROM prune_db.prune_table",
+                                    {"fetch" : True})
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], 'TEST 1')
+        rows = self.__server_5.exec_stmt(
+                                    "SELECT NAME FROM prune_db.prune_table",
+                                    {"fetch" : True})
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], 'TEST 2')
