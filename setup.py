@@ -52,9 +52,14 @@ META_INFO = {
     'license': "GPLv2",
     'description': "Management system for MySQL deployments",
     'packages': find_packages("lib", exclude=["tests"]),
-    'package_dir': { '': 'lib' },
+    'package_dir': {
+        '': 'lib',
+        },
     'requires': [
         'mysql.connector (>=1.0)',
+        ],
+    'scripts': [
+        'scripts/fabric',
         ],
     'classifiers': [
         'Development Status :: 1 - Planning',

@@ -157,6 +157,7 @@ class ShardingUtils(object):
                 range_specification_1.group_id == range_specification_2.group_id
 
 def setup_xmlrpc():
+    # TODO: Check the xmlrpc_next_port...
     from __main__ import options, xmlrpc_next_port
     params = {
         'protocol.xmlrpc': {
@@ -172,8 +173,8 @@ def setup_xmlrpc():
     config = _config.Config(None, params, True)
 
     # Set up the manager
-    from mysql.hub.commands.start import start
-    manager_thread = threading.Thread(target=start, args=(config, ),
+    from mysql.hub.services.manage import _start
+    manager_thread = threading.Thread(target=_start, args=(config, ),
                                       name="Services")
     manager_thread.start()
 
@@ -183,7 +184,7 @@ def setup_xmlrpc():
 
     while True:
         try:
-            proxy.ping()
+            proxy.manage.ping()
             break
         except Exception:
             time.sleep(1)
@@ -191,6 +192,6 @@ def setup_xmlrpc():
     return (manager_thread, proxy)
 
 def teardown_xmlrpc(manager, proxy):
-    proxy.shutdown()
+    proxy.manage.stop()
     manager.join()
     _persistence.deinit()

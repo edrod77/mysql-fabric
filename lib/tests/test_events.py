@@ -236,33 +236,37 @@ class TestService(unittest.TestCase):
         _events.Handler().register(_events.SERVER_PROMOTED, _another_my_event)
         jobs = self.proxy.event.trigger('SERVER_PROMOTED', "my.example.com")
         try:
-            self.proxy.event.wait_for(jobs)
-        except Exception:
-            pass
+            self.proxy.event.wait_for_jobs(jobs)
+        except Exception as error:
+            if str(error).find("Job not found") == -1:
+                raise
         self.assertEqual(promoted[0], "my.example.com")
 
     def test_jobs(self):
         job = self.proxy.server.lookup_groups(False)
         try:
             job_status_1 = self.proxy.event.wait_for_job(job[0])
-            job_status_2 = self.proxy.event.get_job_details(job[0])
+            job_status_2 = self.proxy.event.job_details(job[0])
             self.assertEqual(job_status_1, job_status_2)
-        except Exception:
-            pass
+        except Exception as error:
+            if str(error).find("Job not found") == -1:
+                raise
 
         try:
-            self.proxy.jobs.wait_for_job(
+            self.proxy.event.wait_for_job(
                 "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
             self.assertTrue(False)
-        except Exception:
-            pass
+        except Exception as error:
+            if str(error).find("Job not found") == -1:
+                raise
 
         try:
-            self.proxy.jobs.wait_job_details(
+            self.proxy.event.job_details(
                 "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
             self.assertTrue(False)
-        except Exception:
-            pass
+        except Exception as error:
+            if str(error).find("Job not found") == -1:
+                raise
 
 if __name__ == "__main__":
     unittest.main()
