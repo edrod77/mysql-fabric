@@ -73,8 +73,12 @@ class Help(Command):
         # THIS TO OTHER MODULE WHICH TAKES CARE OF FORMATING STUFF.
         try:
             # Get the command and information on its parameters.
+            args = None
             cls = get_command(group_name, command_name)
-            args = inspect.getargspec(cls.execute)[0]
+            try:
+                args = inspect.getargspec(cls.execute)[0]
+            except AttributeError:
+                args = inspect.getargspec(cls.dispatch)[0]
             command_text = \
                 "%s %s(%s):" % (group_name, command_name, ", ".join(args[1:]))
             # Format the command documentation.
