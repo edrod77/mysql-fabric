@@ -87,8 +87,8 @@ class ServerError(ServiceError):
     """
     pass
 
-class JobError(ServiceError):
-    """Exception raised when a job is not found.
+class ProcedureError(ServiceError):
+    """Exception raised when a procedure is not found.
     """
     pass
 

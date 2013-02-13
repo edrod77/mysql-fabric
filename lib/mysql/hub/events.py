@@ -1,12 +1,12 @@
 """Module for handling events in the Fabric.
 
 Events represent something that happened either inside or outside the Fabric
-node and events can trigger execution of jobs.
+node and events can trigger execution of procedures.
 
 Central to the reception and processing of events is the **Event
 Handler** (or just **Handler** when it is clear from the context),
 which receives events from an external or internal source and enqueues
-zero or more jobs for each code block that has been registered with
+zero or more procedures for each code block that has been registered with
 the event.
 
 .. seqdiag::
@@ -15,15 +15,15 @@ the event.
      Source -> Handler [ label = "trigger(event)" ]
      Handler -> Handler [ label = "lookup(event)" ]
      Handler <-- Handler [ label = "blocks" ]
-     Handler -> Executor [ label = "enqueue_job(block)",
+     Handler -> Executor [ label = "enqueue_procedure(block)",
                            note = "for block in blocks: \ \n
-                           executor.enqueue_job(block)" ]
-     Handler <-- Executor [ label = "job", note = "jobs.append(job)" ]
-     Source <-- Handler [ label = "jobs" ]
+                           executor.enqueue_procedure(block)" ]
+     Handler <-- Executor [ label = "procedure",
+                            note = "procedures.append(procedure)" ]
+     Source <-- Handler [ label = "procedure" ]
    }
 
 """
-
 import functools
 import logging
 
@@ -44,36 +44,15 @@ def on_event(event):
     Example use::
 
         @on_event(_events.SLAVE_PROMOTED)
-        def changes_status(job):
+        def changes_status(group_id, server_uuid):
             ....
         @changes_status.undo
-        def changes_status_undo(job):
+        def changes_status_undo(group_id, server_uuid):
             ...
 
     The wrapped function will automatically call the ``undo`` callable
     if the main function raises an exception.
-
-    .. todo::
-
-       There is no connection between the wrapped function and the
-       arguments: the ``job`` parameter suddenly appears. Although not
-       a big problem, it is probably easier to use if the parameters
-       to the callable are of the form event + parameters. For
-       example, suppose that the SERVER_LOST event accepts a single
-       parameter being the server, then the event processing function
-       could be declared as::
-
-           @on_event(_events.SERVER_LOST)
-           def remove_server(event, server):
-              ...
-
-       This syntax make it very clear where each piece comes from and
-       the Job class can be hidden entirely inside the Fabric.
-
     """
-
-    # TODO: Change it so that decorated function accepts event + argument?
-
     def register_func(func):
         """Wrapper that registers the function and attaches wrappers
         to the provided function."""
@@ -83,17 +62,17 @@ def on_event(event):
             func.compensate = undo_func
 
         @functools.wraps(func)
-        def wrapped(job):
+        def wrapped(*args, **kwargs):
             "Wrapper that execute undo function on an exception."
             try:
                 _LOGGER.debug("Executing %s", func.__name__)
-                return func(job)
+                return func(*args, **kwargs)
             except Exception as error:       # pylint: disable=W0703
                 _LOGGER.debug("%s failed, executing compensation",
                               func.__name__)
                 _LOGGER.exception(error)
                 if func.compensate is not None:
-                    func.compensate(job)
+                    func.compensate(*args, **kwargs)
                 raise
 
         func.compensate = None
@@ -259,7 +238,7 @@ class Handler(Singleton):
         except KeyError:
             return False
 
-    def trigger(self, event, *args):
+    def trigger(self, within_procedure, event, *args, **kwargs):
         """Trigger an event.
 
         This function will trigger an event resulting in zero or more
@@ -281,20 +260,25 @@ class Handler(Singleton):
 
         To be able to wait for the blocks to be completed before
         proceeding after triggering the event, references to the
-        created jobs (containing the block) are returned. This means
+        created procedures (containing the block) are returned. This means
         that if you want to trigger an event and wait for them to
         finish executing, you can use the following code::
 
-           jobs = handler.trigger(SERVER_LOST, "my.example.com")
-           for job in jobs:
-              job.wait()
+           procedures = handler.trigger(False, SERVER_LOST, "my.example.com")
+           for procedure in procedures:
+              procedure.wait()
 
+        :within_procedure: Define if a new procedure will be created or not.
         :param event: Event to trigger.
         :type event: Event name or event instance
-        :returns: Jobs that were scheduled as a result of triggering the event.
-        :rtype: List of jobs that were scheduled.
-        """
+        :param args: Non-keyworded arguments to pass to the event.
+        :param kwargs: Keyworded arguments to pass to the event.
+        :returns: Procedures that were created as a result of triggering the
+                  event.
+        :rtype: Procedures that were scheduled.
 
+        See :meth:`mysql.com.hub.executor.Executor.enqueue_procedure()`.
+        """
         _LOGGER.debug("Triggering event %s", event)
 
         if isinstance(event, basestring):
@@ -303,23 +287,41 @@ class Handler(Singleton):
             else:
                 event = None
 
-        # Enqueue the jobs and return a list of the jobs scheduled
+        # Enqueue the procedures and return a list of the procedures scheduled
         return [
-            self.__executor.enqueue_job(block, "Triggered by %s" % (event,),
-                                        args)
+            self.__executor.enqueue_procedure(within_procedure, block,
+               "Triggered by %s" % (event, ), *args, **kwargs)
             for block in self.__blocks_for.get(event, [])
             ]
 
-def trigger(event, *args):
+def trigger(event, *args, **kwargs):
     """Trigger an event by name or instance.
 
     :param event: The event to trigger.
     :type event: Event name or event instance.
+    :param args: Non-keyworded arguments to pass to the event.
+    :param kwargs: Keyworded arguments to pass to the event.
     """
     handler = Handler()
-    _LOGGER.debug("Triggering event %s in handler %s",
-                  event, handler)
-    return handler.trigger(event, *args)
+    _LOGGER.debug("Triggering event %s in handler %s", event, handler)
+    return handler.trigger(False, event, *args, **kwargs)
+
+def trigger_within_procedure(event, *args, **kwargs):
+    """Trigger an event by name or instance. However, any job created
+    due to this operation shall be created in the context of the current
+    procedure.
+
+    This method must be called within a job otherwise the
+    :class:`mysql.hub.errors.ProgrammingError` exception will be raised.
+
+    :param event: The event to trigger.
+    :type event: Event name or event instance.
+    :param args: Non-keyworded arguments to pass to the event.
+    :param kwargs: Keyworded arguments to pass to the event.
+    """
+    handler = Handler()
+    _LOGGER.debug("Triggering event %s in handler %s", event, handler)
+    return handler.trigger(True, event, *args, **kwargs)
 
 # Some pre-defined events. These are documented directly in the documentation
 # and not using autodoc.

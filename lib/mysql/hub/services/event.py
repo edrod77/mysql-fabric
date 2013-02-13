@@ -1,8 +1,7 @@
-"""Service interface for working with events and jobs. It provides the
-necessary means to trigger an event, to get details on a job and wait
-until jobs finish their execution.
+"""Service interface for working with events and procedures. It provides the
+necessary means to trigger an event, to get details on a procedure and wait
+until procedures finish their execution.
 """
-
 import uuid as _uuid
 
 from mysql.hub import (
@@ -11,41 +10,53 @@ from mysql.hub import (
     errors as _errors,
     )
 
-def trigger(event, *args):
-    return [ str(job.uuid) for job in _events.trigger(event, *args) ]
+def trigger(event, *args, **kwargs):
+    """Trigger the execution of an event.
 
-def wait_for(jobs):
-    executor = _executor.Executor()
-    for job in jobs:
-        wait_for_job(job)
-    return False
+    :param event: Event's identification.
+    :type event: String
+    :param args: Event's non-keyworded arguments.
+    :param kwargs: Event's keyworded arguments.
+    :return: List of the procedures' uuids that were created.
+    """
+    return [ str(proc.uuid) \
+             for proc in _events.trigger(event, *args, **kwargs) ]
 
-def wait_for_job(job_uuid):
-    """Wait until a job uniquely identified by job_uuid finishes its execution.
-    If the job is not found the :class:`mysql.hub.errors.JobError` exception
-    is returned.
+def wait_for_procedures(proc_uuids):
+    """Wait until a set of procedures uniquely identified by their uuids
+    finish their execution.
 
-    :param job_uuid: Job's uuid.
-    :return: Job's status.
+    However, before starting waiting, the function checks if the procedures
+    exist. If one of the procedures is not found, the following exception is
+    raised: :class:`mysql.hub.errors.ProcedureError`.
+
+    :param proc_uuids: Iterable with procedures' uuids.
+    """
+    procs = []
+    for proc_uuid in proc_uuids:
+        proc_uuid = _uuid.UUID(proc_uuid)
+        procedure = _executor.get_procedure(proc_uuid)
+        if not procedure:
+            raise _errors.ProcedureError("Procedure (%s) was not found." %
+                                         (proc_uuid, ))
+        procs.append(procedure)
+
+    for procedure in procs:
+        procedure.wait()
+
+def wait_for_procedure(proc_uuid):
+    """Wait until a procedure uniquely identified by proc_uuid finishes its
+    execution. If the procedure is not found the following exception is
+    returned: :class:`mysql.hub.errors.ProcedureError`.
+
+    :param proc_uuid: Procedure's uuid.
+    :return: Procedure's status and result.
     """
     executor = _executor.Executor()
-    job_uuid = _uuid.UUID(job_uuid)
-    job = executor.get_job(job_uuid)
-    if not job:
-        raise _errors.JobError("Job not found.")
-    job.wait()
-    return job.status
-
-def get_job_details(job_uuid):
-    """Get information on job uniquely identified by job_uuid. If the job is
-    not found the :class:`mysql.hub.errors.JobError` exception is returned.
-
-    :param job_uuid: Job's uuid.
-    :return: Job's status.
-    """
-    executor = _executor.Executor()
-    job_uuid = _uuid.UUID(job_uuid)
-    job = executor.get_job(job_uuid)
-    if not job:
-        raise _errors.JobError("Job not found.")
-    return job.status
+    proc_uuid = _uuid.UUID(proc_uuid)
+    procedure = executor.get_procedure(proc_uuid)
+    if not procedure:
+        raise _errors.ProcedureError("Procedure (%s) was not found." %
+                                     (proc_uuid, ))
+    procedure.wait()
+    return procedure.status, procedure.result

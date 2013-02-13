@@ -15,12 +15,12 @@ other = None
 
 _LOGGER = logging.getLogger(__name__)
 
-def test1(job):
+def test1():
     global count
     for cnt in range(10, 1, -1):
         count.append(cnt)
 
-def test2(job):
+def test2():
     global other
     other = 47
 
@@ -31,8 +31,8 @@ class Action(object):
         self.__name__ = self.descr
         self.result = None
 
-    def __call__(self, job):
-        self.result = job.args[0]
+    def __call__(self, param):
+        self.result = param
 
     def verify(self, test_case):
         test_case.assertEqual(self.result, self.expect)
@@ -61,29 +61,31 @@ class TestExecutor(unittest.TestCase):
         self.executor.start()
 
         # Scheduling actions to be executed.
-        job_1 = self.executor.enqueue_job(test1, "Enqueuing action test1()")
-        job_1.wait()
-        _LOGGER.debug("Job 1:"+ str(job_1))
-        job_2 = self.executor.enqueue_job(test2, "Enqueuing action test2()")
-        job_2.wait()
-        _LOGGER.debug("Job 2:"+ str(job_2))
+        proc_1 = self.executor.enqueue_procedure(
+            False, test1, "Enqueuing action test1()"
+            )
+        proc_1.wait()
+        _LOGGER.debug("Procedure 1:"+ str(proc_1))
+        proc_2 = self.executor.enqueue_procedure(
+            False, test2, "Enqueuing action test2()"
+            )
+        proc_2.wait()
+        _LOGGER.debug("Procedure 2:"+ str(proc_2))
 
         # Check information on jobs
-        job = self.executor.get_job(job_1.uuid)
-        self.assertTrue(job_1.uuid == job.uuid)
-        status = job_1.status[-1]
+        proc = self.executor.get_procedure(proc_1.uuid)
+        self.assertTrue(proc_1.uuid == proc.uuid)
+        status = proc_1.status[-1]
         self.assertEqual(status["success"], _executor.Job.SUCCESS)
         self.assertEqual(status["state"], _executor.Job.COMPLETE)
         self.assertEqual(status["description"], "Executed action (test1).")
 
-        job = self.executor.get_job(job_2.uuid)
-        self.assertTrue(job_2.uuid == job.uuid)
-        self.assertTrue(job_2.status[-1]["success"] == \
-                        _executor.Job.SUCCESS)
-        self.assertTrue(job_2.status[-1]["state"] == \
-                        _executor.Job.COMPLETE)
-        self.assertTrue(job_2.status[-1]["description"] == \
-                        "Executed action (test2).")
+        proc = self.executor.get_procedure(proc_2.uuid)
+        self.assertTrue(proc_2.uuid == proc.uuid)
+        status = proc_2.status[-1]
+        self.assertTrue(status["success"] == _executor.Job.SUCCESS)
+        self.assertTrue(status["state"] == _executor.Job.COMPLETE)
+        self.assertTrue(status["description"] == "Executed action (test2).")
 
         # Shutdown the executor and wait until its main thread returns.
         self.executor.shutdown()
@@ -95,8 +97,10 @@ class TestExecutor(unittest.TestCase):
     def test_job_hashable(self):
         def action():
             pass
-        job_1 = _executor.Job(action, "Test action.", None)
-        job_2 = _executor.Job(action, "Test action.", None)
+        proc_1 = _executor.Procedure()
+        job_1 = _executor.Job(proc_1, action, "Test action.", (), {})
+        proc_2 = _executor.Procedure()
+        job_2 = _executor.Job(proc_2, action, "Test action.", (), {})
         set_jobs = set()
         set_jobs.add(job_1)
         set_jobs.add(job_2)
@@ -109,19 +113,21 @@ class TestExecutor(unittest.TestCase):
     def test_bad_cases(self):
         "Test that error cases are caught."
         # Check what happens when the Executor is not running.
-        self.assertRaises(_errors.ExecutorError, self.executor.enqueue_job,
-                          3, "Enqueue integer")
+        self.assertRaises(_errors.ExecutorError,
+                          self.executor.enqueue_procedure,
+                          False, 3, "Enqueue integer")
 
         # Check if the action is callable.
         self.executor.start()
-        self.assertRaises(_errors.NotCallableError, self.executor.enqueue_job,
-                          3, "Enqueue integer")
+        self.assertRaises(_errors.NotCallableError,
+                          self.executor.enqueue_procedure,
+                          False, 3, "Enqueue integer")
         self.executor.shutdown()
 
         # Check unknown job.
-        job = self.executor.get_job(
+        proc = self.executor.get_procedure(
             uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
-        self.assertEqual(job, None)
+        self.assertEqual(proc, None)
 
 
     def test_multi_dispatch(self):
@@ -131,25 +137,23 @@ class TestExecutor(unittest.TestCase):
         self.executor.start()
 
         # Enqueue several jobs at the same time.
-        jobs = []
+        procs = []
+        actions = []
         for num in range(1, 10, 2):
             action = Action(num)
-            job = self.executor.enqueue_job(action, action.descr,
-                                            [action.expect])
-            jobs.append(job)
-
+            proc = self.executor.enqueue_procedure(False, action, action.descr,
+                                                   action.expect)
+            procs.append(proc)
+            actions.append(action)
 
         # Wait for all jobs and check that they update the Action
         # object to the correct value.
-        for job in jobs:
-            job.wait()
-            job.action.verify(self)
+        for proc in procs:
+            proc.wait()
+        for action in actions:
+            action.verify(self)
 
         self.executor.shutdown()
-
-        # Check that all jobs are complete
-        for job in jobs:
-            self.assertTrue(job.complete)
 
 
 if __name__ == "__main__":

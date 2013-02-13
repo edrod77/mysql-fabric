@@ -29,11 +29,9 @@ def add_shard_mapping(table_name, column_name, type_name,
                         or not.
     """
 
-    jobs = _events.trigger(ADD_SHARD_MAPPING, table_name, column_name,
-                           type_name,
-                           sharding_specification)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(ADD_SHARD_MAPPING, table_name, column_name,
+                                 type_name, sharding_specification)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD_MAPPING = _events.Event("REMOVE_SHARD_MAPPING")
 def remove_shard_mapping(table_name, synchronous=True):
@@ -46,9 +44,8 @@ def remove_shard_mapping(table_name, synchronous=True):
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
     """
-    jobs = _events.trigger(REMOVE_SHARD_MAPPING, table_name)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(REMOVE_SHARD_MAPPING, table_name)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SHARD_MAPPING = _events.Event("LOOKUP_SHARD_MAPPING")
 def lookup_shard_mapping(table_name, synchronous=True):
@@ -62,9 +59,8 @@ def lookup_shard_mapping(table_name, synchronous=True):
     :return: The a dictionary that contains the shard mapping information for
                 the given table.
     """
-    jobs = _events.trigger(LOOKUP_SHARD_MAPPING, table_name)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(LOOKUP_SHARD_MAPPING, table_name)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 LIST_SHARD_MAPPINGS = _events.Event("LIST_SHARD_MAPPINGS")
 def list(sharding_type, synchronous=True):
@@ -81,9 +77,8 @@ def list(sharding_type, synchronous=True):
     :return: A list of dictionaries of sharding specifications that are of the
               sharding type.
     """
-    jobs = _events.trigger(LIST_SHARD_MAPPINGS, sharding_type)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(LIST_SHARD_MAPPINGS, sharding_type)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
 def add_shard(schema_type, name, lower_bound, upper_bound, group_id,
@@ -104,10 +99,9 @@ def add_shard(schema_type, name, lower_bound, upper_bound, group_id,
     :return: A dictionary representing the current Range specification.
     """
 
-    jobs = _events.trigger(ADD_SHARD, schema_type, name, lower_bound,
-                           upper_bound, group_id)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(ADD_SHARD, schema_type, name, lower_bound,
+                                 upper_bound, group_id)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD = \
         _events.Event("REMOVE_SHARD")
@@ -123,9 +117,8 @@ def remove_shard(schema_type, name, key, synchronous=True):
                     or not.
     """
 
-    jobs = _events.trigger(REMOVE_SHARD, schema_type, name, key)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(REMOVE_SHARD, schema_type, name, key)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 SHARD_LOOKUP = \
         _events.Event("SHARD_LOOKUP")
@@ -142,9 +135,8 @@ def lookup(table_name, key, synchronous=True):
     :return: The Group UUID that contains the range in which the key belongs.
     """
 
-    jobs = _events.trigger(SHARD_LOOKUP, table_name, key)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(SHARD_LOOKUP, table_name, key)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 GO_FISH_LOOKUP = _events.Event("GO_FISH_LOOKUP")
 def go_fish_lookup(table_name, synchronous=True):
@@ -158,9 +150,8 @@ def go_fish_lookup(table_name, synchronous=True):
     :return: The set of Group UUIDs that contain the shards of the table.
     """
 
-    jobs = _events.trigger(GO_FISH_LOOKUP, table_name)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(GO_FISH_LOOKUP, table_name)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 PRUNE_SHARD_TABLES = _events.Event("PRUNE_SHARD_TABLES")
 def prune_shard_tables(table_name, synchronous=True):
@@ -171,12 +162,12 @@ def prune_shard_tables(table_name, synchronous=True):
     :param synchronous: Whether one should wait until the execution finishes
                     or not.
     """
-    jobs = _events.trigger(PRUNE_SHARD_TABLES, table_name)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(PRUNE_SHARD_TABLES, table_name)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(ADD_SHARD_MAPPING)
-def _add_shard_mapping(job):
+def _add_shard_mapping(table_name, column_name, type_name,
+                       sharding_specification):
     """Add the shard specification mapping information for the given table.
 
     :param job: The Job object created for executing this event.
@@ -184,8 +175,6 @@ def _add_shard_mapping(job):
     :return: True if the add succeeded
             False if the add failed
     """
-
-    table_name, column_name, type_name, sharding_specification = job.args
     shard_mapping = ShardMapping.add(table_name, column_name,
                                      type_name, sharding_specification)
     if shard_mapping is not None:
@@ -196,7 +185,7 @@ def _add_shard_mapping(job):
         return False
 
 @_events.on_event(REMOVE_SHARD_MAPPING)
-def _remove_shard_mapping(job):
+def _remove_shard_mapping(table_name):
     """Remove the shard specification mapping information for the given table.
 
     :param job: The Job object created for executing this event.
@@ -204,8 +193,6 @@ def _remove_shard_mapping(job):
     :return: True if the remove succeeded
             False if the query failed
     """
-
-    table_name = job.args[0]
     shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is not None:
         ret = shard_mapping.remove()
@@ -218,9 +205,8 @@ def _remove_shard_mapping(job):
     else:
         return False
 
-
 @_events.on_event(LOOKUP_SHARD_MAPPING)
-def _lookup_shard_mapping(job):
+def _lookup_shard_mapping(table_name):
     """Fetch the shard specification mapping for the given table
 
     :param job: The Job object created for executing this event.
@@ -228,10 +214,7 @@ def _lookup_shard_mapping(job):
     :return: The a dictionary that contains the shard mapping information for
                 the given table.
     """
-
-    table_name = job.args[0]
     shard_mapping = ShardMapping.fetch(table_name)
-
     if shard_mapping is not None:
         return {"table_name":shard_mapping.table_name,
                 "column_name":shard_mapping.column_name,
@@ -244,7 +227,7 @@ def _lookup_shard_mapping(job):
                 "sharding_specification":""}
 
 @_events.on_event(LIST_SHARD_MAPPINGS)
-def _list(job):
+def _list(sharding_type):
     """The method returns all the shard mappings (names) of a
     particular sharding_type. For example if the method is called
     with 'range' it returns all the sharding specifications that exist
@@ -257,7 +240,6 @@ def _list(job):
     """
 
     ret_shard_mappings = []
-    sharding_type = job.args[0]
     shard_mappings = ShardMapping.list(sharding_type)
     for shard_mapping in shard_mappings:
         ret_shard_mappings.append({"table_name":shard_mapping.table_name,
@@ -268,7 +250,7 @@ def _list(job):
     return ret_shard_mappings
 
 @_events.on_event(ADD_SHARD)
-def _add_shard(job):
+def _add_shard(schema_type, name, lower_bound, upper_bound, group_id):
     """Add the RANGE shard specification. This represents a single instance
     of a shard specification that maps a key RANGE to a server.
 
@@ -276,10 +258,8 @@ def _add_shard(job):
 
     :return: A dictionary representing the current Range specification.
     """
-
-    schema_type = job.args[0]
+    assert(schema_type == "RANGE")
     if schema_type == "RANGE":
-        schema_type, name, lower_bound, upper_bound, group_id = job.args
         range_sharding_specification = RangeShardingSpecification.add(
             name, lower_bound, upper_bound, group_id)
         if range_sharding_specification is not None:
@@ -290,7 +270,7 @@ def _add_shard(job):
             return False
 
 @_events.on_event(REMOVE_SHARD)
-def _remove_shard(job):
+def _remove_shard(schema_type, name, key):
     """Remove the RANGE specification mapping represented by the current
     RANGE shard specification object.
 
@@ -299,10 +279,8 @@ def _remove_shard(job):
     :return: True if the remove succeeded
             False if the query failed
     """
-
-    schema_type = job.args[0]
+    assert(schema_type == "RANGE")
     if schema_type == "RANGE":
-        schema_type, name, key = job.args
         range_sharding_specification = \
             RangeShardingSpecification.lookup(key, name)
         if range_sharding_specification is not None:
@@ -317,7 +295,7 @@ def _remove_shard(job):
             return False
 
 @_events.on_event(SHARD_LOOKUP)
-def _lookup(job):
+def _lookup(table_name, key):
     """Given a table name and a key return the servers of the Group where the
     shard of this table can be found
 
@@ -326,16 +304,14 @@ def _lookup(job):
     :return: The servers of the Group that contains the range in which the
             key belongs.
     """
-
-    table_name, key = job.args
     servers = _sharding.lookup(table_name, key)
     if servers is not None:
         return servers
     else:
-        return ""
+        return []
 
 @_events.on_event(GO_FISH_LOOKUP)
-def _go_fish_lookup(job):
+def _go_fish_lookup(table_name):
     """Given table name return all the servers that contain the shards for
     this table.
 
@@ -344,12 +320,10 @@ def _go_fish_lookup(job):
     :return: The set of servers of the Groups that contain the
             shards of the table.
     """
-
-    table_name = job.args[0]
     return _sharding.go_fish_lookup(table_name)
 
 @_events.on_event(PRUNE_SHARD_TABLES)
-def _prune_shard_tables(job):
+def _prune_shard_tables(table_name):
     """Delete the data from the copied data directories based on the
     sharding configuration uploaded in the sharding tables of the state
     store. The basic logic consists of
@@ -364,6 +338,4 @@ def _prune_shard_tables(job):
     :return: False If the delete fails
             True if the delete succeeds.
     """
-
-    table_name = job.args[0]
     return RangeShardingSpecification.delete_from_shard_db(table_name)
