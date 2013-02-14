@@ -67,10 +67,9 @@ def import_topology(pattern_group_id, group_description, address, user=None,
         executor <- import;
       }
     """
-    jobs = _events.trigger(DISCOVER_TOPOLOGY, pattern_group_id,
+    procedures = _events.trigger(DISCOVER_TOPOLOGY, pattern_group_id,
                            group_description, address, user, passwd)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 # Find a slave that is not failing to keep with the master's pace.
 FIND_CANDIDATE_SWITCH = _events.Event()
@@ -148,13 +147,14 @@ def switch_over(group_id, slave_uuid=None, synchronous=True):
         executor <- change_to_candidate;
       }
     """
-    jobs = None
+    procedures = None
     if not slave_uuid:
-        jobs = _events.trigger(FIND_CANDIDATE_SWITCH, group_id)
+        procedures = _events.trigger(FIND_CANDIDATE_SWITCH, group_id)
     else:
-        jobs = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id, slave_uuid)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+        procedures = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id,
+                                     slave_uuid)
+    assert(procedures is not None)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 # Find a slave that was not failing to keep with the master's pace.
 FIND_CANDIDATE_FAIL = _events.Event("FAIL_OVER")
@@ -206,13 +206,14 @@ def fail_over(group_id, slave_uuid=None, synchronous=True):
         change_to_candidate <-- executor;
       }
     """
-    jobs = None
+    procedures = None
     if not slave_uuid:
-        jobs = _events.trigger(FIND_CANDIDATE_FAIL, group_id)
+        procedures = _events.trigger(FIND_CANDIDATE_FAIL, group_id)
     else:
-        jobs = _events.trigger(CHECK_CANDIDATE_FAIL, group_id, slave_uuid)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+        procedures = _events.trigger(CHECK_CANDIDATE_FAIL, group_id,
+                                     slave_uuid)
+    assert(procedures is not None)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 def promote_master(group_id, slave_uuid=None, synchronous=True):
     """Promote a master if there isn't any. See :meth:`fail_over`.
@@ -268,9 +269,8 @@ def demote_master(group_id, synchronous=True):
         executor <- reset_candidates;
       }
     """
-    jobs = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 # Check which servers are up or down within a group.
 CHECK_GROUP_AVAILABILITY = _events.Event()
@@ -281,22 +281,21 @@ def check_group_availability(group_id, synchronous=True):
     :param synchronous: Whether one should wait until the execution finishes
                         or not.
     """
-    jobs = _events.trigger(CHECK_GROUP_AVAILABILITY, group_id)
-    assert(len(jobs) == 1)
-    return _executor.process_jobs(jobs, synchronous)
+    procedures = _events.trigger(CHECK_GROUP_AVAILABILITY, group_id)
+    return _executor.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DISCOVER_TOPOLOGY)
-def _discover_topology(job):
+def _discover_topology(pattern_group_id, group_description,
+                       address, user, passwd):
     """Discover topology and right after schedule a job to import it.
     """
-    pattern_group_id, group_description, address, user, passwd = job.args
     user = user or "root"
     passwd = passwd or ""
     topology = _do_discover_topology(address, user, passwd)
-    jobs = _events.trigger(IMPORT_TOPOLOGY, pattern_group_id,
-                           group_description, topology, user, passwd)
-    job.jobs = jobs
-    return topology
+    _events.trigger_within_procedure(
+        IMPORT_TOPOLOGY, pattern_group_id, group_description,
+        topology, user, passwd
+        )
 
 def _do_discover_topology(address, user, passwd, discovered_servers=None):
     """Discover topology.
@@ -357,14 +356,16 @@ def _do_discover_topology(address, user, passwd, discovered_servers=None):
     return discovered_mapping
 
 @_events.on_event(IMPORT_TOPOLOGY)
-def _import_topology(job):
+def _import_topology(pattern_group_id, group_description, topology, user,
+                     passwd):
     """Import topology.
     """
-    pattern_group_id, group_description, topology, user, passwd = job.args
     groups = _do_import_topology(pattern_group_id, group_description,
                                  topology, user, passwd)
     for group in groups:
         _detector.FailureDetector.register_group(group)
+
+    return topology
 
 def _do_import_topology(pattern_group_id, group_description,
                         topology, user, passwd):
@@ -418,15 +419,12 @@ def _do_import_topology(pattern_group_id, group_description,
     return groups
 
 @_events.on_event(FIND_CANDIDATE_SWITCH)
-def _find_candidate_switch(job):
+def _find_candidate_switch(group_id):
     """Find the best slave to replace the current master.
     """
-    group_id = job.args[0]
-
     slave_uuid = _do_find_candidate(group_id)
-
-    jobs = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id, slave_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(CHECK_CANDIDATE_SWITCH, group_id,
+                                     slave_uuid)
 
 def _do_find_candidate(group_id):
     """Find out the best candidate in a group that may be used to replace a
@@ -482,12 +480,11 @@ def _do_find_candidate(group_id):
     return chosen_uuid
 
 @_events.on_event(CHECK_CANDIDATE_SWITCH)
-def _check_candidate_switch(job):
+def _check_candidate_switch(group_id, slave_uuid):
     """Check if the candidate has all the prerequisites to become the new
     master.
     """
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
-    group_id, slave_uuid = job.args
 
     group = _server.Group.fetch(group_id)
     if not group:
@@ -519,21 +516,17 @@ def _check_candidate_switch(job):
         raise _errors.GroupError("Group (%s) does not contain correct " \
                                  "master (%s)." % (group_id, master_uuid))
 
-    jobs = _events.trigger(BLOCK_WRITE_SWITCH, group_id, master_uuid,
-                           slave_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(BLOCK_WRITE_SWITCH, group_id, master_uuid,
+                                     slave_uuid)
 
 @_events.on_event(BLOCK_WRITE_SWITCH)
-def _block_write_switch(job):
+def _block_write_switch(group_id, master_uuid, slave_uuid):
     """Block and disable write access to the current master.
     """
-    group_id, master_uuid, slave_uuid = job.args
-
     _do_block_write_master(group_id, master_uuid)
-
-    jobs = _events.trigger(WAIT_CANDIDATES_SWITCH, group_id, master_uuid,
-                           slave_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(WAIT_CANDIDATES_SWITCH, group_id,
+        master_uuid, slave_uuid
+        )
 
 def _do_block_write_master(group_id, master_uuid):
     """Block and disable write access to the current master.
@@ -549,25 +542,21 @@ def _do_block_write_master(group_id, master_uuid):
     server.read_only = True
 
 @_events.on_event(WAIT_CANDIDATES_SWITCH)
-def _wait_candidates_switch(job):
+def _wait_candidates_switch(group_id, master_uuid, slave_uuid):
     """Synchronize candidate with master and also all the other slaves.
 
     In the future, we may improve this and skip the synchronization with
     other slaves.
     """
-    group_id, master_uuid, slave_uuid = job.args
-
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
     _synchronize(slave, master)
-
     _do_wait_candidates_catch(group_id, master, [slave_uuid])
 
-    jobs = _events.trigger(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 
 def _do_wait_candidates_catch(group_id, master, skip_servers=None):
     """Synchronize slaves with master.
@@ -592,11 +581,9 @@ def _do_wait_candidates_catch(group_id, master, skip_servers=None):
     _events.trigger("SERVER_DEMOTED", group_id, str(master.uuid))
 
 @_events.on_event(CHANGE_TO_CANDIDATE)
-def _change_to_candidate(job):
+def _change_to_candidate(group_id, master_uuid):
     """Switch to candidate slave.
     """
-    group_id, master_uuid = job.args
-
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
     _replication.stop_slave(master, wait=True)
@@ -620,24 +607,19 @@ def _change_to_candidate(job):
     _events.trigger("SERVER_PROMOTED", group_id, master_uuid)
 
 @_events.on_event(FIND_CANDIDATE_FAIL)
-def _find_candidate_fail(job):
+def _find_candidate_fail(group_id):
     """Find the best candidate to replace the failed master.
     """
-    group_id = job.args[0]
-
     slave_uuid = _do_find_candidate(group_id)
-
-    jobs = _events.trigger(CHECK_CANDIDATE_FAIL, group_id, slave_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(CHECK_CANDIDATE_FAIL, group_id,
+                                     slave_uuid)
 
 @_events.on_event(CHECK_CANDIDATE_FAIL)
-def _check_candidate_fail(job):
+def _check_candidate_fail(group_id, slave_uuid):
     """Check if the candidate has all the prerequisites to become the new
     master.
     """
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
-    group_id, slave_uuid = job.args
-
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
@@ -673,15 +655,12 @@ def _check_candidate_fail(job):
             raise _errors.GroupError("Group (%s) does not contain correct " \
                                      "master (%s)." % (group_id, master_uuid))
 
-    jobs = _events.trigger(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 
 @_events.on_event(BLOCK_WRITE_DEMOTE)
-def _block_write_demote(job):
+def _block_write_demote(group_id):
     """Block and disable write access to the current master.
     """
-    group_id = job.args[0]
-
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
@@ -693,25 +672,22 @@ def _block_write_demote(job):
     master_uuid = str(group.master)
     _do_block_write_master(group_id, master_uuid)
 
-    jobs = _events.trigger(WAIT_CANDIDATES_DEMOTE, group_id, master_uuid)
-    job.jobs = jobs
+    _events.trigger_within_procedure(WAIT_CANDIDATES_DEMOTE, group_id,
+                                     master_uuid)
 
 @_events.on_event(WAIT_CANDIDATES_DEMOTE)
-def _wait_candidates_demote(job):
+def _wait_candidates_demote(group_id, master_uuid):
     """Synchronize slaves with master.
     """
-    group_id, master_uuid = job.args
-
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
 
     _do_wait_candidates_catch(group_id, master)
 
 @_events.on_event(CHECK_GROUP_AVAILABILITY)
-def _check_group_availability(job):
+def _check_group_availability(group_id):
     """Check which servers in a group are up and down.
     """
-    group_id = job.args[0]
     availability = {}
 
     group = _server.Group.fetch(group_id)
@@ -726,6 +702,7 @@ def _check_group_availability(job):
             _LOGGER.exception(error)
         availability[str(server.uuid)] = \
             (alive, group.master == server.uuid)
+
     return availability
 
 def _synchronize(slave, master):

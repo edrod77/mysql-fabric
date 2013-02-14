@@ -1,6 +1,6 @@
-"""Command interface for working with events and jobs. It provides the
-necessary means to trigger an event, to get details on a job and wait
-until jobs finish their execution.
+"""Command interface for working with events and procedures. It provides the
+necessary means to trigger an event, to get details on a procedure and wait
+until procedures finish their execution.
 """
 import uuid as _uuid
 
@@ -19,87 +19,70 @@ class Trigger(Command):
     """
     command_name = "trigger"
 
-    def execute(self, event, *args):
-        """Trigger an event.
+    def execute(self, event, *args, **kwargs):
+        """Trigger the execution of an event.
+
+        :param event: Event's identification.
+        :type event: String
+        :param args: Event's non-keyworded arguments.
+        :param kwargs: Event's keyworded arguments.
+        :return: List of the procedures' uuids that were created.
         """
-        return [ str(job.uuid) for job in _events.trigger(event, *args) ]
+        return [ str(proc.uuid) \
+                 for proc in _events.trigger(event, *args, **kwargs) ]
 
-class WaitForJobs(Command):
-    """Wait until jobs finish their execution.
+class WaitForProcedures(Command):
+    """Wait until procedures finish their execution.
 
-    If a job which is uniquely identified by a uuid is not found an
+    If a procedure which is uniquely identified by a uuid is not found an
     error is returned.
     """
-    command_name = "wait_for_jobs"
+    command_name = "wait_for_procedures"
 
-    def execute(self, jobs):
-        """Wait until jobs finish their execution.
+    def execute(self, proc_uuids):
+        """Wait until a set of procedures uniquely identified by their uuids
+        finish their execution.
 
-        If a job is not found the :class:`mysql.hub.errors.JobError`
-        exception is returned.
+        However, before starting waiting, the function checks if the procedures
+        exist. If one of the procedures is not found, the following exception
+        is raised :class:`mysql.hub.errors.ProcedureError`.
 
-        :param job_uuid: Job's uuid.
-        :return: Job's status.
+        :param proc_uuids: Iterable with procedures' uuids.
         """
-        for job in jobs:
-            _wait_for_job(job)
-        return False
+        procs = []
+        for proc_uuid in proc_uuids:
+            proc_uuid = _uuid.UUID(proc_uuid)
+            procedure = _executor.Executor().get_procedure(proc_uuid)
+            if not procedure:
+                raise _errors.ProcedureError("Procedure (%s) was not found." %
+                                             (proc_uuid, ))
+            procs.append(procedure)
 
-class WaitForJob(Command):
-    """Wait until a job finishes its execution.
+        for procedure in procs:
+            procedure.wait()
 
-    If the job which is uniquely identified by a uuid is not found an
+        return True
+
+class WaitForProcedure(Command):
+    """Wait until a procedure finishes its execution.
+
+    If the procedure which is uniquely identified by a uuid is not found an
     error is returned.
     """
-    command_name = "wait_for_job"
+    command_name = "wait_for_procedure"
 
-    def execute(self, job_uuid):
-        """Wait until a job finishes its execution.
+    def execute(self, proc_uuid):
+        """Wait until a procedure uniquely identified by proc_uuid finishes its
+        execution. If the procedure is not found the following exception is
+        returned: :class:`mysql.hub.errors.ProcedureError`.
 
-        If the job is not found the :class:`mysql.hub.errors.JobError`
-        exception is returned.
-
-        :param job_uuid: Job's uuid.
-        :return: Job's status.
+        :param proc_uuid: Procedure's uuid.
+        :return: Procedure's status and result.
         """
-        return _wait_for_job(job_uuid)
-
-def _wait_for_job(job_uuid):
-    """Wait for a job.
-    """
-    executor = _executor.Executor()
-    job_uuid = _uuid.UUID(job_uuid)
-    job = executor.get_job(job_uuid)
-    if not job:
-        raise _errors.JobError("Job not found.")
-    job.wait()
-    return job.status
-
-class JobDetails(Command):
-    """Get information on a job.
-
-    If the job which is uniquely identified by a uuid is not found an
-    error is returned.
-    """
-    command_name = "job_details"
-
-    def execute(self, job_uuid):
-        """Get information on a job.
-
-        If the job is not found the :class:`mysql.hub.errors.JobError`
-        exception is returned.
-
-        :param job_uuid: Job's uuid.
-        :return: Job's status.
-        """
-        return _job_details(job_uuid)
-
-def _job_details(job_uuid):
-    """Get job's details.
-    """
-    executor = _executor.Executor()
-    job_uuid = _uuid.UUID(job_uuid)
-    job = executor.get_job(job_uuid)
-    if not job:
-        raise _errors.JobError("Job not found.")
-    return job.status
+        proc_uuid = _uuid.UUID(proc_uuid)
+        procedure = _executor.Executor().get_procedure(proc_uuid)
+        if not procedure:
+            raise _errors.ProcedureError("Procedure (%s) was not found." %
+                                         (proc_uuid, ))
+        procedure.wait()
+        return procedure.status, procedure.result

@@ -12,7 +12,7 @@ Similar to a master, if a slave has failed, an event (SERVER_LOST) is triggered
 and registered listener(s) will take the necessary and appropriate actions.
 
 See :meth:`mysql.hub.server.MySQLServer.is_alive`.
-See :meth:`mysql.hub.services.check_group_availability`.
+See :meth:`mysql.hub.services.replication.check_group_availability`.
 See :meth:`mysql.hub.services.replication.fail_over`.
 See :const:`mysql.hub.events.SERVER_LOST`.
 """
@@ -109,7 +109,7 @@ class FailureDetector(object):
         from mysql.hub.events import trigger
         from mysql.hub.errors import ExecutorError
 
-        while (self.__check):
+        while self.__check:
             try:
                 group_availability = check_group_availability(self.__group_id)
                 if group_availability[2]:
