@@ -35,7 +35,7 @@ def wait_for_procedures(proc_uuids):
     procs = []
     for proc_uuid in proc_uuids:
         proc_uuid = _uuid.UUID(proc_uuid)
-        procedure = _executor.get_procedure(proc_uuid)
+        procedure =  _executor.Executor().get_procedure(proc_uuid)
         if not procedure:
             raise _errors.ProcedureError("Procedure (%s) was not found." %
                                          (proc_uuid, ))
@@ -43,6 +43,8 @@ def wait_for_procedures(proc_uuids):
 
     for procedure in procs:
         procedure.wait()
+
+    return True
 
 def wait_for_procedure(proc_uuid):
     """Wait until a procedure uniquely identified by proc_uuid finishes its
@@ -52,9 +54,8 @@ def wait_for_procedure(proc_uuid):
     :param proc_uuid: Procedure's uuid.
     :return: Procedure's status and result.
     """
-    executor = _executor.Executor()
     proc_uuid = _uuid.UUID(proc_uuid)
-    procedure = executor.get_procedure(proc_uuid)
+    procedure =  _executor.Executor().get_procedure(proc_uuid)
     if not procedure:
         raise _errors.ProcedureError("Procedure (%s) was not found." %
                                      (proc_uuid, ))

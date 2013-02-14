@@ -236,34 +236,29 @@ class TestService(unittest.TestCase):
         _events.Handler().register(_events.SERVER_PROMOTED, _another_my_event)
         jobs = self.proxy.event.trigger("SERVER_PROMOTED", "my.example.com", "")
         try:
-            self.proxy.event.wait_for(jobs)
+            self.proxy.event.wait_for_procedures(jobs)
+            self.assertEqual(promoted[0], "my.example.com")
             self.assertEqual(promoted[0], "my.example.com")
         except Exception as error:
-            pass
+            if str(error).find("was not found") == -1:
+                raise
         _events.Handler().unregister(_events.SERVER_PROMOTED, _another_my_event)
 
     def test_jobs(self):
         proc = self.proxy.server.lookup_groups(False)
         try:
-            proc_status_1 = self.proxy.event.wait_for_procedure(proc[0])
-            proc_status_2 = self.proxy.event.get_procedure_details(proc[0])
-            self.assertEqual(proc_status_1, proc_status_2)
-        except Exception:
-            pass
+            proc_status = self.proxy.event.wait_for_procedure(proc)
+        except Exception as error:
+            if str(error).find("was not found") == -1:
+                raise
 
         try:
-            self.proxy.jobs.wait_for_procedure(
+            self.proxy.event.wait_for_procedure(
                 "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
             self.assertTrue(False)
-        except Exception:
-            pass
-
-        try:
-            self.proxy.jobs.get_procedure_details(
-                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
-            self.assertTrue(False)
-        except Exception:
-            pass
+        except Exception as error:
+            if str(error).find("was not found") == -1:
+                raise
 
 if __name__ == "__main__":
     unittest.main()
