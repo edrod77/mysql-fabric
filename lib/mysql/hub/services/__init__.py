@@ -42,16 +42,16 @@ def find_services():
     for mod in services:
         for sym, val in mod.__dict__.items():
             if isinstance(val, type) and issubclass(val, Command) and \
-               val <> Command and re.match("[A-Za-z]\w+", sym):
-               try:
-                   val.group_name
-               except AttributeError:
-                   val.group_name = mod.__name__
-               try:
-                   val.command_name
-               except AttributeError:
-                   val.command_name = sym.lower()
-               register_command(val.group_name, val.command_name, val)
+                val != Command and re.match("[A-Za-z]\w+", sym):
+                try:
+                    val.group_name
+                except AttributeError:
+                    val.group_name = mod.__name__
+                try:
+                    val.command_name
+                except AttributeError:
+                    val.command_name = sym.lower()
+                register_command(val.group_name, val.command_name, val)
 
     # TODO: We temporarily keep this while we are changing the current
     # services into commands.
@@ -92,6 +92,12 @@ class ServiceManager(Singleton):
         """
         return self.__address
 
+    @property
+    def rpc_server(self):
+        """Return a reference to the Server Service.
+        """
+        return self.__rpc_server
+
     def start(self):
         """Start and run all services managed by the service manager.
 
@@ -126,7 +132,7 @@ class ServiceManager(Singleton):
             for sym, val in mod.__dict__.items():
                 if isinstance(val, types.FunctionType) \
                         and re.match("[A-Za-z]\w+", sym):
-                   _LOGGER.debug("Registering %s.", mod.__name__ + '.' + sym)
-                   self.__rpc_server.register_function(
-                       val, mod.__name__ + '.' + sym
-                   )
+                    _LOGGER.debug("Registering %s.", mod.__name__ + '.' + sym)
+                    self.__rpc_server.register_function(
+                        val, mod.__name__ + '.' + sym
+                        )

@@ -6,7 +6,6 @@ import sys
 
 from SimpleXMLRPCServer import (
     SimpleXMLRPCServer,
-    SimpleXMLRPCRequestHandler,
     )
 
 class MyServer(SimpleXMLRPCServer):

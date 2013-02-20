@@ -27,6 +27,13 @@ def register_command(group_name, command_name, command):
     commands = _COMMANDS_CLASS.setdefault(group_name, {})
     commands[command_name] = command
 
+def unregister_command(group_name, command_name):
+    """Unregister a command within a group.
+    """
+    del _COMMANDS_CLASS[group_name][command_name]
+    if not _COMMANDS_CLASS[group_name]:
+        del _COMMANDS_CLASS[group_name]
+
 def get_groups():
     """Return registered groups of commands.
     """
@@ -80,6 +87,8 @@ class Command(object):
     the command name, which means that if the *command_name* class
     property is not defined, the class name is automatically used.
     """
+    command_options = None
+
     def __init__(self):
         self.__client = None
         self.__server = None

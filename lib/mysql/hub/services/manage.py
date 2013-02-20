@@ -2,8 +2,6 @@
 information on available commands.
 """
 import logging
-import logging.handlers
-import os
 import sys
 import inspect
 import getpass
@@ -82,7 +80,9 @@ class Help(Command):
             command_text = \
                 "%s %s(%s):" % (group_name, command_name, ", ".join(args[1:]))
             # Format the command documentation.
-            doc_text = [ doc.strip() for doc in cls.__doc__.split("\n") ]
+            doc_text = []
+            if cls.__doc__:
+                doc_text = [ doc.strip() for doc in cls.__doc__.split("\n") ]
             print >> sys.stderr, command_text, "\n".join(doc_text)
         except KeyError:
             print >> sys.stderr, "Command (%s, %s) was not found." % \
@@ -104,24 +104,24 @@ class List(Command):
 
         # Get the commands and their brief description.
         for group_name in get_groups():
-           for command_name in get_commands(group_name):
+            for command_name in get_commands(group_name):
 
-               cls = get_command(group_name, command_name)
+                cls = get_command(group_name, command_name)
 
-               doc_text = ""
-               if cls.__doc__.find(".") <> -1:
-                   doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
-               else:
-                   doc_text = cls.__doc__
-               doc_text = [text.strip(" ") for text in doc_text.split("\n")]
+                doc_text = ""
+                if cls.__doc__ and cls.__doc__.find(".") != -1:
+                    doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
+                elif cls.__doc__:
+                    doc_text = cls.__doc__
+                doc_text = [text.strip(" ") for text in doc_text.split("\n")]
 
-               commands.append(
-                   (group_name, command_name, " ".join(doc_text))
-                   )
+                commands.append(
+                    (group_name, command_name, " ".join(doc_text))
+                    )
 
-               name_size = len(group_name) + len(command_name)
-               if name_size > max_name_size:
-                   max_name_size = name_size
+                name_size = len(group_name) + len(command_name)
+                if name_size > max_name_size:
+                    max_name_size = name_size
 
         # Format each description and print the result.
         for group_name, command_name, help_text in commands:
