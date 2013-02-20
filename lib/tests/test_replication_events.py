@@ -39,7 +39,7 @@ class TestReplicationServices(unittest.TestCase):
         slave = instances.get_instance(1)
 
         # Import topology.
-        topology = self.proxy.replication.import_topology(
+        topology = self.proxy.group.import_topology(
             "group_id-0", "description...", master.address, user, passwd)
 
         self.assertStatus(topology, _executor.Job.SUCCESS)
@@ -52,7 +52,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
-        group = self.proxy.server.lookup_group("group_id-1")
+        group = self.proxy.group.lookup_group("group_id-1")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
@@ -61,7 +61,7 @@ class TestReplicationServices(unittest.TestCase):
                                     "description..."})
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id-1")
+        servers = self.proxy.group.lookup_servers("group_id-1")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -90,7 +90,7 @@ class TestReplicationServices(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         # Import topology.
-        topology = self.proxy.replication.import_topology(
+        topology = self.proxy.group.import_topology(
             "group_id-1", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
@@ -105,7 +105,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
-        group = self.proxy.server.lookup_group("group_id-2")
+        group = self.proxy.group.lookup_group("group_id-2")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
@@ -114,7 +114,7 @@ class TestReplicationServices(unittest.TestCase):
                                     "description..."})
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id-2")
+        servers = self.proxy.group.lookup_servers("group_id-2")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -147,7 +147,7 @@ class TestReplicationServices(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         # Trying to import topology given a wrong group's id pattern.
-        topology = self.proxy.replication.import_topology(
+        topology = self.proxy.group.import_topology(
             "group_id", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.ERROR)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
@@ -155,7 +155,7 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_import_topology).")
 
         # Import topology.
-        topology = self.proxy.replication.import_topology(
+        topology = self.proxy.group.import_topology(
             "group_id-2", "description...", master.address, user, passwd)
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
@@ -169,7 +169,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
-        group = self.proxy.server.lookup_group("group_id-3")
+        group = self.proxy.group.lookup_group("group_id-3")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
@@ -178,7 +178,7 @@ class TestReplicationServices(unittest.TestCase):
                                     "description..."})
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id-3")
+        servers = self.proxy.group.lookup_servers("group_id-3")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -191,7 +191,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(retrieved, expected)
 
         # Look up a group.
-        group = self.proxy.server.lookup_group("group_id-4")
+        group = self.proxy.group.lookup_group("group_id-4")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
@@ -200,7 +200,7 @@ class TestReplicationServices(unittest.TestCase):
                                     "description..."})
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id-4")
+        servers = self.proxy.group.lookup_servers("group_id-4")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -224,29 +224,30 @@ class TestReplicationServices(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         # Try to use a group that does not exist.
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_switch).")
 
         # Try to use a slave that does not exist.
-        self.proxy.server.create_group("group_id", "")
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        self.proxy.group.create("group_id", "")
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_switch).")
 
         # Try to use a slave without any master.
-        self.proxy.server.create_server("group_id", slave_1.address, user,
-                                        passwd)
-        self.proxy.server.create_server("group_id", slave_2.address, user,
-                                        passwd)
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        self.proxy.group.add("group_id", slave_1.address, user, passwd)
+        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -254,12 +255,12 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to use a slave with an invalid master.
         # The slave is not running and connected to the master.
-        self.proxy.server.create_server("group_id", master.address, user,
-                                        passwd)
+        self.proxy.group.add("group_id", master.address, user, passwd)
         group = _server.Group.fetch("group_id")
         group.master = slave_1.uuid
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -270,8 +271,9 @@ class TestReplicationServices(unittest.TestCase):
         group.master = master.uuid
         _repl.stop_slave(slave_1, wait=True)
         _repl.reset_slave(slave_1, clean=True)
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -279,8 +281,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Configure the slave but do not start it.
         _repl.switch_master(slave_1, master, user, passwd)
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -290,7 +293,7 @@ class TestReplicationServices(unittest.TestCase):
         _repl.start_slave(slave_1, wait=True)
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -304,15 +307,16 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(retrieved, expected)
 
         # Do the switch over.
-        status = self.proxy.replication.switch_over("group_id",
-                                                    str(slave_1.uuid))
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -339,15 +343,15 @@ class TestReplicationServices(unittest.TestCase):
         slave_3 = instances.get_instance(3)
 
         # Try to use a group that does not exist.
-        status = self.proxy.replication.switch_over("group_id")
+        status = self.proxy.group.switch_over("group_id")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_find_candidate_switch).")
 
         # Try to use a group without candidates.
-        self.proxy.server.create_group("group_id", "")
-        status = self.proxy.replication.switch_over("group_id")
+        self.proxy.group.create("group_id", "")
+        status = self.proxy.group.switch_over("group_id")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -359,7 +363,7 @@ class TestReplicationServices(unittest.TestCase):
             "unknown_host:8080", user, passwd)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
-        status = self.proxy.replication.switch_over("group_id")
+        status = self.proxy.group.switch_over("group_id")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -368,15 +372,12 @@ class TestReplicationServices(unittest.TestCase):
         invalid_server.remove()
 
         # Try to use a slave with an invalid master.
-        self.proxy.server.create_server("group_id", slave_1.address, user,
-                                        passwd)
-        self.proxy.server.create_server("group_id", slave_2.address, user,
-                                        passwd)
-        self.proxy.server.create_server("group_id", slave_3.address, user,
-                                        passwd)
+        self.proxy.group.add("group_id", slave_1.address, user, passwd)
+        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", slave_3.address, user, passwd)
         group = _server.Group.fetch("group_id")
         group.master = slave_1.uuid
-        status = self.proxy.replication.switch_over("group_id")
+        status = self.proxy.group.switch_over("group_id")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -384,8 +385,7 @@ class TestReplicationServices(unittest.TestCase):
 
         # Configure master, an invalid candidate and make a slave point to
         # a different master.
-        self.proxy.server.create_server("group_id", master.address, user,
-                                        passwd)
+        self.proxy.group.add("group_id", master.address, user, passwd)
         group.master = master.uuid
         invalid_server = _server.MySQLServer.add(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
@@ -396,7 +396,7 @@ class TestReplicationServices(unittest.TestCase):
         _repl.switch_master(slave_3, slave_2, user, passwd)
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -413,14 +413,14 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(expected, retrieved)
 
         # Do the switch over.
-        status = self.proxy.replication.switch_over("group_id")
+        status = self.proxy.group.switch_over("group_id")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -441,29 +441,30 @@ class TestReplicationServices(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         # Try to use a group that does not exist.
-        status = self.proxy.replication.fail_over("group_id",
-                                                  str(slave_1.uuid))
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_fail).")
 
         # Try to use a slave that does not exist.
-        self.proxy.server.create_group("group_id", "")
-        status = self.proxy.replication.fail_over("group_id",
-                                                  str(slave_1.uuid))
+        self.proxy.group.create("group_id", "")
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_fail).")
 
         # Try to use a slave without any master.
-        self.proxy.server.create_server("group_id", slave_1.address, user,
-                                        passwd)
-        self.proxy.server.create_server("group_id", slave_2.address, user,
-                                        passwd)
-        status = self.proxy.replication.fail_over("group_id",
-                                                  str(slave_1.uuid))
+        self.proxy.group.add("group_id", slave_1.address, user, passwd)
+        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -471,12 +472,12 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to use a slave with an invalid master.
         # The slave is not running and connected to the master.
-        self.proxy.server.create_server("group_id", master.address, user,
-                                        passwd)
+        self.proxy.group.add("group_id", master.address, user, passwd)
         group = _server.Group.fetch("group_id")
         group.master = slave_1.uuid
-        status = self.proxy.replication.fail_over("group_id",
-                                                  str(slave_1.uuid))
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -490,8 +491,9 @@ class TestReplicationServices(unittest.TestCase):
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
         group.master = invalid_server.uuid
-        status = self.proxy.replication.fail_over("group_id",
-                                                  str(slave_1.uuid))
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -501,7 +503,7 @@ class TestReplicationServices(unittest.TestCase):
         group.master = master.uuid
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -517,15 +519,16 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(expected, retrieved)
 
         # Do the switch over.
-        status = self.proxy.replication.fail_over("group_id",
-                                                  str(slave_1.uuid))
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -556,8 +559,9 @@ class TestReplicationServices(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         # Import topology.
-        topology = self.proxy.replication.import_topology(
-            "group_id-0", "description...", master.address, user, passwd)
+        topology = self.proxy.group.import_topology(
+            "group_id-0", "description...", master.address, user, passwd
+            )
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
@@ -571,7 +575,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id-1")
+        servers = self.proxy.group.lookup_servers("group_id-1")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -585,14 +589,14 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(expected, retrieved)
 
         # Do the fail over.
-        fail = self.proxy.replication.promote_master("group_id-1")
+        fail = self.proxy.group.promote("group_id-1")
         self.assertStatus(fail, _executor.Job.SUCCESS)
         self.assertEqual(fail[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(fail[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id-1")
+        servers = self.proxy.group.lookup_servers("group_id-1")
         self.assertStatus(servers, _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -613,32 +617,29 @@ class TestReplicationServices(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         # Try to use a group that does not exist.
-        status = self.proxy.replication.demote_master("group_id")
+        status = self.proxy.group.demote("group_id")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_block_write_demote).")
 
         # Try to demote when there is no master.
-        self.proxy.server.create_group("group_id", "")
-        status = self.proxy.replication.demote_master("group_id")
+        self.proxy.group.create("group_id", "")
+        status = self.proxy.group.demote("group_id")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_block_write_demote).")
 
         # Configure masters and slaves.
-        self.proxy.server.create_server("group_id", slave_1.address, user,
-                                        passwd)
-        self.proxy.server.create_server("group_id", slave_2.address, user,
-                                        passwd)
-        self.proxy.server.create_server("group_id", master.address, user,
-                                        passwd)
+        self.proxy.group.add("group_id", slave_1.address, user, passwd)
+        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address, user, passwd)
         group = _server.Group.fetch("group_id")
         group.master = master.uuid
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertEqual(servers[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],
@@ -654,14 +655,14 @@ class TestReplicationServices(unittest.TestCase):
         self.assertTrue(_repl.is_slave_thread_running(slave_2))
 
         # Demote master.
-        status = self.proxy.replication.demote_master("group_id")
+        status = self.proxy.group.demote("group_id")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_wait_candidates_demote).")
 
         # Look up servers.
-        servers = self.proxy.server.lookup_servers("group_id")
+        servers = self.proxy.group.lookup_servers("group_id")
         self.assertEqual(servers[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(servers[1][-1]["description"],

@@ -244,7 +244,7 @@ class TestService(unittest.TestCase):
         _events.Handler().unregister(_events.SERVER_PROMOTED, _another_my_event)
 
     def test_procedures(self):
-        proc = self.proxy.server.lookup_groups(False)
+        proc = self.proxy.group.lookup_groups(False)
         try:
             proc_status = self.proxy.event.wait_for_procedure(proc)
         except Exception as error:
@@ -253,7 +253,8 @@ class TestService(unittest.TestCase):
 
         try:
             self.proxy.event.wait_for_procedure(
-                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
+                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b"
+                )
             self.assertTrue(False)
         except Exception as error:
             if str(error).find("was not found") == -1:

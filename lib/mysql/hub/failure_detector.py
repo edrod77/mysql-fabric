@@ -1,20 +1,23 @@
 """This modules contais a simple failure detector which is used by Fabric
 to monitor the availability of servers within groups.
 
-If a master cannot be accessed through the method 'is_alive', one must consider
-that it has failed and proceed with the election of a new master if there is
-any candidate slave that can become one. In particular, the failure detector
-does not choose any new master but only triggers some events (SERVER LOST and
-FAIL_OVER) and registered listener(s) will take the necessary and appropriate
-actions.
+If a master cannot be accessed through the method
+:meth:`~mysql.hub.server.MySQLServer.is_alive`, one must consider
+that it has failed and proceed with the election of a new master if
+there is any candidate slave that can become one. In particular, the
+failure detector does not choose any new master but only triggers some
+events (:const:`~mysql.hub.events.SERVER_LOST` and
+:const:`~mysql.hub.events.FAIL_OVER`) and registered listener(s) will
+take the necessary and appropriate actions.
 
-Similar to a master, if a slave has failed, an event (SERVER_LOST) is triggered
-and registered listener(s) will take the necessary and appropriate actions.
+Similar to a master, if a slave has failed, an event
+(:const:`~mysql.hub.events.SERVER_LOST`) is triggered and registered
+listener(s) will take the necessary and appropriate actions.
 
-See :meth:`mysql.hub.server.MySQLServer.is_alive`.
-See :meth:`mysql.hub.services.replication.check_group_availability`.
-See :meth:`mysql.hub.services.replication.fail_over`.
-See :const:`mysql.hub.events.SERVER_LOST`.
+See :meth:`~mysql.hub.server.MySQLServer.is_alive`.
+See :class:`~mysql.hub.services.highavailability.CheckHealth`.
+See :class:`~mysql.hub.services.highavailability.FailOver`.
+See :const:`~mysql.hub.events.SERVER_LOST`.
 """
 import threading
 import time
@@ -105,13 +108,15 @@ class FailureDetector(object):
     def _run(self):
         """Function that verifies servers' availabilities.
         """
-        from mysql.hub.services.replication import check_group_availability
+        from mysql.hub.services.highavailability import CheckHealth
         from mysql.hub.events import trigger
         from mysql.hub.errors import ExecutorError
 
         while self.__check:
             try:
-                group_availability = check_group_availability(self.__group_id)
+                # TODO: This currently triggers a job. However, this is not
+                # really necessary. Please, fix this after release 0.1.1.
+                group_availability = CheckHealth().execute(self.__group_id)
                 if group_availability[2]:
                     for server_uuid, status in group_availability[2].items():
                         (is_available, is_master) = status

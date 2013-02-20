@@ -149,7 +149,7 @@ class Command(object):
         self.__server = server
 
     def add_options(self, parser):
-        "Method called to set up uptions from the class instance."
+        "Method called to set up options from the class instance."
         try:
             for option in self.command_options:
                 kwargs = option.copy()

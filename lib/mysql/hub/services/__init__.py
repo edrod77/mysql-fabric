@@ -58,7 +58,7 @@ def find_services():
     return services
 
 def find_client():
-    """Return a proxy to access the Facric server.
+    """Return a proxy to access the Fabric server.
     """
     return _protocol.MyClient()
 

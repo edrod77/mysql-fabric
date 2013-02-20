@@ -104,24 +104,23 @@ class List(Command):
 
         # Get the commands and their brief description.
         for group_name in get_groups():
-            for command_name in get_commands(group_name):
+           for command_name in get_commands(group_name):
+               cls = get_command(group_name, command_name)
+             
+               doc_text = ""
+               if cls.__doc__ and cls.__doc__.find(".") != -1:
+                   doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
+               elif cls.__doc__:
+                   doc_text = cls.__doc__
+               doc_text = [text.strip(" ") for text in doc_text.split("\n")]
 
-                cls = get_command(group_name, command_name)
+               commands.append(
+                   (group_name, command_name, " ".join(doc_text))
+                   )
 
-                doc_text = ""
-                if cls.__doc__ and cls.__doc__.find(".") != -1:
-                    doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
-                elif cls.__doc__:
-                    doc_text = cls.__doc__
-                doc_text = [text.strip(" ") for text in doc_text.split("\n")]
-
-                commands.append(
-                    (group_name, command_name, " ".join(doc_text))
-                    )
-
-                name_size = len(group_name) + len(command_name)
-                if name_size > max_name_size:
-                    max_name_size = name_size
+               name_size = len(group_name) + len(command_name)
+               if name_size > max_name_size:
+                   max_name_size = name_size
 
         # Format each description and print the result.
         for group_name, command_name, help_text in commands:
@@ -227,9 +226,24 @@ class Stop(Command):
 
 
 def _shutdown():
-    """Shutdown Fabric Server.
+    """Shutdown Fabric server.
     """
     _detector.FailureDetector.unregister_groups()
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
     return True
+
+
+class FabricLookups(Command):
+    """Return a list of Fabric servers.
+    """
+    command_name = "lookup_fabrics"
+
+    def execute(self):
+        """Return a list with all the available Fabric Servers.
+
+        :return: List with existing Fabric Servers.
+        :rtype: ["host:port", ...]
+        """
+        service = _services.ServiceManager()
+        return [service.address]

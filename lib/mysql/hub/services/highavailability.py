@@ -13,14 +13,18 @@ import mysql.hub.server_utils as _server_utils
 import mysql.hub.executor as _executor
 import mysql.hub.failure_detector as _detector
 
-_LOGGER = logging.getLogger("mysql.hub.services.replication")
+from mysql.hub.command import (
+    Command,
+    )
+
+_LOGGER = logging.getLogger("mysql.hub.services.highavailability")
 
 # Discover the replication topology.
 DISCOVER_TOPOLOGY = _events.Event()
 # Import the replication topology outputed in the previous step.
 IMPORT_TOPOLOGY = _events.Event()
-def import_topology(pattern_group_id, group_description, address, user=None,
-                    passwd=None, synchronous=True):
+
+class ImportTopology(Command):
     """Try to figure out the replication topology and import it into the
     state store.
 
@@ -28,48 +32,56 @@ def import_topology(pattern_group_id, group_description, address, user=None,
     server and, for each server found, it repeats the process recursively.
     It assumes that it can connect to all MySQL Instances using the same
     user and password and that slaves report their host and port through
-    *--report-host* and *--report-port*.
+    --report-host and --report-port.
 
-    After discovering the replication topology (discover_topology), the
-    information is stored into the state store (import_topology).
-
-    :param pattern_group_id: Pattern group's id which is used to generate the
-                             groups ids that will be used to create the groups
-                             where servers will be imported into.
-    :param description: Group's description where servers will be imported
-                        into. If more than one group is created, they will
-                        share the same description.
-    :param address: Server's address.
-    :param user: Server's user.
-    :param passwd: Server's passwd.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: A dictionary with information on the discovered topology.
-
-    In what follows, one will find a figure that depicts the sequence of events
-    that happen during the import operation. To ease the presentation some
-    names are abbreivated:
-
-    .. seqdiag::
-
-      diagram {
-        activation = none;
-        === Schedule "discover_topology" ===
-        import_topology --> executor [ label = "schedule(discover)" ];
-        import_topology <-- executor;
-        === Execute "discover_topology" and schedule "import_topology" ===
-        executor -> discover [ label = "execute(discover)" ];
-        discover --> executor [ label = "schedule(import)" ];
-        discover <-- executor;
-        executor <- discover;
-        === Execute "import_topology" ===
-        executor -> import [ label = "execute(import)" ];
-        executor <- import;
-      }
     """
-    procedures = _events.trigger(DISCOVER_TOPOLOGY, pattern_group_id,
-                           group_description, address, user, passwd)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "import_topology"
+
+    def execute(self, pattern_group_id, group_description, address, user=None,
+                passwd=None, synchronous=True):
+        """Try to figure out the replication topology and import it into the
+        state store.
+
+        :param pattern_group_id: Pattern group's id which is used to generate
+                                 the groups ids that will be used to create the
+                                 groups where servers will be imported into.
+        :param description: Group's description where servers will be imported
+                            into. If more than one group is created, they will
+                            share the same description.
+        :param address: Server's address.
+        :param user: Server's user.
+        :param passwd: Server's passwd.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
+        :return: A dictionary with information on the discovered topology.
+
+        In what follows, one will find a figure that depicts the sequence of
+        events that happen during the import operation. To ease the presentation
+        some names are abbreivated:
+
+        .. seqdiag::
+
+          diagram {
+          activation = none;
+          === Schedule "discover_topology" ===
+          import_topology --> executor [ label = "schedule(discover)" ];
+          import_topology <-- executor;
+          === Execute "discover_topology" and schedule "import_topology" ===
+          executor -> discover [ label = "execute(discover)" ];
+          discover --> executor [ label = "schedule(import)" ];
+          discover <-- executor;
+          executor <- discover;
+          === Execute "import_topology" ===
+          executor -> import [ label = "execute(import)" ];
+          executor <- import;
+          }
+        """
+        procedures = _events.trigger(
+            DISCOVER_TOPOLOGY, pattern_group_id, group_description,
+            address, user, passwd
+            )
+        return _executor.wait_for_procedures(procedures, synchronous)
 
 # Find a slave that is not failing to keep with the master's pace.
 FIND_CANDIDATE_SWITCH = _events.Event()
@@ -81,149 +93,171 @@ BLOCK_WRITE_SWITCH = _events.Event()
 WAIT_CANDIDATES_SWITCH = _events.Event()
 # Enable the new master by making slaves point to it.
 CHANGE_TO_CANDIDATE = _events.Event()
-def switch_over(group_id, slave_uuid=None, synchronous=True):
+
+class SwitchOver(Command):
     """Do a switch over.
 
-    If slave_uuid is not provided, the best candidate to become the new master
-    is found. Any candidate must have the binary log enabled, should have
-    logged the updates executed through the SQL Thread and both candidate and
-    master must belong to the same group (i.e. `group_id`). The smaller the lag
+    If a slave is not provided, the best candidate to become the new
+    master is found. Any candidate must have the binary log enabled, should
+    have logged the updates executed through the SQL Thread and both
+    candidate and master must belong to the same group. The smaller the lag
     between slave and the master the better. So the candidate which satisfies
-    the requirements and has the smaller lag is chosen to become the new master.
+    these requirements and has the smaller lag is chosen to become the new
+    master.
 
-    After choosing a candidate (find_candidate and check_candidate), any write
-    access to the current master (block_write) is disabled and the slaves are
-    synchronized with it (wait_candidates). Failures during the synchronization
-    that do not involve the candidate slave are ignored.
+    After choosing a candidate, any write access to the current master is
+    disabled and the slaves are synchronized with it. Failures during the
+    synchronization that do not involve the candidate slave are ignored.
 
     After that, slaves are stopped and configured to point to the new master
-    and the database updated setting the new master (changing_to_candidate).
-
-    :param uuid: Group's id.
-    :param slave_uuid: Candidate's uuid.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-
-    In what follows, one will find a figure that depicts the sequence of events
-    that happen during the switch over operation. The figure is split in two
-    pieces and names are abreviated in order to ease presentation:
-
-    .. seqdiag::
-
-      diagram {
-        activation = none;
-        === Schedule "find_candidate_switch" ===
-        switch_over --> executor [ label = "schedule(find_candidate)" ];
-        switch_over <-- executor;
-        find_candidate --> executor [ label = "schedule(check_candidate)" ];
-        find_candidate <-- executor;
-        executor <- find_candidate;
-        === Execute "check_candidate_switch" and schedule "block_write_switch" ===
-        executor -> check_candidate [ label = "execute(check_candidate)" ];
-        check_candidate --> executor [ label = "schedule(block_write)" ];
-        check_candidate <-- executor;
-        executor <- check_candidate;
-        === Execute "block_write_switch" and schedule "wait_candidates_switch" ===
-        executor -> block_write [ label = "execute(block_write)" ];
-        block_write --> executor [ label = "schedule(wait_candidates)" ];
-        block_write <-- executor;
-        executor <- block_write;
-        === Continue in the next diagram ===
-      }
-
-    .. seqdiag::
-
-      diagram {
-        activation = none;
-        edge_length = 350;
-        === Continuation from previous diagram ===
-        === Execute "wait_candidates_catch" and schedule "change_to_candidate" ===
-        executor -> wait_candidates [ label = "execute(wait_candidates)" ];
-        wait_candidates --> executor [ label = "schedule(change_to_candidate)" ];
-        wait_candidates <-- executor;
-        executor <- wait_candidates;
-        === Execute "change_to_candidate" ===
-        executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
-        executor <- change_to_candidate;
-      }
+    and the database updated setting the new master.
     """
+    group_name = "group"
+    command_name = "switch_over"
+
+    def execute(self, group_id, slave_uuid=None, synchronous=True):
+        """Do a switch over.
+
+        :param uuid: Group's id.
+        :param slave_uuid: Candidate's UUID.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+
+        In what follows, one will find a figure that depicts the sequence of events
+        that happen during the switch over operation. The figure is split in two
+        pieces and names are abreviated in order to ease presentation:
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            === Schedule "find_candidate_switch" ===
+            switch_over --> executor [ label = "schedule(find_candidate)" ];
+            switch_over <-- executor;
+            find_candidate --> executor [ label = "schedule(check_candidate)" ];
+            find_candidate <-- executor;
+            executor <- find_candidate;
+            === Execute "check_candidate_switch" and schedule "block_write_switch" ===
+            executor -> check_candidate [ label = "execute(check_candidate)" ];
+            check_candidate --> executor [ label = "schedule(block_write)" ];
+            check_candidate <-- executor;
+            executor <- check_candidate;
+            === Execute "block_write_switch" and schedule "wait_candidates_switch" ===
+            executor -> block_write [ label = "execute(block_write)" ];
+            block_write --> executor [ label = "schedule(wait_candidates)" ];
+            block_write <-- executor;
+            executor <- block_write;
+            === Continue in the next diagram ===
+          }
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            edge_length = 350;
+            === Continuation from previous diagram ===
+            === Execute "wait_candidates_catch" and schedule "change_to_candidate" ===
+            executor -> wait_candidates [ label = "execute(wait_candidates)" ];
+            wait_candidates --> executor [ label = "schedule(change_to_candidate)" ];
+            wait_candidates <-- executor;
+            executor <- wait_candidates;
+            === Execute "change_to_candidate" ===
+            executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
+            executor <- change_to_candidate;
+          }
+        """
+        procedures = None
+        if not slave_uuid:
+            procedures = _events.trigger(FIND_CANDIDATE_SWITCH, group_id)
+        else:
+            procedures = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id,
+                                     slave_uuid)
+        assert(procedures is not None)
+        return _executor.wait_for_procedures(procedures, synchronous)
+
+def _do_fail_over(group_id, slave_uuid, synchronous):
     procedures = None
     if not slave_uuid:
-        procedures = _events.trigger(FIND_CANDIDATE_SWITCH, group_id)
+        procedures = _events.trigger(
+            FIND_CANDIDATE_FAIL, group_id)
     else:
-        procedures = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id,
-                                     slave_uuid)
+        procedures = _events.trigger(
+            CHECK_CANDIDATE_FAIL, group_id, slave_uuid)
     assert(procedures is not None)
     return _executor.wait_for_procedures(procedures, synchronous)
+
 
 # Find a slave that was not failing to keep with the master's pace.
 FIND_CANDIDATE_FAIL = _events.Event("FAIL_OVER")
 # Check if the candidate is properly configured to become a master.
 CHECK_CANDIDATE_FAIL = _events.Event()
-def fail_over(group_id, slave_uuid=None, synchronous=True):
+class FailOver(Command):
     """Do a fail over.
 
-    If slave_uuid is not provided, the best candidate to become the new master
-    is found. Any candidate must have the binary log enabled and should have
-    logged the updates executed through the SQL Thread. If there is a
-    registered master, it must not be accessible and both candidate and master
-    must belong to the same group (i.e. `group_id`). The smaller the lag
-    between slave and the master the better. So the candidate which satisfies
-    the requirements and has the smaller lag is chosen to become the new
-    master.
+    If a slave is not provided, the best candidate to become the new
+    master is found. Any candidate must have the binary log enabled and
+    should have logged the updates executed through the SQL Thread. If there
+    is a registered master, it must not be accessible and both candidate and
+    master must belong to the same group. The smaller the lag between slave
+    and the master the better. So the candidate which satisfies the
+    requirements and has the smaller lag is chosen to become the new master.
 
-    After choosing a candidate (find_candidate and check_candidate), one makes
-    the slaves point to the new master and updates the database setting the new
-    master (change_to_candidate).
-
-    :param uuid: Group's id.
-    :param slave_uuid: Candidate's uuid.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-
-    In what follows, one will find a figure that depicts the sequence of event
-    that happen during the fail over operation. To ease the presentation some
-    names are abbreivated:
-
-    .. seqdiag::
-
-      diagram {
-        activation = none;
-        === Schedule "find_candidate_fail" ===
-        fail_over --> executor [ label = "schedule(find_candidate)" ];
-        fail_over <-- executor;
-        executor -> find_candidate [ label = "execute(find_candidate)" ];
-        find_candidate --> executor [ label = "schedule(check_candidate)" ];
-        find_candidate <-- executor;
-        executor <- find_candidate;
-        === Execute "check_candidate_fail" and schedule "change_to_candidate" ===
-        executor -> check_candidate [ label = "execute(check_candidate)" ];
-        check_candidate --> executor [ label = "schedule(change_to_candidate)" ];
-        check_candidate <-- executor;
-        executor <- check_candidate;
-        === Execute "change_to_candidate" ===
-        executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
-        change_to_candidate <-- executor;
-      }
+    After choosing a candidate, one makes the slaves point to the new master
+    and updates the database setting the new master.
     """
-    procedures = None
-    if not slave_uuid:
-        procedures = _events.trigger(FIND_CANDIDATE_FAIL, group_id)
-    else:
-        procedures = _events.trigger(CHECK_CANDIDATE_FAIL, group_id,
-                                     slave_uuid)
-    assert(procedures is not None)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "fail_over"
 
-def promote_master(group_id, slave_uuid=None, synchronous=True):
-    """Promote a master if there isn't any. See :meth:`fail_over`.
+    def execute(self, group_id, slave_uuid=None, synchronous=True):
+        """Do a fail over.
 
-    :param uuid: Group's id.
-    :param uuid: Candidate's uuid.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
+        :param uuid: Group's id.
+        :param slave_uuid: Candidate's UUID.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+
+        In what follows, one will find a figure that depicts the sequence of event
+        that happen during the fail over operation. To ease the presentation some
+        names are abbreivated:
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            === Schedule "find_candidate_fail" ===
+            fail_over --> executor [ label = "schedule(find_candidate)" ];
+            fail_over <-- executor;
+            executor -> find_candidate [ label = "execute(find_candidate)" ];
+            find_candidate --> executor [ label = "schedule(check_candidate)" ];
+            find_candidate <-- executor;
+            executor <- find_candidate;
+            === Execute "check_candidate_fail" and schedule "change_to_candidate" ===
+            executor -> check_candidate [ label = "execute(check_candidate)" ];
+            check_candidate --> executor [ label = "schedule(change_to_candidate)" ];
+            check_candidate <-- executor;
+            executor <- check_candidate;
+            === Execute "change_to_candidate" ===
+            executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
+            change_to_candidate <-- executor;
+          }
+        """
+        return _do_fail_over(group_id, slave_uuid, synchronous)
+
+class PromoteMaster(Command):
+    """Promote a server into master if there is no current master.
     """
-    return fail_over(group_id, slave_uuid, synchronous)
+    group_name = "group"
+    command_name = "promote"
+
+    def execute(self, group_id, slave_uuid=None, synchronous=True):
+        """Promote a master if there isn't any. See :class:`FailOver`.
+
+        :param uuid: Group's id.
+        :param uuid: Candidate's uuid.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        """
+        return _do_fail_over(group_id, slave_uuid, synchronous)
 
 # Block any write access to the master.
 BLOCK_WRITE_DEMOTE = _events.Event()
@@ -231,58 +265,71 @@ BLOCK_WRITE_DEMOTE = _events.Event()
 WAIT_CANDIDATES_DEMOTE = _events.Event()
 # Stop replication and make slaves point to nowhere.
 RESET_CANDIDATES_DEMOTE = _events.Event()
-def demote_master(group_id, synchronous=True):
-    """Demote the current master if there is any.
+
+class DemoteMaster(Command):
+    """Demote the current master if there is one.
 
     In this case, the group must have a valid and operational master. Any write
     access to the master is blocked, slaves are synchronized with the master,
     stopped and their replication configuration reset. Note that no slave is
     promoted as master.
-
-    :param uuid: Group's id.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-
-    In what follows, one will find a figure that depicts the sequence of event
-    that happen during the demote operation. To ease the presentation some
-    names are abbreivated:
-
-    .. seqdiag::
-
-      diagram {
-        activation = none;
-        === Schedule "block_write_demote" ===
-        demote_master --> executor [ label = "schedule(block_write)" ];
-        demote_master <-- executor;
-        === Execute "block_write_demote" and schedule "wait_candidates_demote" ===
-        executor -> block_write [ label = "execute(block_write)" ];
-        block_write --> executor [ label = "schedule(wait_candidates)" ];
-        block_write <-- executor;
-        executor <- block_write;
-        === Execute "wait_candidates_demote" and schedule "reset_candidates_demote" ===
-        executor -> wait_candidates [ label = "execute(wait_candidates)" ];
-        wait_candidates --> executor [ label = "schedule(reset_candidates)" ];
-        wait_candidates <-- executor;
-        executor <- wait_candidates;
-        === Execute "reset_candidates_demote" ===
-        executor -> reset_candidates [ label = "execute(reset_candidates)" ];
-        executor <- reset_candidates;
-      }
     """
-    procedures = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "demote"
+
+    def execute(self, group_id, synchronous=True):
+        """Demote the current master if there is one.
+
+        :param uuid: Group's id.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+
+        In what follows, one will find a figure that depicts the sequence of event
+        that happen during the demote operation. To ease the presentation some
+        names are abbreivated:
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            === Schedule "block_write_demote" ===
+            demote --> executor [ label = "schedule(block_write)" ];
+            demote <-- executor;
+            === Execute "block_write_demote" and schedule "wait_candidates_demote" ===
+            executor -> block_write [ label = "execute(block_write)" ];
+            block_write --> executor [ label = "schedule(wait_candidates)" ];
+            block_write <-- executor;
+            executor <- block_write;
+            === Execute "wait_candidates_demote" and schedule "reset_candidates_demote" ===
+            executor -> wait_candidates [ label = "execute(wait_candidates)" ];
+            wait_candidates --> executor [ label = "schedule(reset_candidates)" ];
+            wait_candidates <-- executor;
+            executor <- wait_candidates;
+            === Execute "reset_candidates_demote" ===
+            executor -> reset_candidates [ label = "execute(reset_candidates)" ];
+            executor <- reset_candidates;
+          }
+        """
+        procedures = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
+        return _executor.wait_for_procedures(procedures, synchronous)
 
 # Check which servers are up or down within a group.
 CHECK_GROUP_AVAILABILITY = _events.Event()
-def check_group_availability(group_id, synchronous=True):
+class CheckHealth(Command):
     """Check if any server within a group has failed.
-
-    :param uuid: Group's id.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
     """
-    procedures = _events.trigger(CHECK_GROUP_AVAILABILITY, group_id)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "check_group_availability"
+
+    def execute(self, group_id, synchronous=True):
+        """Check if any server within a group has failed.
+
+        :param uuid: Group's id.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        """
+        procedures = _events.trigger(CHECK_GROUP_AVAILABILITY, group_id)
+        return _executor.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DISCOVER_TOPOLOGY)
 def _discover_topology(pattern_group_id, group_description,
