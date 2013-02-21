@@ -140,7 +140,8 @@ def fix_path_for_code():
 # when --help-commands are executed so that users may find out
 # that it is possible to build the documents provided Sphinx is
 # properly installed.
-if check_sphinx():
+result, path_sphinx = check_sphinx()
+if result:
     import sphinx.setup_command
     class build_docs(sphinx.setup_command.BuildDoc):
         """
