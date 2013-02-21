@@ -87,7 +87,7 @@ class Command(object):
     the command name, which means that if the *command_name* class
     property is not defined, the class name is automatically used.
     """
-    command_options = None
+    command_options = []
 
     def __init__(self):
         self.__client = None

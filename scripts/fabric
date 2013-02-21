@@ -143,6 +143,6 @@ if __name__ == '__main__':
 
         # Fire command.
         fire_command(command, *args)
-    except (Exception, Error) as error:
+    except Error as error:
         # TODO: IMPROVE HOW ERRORS ARE PRESENTED.
         print error

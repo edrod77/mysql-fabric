@@ -2,6 +2,7 @@
 information on available commands.
 """
 import logging
+import logging.handlers
 import sys
 import inspect
 import getpass
@@ -140,6 +141,7 @@ class Start(Command):
         { 'options': [ '--daemonize'],
           'dest':  'daemonize',
           'default': False,
+          'action' : "store_true",
           'help': "Daemonize the manager"
           },
         ]
