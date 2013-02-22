@@ -4,6 +4,7 @@ import threading
 import time
 import uuid as _uuid
 import xmlrpclib
+import logging
 
 from mysql.hub import (
     config as _config,
@@ -14,6 +15,8 @@ from mysql.hub import (
     )
 
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
+
+_LOGGER = logging.getLogger(__name__)
 
 class MySQLInstances(_utils.Singleton):
     """Contain a reference to the available set of MySQL Instances that can be
@@ -176,7 +179,13 @@ def setup_xmlrpc():
     config = _config.Config(None, params, True)
 
     # Set up the manager
-    from mysql.hub.services.manage import _start
+    from mysql.hub.services.manage import (
+        _start,
+        _configure_connections,
+        )
+
+    _configure_connections(config)
+    _persistence.setup()
     manager_thread = threading.Thread(target=_start, args=(config, ),
                                       name="Services")
     manager_thread.start()
@@ -197,4 +206,4 @@ def setup_xmlrpc():
 def teardown_xmlrpc(manager, proxy):
     proxy.manage.stop()
     manager.join()
-    _persistence.deinit()
+    _persistence.teardown()

@@ -107,7 +107,7 @@ class List(Command):
         for group_name in get_groups():
            for command_name in get_commands(group_name):
                cls = get_command(group_name, command_name)
-             
+
                doc_text = ""
                if cls.__doc__ and cls.__doc__.find(".") != -1:
                    doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
@@ -149,13 +149,72 @@ class Start(Command):
     def dispatch(self):
         """Start the Fabric server.
         """
+        # Configure logging.
+        _configure_logging(self.config, self.options.daemonize)
+
+        # Configure connections.
+        _configure_connections(self.config)
+
+        # Daemonize ourselves.
+        if self.options.daemonize:
+            _utils.daemonize()
+
+        # Start Fabric server.
+        _LOGGER.info("Fabric node starting.")
+        _start(self.config)
+        _LOGGER.info("Fabric node stopped.")
+
+
+class Setup(Command):
+    """Setup Fabric Storage System.
+
+    Create a database and necessary objects.
+    """
+    command_name = "setup"
+
+    def dispatch(self):
+        """Setup Fabric Storage System.
+        """
+        # Configure logging.
+        _configure_logging(self.config, False)
+
+        # Configure connections.
+        _configure_connections(self.config)
+
+        # Create database and objects.
+        _persistence.setup()
+
+
+class Teardown(Command):
+    """Teardown Fabric Storage System.
+
+    Drop database and its objects.
+    """
+    command_name = "teardown"
+
+    def dispatch(self):
+        """Teardown Fabric Storage System.
+        """
+        # Configure logging.
+        _configure_logging(self.config, False)
+
+        # Configure connections.
+        _configure_connections(self.config)
+
+        # Drop database and objects.
+        _persistence.teardown()
+
+
+def _configure_logging(config, daemon):
+        """Configure the logging system.
+        """
         # Set up the logging information.
         logger = logging.getLogger("mysql.hub")
         handler = None
 
         # Set up syslog handler, if needed
-        if self.options.daemonize:
-            address = self.config.get('logging.syslog', 'address')
+        if daemon:
+            address = config.get('logging.syslog', 'address')
             handler = logging.handlers.SysLogHandler(address)
         else:
             handler = logging.StreamHandler()
@@ -164,22 +223,16 @@ class Start(Command):
             "[%(levelname)s] %(asctime)s - %(threadName)s"
             " %(thread)d - %(message)s")
         handler.setFormatter(formatter)
-        logging_level = self.config.get('logging', 'level')
+        logging_level = config.get('logging', 'level')
         logger.setLevel(logging_level)
         logger.addHandler(handler)
 
-        # Daemonize ourselves, if we should
-        if self.options.daemonize:
-            _utils.daemonize()
 
-        logger.info("Fabric node starting.")
-        _start(self.config)
-        logger.info("Fabric node stopped.")
-
-
-def _start(config):
-    """Start Fabric Server.
+def _configure_connections(config):
+    """Configure information on database connection and remote
+    servers.
     """
+    # Fetch options to configure the services.
     address = config.get('storage', 'address')
     try:
         host, port = address.split(':')
@@ -195,25 +248,29 @@ def _start(config):
     except _config.NoOptionError:
         password = getpass.getpass()
 
-    # Set up the components
+    # Define XML-RPC configuration.
     address = config.get("protocol.xmlrpc", "address")
-    service_manager = _services.ServiceManager(address)
+    _services.ServiceManager(address)
 
-    # Load all services into the service manager
-    service_manager.load_services()
-
-    # Initialize the persistence system. This have to be after the
-    # services are loaded to ensure that all persistent classes are
-    # defined (hence added to the list of persistent classes).
+    # Define state store configuration.
     _persistence.init(host=host, port=port,
                       user=user, password=password,
                       database=database)
+
+
+def _start(config):
+    """Start Fabric server.
+    """
+    # Load all services into the service manager
+    _services.ServiceManager().load_services()
+
+    # Initilize the state store.
     _persistence.init_thread()
 
     # Start the executor, failure detector and then service manager.
     _events.Handler().start()
     _detector.FailureDetector.register_groups()
-    service_manager.start()
+    _services.ServiceManager().start()
 
 
 class Stop(Command):
@@ -233,7 +290,7 @@ def _shutdown():
     _detector.FailureDetector.unregister_groups()
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
-    return True
+    return False
 
 
 class FabricLookups(Command):

@@ -15,6 +15,7 @@ class TestSharding(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                          user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -191,7 +192,7 @@ class TestSharding(unittest.TestCase):
         self.__server_3.exec_stmt("DROP DATABASE prune_db")
         self.__server_5.exec_stmt("DROP DATABASE prune_db")
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_fetch_shard_mapping(self):
         shard_mapping_1 = ShardMapping.fetch("db1.t1")

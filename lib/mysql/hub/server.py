@@ -558,7 +558,7 @@ class MySQLServer(_persistence.Persistable):
         """
         assert(isinstance(uuid, _uuid.UUID))
         self.__uuid = uuid
-        self.__address = address 
+        self.__address = address
         self.__pool = ConnectionPool()
         self.__user = user
         self.__passwd = passwd
@@ -619,10 +619,9 @@ class MySQLServer(_persistence.Persistable):
         return _server_utils.create_mysql_connection(
             autocommit=True, use_unicode=False, database="mysql",
             charset=self.__default_charset, host=host, port=port,
-            user=user, passwd=passwd) 
+            user=user, passwd=passwd)
 
 
-    @server_logging
     def connect(self):
         """Connect to a MySQL Server instance.
         """
@@ -664,7 +663,6 @@ class MySQLServer(_persistence.Persistable):
                       self.__gtid_enabled, self.__binlog_enabled, \
                       self.__read_only)
 
-    @server_logging
     def disconnect(self):
         """Disconnect from the server.
         """

@@ -45,12 +45,13 @@ class TestExecutor(unittest.TestCase):
         from __main__ import options
         _persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
+        _persistence.setup()
         _persistence.init_thread()
         self.executor = _executor.Executor()
 
     def tearDown(self):
         _persistence.deinit_thread()
-        _persistence.deinit()
+        _persistence.teardown()
 
     def test_start_executor(self):
         self.executor.start()
