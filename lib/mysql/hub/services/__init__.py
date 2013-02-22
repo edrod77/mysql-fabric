@@ -22,6 +22,7 @@ from mysql.hub.errors import (
 
 from mysql.hub.command import (
     Command,
+    ProcedureCommand,
     register_command,
     get_groups,
     get_commands,
@@ -42,7 +43,8 @@ def find_services():
     for mod in services:
         for sym, val in mod.__dict__.items():
             if isinstance(val, type) and issubclass(val, Command) and \
-                val != Command and re.match("[A-Za-z]\w+", sym):
+                val not in (Command, ProcedureCommand) and \
+                re.match("[A-Za-z]\w+", sym):
                 try:
                     val.group_name
                 except AttributeError:

@@ -10,10 +10,10 @@ import mysql.hub.server as _server
 import mysql.hub.replication as _replication
 import mysql.hub.errors as _errors
 import mysql.hub.server_utils as _server_utils
-import mysql.hub.executor as _executor
 import mysql.hub.failure_detector as _detector
 
 from mysql.hub.command import (
+    ProcedureCommand,
     Command,
     )
 
@@ -24,7 +24,7 @@ DISCOVER_TOPOLOGY = _events.Event()
 # Import the replication topology outputed in the previous step.
 IMPORT_TOPOLOGY = _events.Event()
 
-class ImportTopology(Command):
+class ImportTopology(ProcedureCommand):
     """Try to figure out the replication topology and import it into the
     state store.
 
@@ -81,7 +81,7 @@ class ImportTopology(Command):
             DISCOVER_TOPOLOGY, pattern_group_id, group_description,
             address, user, passwd
             )
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 # Find a slave that is not failing to keep with the master's pace.
 FIND_CANDIDATE_SWITCH = _events.Event()
@@ -94,7 +94,7 @@ WAIT_CANDIDATES_SWITCH = _events.Event()
 # Enable the new master by making slaves point to it.
 CHANGE_TO_CANDIDATE = _events.Event()
 
-class SwitchOver(Command):
+class SwitchOver(ProcedureCommand):
     """Do a switch over.
 
     If a slave is not provided, the best candidate to become the new
@@ -173,9 +173,11 @@ class SwitchOver(Command):
             procedures = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id,
                                      slave_uuid)
         assert(procedures is not None)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
-def _do_fail_over(group_id, slave_uuid, synchronous):
+def _do_fail_over(obj, group_id, slave_uuid, synchronous):
+    """Run the fail over procedure.
+    """
     procedures = None
     if not slave_uuid:
         procedures = _events.trigger(
@@ -184,14 +186,14 @@ def _do_fail_over(group_id, slave_uuid, synchronous):
         procedures = _events.trigger(
             CHECK_CANDIDATE_FAIL, group_id, slave_uuid)
     assert(procedures is not None)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    return obj.wait_for_procedures(procedures, synchronous)
 
 
 # Find a slave that was not failing to keep with the master's pace.
 FIND_CANDIDATE_FAIL = _events.Event("FAIL_OVER")
 # Check if the candidate is properly configured to become a master.
 CHECK_CANDIDATE_FAIL = _events.Event()
-class FailOver(Command):
+class FailOver(ProcedureCommand):
     """Do a fail over.
 
     If a slave is not provided, the best candidate to become the new
@@ -241,9 +243,9 @@ class FailOver(Command):
             change_to_candidate <-- executor;
           }
         """
-        return _do_fail_over(group_id, slave_uuid, synchronous)
+        return _do_fail_over(self, group_id, slave_uuid, synchronous)
 
-class PromoteMaster(Command):
+class PromoteMaster(ProcedureCommand):
     """Promote a server into master if there is no current master.
     """
     group_name = "group"
@@ -257,7 +259,7 @@ class PromoteMaster(Command):
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         """
-        return _do_fail_over(group_id, slave_uuid, synchronous)
+        return _do_fail_over(self, group_id, slave_uuid, synchronous)
 
 # Block any write access to the master.
 BLOCK_WRITE_DEMOTE = _events.Event()
@@ -266,7 +268,7 @@ WAIT_CANDIDATES_DEMOTE = _events.Event()
 # Stop replication and make slaves point to nowhere.
 RESET_CANDIDATES_DEMOTE = _events.Event()
 
-class DemoteMaster(Command):
+class DemoteMaster(ProcedureCommand):
     """Demote the current master if there is one.
 
     In this case, the group must have a valid and operational master. Any write
@@ -311,11 +313,11 @@ class DemoteMaster(Command):
           }
         """
         procedures = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 # Check which servers are up or down within a group.
 CHECK_GROUP_AVAILABILITY = _events.Event()
-class CheckHealth(Command):
+class CheckHealth(ProcedureCommand):
     """Check if any server within a group has failed.
     """
     group_name = "group"
@@ -329,7 +331,7 @@ class CheckHealth(Command):
                             or not.
         """
         procedures = _events.trigger(CHECK_GROUP_AVAILABILITY, group_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DISCOVER_TOPOLOGY)
 def _discover_topology(pattern_group_id, group_description,

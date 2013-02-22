@@ -143,7 +143,7 @@ class TestCommand(unittest.TestCase):
         local_cmd.setup_client(_xmlrpc.MyClient(), None, config)
 
         # Dispatch request through local command to remote command.
-        self.assertEqual(local_cmd.dispatch(), "executed")
+        self.assertEqual(local_cmd.dispatch(), "Command :\n{ return = executed\n}")
         self.assertEqual(local_cmd.execution, None)
         self.assertEqual(remote_cmd.execution, "executed")
 
@@ -170,7 +170,7 @@ class TestCommand(unittest.TestCase):
             "<Fault 1: \'<type \\\'exceptions.Exception\\\'>:method "
             "\"test.error_remote_command\" is not supported\'>\n"
             )
-        self.assertEqual(local_cmd.dispatch(), None)
+        self.assertEqual(local_cmd.dispatch(), "Command :\n{ return = None\n}")
         self.assertEqual(sys.stderr.getvalue(), output)
         sys.stderr = old_stderr
 

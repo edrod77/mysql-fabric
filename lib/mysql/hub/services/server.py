@@ -36,17 +36,17 @@ import uuid as _uuid
 import mysql.hub.events as _events
 import mysql.hub.server as _server
 import mysql.hub.errors as _errors
-import mysql.hub.executor as _executor
 import mysql.hub.failure_detector as _detector
 
 from mysql.hub.command import (
+    ProcedureCommand,
     Command,
     )
 
 _LOGGER = logging.getLogger("mysql.hub.services.server")
 
 LOOKUP_GROUPS = _events.Event()
-class GroupLookups(Command):
+class GroupLookups(ProcedureCommand):
     """Return a list with existing groups.
     """
     group_name = "group"
@@ -61,10 +61,10 @@ class GroupLookups(Command):
         :rtype: [[group], ....].
         """
         procedures = _events.trigger(LOOKUP_GROUPS)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_GROUP = _events.Event()
-class GroupLookup(Command):
+class GroupLookup(ProcedureCommand):
     """Return information on a group.
     """
     group_name = "group"
@@ -83,10 +83,10 @@ class GroupLookup(Command):
         exception is thrown. Otherwise, the group's information is returned.
         """
         procedures = _events.trigger(LOOKUP_GROUP, group_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_GROUP = _events.Event()
-class GroupCreate(Command):
+class GroupCreate(ProcedureCommand):
     """Create a group.
     """
     group_name = "group"
@@ -102,10 +102,10 @@ class GroupCreate(Command):
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(CREATE_GROUP, group_id, description)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 UPDATE_GROUP = _events.Event()
-class GroupDescription(Command):
+class GroupDescription(ProcedureCommand):
     """Update group's description.
     """
     group_name = "group"
@@ -121,10 +121,10 @@ class GroupDescription(Command):
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(UPDATE_GROUP, group_id, description)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_GROUP = _events.Event()
-class RemoveGroup(Command):
+class RemoveGroup(ProcedureCommand):
     """Remove a group.
     """
     group_name = "group"
@@ -140,10 +140,10 @@ class RemoveGroup(Command):
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(REMOVE_GROUP, group_id, force)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SERVERS = _events.Event()
-class ServerLookups(Command):
+class ServerLookups(ProcedureCommand):
     """Return a list of existing servers in a group.
     """ 
     group_name = "group"
@@ -164,10 +164,10 @@ class ServerLookups(Command):
           [uuid, ...]
         """
         procedures = _events.trigger(LOOKUP_SERVERS, group_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_UUID = _events.Event()
-class ServerUuid(Command):
+class ServerUuid(ProcedureCommand):
     """Return server's uuid.
     """
     group_name = "server"
@@ -184,10 +184,10 @@ class ServerUuid(Command):
         :return: uuid.
         """
         procedures = _events.trigger(LOOKUP_UUID, address, user, passwd)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SERVER = _events.Event()
-class ServerLookup(Command):
+class ServerLookup(ProcedureCommand):
     """Return information on a server.
     """
     group_name = "group"
@@ -204,10 +204,10 @@ class ServerLookup(Command):
         :rtype: {"uuid" : uuid, "address": address, "user": user, "passwd": passwd}.
         """
         procedures = _events.trigger(LOOKUP_SERVER, group_id, uuid)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_SERVER = _events.Event()
-class ServerCreate(Command):
+class ServerCreate(ProcedureCommand):
     """Add a server to a group.
     """
     group_name = "group"
@@ -225,10 +225,10 @@ class ServerCreate(Command):
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(CREATE_SERVER, group_id, address, user, passwd)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SERVER = _events.Event()
-class ServerRemove(Command):
+class ServerRemove(ProcedureCommand):
     """Remove a server from a group.
     """
     group_name = "group"
@@ -244,7 +244,7 @@ class ServerRemove(Command):
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(REMOVE_SERVER, group_id, uuid)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(LOOKUP_GROUPS)
 def _lookup_groups():

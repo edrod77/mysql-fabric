@@ -5,11 +5,11 @@ in FABRIC.
 import logging
 
 from mysql.hub.command import (
+    ProcedureCommand,
     Command,
 )
 
 import mysql.hub.events as _events
-import mysql.hub.executor as _executor
 import mysql.hub.sharding as _sharding
 
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
@@ -17,7 +17,7 @@ from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
 _LOGGER = logging.getLogger("mysql.hub.services.sharding")
 
 DEFINE_SHARD_MAPPING = _events.Event("DEFINE_SHARD_MAPPING")
-class DefineShardMapping(Command):
+class DefineShardMapping(ProcedureCommand):
     """Define a shard mapping.
     """
     group_name = "sharding"
@@ -33,10 +33,10 @@ class DefineShardMapping(Command):
         """
         procedures = _events.trigger(DEFINE_SHARD_MAPPING, type_name,
                                         global_group_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 ADD_SHARD_MAPPING = _events.Event("ADD_SHARD_MAPPING")
-class AddShardMapping(Command):
+class AddShardMapping(ProcedureCommand):
     """Add a table to a shard mapping.
     """
     group_name = "sharding"
@@ -57,10 +57,10 @@ class AddShardMapping(Command):
         procedures = _events.trigger(ADD_SHARD_MAPPING, shard_mapping_id,
                                      table_name,
                                      column_name)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD_MAPPING = _events.Event("REMOVE_SHARD_MAPPING")
-class RemoveShardMapping(Command):
+class RemoveShardMapping(ProcedureCommand):
     """Remove the shard mapping represented by the Shard Mapping object.
     """
     group_name = "sharding"
@@ -76,10 +76,10 @@ class RemoveShardMapping(Command):
                             or not.
         """
         procedures = _events.trigger(REMOVE_SHARD_MAPPING, table_name)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SHARD_MAPPING = _events.Event("LOOKUP_SHARD_MAPPING")
-class LookupShardMapping(Command):
+class LookupShardMapping(ProcedureCommand):
     """Fetch the shard specification mapping for the given table
     """
     group_name = "sharding"
@@ -96,10 +96,10 @@ class LookupShardMapping(Command):
                     the given table.
         """
         procedures = _events.trigger(LOOKUP_SHARD_MAPPING, table_name)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LIST_SHARD_MAPPINGS = _events.Event("LIST_SHARD_MAPPINGS")
-class ListShardMappings(Command):
+class ListShardMappings(ProcedureCommand):
     """Returns all the shard mappings (names) of a particular
     sharding_type.
     """
@@ -120,10 +120,10 @@ class ListShardMappings(Command):
                  the sharding type.
         """
         procedures = _events.trigger(LIST_SHARD_MAPPINGS, sharding_type)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
-class AddShard(Command):
+class AddShard(ProcedureCommand):
     """Add a shard.
     """
     group_name = "sharding"
@@ -146,11 +146,11 @@ class AddShard(Command):
 
         procedures = _events.trigger(ADD_SHARD, shard_mapping_id, lower_bound,
                                      upper_bound, group_id, state)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD = \
         _events.Event("REMOVE_SHARD")
-class RemoveShard(Command):
+class RemoveShard(ProcedureCommand):
     """Remove a Shard.
     """
     group_name = "sharding"
@@ -165,11 +165,11 @@ class RemoveShard(Command):
         """
 
         procedures = _events.trigger(REMOVE_SHARD, shard_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 SHARD_ENABLE = \
         _events.Event("SHARD_ENABLE")
-class EnableShard(Command):
+class EnableShard(ProcedureCommand):
     """Enable a shard.
     """
     group_name = "sharding"
@@ -182,11 +182,11 @@ class EnableShard(Command):
                         or not.
         """
         procedures = _events.trigger(SHARD_ENABLE, shard_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 SHARD_DISABLE = \
         _events.Event("SHARD_DISABLE")
-class DisableShard(Command):
+class DisableShard(ProcedureCommand):
     """Disable a shard.
     """
     group_name = "sharding"
@@ -200,11 +200,11 @@ class DisableShard(Command):
         """
 
         procedures = _events.trigger(SHARD_DISABLE, shard_id)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 SHARD_LOOKUP = \
         _events.Event("SHARD_LOOKUP")
-class LookupShard(Command):
+class LookupShard(ProcedureCommand):
     """Lookup a shard based on the give sharding key.
     """
     group_name = "sharding"
@@ -223,10 +223,10 @@ class LookupShard(Command):
         """
 
         procedures = _events.trigger(SHARD_LOOKUP, table_name, key)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 PRUNE_SHARD_TABLES = _events.Event("PRUNE_SHARD_TABLES")
-class PruneShardTables(Command):
+class PruneShardTables(ProcedureCommand):
     """Given the table name prune the tables according to the defined
     sharding specification for the table.
     """
@@ -241,7 +241,7 @@ class PruneShardTables(Command):
                         or not.
         """
         procedures = _events.trigger(PRUNE_SHARD_TABLES, table_name)
-        return _executor.wait_for_procedures(procedures, synchronous)
+        return self.wait_for_procedures(procedures, synchronous)
 
 
 @_events.on_event(DEFINE_SHARD_MAPPING)

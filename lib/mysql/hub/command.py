@@ -19,6 +19,8 @@ sentence of the description is the brief description and is shown in
 listings, while the remaining text is the more elaborate description
 shown in command help message.
 """
+import mysql.hub.executor as _executor
+
 _COMMANDS_CLASS = {}
 
 def register_command(group_name, command_name, command):
@@ -164,4 +166,110 @@ class Command(object):
         The default dispatch method just call the server-side of the
         command.
         """
-        return self.client.dispatch(self, *args)
+        status = self.client.dispatch(self, *args)
+        return self.command_status(status)
+
+    @staticmethod
+    def command_status(status):
+        """Present the result reported by a command in a friendly-user way.
+        """
+        string = [
+            "Command :",
+            "{ return = %s",
+            "}"
+            ]
+        result = "\n".join(string)
+        return result % (status, )
+
+
+class ProcedureCommand(Command):
+    # TODO: IMPROVE THE CODE SO USERS MAY DECIDE NOT TO USE WAIT_FOR_PROCEDURES.
+    """Class used to implement commands that are built as procedures and
+    schedule job(s) to be executed.
+
+    Basically, it is used to process and present user-friendly results
+    as a procedure might return information on every job executed on
+    its behalf.
+    """
+    def __init__(self):
+        """Create the ProcedureCommand object.
+        """
+        super(ProcedureCommand, self).__init__()
+
+    def dispatch(self, *args):
+        """Default dispatch method when the command is build as a
+        procedure.
+
+        It calls command.dispatch, gets the result and processes
+        it generating a user-friendly result.
+        """
+        status = self.client.dispatch(self, *args)
+        return self.procedure_status(status)
+
+    @staticmethod
+    def wait_for_procedures(procedure_param, synchronous):
+        """Wait until a procedure completes its execution and return
+        detailed information on it. 
+
+        However, if the parameter synchronous is not set, only the
+        procedure's uuid is returned because it is not safe to access
+        the procedure's information while it may be executing.
+
+        :param proc_param: Iterable with procedures.
+        :param synchronous: Whether should wait until the procedure
+                            finishes its execution or not.
+        :return: Information on the procedure.
+        :rtype: str(procedure.uuid), procedure.status, procedure.result
+                or (str(procedure.uuid))
+        """
+        assert(len(procedure_param) == 1)
+        synchronous = synchronous in (True, "True", "1")
+        if synchronous:
+            executor = _executor.Executor()
+            for procedure in procedure_param:
+                executor.wait_for_procedure(procedure)
+            return str(procedure_param[-1].uuid), procedure_param[-1].status, \
+                procedure_param[-1].result
+        else:
+            return str(procedure_param[-1].uuid)
+
+    @staticmethod
+    def procedure_status(status, details=False):
+        """Transform a status reported by :func:`wait_for_procedures` into
+        a string that can be used by the command-line interface.
+        """
+        string = [
+            "Procedure :",
+            "{ uuid        = %s,",
+            "  finished    = %s,",
+            "  success     = %s,",
+            "  return      = %s,",
+            "  activities  = %s",
+            "}"
+            ]
+        result = "\n".join(string)
+
+        if isinstance(status, str):
+            return result % (status, "", "", "", "")
+
+        proc_id = status[0]
+        operation = status[1][-1]
+        returned = None
+        activities = ""
+        complete = (operation["state"] == _executor.Job.COMPLETE)
+        success = (operation["success"] == _executor.Job.SUCCESS)
+
+        if success:
+            returned = status[2]
+            if details:
+                steps = [step["description"] for step in status[1]]
+                activities = "\n  ".join(steps)
+        else:
+            trace = operation["diagnosis"].split("\n")
+            returned = trace[-2]
+            if details:
+                activities = "\n".join(trace)
+
+        return result % (
+            proc_id, complete, success, returned, activities
+            )
