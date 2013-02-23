@@ -204,6 +204,9 @@ META_INFO = {
     'scripts': [
         'scripts/fabric',
         ],
+    'data_files' : [
+        ('/etc/fabric/', ['data/main.cfg']),
+        ],
     'classifiers': [
         'Development Status :: 1 - Planning',
         'Environment :: Console',
