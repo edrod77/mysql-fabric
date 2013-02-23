@@ -155,7 +155,6 @@ def create_mysql_connection(**kwargs):
     """
     try:
         cnx = mysql.connector.Connect(**kwargs)
-        _LOGGER.debug("Created connection (%s).", cnx)
         return cnx
     except mysql.connector.Error as error:
         raise _errors.DatabaseError("Cannot connect to the server. "\
@@ -165,7 +164,6 @@ def destroy_mysql_connection(cnx):
     """Close the connection.
     """
     try:
-        _LOGGER.debug("Destroying connection (%s).", cnx)
         cnx.disconnect()
     except Exception as error:
         raise _errors.DatabaseError("Error tyring to disconnect. "\

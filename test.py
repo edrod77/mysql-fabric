@@ -161,12 +161,12 @@ if __name__ == '__main__':
 
     # Setting logging for "mysql.hub".
     logger = logging.getLogger("mysql.hub")
-    logger.setLevel(options.log_level or 'INFO')
+    logger.setLevel(options.log_level or 'DEBUG')
     logger.addHandler(handler)
 
     # Setting logging for "tests".
     logger = logging.getLogger("tests")
-    logger.setLevel(options.log_level or 'INFO')
+    logger.setLevel(options.log_level or 'DEBUG')
     logger.addHandler(handler)
 
     result = run_tests('tests', options, args)

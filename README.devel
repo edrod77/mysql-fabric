@@ -51,13 +51,15 @@ the Python path. There is also a sample configuration file, so you can
 use the following command to start the hub process un-daemonized and
 print debug log messages to the terminal.
 
-    PYTHONPATH=build/lib python build/script/hub-start \
-    --config=data/sample.cfg --ignore-site-config
+    export PYTHONPATH=build/lib
+    export PATH=build/script:$PATH
+    fabric manage start --config=data/sample.cfg --ignore-site-config
 
 You can stop the hub using:
 
-    PYTHONPATH=build/lib python build/script/hub-stop \
-    --config=data/sample.cfg --ignore-site-config
+    export PYTHONPATH=build/lib
+    export PATH=build/script:$PATH
+    fabric manage stop --config=data/sample.cfg --ignore-site-config
 
 The port used for these commands is stored in the configuration file.
 

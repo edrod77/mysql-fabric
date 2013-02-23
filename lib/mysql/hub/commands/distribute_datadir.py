@@ -1,7 +1,8 @@
 """Utility for recursively copying a MySQL data directory from a source
     to a destination machine.
 """
-
+#TODO: The script is a distibuted directory copy utility and it needs to
+#TODO: eventually be removed from the FABRIC repository.
 #TODO: The script needs to be tested on windows
 
 import os

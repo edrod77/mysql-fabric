@@ -3,8 +3,7 @@ import uuid as _uuid
 import mysql.hub.sharding as _sharding
 import mysql.hub.errors as _errors
 
-from mysql.hub.sharding import ShardMapping
-from mysql.hub.sharding import RangeShardingSpecification
+from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
 from mysql.hub.server import Group, MySQLServer
 from mysql.hub import persistence
 
@@ -16,6 +15,7 @@ class TestSharding(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                          user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -102,66 +102,97 @@ class TestSharding(unittest.TestCase):
         self.__group_3.add_server(self.__server_6)
         self.__group_3.master = self.__options_5["uuid"]
 
-        Group.add("GROUPID4", "First description.")
-        Group.add("GROUPID5", "First description.")
-        Group.add("GROUPID6", "First description.")
-        Group.add("GROUPID7", "First description.")
-        Group.add("GROUPID8", "First description.")
-        Group.add("GROUPID9", "First description.")
+        Group.add("GROUPID4", "4TH description.")
+        Group.add("GROUPID5", "5TH description.")
+        Group.add("GROUPID6", "6TH description.")
+        Group.add("GROUPID7", "7TH description.")
+        Group.add("GROUPID8", "8TH description.")
+        Group.add("GROUPID9", "9TH description.")
+        Group.add("GROUPID10", "10TH description.")
+        Group.add("GROUPID11", "11TH description.")
+        Group.add("GROUPID12", "12TH description.")
+        Group.add("GROUPID13", "13TH description.")
+        Group.add("GROUPID14", "14TH description.")
+
+        self.__shard_mapping_id_1 = ShardMapping.define("RANGE", "GROUPID10")
+        self.__shard_mapping_id_2 = ShardMapping.define("RANGE", "GROUPID11")
+        self.__shard_mapping_id_3 = ShardMapping.define("RANGE", "GROUPID12")
+        self.__shard_mapping_id_4 = ShardMapping.define("RANGE", "GROUPID13")
+        self.__shard_mapping_id_5 = ShardMapping.define("RANGE", "GROUPID14")
+
+        self.__shard_mapping_1 = ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
+        self.__shard_mapping_2 = ShardMapping.add(self.__shard_mapping_id_2, "db2.t2", "userID2")
+        self.__shard_mapping_3 = ShardMapping.add(self.__shard_mapping_id_3, "db3.t3", "userID3")
+        self.__shard_mapping_4 = ShardMapping.add(self.__shard_mapping_id_4, "db4.t4", "userID4")
+
+        self.__shard_mapping_5 = ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
+                                                  "userID")
+
+        self.__shard_id_1 = Shards.add("GROUPID1")
+        self.__shard_id_2 = Shards.add("GROUPID10")
+        self.__shard_id_3 = Shards.add("GROUPID11")
+        self.__shard_id_4 = Shards.add("GROUPID4")
+        self.__shard_id_5 = Shards.add("GROUPID5")
+        self.__shard_id_6 = Shards.add("GROUPID6")
+        self.__shard_id_7 = Shards.add("GROUPID7")
+        self.__shard_id_8 = Shards.add("GROUPID8")
+        self.__shard_id_9 = Shards.add("GROUPID9")
+        self.__shard_id_10 = Shards.add("GROUPID2")
+        self.__shard_id_11 = Shards.add("GROUPID3")
 
         self.__range_sharding_specification_1 = RangeShardingSpecification.add(
-                                                "SM1", 0, 1000,
-                                                "GROUPID1")
+                                                self.__shard_mapping_1.shard_mapping_id,
+                                                0, 1000,
+                                                self.__shard_id_1.shard_id)
         self.__range_sharding_specification_2 = RangeShardingSpecification.add(
-                                                "SM1", 1001, 2000,
-                                                "GROUPID2")
+                                                self.__shard_mapping_1.shard_mapping_id,
+                                                1001, 2000,
+                                                self.__shard_id_2.shard_id)
         self.__range_sharding_specification_3 = RangeShardingSpecification.add(
-                                                "SM1", 2001, 3000,
-                                                "GROUPID3")
+                                                self.__shard_mapping_1.shard_mapping_id,
+                                                2001, 3000,
+                                                self.__shard_id_3.shard_id)
 
         self.__range_sharding_specification_4 = RangeShardingSpecification.add(
-                                                "SM2", 3001, 4000,
-                                                "GROUPID4")
+                                                self.__shard_mapping_2.shard_mapping_id,
+                                                3001, 4000,
+                                                self.__shard_id_4.shard_id)
         self.__range_sharding_specification_5 = RangeShardingSpecification.add(
-                                                "SM2", 4001, 5000,
-                                                "GROUPID5")
+                                                self.__shard_mapping_2.shard_mapping_id,
+                                                4001, 5000,
+                                                self.__shard_id_5.shard_id)
 
         self.__range_sharding_specification_6 = RangeShardingSpecification.add(
-                                                "SM3", 6001, 7000,
-                                                "GROUPID6")
+                                                self.__shard_mapping_3.shard_mapping_id,
+                                                6001, 7000,
+                                                self.__shard_id_6.shard_id)
         self.__range_sharding_specification_7 = RangeShardingSpecification.add(
-                                                "SM3", 7001, 8000,
-                                                "GROUPID7")
+                                                self.__shard_mapping_3.shard_mapping_id,
+                                                7001, 8000,
+                                                self.__shard_id_7.shard_id)
 
         self.__range_sharding_specification_8 = RangeShardingSpecification.add(
-                                                "SM4", 8001, 9000,
-                                                "GROUPID8")
+                                                self.__shard_mapping_4.shard_mapping_id,
+                                                8001, 9000,
+                                                self.__shard_id_8.shard_id)
         self.__range_sharding_specification_9 = RangeShardingSpecification.add(
-                                                "SM4", 10001, 11000,
-                                                "GROUPID9")
+                                                self.__shard_mapping_4.shard_mapping_id,
+                                                10001, 11000,
+                                                self.__shard_id_9.shard_id)
 
         self.__range_sharding_specification_10 = RangeShardingSpecification.add(
-                                        "SM5", 100, 200, "GROUPID2")
+                                        self.__shard_mapping_5.shard_mapping_id,
+                                        100, 200, self.__shard_id_10.shard_id)
         self.__range_sharding_specification_11 = RangeShardingSpecification.add(
-                                                "SM5", 201, 300, "GROUPID3")
-
-        self.__shard_mapping_1 = ShardMapping.add("db1.t1", "userID1", "RANGE",
-                                                "SM1")
-        self.__shard_mapping_2 = ShardMapping.add("db2.t2", "userID2", "RANGE",
-                                                 "SM2")
-        self.__shard_mapping_3 = ShardMapping.add("db3.t3", "userID3", "RANGE",
-                                                 "SM3")
-        self.__shard_mapping_4 = ShardMapping.add("db4.t4", "userID4", "RANGE",
-                                                 "SM4")
-        self.__shard_mapping_5 = ShardMapping.add("prune_db.prune_table",
-                                                  "userID", "RANGE", "SM5")
+                                                self.__shard_mapping_5.shard_mapping_id,
+                                                201, 300, self.__shard_id_11.shard_id)
 
 
     def tearDown(self):
         self.__server_3.exec_stmt("DROP DATABASE prune_db")
         self.__server_5.exec_stmt("DROP DATABASE prune_db")
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_fetch_shard_mapping(self):
         shard_mapping_1 = ShardMapping.fetch("db1.t1")
@@ -181,7 +212,7 @@ class TestSharding(unittest.TestCase):
         self.assertRaises(_errors.ShardingError, ShardMapping.fetch, "Wrong")
 
     def test_fetch_sharding_scheme(self):
-        range_sharding_specifications = RangeShardingSpecification.fetch("SM1")
+        range_sharding_specifications = RangeShardingSpecification.list(1)
 
         self.assertTrue(ShardingUtils.compare_range_specifications
                         (range_sharding_specifications[0],
@@ -195,26 +226,23 @@ class TestSharding(unittest.TestCase):
 
     def test_fetch_sharding_scheme_exception(self):
         self.assertRaises(_errors.ShardingError,
-                          RangeShardingSpecification.fetch, "Wrong")
+                          RangeShardingSpecification.list, "Wrong")
 
     def test_lookup_sharding_scheme(self):
-        serverid1 = RangeShardingSpecification.lookup(500,
-                                                      "SM1")
-        self.assertEqual(serverid1.group_id, "GROUPID1")
-        serverid2 = RangeShardingSpecification.lookup(3500,
-                                                      "SM2")
-        self.assertEqual(serverid2.group_id, "GROUPID4")
-        serverid3 = RangeShardingSpecification.lookup(6500,
-                                                      "SM3")
-        self.assertEqual(serverid3.group_id, "GROUPID6")
+        r_spec_1 = RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1)
+        self.assertEqual(r_spec_1.shard_id, self.__shard_id_1.shard_id)
+        r_spec_2 = RangeShardingSpecification.lookup(3500, self.__shard_mapping_id_2)
+        self.assertEqual(r_spec_2.shard_id, self.__shard_id_4.shard_id)
+        r_spec_3 = RangeShardingSpecification.lookup(6500, self.__shard_mapping_id_3)
+        self.assertEqual(r_spec_3.shard_id, self.__shard_id_6.shard_id)
 
     def test_lookup_sharding_scheme_exception_wrong_key(self):
         self.assertRaises(_errors.ShardingError,
-                          RangeShardingSpecification.lookup, 30000, "SM1")
+                          RangeShardingSpecification.lookup, 30000, self.__shard_mapping_id_1)
 
     def test_lookup_sharding_scheme_exception_wrong_name(self):
         self.assertRaises(_errors.ShardingError,
-                          RangeShardingSpecification.lookup, 500, "Wrong")
+                          RangeShardingSpecification.lookup, 500, 32000)
 
     def test_lookup(self):
         expected_server_list = [
@@ -249,44 +277,6 @@ class TestSharding(unittest.TestCase):
         self.assertRaises(_errors.ShardingError,
                           _sharding.lookup, "db1.t1", 55000)
 
-    def test_go_fish_lookup(self):
-        server_list = _sharding.go_fish_lookup("db1.t1")
-
-        GROUPID1_expected_uuid_list = [str(self.__options_1["uuid"]),
-                                       str(self.__options_2["uuid"])]
-
-        GROUPID2_expected_uuid_list = [str(self.__options_3["uuid"]),
-                                       str(self.__options_4["uuid"])]
-
-        GROUPID3_expected_uuid_list = [str(self.__options_5["uuid"]),
-                                       str(self.__options_6["uuid"])]
-
-        GROUPID1_obtained_server_list = server_list["GROUPID1"]
-        GROUPID2_obtained_server_list = server_list["GROUPID2"]
-        GROUPID3_obtained_server_list = server_list["GROUPID3"]
-
-        GROUPID1_obtained_uuid_list = [GROUPID1_obtained_server_list[0][0],
-                                       GROUPID1_obtained_server_list[1][0]]
-
-        GROUPID2_obtained_uuid_list = [GROUPID2_obtained_server_list[0][0],
-                                       GROUPID2_obtained_server_list[1][0]]
-
-        GROUPID3_obtained_uuid_list = [GROUPID3_obtained_server_list[0][0],
-                                       GROUPID3_obtained_server_list[1][0]]
-
-        self.assertEqual(set(GROUPID1_expected_uuid_list),
-                         set(GROUPID1_obtained_uuid_list))
-
-        self.assertEqual(set(GROUPID2_expected_uuid_list),
-                         set(GROUPID2_obtained_uuid_list))
-
-        self.assertEqual(set(GROUPID3_expected_uuid_list),
-                         set(GROUPID3_obtained_uuid_list))
-
-    def test_go_fish_lookup_exception(self):
-        self.assertRaises(_errors.ShardingError,
-                          _sharding.go_fish_lookup, "Wrong")
-
     def test_shard_mapping_list_mappings(self):
         shard_mappings = ShardMapping.list("RANGE")
         self.assertTrue(ShardingUtils.compare_shard_mapping
@@ -306,7 +296,8 @@ class TestSharding(unittest.TestCase):
         self.assertEqual(self.__shard_mapping_1.table_name, "db1.t1")
         self.assertEqual(self.__shard_mapping_1.column_name, "userID1")
         self.assertEqual(self.__shard_mapping_1.type_name, "RANGE")
-        self.assertEqual(self.__shard_mapping_1.sharding_specification, "SM1")
+        self.assertEqual(self.__shard_mapping_1.shard_mapping_id, 1)
+        self.assertEqual(self.__shard_mapping_1.global_group, "GROUPID10")
 
     def test_shard_mapping_remove(self):
         shard_mapping_1 = ShardMapping.fetch("db1.t1")
@@ -315,13 +306,13 @@ class TestSharding(unittest.TestCase):
 
     def test_range_sharding_specification_getters(self):
         self.assertEqual(self.__range_sharding_specification_1.
-                         name, "SM1")
+                         shard_mapping_id, 1)
         self.assertEqual(self.__range_sharding_specification_1.lower_bound,
                          0)
         self.assertEqual(self.__range_sharding_specification_1.upper_bound,
                          1000)
-        self.assertEqual(self.__range_sharding_specification_1.group_id,
-                         "GROUPID1")
+        self.assertEqual(self.__range_sharding_specification_1.shard_id,
+                         1)
 
     def test_shard_prune(self):
         RangeShardingSpecification.delete_from_shard_db("prune_db.prune_table")

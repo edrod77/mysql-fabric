@@ -139,7 +139,7 @@ class Job(object):
         self.__procedure = procedure
 
         self._add_status(Job.SUCCESS, Job.ENQUEUED, description)
-        self.__procedure.job_scheduled(self)        
+        self.__procedure.job_scheduled(self)
 
     @property
     def uuid(self):
@@ -425,31 +425,3 @@ class Executor(Singleton):
                 )
 
         procedure.wait()
-
-# TODO: Move this function to the service module after the commands
-#       are implemented. If you move it now, it will be exported
-#       in the service interface and we don't want this.
-def wait_for_procedures(procedure_param, synchronous):
-    """Wait until a procedure completes its execution and return
-    detailed information on it. 
-
-    However, if the parameter synchronous is not set, only the
-    procedure's uuid is returned because it is not safe to access
-    the procedure's information while it may be executing.
-
-    :param proc_param: Iterable with procedures.
-    :param synchronous: Whether should wait until the procedure
-                        finishes its execution or not.
-    :return: Information on the procedure.
-    :rtype: str(procedure.uuid), procedure.status, procedure.result
-            or (str(procedure.uuid))
-    """
-    assert(len(procedure_param) == 1)
-    if synchronous:
-        executor = Executor()
-        for procedure in procedure_param:
-            executor.wait_for_procedure(procedure)
-        return str(procedure_param[-1].uuid), procedure_param[-1].status, \
-               procedure_param[-1].result
-    else:
-        return str(procedure_param[-1].uuid)

@@ -13,15 +13,16 @@ class TestGroup(unittest.TestCase):
         _persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password,
                           database=options.database)
+        _persistence.setup()
         _persistence.init_thread()
 
     def tearDown(self):
         _persistence.deinit_thread()
-        _persistence.deinit()
+        _persistence.teardown()
 
     def test_group_constructor(self):
         group_1 = Group.add("mysql.com", "First description.")
-        group_2 = Group.fetch("mysql.com") 
+        group_2 = Group.fetch("mysql.com")
         self.assertEqual(group_1, group_2)
         self.assertRaises(_errors.DatabaseError,
                           Group.add, "mysql.com", "Second description.")

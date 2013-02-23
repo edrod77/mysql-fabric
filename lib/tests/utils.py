@@ -4,6 +4,7 @@ import threading
 import time
 import uuid as _uuid
 import xmlrpclib
+import logging
 
 from mysql.hub import (
     config as _config,
@@ -14,6 +15,8 @@ from mysql.hub import (
     )
 
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification
+
+_LOGGER = logging.getLogger(__name__)
 
 class MySQLInstances(_utils.Singleton):
     """Contain a reference to the available set of MySQL Instances that can be
@@ -112,9 +115,9 @@ class ShardingUtils(object):
     @staticmethod
     def compare_shard_mapping(shard_mapping_1, shard_mapping_2):
         """Compare two sharding mappings with each other. Two sharding
-        specifications are equal if they are defined on the same table, on
-        the same column, are of the same type and use the same sharding
-        specification.
+        specifications are equal if they have the same id, are defined
+        on the same table, on the same column, are of the same type and
+        use the same global group.
 
         :param shard_mapping_1: shard mapping
         :param shard_mapping_2: shard mapping
@@ -124,20 +127,22 @@ class ShardingUtils(object):
         """
         return isinstance(shard_mapping_1, ShardMapping) and \
                 isinstance(shard_mapping_2, ShardMapping) and \
+               shard_mapping_1.shard_mapping_id == \
+                        shard_mapping_2.shard_mapping_id and \
                shard_mapping_1.table_name == \
                         shard_mapping_2.table_name and \
                 shard_mapping_1.column_name == \
                         shard_mapping_2.column_name and \
                 shard_mapping_1.type_name == \
                             shard_mapping_2.type_name and \
-                shard_mapping_1.sharding_specification == \
-                            shard_mapping_2.sharding_specification
+                shard_mapping_1.global_group == \
+                            shard_mapping_2.global_group
     @staticmethod
     def compare_range_specifications(range_specification_1,
                                      range_specification_2):
         """Compare two RANGE specification definitions. They are equal if they
-        belong to the same sharding scheme, define the same upper and lower
-        bound and map to the same server.
+        belong to the same shard mapping, define the same upper and lower
+        bound, map to the same shard, and are in the same state.
 
         :param range_specification_1: Range Sharding Specification
         :param range_specification_2: Range Sharding Specification
@@ -148,15 +153,17 @@ class ShardingUtils(object):
         return \
             isinstance(range_specification_1, RangeShardingSpecification) and \
             isinstance(range_specification_2, RangeShardingSpecification) and \
-                range_specification_1.name == \
-                        range_specification_2.name and \
+                range_specification_1.shard_mapping_id == \
+                        range_specification_2.shard_mapping_id and \
                 range_specification_1.lower_bound == \
                         range_specification_2.lower_bound and \
                 range_specification_1.upper_bound == \
                         range_specification_2.upper_bound and \
-                range_specification_1.group_id == range_specification_2.group_id
+                range_specification_1.shard_id == range_specification_2.shard_id and \
+                range_specification_1.state == range_specification_2.state
 
 def setup_xmlrpc():
+    # TODO: Check the xmlrpc_next_port...
     from __main__ import options, xmlrpc_next_port
     params = {
         'protocol.xmlrpc': {
@@ -172,8 +179,14 @@ def setup_xmlrpc():
     config = _config.Config(None, params, True)
 
     # Set up the manager
-    from mysql.hub.commands.start import start
-    manager_thread = threading.Thread(target=start, args=(config, ),
+    from mysql.hub.services.manage import (
+        _start,
+        _configure_connections,
+        )
+
+    _configure_connections(config)
+    _persistence.setup()
+    manager_thread = threading.Thread(target=_start, args=(config, ),
                                       name="Services")
     manager_thread.start()
 
@@ -183,7 +196,7 @@ def setup_xmlrpc():
 
     while True:
         try:
-            proxy.ping()
+            proxy.manage.ping()
             break
         except Exception:
             time.sleep(1)
@@ -191,6 +204,6 @@ def setup_xmlrpc():
     return (manager_thread, proxy)
 
 def teardown_xmlrpc(manager, proxy):
-    proxy.shutdown()
+    proxy.manage.stop()
     manager.join()
-    _persistence.deinit()
+    _persistence.teardown()

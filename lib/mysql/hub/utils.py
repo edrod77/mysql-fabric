@@ -1,5 +1,8 @@
 """Define features that can be used throughout the code.
 """
+import os
+import sys
+
 class SingletonMeta(type):
     """Define a Singleton.
     This Singleton class can be used as follows::
@@ -24,3 +27,36 @@ class Singleton(object):
       ...
     """
     __metaclass__ = SingletonMeta
+
+def _do_fork():
+    """Create a process.
+    """
+    try:
+        if os.fork() > 0:
+            sys.exit(0)
+    except OSError, error:
+        sys.stderr.write("fork failed with errno %d: %s\n" %
+                         (error.errno, error.strerror))
+        sys.exit(1)
+
+def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+    """Standard procedure for daemonizing a process.
+
+    This process daemonizes the current process and put it in the
+    background. When daemonized, logs are written to syslog.
+
+    [1] Python Cookbook by Martelli, Ravenscropt, and Ascher.
+    """
+    _do_fork()
+    os.chdir("/")        # The current directory might be removed.
+    os.umask(0)
+    os.setsid()
+    _do_fork()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sin = file(stdin, 'r')
+    sout = file(stdout, 'a+')
+    serr = file(stderr, 'a+', 0)
+    os.dup2(sin.fileno(), sys.stdin.fileno())
+    os.dup2(sout.fileno(), sys.stdout.fileno())
+    os.dup2(serr.fileno(), sys.stdin.fileno())

@@ -26,6 +26,20 @@ You can install the MySQL Hub using:
 This will install the 'mysql.hub' package (and all sub-packages) and a
 set of command-line scripts that are used to administer the hub.
 
+Documentation
+-------------
+To build the documentation, one needs to install sphinx and build the
+MySQL Hub first. After these steps, the following command can be used
+to build the documentation:
+
+    python setup.py build_docs
+
+By default HTML documents are created under the directory build/sphinx.
+You may change the documentation format, the build directory and other
+options whenever appropriate. Run the following command to see the list
+of available options:
+
+    python setup.py build_docs --help
 
 Running unit tests
 ------------------

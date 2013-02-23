@@ -19,10 +19,10 @@ class TestLoggingServices(unittest.TestCase):
 
     def test_set_logging(self):
         self.assertFalse(
-            self.proxy.set_logging.set_logging_level("unknown", "DEBUG")
+            self.proxy.manage.logging_level("unknown", "DEBUG")
         )
         self.assertTrue(
-            self.proxy.set_logging.set_logging_level("mysql.hub", "DEBUG")
+            self.proxy.manage.logging_level("mysql.hub", "DEBUG")
         )
 
 if __name__ == "__main__":

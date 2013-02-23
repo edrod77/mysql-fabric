@@ -35,12 +35,13 @@ class TestHandler(unittest.TestCase):
         from __main__ import options
         _persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
+        _persistence.setup()
         self.handler = _events.Handler()
         self.handler.start()
 
     def tearDown(self):
         self.handler.shutdown()
-        _persistence.deinit()
+        _persistence.teardown()
 
     def test_events(self):
         "Test creating events."
@@ -174,11 +175,12 @@ class TestDecorator(unittest.TestCase):
         from __main__ import options
         _persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
+        _persistence.setup()
         self.handler.start()
 
     def tearDown(self):
         self.handler.shutdown()
-        _persistence.deinit()
+        _persistence.teardown()
 
     def test_decorator(self):
         global _PROMOTED, _DEMOTED
@@ -238,14 +240,13 @@ class TestService(unittest.TestCase):
         try:
             self.proxy.event.wait_for_procedures(jobs)
             self.assertEqual(promoted[0], "my.example.com")
-            self.assertEqual(promoted[0], "my.example.com")
         except Exception as error:
             if str(error).find("was not found") == -1:
                 raise
         _events.Handler().unregister(_events.SERVER_PROMOTED, _another_my_event)
 
-    def test_jobs(self):
-        proc = self.proxy.server.lookup_groups(False)
+    def test_procedures(self):
+        proc = self.proxy.group.lookup_groups(False)
         try:
             proc_status = self.proxy.event.wait_for_procedure(proc)
         except Exception as error:
@@ -254,7 +255,8 @@ class TestService(unittest.TestCase):
 
         try:
             self.proxy.event.wait_for_procedure(
-                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b")
+                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b"
+                )
             self.assertTrue(False)
         except Exception as error:
             if str(error).find("was not found") == -1:

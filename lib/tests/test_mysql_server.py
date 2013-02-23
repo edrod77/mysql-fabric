@@ -26,6 +26,7 @@ class TestMySQLServer(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
 
         uuid = MySQLServer.discover_uuid(**OPTIONS)
@@ -35,7 +36,7 @@ class TestMySQLServer(unittest.TestCase):
     def tearDown(self):
         self.server.disconnect()
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_wrong_uuid(self):
         # Check wrong uuid.
@@ -130,7 +131,7 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         for record in server.get_binary_logs():
-            self.assertTrue(record.Log_name in 
+            self.assertTrue(record.Log_name in
                 ("master-bin.000001", "mysqld-bin.000001", "slave-bin.000001"))
         # TODO: Test with binlog disabled.
 
@@ -250,11 +251,12 @@ class TestConnectionPool(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                          user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
 
     def tearDown(self):
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_connection_pool(self):
         # Configuration
@@ -297,11 +299,12 @@ class TestGroup(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                          user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
 
     def tearDown(self):
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_properties(self):
         set_of_groups = set()

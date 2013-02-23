@@ -1,17 +1,13 @@
 import distutils
-import glob
 import os
-import stat
 import sys
+import glob
 
-from distutils.command.build_scripts import build_scripts as _build_scripts
-from distutils.command.build import build as _build
-from distutils.core import setup
-from distutils.util import convert_path
-
-sys.path.insert(0, os.path.abspath('lib'))
+from distutils.core import setup, Command
 
 def fetch_version(module_name):
+    """Retrieve information on Fabric version within *module_name*.
+    """
     mod = __import__(module_name, globals(), locals(), ['__version__'])
     return mod.__version__
 
@@ -28,7 +24,6 @@ def find_packages(*args, **kwrds):
     which accepts a list of patterns.  All packages with names that
     match the beginning of an exclude pattern will be excluded.
     """
-
     from fnmatch import fnmatch
     excludes = kwrds.get('exclude', [])
     pkgs = {}
@@ -46,15 +41,168 @@ def find_packages(*args, **kwrds):
     result.sort()
     return result
 
+def check_connector():
+    """Check if connector is properly installed.
+    
+    It returns a tuple with the following information:
+    * Installed - Indicates whether the connector is properly installed
+                  or not.
+    * Path MySQL - Path to the package *mysql*.
+    * Connector Path - Path to the package *mysql.connector*.
+    """
+    path_connector = None
+    path_mysql = None
+    try:
+        import mysql
+        path_mysql = os.path.dirname(mysql.__file__)
+
+        import mysql.connector
+        path_connector = os.path.dirname(mysql.connector.__file__)
+
+        return True, path_mysql, path_connector
+    except ImportError as error:
+        return False, path_mysql, path_connector
+
+def check_sphinx():
+    """Check if sphinx is properly installed.
+    
+    It returns a tuple with the following information:
+    * Installed - Indicates whether sphinx is properly installed
+                  or not.
+    * Sphinx Path - Path to the package *sphinx*.
+    """
+    path_sphinx = None
+    try:
+        import sphinx
+        path_sphinx = os.path.dirname(sphinx.__file__)
+        return True, path_sphinx
+    except ImportError as error:
+        return False, path_sphinx
+
+def check_fabric():
+    """Check if Fabric is properly built/installed.
+    
+    It returns a tuple with the following information:
+    * Installed - Indicates whether Fabric is properly installed
+                  or not.
+    * Path MySQL - Path to the package *mysql*.
+    * Fabric Path - Path to the package *mysql.hub*.
+    """
+    path_fabric = None
+    path_mysql = None
+    try:
+        import mysql
+        path_mysql = os.path.dirname(mysql.__file__)
+
+        import mysql.hub
+        path_fabric = os.path.dirname(mysql.hub.__file__)
+        return True, path_mysql, path_fabric
+    except ImportError as error:
+        return False, path_mysql, path_fabric
+
+def fix_path_for_docs():
+    """Set the path to *build/lib* when a documentation is being
+    generated and check whether the connector is properly installed
+    or not.
+    """
+    built = glob.glob("./build/lib.*")
+    if built:
+        for path in built:
+            version =  \
+                ".".join([str(version) for version in sys.version_info[0:2]])
+            if path.find(version) != -1:
+                sys.path.insert(0, os.path.abspath(built[0]))
+
+    result, path_mysql, path_connector = check_connector()
+    if not result:
+        sys.stderr.write(
+            "Tried to look for mysql.connector at (%s).\n" % (path_mysql, )
+            )
+        exit(1)
+
+    result, path_myql, path_fabric = check_fabric()
+    if not result:
+        sys.stderr.write(
+            "Tried to look for mysql.hub at (%s).\n" % (path_mysql, )
+            )
+        exit(1)
+ 
+
+def fix_path_for_code():
+    """Set the path to *lib* when a documentation is being
+    generated.
+    """
+    sys.path.insert(0, os.path.abspath("lib"))
+
+
+# If Sphinx is installed, create a documentation builder based
+# on it. Otherwise, create a fake builder just to report something
+# when --help-commands are executed so that users may find out
+# that it is possible to build the documents provided Sphinx is
+# properly installed.
+result, path_sphinx = check_sphinx()
+if result:
+    import sphinx.setup_command
+    class build_docs(sphinx.setup_command.BuildDoc):
+        """
+        Create documentation using Sphinx.
+        """
+        description = "Create documentation using sphinx"
+else:
+    class build_docs(Command):
+        """
+        Create documentation. Please, install sphinx.
+        """
+        user_options = [
+            ('unknown', None, "Sphinx is not installed. Please, install it."),
+            ]
+        description = "create documentation. Please, install sphinx"
+
+        def initialize_options (self):
+            pass
+
+        def finalize_options (self):
+            pass
+ 
+        def run(self):
+            sys.stderr.write(
+                "Sphinx is not installed. Please, install it.\n"
+                )
+            exit(1)
+            
+DOC_INFO = {
+    'cmdclass': { 'build_docs' : build_docs
+        },
+    }
+
+# It is necessary to check the command-line parameters at this point and
+# fix the path because the fetch version function imports "mysql.hub"
+# thus setting the path to a mysql package. While generating documents,
+# we want this path to be build/lib.
+#
+# TODO: REMOVE fetch_version so we can avoid fixing the path here and
+# do it within a command.
+#
+if "build_docs" in sys.argv:
+    fix_path_for_docs()
+else:
+    fix_path_for_code()
+
+
 META_INFO = {
     'name': "mysql-hub",
     'version': fetch_version('mysql.hub'),
     'license': "GPLv2",
     'description': "Management system for MySQL deployments",
     'packages': find_packages("lib", exclude=["tests"]),
-    'package_dir': { '': 'lib' },
+    'package_dir': {
+        '': 'lib',
+        },
     'requires': [
         'mysql.connector (>=1.0)',
+        ],
+    'scripts': [
+        'scripts/fabric',
         ],
     'classifiers': [
         'Development Status :: 1 - Planning',
@@ -69,64 +217,5 @@ META_INFO = {
         ],
 }
 
-_COMMANDS = []
-
-for fname in glob.glob('lib/mysql/hub/commands/*.py'):
-    head, tail = os.path.split(fname)
-    if tail == '__init__.py':
-        continue
-    mod, _ = os.path.splitext(tail)
-    pkg = '.'.join(head.split(os.sep)[1:])
-    _COMMANDS.append((pkg, mod))
-
-# Build scripts to install
-class my_build_scripts(_build_scripts):
-    def run(self):
-        # Copy existing scripts first
-        _build_scripts.run(self)
-        # Create scripts for all modules found in mysql.hub.commands
-        self.mkpath(self.build_dir)
-
-        for pkg, mod in _COMMANDS:
-            # Lines without terminating newline
-            lines = [
-                "#!" + self.executable,
-                "",
-                "import sys",
-                "",
-                "from {0}.{1} import main".format(pkg, mod),
-                "",
-                "main(sys.argv[1:])",
-                ]
-
-            # Name of the command
-            cmdname = "hub-" + mod 
-
-            # Full path name of the output file
-            outfile = os.path.join(self.build_dir, cmdname)
-
-            distutils.log.info("creating script %s" % (cmdname,))
-            with open(outfile, "w+") as out:
-                out.writelines(line + "\n" for line in lines)
-            os.chmod(outfile, 0755)
-
-class my_build(_build):
-    def has_scripts(self):
-        return _build.has_scripts(self) or len(_COMMANDS) > 0
-
-    sub_commands = []
-    for cmd in _build.sub_commands:
-        if cmd[0] == 'build_scripts':
-            cmd = (cmd[0], has_scripts)
-        sub_commands.append(cmd)
-
-ARGS = {
-    'cmdclass': {
-        'build': my_build,
-        'build_scripts': my_build_scripts,
-        },
-    }
-
-ARGS.update(META_INFO)
-
-setup(**ARGS)
+META_INFO.update(DOC_INFO)
+setup(**META_INFO)

@@ -36,166 +36,215 @@ import uuid as _uuid
 import mysql.hub.events as _events
 import mysql.hub.server as _server
 import mysql.hub.errors as _errors
-import mysql.hub.executor as _executor
 import mysql.hub.failure_detector as _detector
 
-# TODO: Fix this.
-# Due to services/__init__.py:
-# There is something wrong sometimes __name__ is server.
-# See line lib/mysql/hub/services/__init__.py", line 25.
-# Is this expected?
+from mysql.hub.command import (
+    ProcedureCommand,
+    Command,
+    )
+
 _LOGGER = logging.getLogger("mysql.hub.services.server")
 
-def lookup_fabrics():
-    """Return a list with all the available Fabric Servers.
-
-    :return: List with existing Fabric Servers.
-    :rtype: ["host:port", ...]
-    """
-    import mysql.hub.services as _services
-    service = _services.ServiceManager()
-    return [service.address]
-
 LOOKUP_GROUPS = _events.Event()
-def lookup_groups(synchronous=True):
+class GroupLookups(ProcedureCommand):
     """Return a list with existing groups.
-
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: A list with existing groups.
-    :rtype: [[group], ....].
     """
-    procedures = _events.trigger(LOOKUP_GROUPS)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "lookup_groups"
+
+    def execute(self, synchronous=True):
+        """Return a list of existing groups.
+
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: A list with existing groups.
+        :rtype: [[group], ....].
+        """
+        procedures = _events.trigger(LOOKUP_GROUPS)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_GROUP = _events.Event()
-def lookup_group(group_id, synchronous=True):
-    """Look up a group identified by an id.
-
-    :param group_id: Group's id.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: Return group's information.
-    :rtype: {"group_id" : group_id, "description": description}.
-
-    If the group does not exist, the :class:`mysql.hub.errors.GroupError`
-    exception is thrown. Otherwise, the group's information is returned.
+class GroupLookup(ProcedureCommand):
+    """Return information on a group.
     """
-    procedures = _events.trigger(LOOKUP_GROUP, group_id)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "lookup_group"
+
+    def execute(self, group_id, synchronous=True):
+        """Look up a group identified by an id.
+
+        :param group_id: Group's id.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: Return group's information.
+        :rtype: {"group_id" : group_id, "description": description}.
+
+        If the group does not exist, the :class:`mysql.hub.errors.GroupError`
+        exception is thrown. Otherwise, the group's information is returned.
+        """
+        procedures = _events.trigger(LOOKUP_GROUP, group_id)
+        return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_GROUP = _events.Event()
-def create_group(group_id, description=None, synchronous=True):
+class GroupCreate(ProcedureCommand):
     """Create a group.
-
-    :param group_id: Group's id.
-    :param description: Group's description.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: Tuple with job's uuid and status.
     """
-    procedures = _events.trigger(CREATE_GROUP, group_id, description)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "create"
+
+    def execute(self, group_id, description=None, synchronous=True):
+        """Create a group.
+
+        :param group_id: Group's id.
+        :param description: Group's description.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: Tuple with job's uuid and status.
+        """
+        procedures = _events.trigger(CREATE_GROUP, group_id, description)
+        return self.wait_for_procedures(procedures, synchronous)
 
 UPDATE_GROUP = _events.Event()
-def update_group(group_id, description=None, synchronous=True):
-    """Update a group.
-
-    :param group_id: Group's id.
-    :param description: Group's description.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: Tuple with job's uuid and status.
+class GroupDescription(ProcedureCommand):
+    """Update group's description.
     """
-    procedures = _events.trigger(UPDATE_GROUP, group_id, description)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "description"
+
+    def execute(self, group_id, description=None, synchronous=True):
+        """Update group's description.
+
+        :param group_id: Group's id.
+        :param description: Group's description.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: Tuple with job's uuid and status.
+        """
+        procedures = _events.trigger(UPDATE_GROUP, group_id, description)
+        return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_GROUP = _events.Event()
-def remove_group(group_id, force=False, synchronous=True):
+class RemoveGroup(ProcedureCommand):
     """Remove a group.
-
-    :param group_id: Group's id.
-    :param force: If the group is not empty, remove it serves.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: Tuple with job's uuid and status.
     """
-    procedures = _events.trigger(REMOVE_GROUP, group_id, force)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "destroy"
+
+    def execute(self, group_id, force=False, synchronous=True):
+        """Remove a group.
+
+        :param group_id: Group's id.
+        :param force: If the group is not empty, remove it serves.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: Tuple with job's uuid and status.
+        """
+        procedures = _events.trigger(REMOVE_GROUP, group_id, force)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SERVERS = _events.Event()
-def lookup_servers(group_id, synchronous=True):
-    """Return list of existing servers in a group.
+class ServerLookups(ProcedureCommand):
+    """Return a list of existing servers in a group.
+    """ 
+    group_name = "group"
+    command_name = "lookup_servers"
 
-    :param group_id: Group's id.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: List of existing servers.
+    def execute(self, group_id, synchronous=True):
+        """Return list of existing servers in a group.
 
-    If the group does not exist, the :class:`mysqly.hub.errors.GroupError`
-    exception is thrown. The list of servers returned has the following
-    format::
+        :param group_id: Group's id.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: List of existing servers.
 
-      [uuid, ...]
-    """
-    procedures = _events.trigger(LOOKUP_SERVERS, group_id)
-    return _executor.wait_for_procedures(procedures, synchronous)
+        If the group does not exist, the :class:`mysqly.hub.errors.GroupError`
+        exception is thrown. The list of servers returned has the following
+        format::
+
+          [uuid, ...]
+        """
+        procedures = _events.trigger(LOOKUP_SERVERS, group_id)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_UUID = _events.Event()
-def lookup_uuid(address, user, passwd, synchronous=True):
-    """Retrieve server's uuid.
-
-    :param address: Server's address.
-    :param user: Server's user.
-    :param passwd: Server's passwd.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: uuid.
+class ServerUuid(ProcedureCommand):
+    """Return server's uuid.
     """
-    procedures = _events.trigger(LOOKUP_UUID, address, user, passwd)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "server"
+    command_name = "lookup_uuid"
+
+    def execute(self, address, user, passwd, synchronous=True):
+        """Retrieve server's uuid.
+
+        :param address: Server's address.
+        :param user: Server's user.
+        :param passwd: Server's passwd.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: uuid.
+        """
+        procedures = _events.trigger(LOOKUP_UUID, address, user, passwd)
+        return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SERVER = _events.Event()
-def lookup_server(group_id, uuid, synchronous=True):
-    """Retrieve information on a server.
-
-    :param group_id: Group's id.
-    :param uuid: Server's uuid.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: List of existing servers.
-    :rtype: {"uuid" : uuid, "address": address, "user": user, "passwd": passwd}.
+class ServerLookup(ProcedureCommand):
+    """Return information on a server.
     """
-    procedures = _events.trigger(LOOKUP_SERVER, group_id, uuid)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "lookup_server"
+
+    def execute(self, group_id, uuid, synchronous=True):
+        """Retrieve information on a server.
+
+        :param group_id: Group's id.
+        :param uuid: Server's uuid.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: List of existing servers.
+        :rtype: {"uuid" : uuid, "address": address, "user": user, "passwd": passwd}.
+        """
+        procedures = _events.trigger(LOOKUP_SERVER, group_id, uuid)
+        return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_SERVER = _events.Event()
-def create_server(group_id, address, user, passwd, synchronous=True):
-    """Create a server and add it into a group.
-
-    :param group_id: Group's id.
-    :param address: Server's address.
-    :param user: Server's user.
-    :param passwd: Server's passwd.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: Tuple with job's uuid and status.
+class ServerCreate(ProcedureCommand):
+    """Add a server to a group.
     """
-    procedures = _events.trigger(CREATE_SERVER, group_id, address, user, passwd)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "add"
+
+    def execute(self, group_id, address, user, passwd, synchronous=True):
+        """Create a server and add it into a group.
+
+        :param group_id: Group's id.
+        :param address: Server's address.
+        :param user: Server's user.
+        :param passwd: Server's passwd.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: Tuple with job's uuid and status.
+        """
+        procedures = _events.trigger(CREATE_SERVER, group_id, address, user, passwd)
+        return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SERVER = _events.Event()
-def remove_server(group_id, uuid, synchronous=True):
+class ServerRemove(ProcedureCommand):
     """Remove a server from a group.
-
-    :param uuid: Server's uuid.
-    :param group_id: Group's id.
-    :param synchronous: Whether one should wait until the execution finishes
-                        or not.
-    :return: Tuple with job's uuid and status.
     """
-    procedures = _events.trigger(REMOVE_SERVER, group_id, uuid)
-    return _executor.wait_for_procedures(procedures, synchronous)
+    group_name = "group"
+    command_name = "remove"
+
+    def execute(self, group_id, uuid, synchronous=True):
+        """Remove a server from a group.
+
+        :param uuid: Server's uuid.
+        :param group_id: Group's id.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        :return: Tuple with job's uuid and status.
+        """
+        procedures = _events.trigger(REMOVE_SERVER, group_id, uuid)
+        return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(LOOKUP_GROUPS)
 def _lookup_groups():
@@ -205,7 +254,7 @@ def _lookup_groups():
 
 @_events.on_event(LOOKUP_GROUP)
 def _lookup_group(group_id):
-    """Look up a group identified by an id.
+    """Fetch information on a group identified by an id.
     """
     group = _server.Group.fetch(group_id)
     if not group:
@@ -221,8 +270,8 @@ def _create_group(group_id, description):
     _detector.FailureDetector.register_group(group_id)
 
 @_events.on_event(UPDATE_GROUP)
-def _update_group(group_id, description):
-    """Update a group."""
+def _update_group_description(group_id, description):
+    """Update a group description."""
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))

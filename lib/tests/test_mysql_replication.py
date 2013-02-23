@@ -40,6 +40,7 @@ class TestMySQLMaster(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
 
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
@@ -54,7 +55,7 @@ class TestMySQLMaster(unittest.TestCase):
     def tearDown(self):
         self.master.disconnect()
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_master_binary_log(self):
         master = self.master
@@ -97,6 +98,7 @@ class TestMySQLSlave(unittest.TestCase):
         from __main__ import options
         persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
+        persistence.setup()
         persistence.init_thread()
 
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
@@ -118,7 +120,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.slave.disconnect()
         self.master.disconnect()
         persistence.deinit_thread()
-        persistence.deinit()
+        persistence.teardown()
 
     def test_switch_master(self):
         # TODO: Test it also without gtis so we can define binary
