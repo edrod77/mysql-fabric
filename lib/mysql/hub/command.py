@@ -25,12 +25,20 @@ _COMMANDS_CLASS = {}
 
 def register_command(group_name, command_name, command):
     """Register a command within a group.
+
+    :param group_name: The command-group to which a command belongs.
+    :param command_name: The command that needs to be registered.
+    :param command: The command class that contains the implementation
+                    for this command
     """
     commands = _COMMANDS_CLASS.setdefault(group_name, {})
     commands[command_name] = command
 
 def unregister_command(group_name, command_name):
     """Unregister a command within a group.
+
+    :param group_name: The command-group to which a command belongs.
+    :param command_name: The command that needs to be registered.
     """
     del _COMMANDS_CLASS[group_name][command_name]
     if not _COMMANDS_CLASS[group_name]:
@@ -38,16 +46,25 @@ def unregister_command(group_name, command_name):
 
 def get_groups():
     """Return registered groups of commands.
+
+    :return: Returns the different command groups.
     """
     return _COMMANDS_CLASS.keys()
 
 def get_commands(group_name):
     """Return registered commands within a group.
+
+    :param group_name: The command group whose commands need to be listed.
+    :return: The command classes that handles the command functionality.
     """
     return _COMMANDS_CLASS[group_name].keys()
 
 def get_command(group_name, command_name):
-    """Return a registered a command within a group.
+    """Return a registered command within a group.
+
+    :param group_name: The command group whose commands need to be listed.
+    :param command_name: The command whose implementation needs to be fetched.
+    :return: The command classes that handles the command functionality.
     """
     return _COMMANDS_CLASS[group_name][command_name]
 
@@ -130,6 +147,10 @@ class Command(object):
 
         The client instance can be used to dispatch the command to the
         server.
+
+        :param client: The client instance for the command.
+        :param options: The options for the command.
+        :param config: The configuration for the command.
         """
         assert self.__server is None
         self.__client = client
@@ -151,7 +172,10 @@ class Command(object):
         self.__server = server
 
     def add_options(self, parser):
-        "Method called to set up options from the class instance."
+        """Method called to set up options from the class instance.
+
+        :param parser: The parser used for parsing the command options.
+        """
         try:
             for option in self.command_options:
                 kwargs = option.copy()
@@ -165,6 +189,8 @@ class Command(object):
 
         The default dispatch method just call the server-side of the
         command.
+
+        :param args: The arguments for the command dispatch.
         """
         status = self.client.dispatch(self, *args)
         return self.command_status(status)
@@ -172,6 +198,8 @@ class Command(object):
     @staticmethod
     def command_status(status):
         """Present the result reported by a command in a friendly-user way.
+
+        :param status: The command status.
         """
         string = [
             "Command :",
@@ -202,6 +230,8 @@ class ProcedureCommand(Command):
 
         It calls command.dispatch, gets the result and processes
         it generating a user-friendly result.
+
+        :param args: The arguments for the command dispatch.
         """
         status = self.client.dispatch(self, *args)
         return self.procedure_status(status)
@@ -215,7 +245,7 @@ class ProcedureCommand(Command):
         procedure's uuid is returned because it is not safe to access
         the procedure's information while it may be executing.
 
-        :param proc_param: Iterable with procedures.
+        :param procedure_param: Iterable with procedures.
         :param synchronous: Whether should wait until the procedure
                             finishes its execution or not.
         :return: Information on the procedure.
@@ -237,6 +267,12 @@ class ProcedureCommand(Command):
     def procedure_status(status, details=False):
         """Transform a status reported by :func:`wait_for_procedures` into
         a string that can be used by the command-line interface.
+
+        :param status: The status of the command execution.
+        :param details: Boolean that indicates if detailed execution status
+                        be returned.
+
+        :return: Return the detailed execution status as a string.
         """
         string = [
             "Procedure :",
