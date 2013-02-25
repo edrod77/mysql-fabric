@@ -14,7 +14,7 @@ Contents
    events
    server
    replication
-   replication_services
+   highavailability_services
    server_services
    failure_detector
    sharding

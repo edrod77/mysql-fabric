@@ -1003,7 +1003,7 @@ class MySQLServer(_persistence.Persistable):
         :param user: The user name to be used for logging into the server
         :param passwd: The password to be used for logging into the server
         :param persister: Persister to persist the object to.
-        :return a Server object
+        :return: Server object
         """
         assert(isinstance(uuid, _uuid.UUID))
         persister.exec_stmt(MySQLServer.INSERT_SERVER,

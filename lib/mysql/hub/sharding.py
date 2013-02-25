@@ -21,30 +21,25 @@ class ShardMapping(_persistence.Persistable):
     The information in the state store, for a sharding scheme, in the case
     where the state store is a relational store takes the following form:
 
-            +---------+--------------------------+---------------------+
-            |shard_   |                          |                     |
-            |mapping_ |      table_name          |    column_name      |
-            |id       |                          |                     |
-            |_________|__________________________|_____________________|
-            |1        |Employee                  |ID                   |
-            |_________|__________________________|_____________________.
-            |2        |Salary                    |EmpID                |
-            |_________|__________________________|_____________________.
+        +--------------+--------------------------+---------------------+
+        | shard_map_id |      table_name          |    column_name      |
+        +==============+==========================+=====================+
+        |1             |Employee                  |ID                   |
+        +--------------+--------------------------+---------------------+
+        |2             |Salary                    |EmpID                |
+        +--------------+--------------------------+---------------------+
 
     The columns are explained as follows,
     * shard_mapping_id - The unique identification for a shard mapping.
     * table_name - The tables associated with this shard mapping.
     * column_name - The column name in the table that is used to shard this
-                    table.
+    table.
 
-            +---------+--------------------------+---------------------+
-            |shard_   |                          |                     |
-            |mapping_ |         type_name        |     global_         |
-            |id       |                          |     group           |
-            |         |                          |                     |
-            |_________|__________________________|_____________________|
-            |1        |RANGE                     |GROUPIDX             |
-            |_________|__________________________|_____________________.
+        +--------------+--------------------------+---------------------+
+        | shard_map_id |         type_name        |     global          |
+        +==============+==========================+=====================+
+        |1             |RANGE                     |GROUPIDX             |
+        +--------------+--------------------------+---------------------+
 
     The columns are explained as follows
 
@@ -382,15 +377,11 @@ class Shards(_persistence.Persistable):
     A typical mapping between the shards and their location looks like
     the following
 
-            +--------------------+--------------------+
-            |                    |                    |
-            |                    |                    |
-            |     shard_id       |      group_id      |
-            |                    |                    |
-            |                    |                    |
-            '''''''''''''''''''''''''''''''''''''''''''
-            |1                   |GroupID1            |
-            |____________________|____________________|
+        +--------------------+--------------------+
+        |     shard_id       |      group_id      |
+        +====================+====================+
+        |1                   |GroupID1            |
+        +--------------------+--------------------+
 
     The columns are explained as follows,
 
@@ -547,19 +538,11 @@ class RangeShardingSpecification(_persistence.Persistable):
 
     A typical RANGE sharding representation looks like the following,
 
-         +---------------+---------+--------+-----------+-----------+
-         |               |         |        |           |           |
-         |  shard_       |         |        |           |           |
-         | mapping_      |   LB    |  UB    |  shard_id |   state   |
-         |   ID          |         |        |           |           |
-         |_______________|_________|________|___________|___________|
-         |1              |10000    |20000   |1          |ENABLED    |
-         |               |         |        |           |           |
-         |               |         |        |           |           |
-         |               |         |        |           |           |
-         |               |         |        |           |           |
-         |               |         |        |           |           |
-         +---------------+---------+--------+-----------+-----------+
+        +--------------+---------+--------+-----------+-----------+
+        | shard_map_id |   LB    |  UB    |  shard_id |   state   |
+        +==============+=========+========+===========+===========+
+        |1             |10000    |20000   |1          |ENABLED    |
+        +--------------+---------+--------+-----------+-----------+
 
     The columns in the above table are explained as follows,
 
