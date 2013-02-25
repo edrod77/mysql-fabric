@@ -374,3 +374,18 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup).")
+    def test_list_shard_mappings(self):
+        expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]
+        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"] 
+        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"] 
+        expected_shard_mapping_list4 =   [4, "RANGE", "GROUPID13"]
+        status = self.proxy.sharding.list_definitions()
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_list_definitions).")
+        obtained_shard_mapping_list = status[2]
+        self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
+        self.assertEqual(set(expected_shard_mapping_list2),  set(obtained_shard_mapping_list[1]))
+        self.assertEqual(set(expected_shard_mapping_list3),  set(obtained_shard_mapping_list[2]))
+        self.assertEqual(set(expected_shard_mapping_list4),  set(obtained_shard_mapping_list[3]))

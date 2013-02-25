@@ -75,18 +75,6 @@ class ShardMapping(_persistence.Persistable):
     DROP_SHARD_MAPPING = ("DROP TABLE shard_mapping")
     DROP_SHARD_MAPPING_DEFN = ("DROP TABLE shard_mapping_defn")
 
-    #Create the referential integrity constraint with the groups table.
-    ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
-                                ("ALTER TABLE shard_mapping_defn "
-                                  "ADD CONSTRAINT fk_shards_global_group "
-                                  "FOREIGN KEY(global_group) REFERENCES "
-                                  "groups(group_id)")
-
-    #Drop the referential integrity constraint with the groups table.
-    DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
-                                    ("ALTER TABLE shard_mapping_defn DROP "
-                                     "FOREIGN KEY fk_shards_global_group")
-
     #Create the referential integrity constraint with the shard_mapping_defn
     #table.
     ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
@@ -131,6 +119,10 @@ class ShardMapping(_persistence.Persistable):
     SELECT_SHARD_MAPPING_DEFN = ("SELECT shard_mapping_id, type_name, "
                                  "global_group FROM shard_mapping_defn "
                                  "WHERE shard_mapping_id = %s")
+
+    #Select all the shard mapping definitions
+    LIST_SHARD_MAPPING_DEFN = ("SELECT shard_mapping_id, type_name, "
+                               "global_group FROM shard_mapping_defn")
 
     #Delete the sharding specification to table mapping for a given table.
     DELETE_SHARD_MAPPING = ("DELETE FROM shard_mapping "
@@ -278,8 +270,6 @@ class ShardMapping(_persistence.Persistable):
         :param persister: A valid handle to the state store.
         """
         persister.exec_stmt(
-                        ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP)
-        persister.exec_stmt(
                     ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
         return True
 
@@ -289,8 +279,6 @@ class ShardMapping(_persistence.Persistable):
 
         :param persister: A valid handle to the state store.
         """
-        persister.exec_stmt(
-                        ShardMapping.DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP)
         persister.exec_stmt(
                     ShardMapping.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
         return True
@@ -335,6 +323,19 @@ class ShardMapping(_persistence.Persistable):
             raise _errors.ShardingError("Table Name Not found")
         if row:
             return row[0]
+
+    @staticmethod
+    def list_shard_mapping_defn(persister=None):
+        """Fetch all the shard mapping definitions.
+            :param persister: A valid handle to the state store.
+            :return: A list containing the shard mapping definitions.
+        """
+        rows = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPING_DEFN,
+                                  {"raw" : False,
+                                  "fetch" : True})
+        if rows is None:
+            raise _errors.ShardingError("No shard mapping definitions found")
+        return rows
 
     @staticmethod
     def define(type_name, global_group_id, persister=None):

@@ -326,3 +326,17 @@ class TestSharding(unittest.TestCase):
                                     {"fetch" : True})
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], 'TEST 2')
+
+    def test_list_shard_mapping(self):
+        expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]
+        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"] 
+        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"] 
+        expected_shard_mapping_list4 =   [4, "RANGE", "GROUPID13"]
+        expected_shard_mapping_list5 =   [5, "RANGE", "GROUPID14"]
+        
+        obtained_shard_mapping_list = ShardMapping.list_shard_mapping_defn()
+        self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
+        self.assertEqual(set(expected_shard_mapping_list2),  set(obtained_shard_mapping_list[1]))
+        self.assertEqual(set(expected_shard_mapping_list3),  set(obtained_shard_mapping_list[2]))
+        self.assertEqual(set(expected_shard_mapping_list4),  set(obtained_shard_mapping_list[3]))
+        self.assertEqual(set(expected_shard_mapping_list5),  set(obtained_shard_mapping_list[4]))

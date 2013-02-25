@@ -100,7 +100,7 @@ class LookupShardMapping(ProcedureCommand):
 
 LIST_SHARD_MAPPINGS = _events.Event("LIST_SHARD_MAPPINGS")
 class ListShardMappings(ProcedureCommand):
-    """Returns all the shard mappings (names) of a particular
+    """Returns all the shard mappings of a particular
     sharding_type.
     """
     group_name = "sharding"
@@ -120,6 +120,20 @@ class ListShardMappings(ProcedureCommand):
                  the sharding type.
         """
         procedures = _events.trigger(LIST_SHARD_MAPPINGS, sharding_type)
+        return self.wait_for_procedures(procedures, synchronous)
+
+LIST_SHARD_MAPPING_DEFINITIONS = _events.Event("LIST_SHARD_MAPPING_DEFINITIONS")
+class ListShardMappingDefinitions(ProcedureCommand):
+    """Lists all the shard mapping definitions.
+    """
+    group_name = "sharding"
+    command_name = "list_definitions"
+    def execute(self, synchronous=True):
+        """The method returns all the shard mapping definitions.
+
+        :return: A list of shard mapping definitions
+        """
+        procedures = _events.trigger(LIST_SHARD_MAPPING_DEFINITIONS)
         return self.wait_for_procedures(procedures, synchronous)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
@@ -355,6 +369,15 @@ def _list(sharding_type):
                     "type_name":shard_mapping.type_name,
                     "global_group":shard_mapping.global_group})
     return ret_shard_mappings
+
+@_events.on_event(LIST_SHARD_MAPPING_DEFINITIONS)
+def _list_definitions():
+    """This method lists all the shard mapping definitions
+
+    :return: A list of shard mapping definitions.
+    """
+
+    return ShardMapping.list_shard_mapping_defn()
 
 @_events.on_event(ADD_SHARD)
 def _add_shard(shard_mapping_id, lower_bound, upper_bound, group_id,
