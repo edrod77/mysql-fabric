@@ -14,7 +14,6 @@ import mysql.hub.failure_detector as _detector
 
 from mysql.hub.command import (
     ProcedureCommand,
-    Command,
     )
 
 _LOGGER = logging.getLogger("mysql.hub.services.highavailability")

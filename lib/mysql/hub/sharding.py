@@ -1,8 +1,6 @@
 """This module contains the plumbing necessary for creating, modifying and
 querying the sharding information from the state stores.
 """
-import uuid as _uuid
-
 import mysql.hub.errors as _errors
 import mysql.hub.persistence as _persistence
 
@@ -430,6 +428,7 @@ class Shards(_persistence.Persistable):
                     shard of a particular table.
         :param group_id: The group ID to which the shard maps to.
         """
+        super(Shards, self).__init__()
         self.__shard_id = shard_id
         self.__group_id = group_id
 
@@ -492,7 +491,7 @@ class Shards(_persistence.Persistable):
         persister.exec_stmt(Shards.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
         return True
 
-    def remove(persister=None):
+    def remove(self, persister=None):
         """Remove the Shard to Group mapping.
 
         :param persister: The DB server that can be used to access the
@@ -696,7 +695,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         return self.__state
 
-    def enable(self, shard_id, persister=None):
+    def enable(self, persister=None):
         """Set the state of the shard to ENABLED.
         """
         persister.exec_stmt(
@@ -791,9 +790,12 @@ class RangeShardingSpecification(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(
-            RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
+            RangeShardingSpecification.\
+            ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
+            )
         persister.exec_stmt(
-            RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID)
+            RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID
+            )
         return True
 
     @staticmethod
@@ -804,9 +806,12 @@ class RangeShardingSpecification(_persistence.Persistable):
                   state store.
         """
         persister.exec_stmt(
-            RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID)
+            RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID
+            )
         persister.exec_stmt(
-            RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
+            RangeShardingSpecification.\
+            DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
+            )
         return True
 
 #TODO: Should fetch accept a shard_mapping_id or a shard_id ?
@@ -940,7 +945,7 @@ class RangeShardingSpecification(_persistence.Persistable):
             #Fetch the shard information using the shard_id
             shard = Shards.fetch(range_sharding_spec.shard_id)
 
-            #Fetch the Group object  using the group uuid in the Shard information
+            #Fetch the Group object using the group id in the shard information
             group = Group.fetch(shard.group_id)
 
             #Fetch the master of the group
@@ -972,6 +977,8 @@ def lookup(table_name, key):
                                         (key,
                                          shard_mapping.shard_mapping_id)
         shard = Shards.fetch(str(range_sharding_specification.shard_id))
+        # TODO: This should reuse whatever is available in services.group.py
+        # instead of copying the code from there.
         group = Group.fetch(shard.group_id)
     ret = []
     for server in group.servers():

@@ -105,23 +105,23 @@ class List(Command):
 
         # Get the commands and their brief description.
         for group_name in get_groups():
-           for command_name in get_commands(group_name):
-               cls = get_command(group_name, command_name)
+            for command_name in get_commands(group_name):
+                cls = get_command(group_name, command_name)
 
-               doc_text = ""
-               if cls.__doc__ and cls.__doc__.find(".") != -1:
-                   doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
-               elif cls.__doc__:
-                   doc_text = cls.__doc__
-               doc_text = [text.strip(" ") for text in doc_text.split("\n")]
+                doc_text = ""
+                if cls.__doc__ and cls.__doc__.find(".") != -1:
+                    doc_text = cls.__doc__[0 : cls.__doc__.find(".") + 1]
+                elif cls.__doc__:
+                    doc_text = cls.__doc__
+                doc_text = [text.strip(" ") for text in doc_text.split("\n")]
 
-               commands.append(
-                   (group_name, command_name, " ".join(doc_text))
-                   )
+                commands.append(
+                    (group_name, command_name, " ".join(doc_text))
+                    )
 
-               name_size = len(group_name) + len(command_name)
-               if name_size > max_name_size:
-                   max_name_size = name_size
+                name_size = len(group_name) + len(command_name)
+                if name_size > max_name_size:
+                    max_name_size = name_size
 
         # Format each description and print the result.
         for group_name, command_name, help_text in commands:
@@ -161,7 +161,7 @@ class Start(Command):
 
         # Start Fabric server.
         _LOGGER.info("Fabric node starting.")
-        _start(self.config)
+        _start()
         _LOGGER.info("Fabric node stopped.")
 
 
@@ -206,26 +206,26 @@ class Teardown(Command):
 
 
 def _configure_logging(config, daemon):
-        """Configure the logging system.
-        """
-        # Set up the logging information.
-        logger = logging.getLogger("mysql.hub")
-        handler = None
+    """Configure the logging system.
+    """
+    # Set up the logging information.
+    logger = logging.getLogger("mysql.hub")
+    handler = None
 
-        # Set up syslog handler, if needed
-        if daemon:
-            address = config.get('logging.syslog', 'address')
-            handler = logging.handlers.SysLogHandler(address)
-        else:
-            handler = logging.StreamHandler()
+    # Set up syslog handler, if needed
+    if daemon:
+        address = config.get('logging.syslog', 'address')
+        handler = logging.handlers.SysLogHandler(address)
+    else:
+        handler = logging.StreamHandler()
 
-        formatter = logging.Formatter(
-            "[%(levelname)s] %(asctime)s - %(threadName)s"
-            " %(thread)d - %(message)s")
-        handler.setFormatter(formatter)
-        logging_level = config.get('logging', 'level')
-        logger.setLevel(logging_level)
-        logger.addHandler(handler)
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(asctime)s - %(threadName)s"
+        " %(thread)d - %(message)s")
+    handler.setFormatter(formatter)
+    logging_level = config.get('logging', 'level')
+    logger.setLevel(logging_level)
+    logger.addHandler(handler)
 
 
 def _configure_connections(config):
@@ -258,7 +258,7 @@ def _configure_connections(config):
                       database=database)
 
 
-def _start(config):
+def _start():
     """Start Fabric server.
     """
     # Load all services into the service manager

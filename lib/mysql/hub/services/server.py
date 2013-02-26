@@ -40,7 +40,6 @@ import mysql.hub.failure_detector as _detector
 
 from mysql.hub.command import (
     ProcedureCommand,
-    Command,
     )
 
 _LOGGER = logging.getLogger("mysql.hub.services.server")
@@ -224,7 +223,9 @@ class ServerCreate(ProcedureCommand):
                             or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(CREATE_SERVER, group_id, address, user, passwd)
+        procedures = _events.trigger(
+            CREATE_SERVER, group_id, address, user, passwd
+            )
         return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SERVER = _events.Event()

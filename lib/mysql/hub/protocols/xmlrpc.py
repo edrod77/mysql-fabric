@@ -52,6 +52,9 @@ class MyClient(xmlrpclib.ServerProxy):
     This class defines the client-side interface of the command subsystem.
     """
     def __init__(self):
+        # TODO: Notice that the call to the __init__ is placed in the dispatch
+        # when the call to the server happens. Maybe we should move this to
+        # to here.
         """Create a MyClient object.
         """
         pass

@@ -34,8 +34,6 @@ import threading
 
 import mysql.hub.server_utils as _server_utils
 
-# TODO: W:934:MySQLServer.remove: Arguments number differs from overridden
-#       method
 DEFAULT_DATABASE = 'fabric'
 
 class PersistentMeta(type):

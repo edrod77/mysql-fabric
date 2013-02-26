@@ -186,8 +186,7 @@ def setup_xmlrpc():
 
     _configure_connections(config)
     _persistence.setup()
-    manager_thread = threading.Thread(target=_start, args=(config, ),
-                                      name="Services")
+    manager_thread = threading.Thread(target=_start, name="Services")
     manager_thread.start()
 
     # Set up the client

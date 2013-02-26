@@ -556,6 +556,7 @@ class MySQLServer(_persistence.Persistable):
         :param passwd: The password used to access the server.
         :param default_charset: The default charset that will be used.
         """
+        super(MySQLServer, self).__init__()
         assert(isinstance(uuid, _uuid.UUID))
         self.__uuid = uuid
         self.__address = address

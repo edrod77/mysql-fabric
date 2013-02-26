@@ -6,7 +6,6 @@ import logging
 
 from mysql.hub.command import (
     ProcedureCommand,
-    Command,
 )
 
 import mysql.hub.events as _events
@@ -224,8 +223,8 @@ class LookupShard(ProcedureCommand):
     group_name = "sharding"
     command_name = "lookup"
     def execute(self, table_name, key, synchronous=True):
-        """Given a table name and a key return the server where the shard of this
-        table can be found
+        """Given a table name and a key return the server where the shard of
+        this table can be found.
 
         :param table_name: The table whose sharding specification needs to be
                             looked up.
