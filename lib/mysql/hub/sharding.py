@@ -958,7 +958,7 @@ class RangeShardingSpecification(_persistence.Persistable):
             master.exec_stmt(delete_query)
         return True
 
-def lookup(table_name, key):
+def lookup_servers(table_name, key):
     """Given a table name and a key return the server where the shard of this
     table can be found
 
