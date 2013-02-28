@@ -215,13 +215,13 @@ class DisableShard(ProcedureCommand):
         procedures = _events.trigger(SHARD_DISABLE, shard_id)
         return self.wait_for_procedures(procedures, synchronous)
 
-SHARD_LOOKUP = \
-        _events.Event("SHARD_LOOKUP")
-class LookupShard(ProcedureCommand):
+LOOKUP_SHARD_SERVERS = \
+        _events.Event("LOOKUP_SHARD_SERVERS")
+class LookupShardServers(ProcedureCommand):
     """Lookup a shard based on the give sharding key.
     """
     group_name = "sharding"
-    command_name = "lookup"
+    command_name = "lookup_servers"
     def execute(self, table_name, key, synchronous=True):
         """Given a table name and a key return the server where the shard of
         this table can be found.
@@ -235,7 +235,7 @@ class LookupShard(ProcedureCommand):
         :return: The Group UUID that contains the range in which the key belongs.
         """
 
-        procedures = _events.trigger(SHARD_LOOKUP, table_name, key)
+        procedures = _events.trigger(LOOKUP_SHARD_SERVERS, table_name, key)
         return self.wait_for_procedures(procedures, synchronous)
 
 PRUNE_SHARD_TABLES = _events.Event("PRUNE_SHARD_TABLES")
@@ -431,7 +431,7 @@ def _remove_shard(shard_id):
         _LOGGER.debug("Removed Shard (%d).", shard_id)
         return ret
 
-@_events.on_event(SHARD_LOOKUP)
+@_events.on_event(LOOKUP_SHARD_SERVERS)
 def _lookup(table_name, key):
     """Given a table name and a key return the servers of the Group where the
     shard of this table can be found
@@ -441,7 +441,7 @@ def _lookup(table_name, key):
     :return: The servers of the Group that contains the range in which the
             key belongs.
     """
-    servers = _sharding.lookup(table_name, key)
+    servers = _sharding.lookup_servers(table_name, key)
     if servers is not None:
         return servers
     else:

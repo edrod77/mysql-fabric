@@ -254,7 +254,7 @@ class TestSharding(unittest.TestCase):
                                  False]
                                 ]
 
-        obtained_server_list = _sharding.lookup("db1.t1", 500)
+        obtained_server_list = _sharding.lookup_servers("db1.t1", 500)
 
         expected_uuid_list = [expected_server_list[0][0],
                               expected_server_list[1][0]]
@@ -271,11 +271,11 @@ class TestSharding(unittest.TestCase):
 
     def test_lookup_wrong_table_exception(self):
         self.assertRaises(_errors.ShardingError,
-                          _sharding.lookup, "Wrong", 500)
+                          _sharding.lookup_servers, "Wrong", 500)
 
     def test_lookup_wrong_key_exception(self):
         self.assertRaises(_errors.ShardingError,
-                          _sharding.lookup, "db1.t1", 55000)
+                          _sharding.lookup_servers, "db1.t1", 55000)
 
     def test_shard_mapping_list_mappings(self):
         shard_mappings = ShardMapping.list("RANGE")

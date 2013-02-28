@@ -234,7 +234,7 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard).")
-        status = self.proxy.sharding.lookup("db1.t1", 500)
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -342,7 +342,7 @@ class TestShardingServices(unittest.TestCase):
                          "server_2.mysql.com:3060",
                          False]
                         ]
-        status = self.proxy.sharding.lookup("db1.t1", 500)
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500)
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -362,14 +362,14 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(set(expected_address_list), set(obtained_address_list))
 
     def test_lookup_wrong_table_exception(self):
-        status = self.proxy.sharding.lookup("Wrong", 500)
+        status = self.proxy.sharding.lookup_servers("Wrong", 500)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup).")
 
     def test_lookup_wrong_key_exception(self):
-        status = self.proxy.sharding.lookup("db1.t1", 55500)
+        status = self.proxy.sharding.lookup_servers("db1.t1", 55500)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
