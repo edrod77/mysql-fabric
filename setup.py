@@ -4,6 +4,7 @@ import sys
 import glob
 
 from distutils.core import setup, Command
+from distutils.sysconfig import get_python_lib
 
 def fetch_version(module_name):
     """Retrieve information on Fabric version within *module_name*.
@@ -43,7 +44,7 @@ def find_packages(*args, **kwrds):
 
 def check_connector():
     """Check if connector is properly installed.
-    
+
     It returns a tuple with the following information:
     * Installed - Indicates whether the connector is properly installed
                   or not.
@@ -65,7 +66,7 @@ def check_connector():
 
 def check_sphinx():
     """Check if sphinx is properly installed.
-    
+
     It returns a tuple with the following information:
     * Installed - Indicates whether sphinx is properly installed
                   or not.
@@ -81,7 +82,7 @@ def check_sphinx():
 
 def check_fabric():
     """Check if Fabric is properly built/installed.
-    
+
     It returns a tuple with the following information:
     * Installed - Indicates whether Fabric is properly installed
                   or not.
@@ -100,58 +101,78 @@ def check_fabric():
     except ImportError as error:
         return False, path_mysql, path_fabric
 
-def fix_path_for_docs():
-    """Set the path to *build/lib* when a documentation is being
-    generated and check whether the connector is properly installed
+def check_path_for_docs(directory):
+    """Set the path to ** when documentation is being generated and
+    check whether fabric and connector python are properly installed
     or not.
     """
-    built = glob.glob("./build/lib.*")
-    if built:
-        for path in built:
-            version =  \
-                ".".join([str(version) for version in sys.version_info[0:2]])
-            if path.find(version) != -1:
-                sys.path.insert(0, os.path.abspath(built[0]))
+    fix_path(directory)
 
     result, path_mysql, path_connector = check_connector()
     if not result:
         sys.stderr.write(
-            "Tried to look for mysql.connector at (%s).\n" % (path_mysql, )
+            "Tried to look for mysql.connector at (%s).\n" % \
+            (path_mysql, )
+            )
+        sys.stderr.write(
+            "Sphinx was supposed to use (%s).\n" % \
+            (sys.path[0])
             )
         exit(1)
 
     result, path_myql, path_fabric = check_fabric()
     if not result:
         sys.stderr.write(
-            "Tried to look for mysql.hub at (%s).\n" % (path_mysql, )
+            "Tried to look for mysql.hub at (%s).\n" % \
+            (path_mysql, )
+            )
+        sys.stderr.write(
+            "Sphinx was supposed to use (%s).\n" % \
+            (sys.path[0])
             )
         exit(1)
- 
 
-def fix_path_for_code():
-    """Set the path to *lib* when a documentation is being
-    generated.
+def fix_path(directory):
+    """Fix path by pointing to the appropriate directory.
     """
-    sys.path.insert(0, os.path.abspath("lib"))
+    sys.path.insert(0, os.path.abspath(directory))
 
-
+#
 # If Sphinx is installed, create a documentation builder based
 # on it. Otherwise, create a fake builder just to report something
 # when --help-commands are executed so that users may find out
 # that it is possible to build the documents provided Sphinx is
 # properly installed.
+#
 result, path_sphinx = check_sphinx()
 if result:
-    import sphinx.setup_command
-    class build_docs(sphinx.setup_command.BuildDoc):
+    import sphinx.setup_command as _sphinx
+    class build_docs(_sphinx.BuildDoc):
+        """Create documentation using Sphinx.
         """
-        Create documentation using Sphinx.
-        """
+        user_options = _sphinx.BuildDoc.user_options + [
+            ("code-dir=", None, "Look for code in the directory."),
+            ]
+
         description = "Create documentation using sphinx"
+
+        def initialize_options(self):
+            _sphinx.BuildDoc.initialize_options(self)
+            self.code_dir = None
+
+        def finalize_options(self):
+            _sphinx.BuildDoc.finalize_options(self)
+            if not self.code_dir:
+                self.use_directory = get_python_lib()
+            else:
+                self.use_directory = self.code_dir
+
+        def run(self):
+            check_path_for_docs(self.use_directory)
+            _sphinx.BuildDoc.run(self)
 else:
     class build_docs(Command):
-        """
-        Create documentation. Please, install sphinx.
+        """Create documentation. Please, install sphinx.
         """
         user_options = [
             ('unknown', None, "Sphinx is not installed. Please, install it."),
@@ -163,35 +184,15 @@ else:
 
         def finalize_options (self):
             pass
- 
+
         def run(self):
             sys.stderr.write(
                 "Sphinx is not installed. Please, install it.\n"
                 )
             exit(1)
-            
-DOC_INFO = {
-    'cmdclass': { 'build_docs' : build_docs
-        },
-    }
-
-# It is necessary to check the command-line parameters at this point and
-# fix the path because the fetch version function imports "mysql.hub"
-# thus setting the path to a mysql package. While generating documents,
-# we want this path to be build/lib.
-#
-# TODO: REMOVE fetch_version so we can avoid fixing the path here and
-# do it within a command.
-#
-if "build_docs" in sys.argv:
-    fix_path_for_docs()
-else:
-    fix_path_for_code()
-
 
 META_INFO = {
     'name': "mysql-hub",
-    'version': fetch_version('mysql.hub'),
     'license': "GPLv2",
     'description': "Management system for MySQL deployments",
     'packages': find_packages("lib", exclude=["tests"]),
@@ -218,7 +219,16 @@ META_INFO = {
         'Operating System :: POSIX',
         'Programming Language :: Python',
         ],
+    'cmdclass': {
+        'build_docs' : build_docs,
+        },
 }
 
-META_INFO.update(DOC_INFO)
+#
+# When building the documentation that path is fixed based on
+# the --code-dir option within the build_docs class.
+#
+if "build_docs" not in sys.argv:
+    fix_path("lib")
+    META_INFO ['version'] = fetch_version('mysql.hub')
 setup(**META_INFO)
