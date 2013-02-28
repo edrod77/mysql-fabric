@@ -8,6 +8,7 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   CHANGELOG
    modules/index
 
 The MySQL Fabric is a framework for managing a heterogenous collection
