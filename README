@@ -14,7 +14,6 @@ installed from PyPI using:
 
     pip install sphinx sphinxcontrib-seqdiag
 
-
 Installation
 ------------
 
@@ -28,9 +27,9 @@ set of command-line scripts that are used to administer the hub.
 
 Documentation
 -------------
-To build the documentation, one needs to install sphinx and build the
-MySQL Hub first. After these steps, the following command can be used
-to build the documentation:
+To build the documentation, one needs to install sphinx and build or
+install MySQL Hub first. After these steps, the following command can
+be used to build the documentation:
 
     python setup.py build_docs
 
@@ -49,4 +48,4 @@ during development to check that all pieces work correctly. The tests
 can be executed using the command:
 
     python test.py --host=<host> --port=<port> --user=<user> \
-    --password=<password> --servers="<servers's addresses>"
+    --password=<password> --servers="<servers' addresses>"
