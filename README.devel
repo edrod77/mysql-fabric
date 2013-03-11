@@ -5,7 +5,7 @@ Adding new commands
 -------------------
 
 One needs to inherits from either the Command or ProcedureCommand class
-to define a new command. 
+to define a new command.
 
 In the former case, the command does not trigger any internal procedure and
 can be either local or remote. For example, the commands "start" and "stop"
