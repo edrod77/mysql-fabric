@@ -32,9 +32,11 @@ class TestMySQLServer(unittest.TestCase):
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
         self.server = MySQLServer(**OPTIONS)
+        MySQLServer.add(self.server)
 
     def tearDown(self):
         self.server.disconnect()
+        MySQLServer.remove(self.server)
         persistence.deinit_thread()
         persistence.teardown()
 
@@ -51,13 +53,32 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.user, "root")
         server.user = "user"
         self.assertEqual(server.user, "user")
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.user, fetched_server.user)
         server.user = "root"
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.user, fetched_server.user)
 
         # Check property passwd.
         self.assertEqual(server.passwd, None)
         server.passwd = "passwd"
         self.assertEqual(server.passwd, "passwd")
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.passwd, fetched_server.passwd)
         server.passwd = None
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.passwd, fetched_server.passwd)
+
+        # Check property status.
+        self.assertEqual(server.status, MySQLServer.RUNNING)
+        server.status = MySQLServer.OFFLINE
+        self.assertEqual(server.status, MySQLServer.OFFLINE)
+        fetched_server = MySQLServer.fetch(server.uuid)
+        persistence.MySQLPersister().commit()
+        self.assertEqual(server.status, fetched_server.status)
+        server.status = MySQLServer.RUNNING
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.status, fetched_server.status)
 
         # Create instance without connecting it with a server.
         self.assertEqual(server.read_only, None)
@@ -307,23 +328,43 @@ class TestGroup(unittest.TestCase):
         persistence.teardown()
 
     def test_properties(self):
-        set_of_groups = set()
-        group_1 = Group.add("mysql.com")
-        self.assertEqual(group_1.group_id, "mysql.com")
-        group_2 = Group.add("oracle.com", "First description.")
-        self.assertEqual(group_2.group_id, "oracle.com")
-        group_1.description = "New description."
-        self.assertEqual(group_1.description, "New description.")
-        group_1.description = None
-        self.assertEqual(group_1.description, None)
+        group_1 = Group("mysql.com")
+        Group.add(group_1)
         fetched_group_1 = Group.fetch(group_1.group_id)
+        self.assertEqual(group_1.group_id, "mysql.com")
+        self.assertEqual(fetched_group_1.group_id, "mysql.com")
+
+        group_2 = Group("oracle.com", "First description.")
+        Group.add(group_2)
         fetched_group_2 = Group.fetch(group_2.group_id)
+        self.assertEqual(group_2.group_id, "oracle.com")
+        self.assertEqual(fetched_group_2.group_id, "oracle.com")
+
+        group_1.description = "New description."
+        fetched_group_1 = Group.fetch(group_1.group_id)
+        self.assertEqual(group_1.description, "New description.")
+        self.assertEqual(fetched_group_1.description, "New description.")
+
+        group_1.description = None
+        fetched_group_1 = Group.fetch(group_1.group_id)
+        self.assertEqual(group_1.description, None)
+        self.assertEqual(fetched_group_1.description, None)
+
+        group_1.status = Group.INACTIVE
+        fetched_group_1 = Group.fetch(group_1.group_id)
+        self.assertEqual(group_1.status, Group.INACTIVE)
+        self.assertEqual(fetched_group_1.status, Group.INACTIVE)
+
         self.assertEqual(group_1, fetched_group_1)
         self.assertEqual(group_2, fetched_group_2)
         self.assertNotEqual(group_1, group_2)
 
+        set_of_groups = set()
         set_of_groups.add(group_1)
         set_of_groups.add(group_2)
+        set_of_groups.add(fetched_group_1)
+        set_of_groups.add(fetched_group_2)
+        self.assertEqual(len(set_of_groups), 2)
 
     def test_managment(self):
         options_1 = {
@@ -331,14 +372,15 @@ class TestGroup(unittest.TestCase):
             "address"  : "server_1.mysql.com:3060",
         }
         server_1 = MySQLServer(**options_1)
-        MySQLServer.add(options_1["uuid"], options_1["address"], None, None)
+        MySQLServer.add(server_1)
         options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_2.mysql.com:3060",
         }
         server_2 = MySQLServer(**options_2)
-        MySQLServer.add(options_2["uuid"], options_2["address"], None, None)
-        group_1 = Group.add("oracle.com", "First description.")
+        MySQLServer.add(server_2)
+        group_1 = Group("oracle.com", "First description.")
+        Group.add(group_1)
 
         # Add servers to a group
         group_1.add_server(server_1)

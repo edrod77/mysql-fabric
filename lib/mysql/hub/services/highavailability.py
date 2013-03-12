@@ -23,6 +23,7 @@ DISCOVER_TOPOLOGY = _events.Event()
 # Import the replication topology outputed in the previous step.
 IMPORT_TOPOLOGY = _events.Event()
 
+# TODO: AVOID USING UUID STRING and use UUID OBJECT.
 class ImportTopology(ProcedureCommand):
     """Try to figure out the replication topology and import it into the
     state store.
@@ -315,9 +316,14 @@ class DemoteMaster(ProcedureCommand):
         return self.wait_for_procedures(procedures, synchronous)
 
 # Check which servers are up or down within a group.
+# TODO: Move this to services/server.py.
 CHECK_GROUP_AVAILABILITY = _events.Event()
 class CheckHealth(ProcedureCommand):
-    """Check if any server within a group has failed.
+    """Check if any server within a group has failed. Servers which have
+    the FAULTY or OFFLINE status are considered not alive even though
+    after being brought up on-line. In order to change this, one needs
+    to call one of the following functions: make_server_running or
+    make_server_spare.
     """
     group_name = "group"
     command_name = "check_group_availability"
@@ -434,14 +440,19 @@ def _do_import_topology(pattern_group_id, group_description,
     group_id = base_group_id + "-" + str(number_group_id)
 
     # Create group.
-    group = _server.Group.add(group_id, group_description)
-    _LOGGER.debug("Added group (%s).", str(group))
+    group = _server.Group(group_id=group_id, description=group_description,
+                          status=_server.Group.INACTIVE)
+    _server.Group.add(group)
     groups.add(group_id)
+    _LOGGER.debug("Added group (%s).", str(group))
 
     # Create master of the group.
     master_address = topology[master_uuid]["address"]
-    server = _server.MySQLServer.add(_uuid.UUID(master_uuid),
-                                     master_address, user, passwd)
+    server = _server.MySQLServer(
+        uuid=_uuid.UUID(master_uuid), address=master_address, user=user,
+        passwd=passwd, status=_server.MySQLServer.RUNNING
+        )
+    _server.MySQLServer.add(server)
 
     # Added created master to the group.
     group.add_server(server)
@@ -455,8 +466,11 @@ def _do_import_topology(pattern_group_id, group_description,
         new_slaves = slave[slave_uuid]["slaves"]
         if not new_slaves:
             slave_address = slave[slave_uuid]["address"]
-            server = _server.MySQLServer.add(_uuid.UUID(slave_uuid),
-                                             slave_address, user, passwd)
+            server = _server.MySQLServer(
+                uuid=_uuid.UUID(slave_uuid), address=slave_address, user=user,
+                passwd=passwd, status=_server.MySQLServer.RUNNING
+                )
+            _server.MySQLServer.add(server)
         else:
             groups.union(_do_import_topology(group_id, group_description,
                                              slave, user, passwd))
@@ -497,7 +511,8 @@ def _do_find_candidate(group_id):
     chosen_uuid = None
     chosen_gtid_status = None
     for candidate in group.servers():
-        if master_uuid != str(candidate.uuid):
+        if master_uuid != str(candidate.uuid) and \
+            candidate.status == _server.MySQLServer.RUNNING:
             try:
                 gtid_status = candidate.get_gtid_status()
                 health = _replication.check_master_health(candidate)
@@ -564,8 +579,14 @@ def _check_candidate_switch(group_id, slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain correct " \
                                  "master (%s)." % (group_id, master_uuid))
 
-    _events.trigger_within_procedure(BLOCK_WRITE_SWITCH, group_id, master_uuid,
-                                     slave_uuid)
+    if slave.status not in \
+        (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
+        raise _errors.ServerError("Server (%s) is not either running or "
+                                  "a spare.", (slave_uuid, ))
+
+    _events.trigger_within_procedure(
+        BLOCK_WRITE_SWITCH, group_id, master_uuid, slave_uuid
+        )
 
 @_events.on_event(BLOCK_WRITE_SWITCH)
 def _block_write_switch(group_id, master_uuid, slave_uuid):
@@ -703,6 +724,11 @@ def _check_candidate_fail(group_id, slave_uuid):
             raise _errors.GroupError("Group (%s) does not contain correct " \
                                      "master (%s)." % (group_id, master_uuid))
 
+    if slave.status not in \
+        (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
+        raise _errors.ServerError("Server (%s) is not either running or "
+                                  "a spare.", (slave_uuid, ))
+
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 
 @_events.on_event(BLOCK_WRITE_DEMOTE)
@@ -734,9 +760,12 @@ def _wait_candidates_demote(group_id, master_uuid):
 
 @_events.on_event(CHECK_GROUP_AVAILABILITY)
 def _check_group_availability(group_id):
+    #TODO: MOVE THIS TO server.py
     """Check which servers in a group are up and down.
     """
     availability = {}
+    ignored_status = [_server.MySQLServer.FAULTY,
+                      _server.MySQLServer.OFFLINE]
 
     group = _server.Group.fetch(group_id)
     if not group:
@@ -745,11 +774,12 @@ def _check_group_availability(group_id):
     for server in group.servers():
         alive = False
         try:
-            alive = server.is_alive()
+            if server.status not in ignored_status:
+                alive = server.is_alive()
         except _errors.DatabaseError as error:
             _LOGGER.exception(error)
         availability[str(server.uuid)] = \
-            (alive, group.master == server.uuid)
+            (alive, (group.master == server.uuid), server.status)
 
     return availability
 

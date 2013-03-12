@@ -22,16 +22,15 @@ class TestSharding(unittest.TestCase):
             "address"  : "server_1.mysql.com:3060",
         }
         self.__server_1 = MySQLServer(**self.__options_1)
-        MySQLServer.add(self.__options_1["uuid"], self.__options_1["address"],
-                        None, None)
+        MySQLServer.add(self.__server_1)
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_2.mysql.com:3060",
         }
         self.__server_2 = MySQLServer(**self.__options_2)
-        MySQLServer.add(self.__options_2["uuid"], self.__options_2["address"],
-                        None, None)
-        self.__group_1 = Group.add("GROUPID1", "First description.")
+        MySQLServer.add(self.__server_2)
+        self.__group_1 = Group("GROUPID1", "First description.")
+        Group.add(self.__group_1)
         self.__group_1.add_server(self.__server_1)
         self.__group_1.add_server(self.__server_2)
         self.__group_1.master = self.__options_1["uuid"]
@@ -41,13 +40,10 @@ class TestSharding(unittest.TestCase):
             "address"  : MySQLInstances().get_address(0),
             "user" : "root"
         }
-        self.__server_3 = MySQLServer(**self.__options_3)
         uuid_server3 = MySQLServer.discover_uuid(**self.__options_3)
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
         self.__server_3 = MySQLServer(**self.__options_3)
-
-        MySQLServer.add(self.__options_3["uuid"], self.__options_3["address"],
-                        self.__options_3["user"], None)
+        MySQLServer.add(self.__server_3)
         self.__server_3.connect()
         self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
         self.__server_3.exec_stmt("CREATE DATABASE prune_db")
@@ -63,9 +59,9 @@ class TestSharding(unittest.TestCase):
             "address"  : "server_4.mysql.com:3060",
         }
         self.__server_4 = MySQLServer(**self.__options_4)
-        MySQLServer.add(self.__options_4["uuid"], self.__options_4["address"],
-                        None, None)
-        self.__group_2 = Group.add("GROUPID2", "Second description.")
+        MySQLServer.add(self.__server_4)
+        self.__group_2 = Group("GROUPID2", "Second description.")
+        Group.add(self.__group_2)
         self.__group_2.add_server(self.__server_3)
         self.__group_2.add_server(self.__server_4)
         self.__group_2.master = self.__options_3["uuid"]
@@ -78,8 +74,7 @@ class TestSharding(unittest.TestCase):
         uuid_server5 = MySQLServer.discover_uuid(**self.__options_5)
         self.__options_5["uuid"] = _uuid.UUID(uuid_server5)
         self.__server_5 = MySQLServer(**self.__options_5)
-        MySQLServer.add(self.__options_5["uuid"], self.__options_5["address"],
-                        self.__options_5["user"], None)
+        MySQLServer.add(self.__server_5)
         self.__server_5.connect()
         self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
         self.__server_5.exec_stmt("CREATE DATABASE prune_db")
@@ -95,24 +90,35 @@ class TestSharding(unittest.TestCase):
             "address"  : "server_6.mysql.com:3060",
         }
         self.__server_6 = MySQLServer(**self.__options_6)
-        MySQLServer.add(self.__options_6["uuid"], self.__options_6["address"],
-                        None, None)
-        self.__group_3 = Group.add("GROUPID3", "Third description.")
+        MySQLServer.add(self.__server_6)
+        self.__group_3 = Group("GROUPID3", "Third description.")
+        Group.add(self.__group_3)
         self.__group_3.add_server(self.__server_5)
         self.__group_3.add_server(self.__server_6)
         self.__group_3.master = self.__options_5["uuid"]
 
-        Group.add("GROUPID4", "4TH description.")
-        Group.add("GROUPID5", "5TH description.")
-        Group.add("GROUPID6", "6TH description.")
-        Group.add("GROUPID7", "7TH description.")
-        Group.add("GROUPID8", "8TH description.")
-        Group.add("GROUPID9", "9TH description.")
-        Group.add("GROUPID10", "10TH description.")
-        Group.add("GROUPID11", "11TH description.")
-        Group.add("GROUPID12", "12TH description.")
-        Group.add("GROUPID13", "13TH description.")
-        Group.add("GROUPID14", "14TH description.")
+        group_4 = Group("GROUPID4", "4TH description.")
+        Group.add(group_4)
+        group_5 = Group("GROUPID5", "5TH description.")
+        Group.add(group_5)
+        group_6 = Group("GROUPID6", "6TH description.")
+        Group.add(group_6)
+        group_7 = Group("GROUPID7", "7TH description.")
+        Group.add(group_7)
+        group_8 = Group("GROUPID8", "8TH description.")
+        Group.add(group_8)
+        group_9 = Group("GROUPID9", "9TH description.")
+        Group.add(group_9)
+        group_10 = Group("GROUPID10", "10TH description.")
+        Group.add(group_10)
+        group_11 = Group("GROUPID11", "11TH description.")
+        Group.add(group_11)
+        group_12 = Group("GROUPID12", "12TH description.")
+        Group.add(group_12)
+        group_13 = Group("GROUPID13", "13TH description.")
+        Group.add(group_13)
+        group_14 = Group("GROUPID14", "14TH description.")
+        Group.add(group_14)
 
         self.__shard_mapping_id_1 = ShardMapping.define("RANGE", "GROUPID10")
         self.__shard_mapping_id_2 = ShardMapping.define("RANGE", "GROUPID11")
@@ -329,11 +335,11 @@ class TestSharding(unittest.TestCase):
 
     def test_list_shard_mapping(self):
         expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]
-        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"] 
-        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"] 
+        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"]
+        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"]
         expected_shard_mapping_list4 =   [4, "RANGE", "GROUPID13"]
         expected_shard_mapping_list5 =   [5, "RANGE", "GROUPID14"]
-        
+
         obtained_shard_mapping_list = ShardMapping.list_shard_mapping_defn()
         self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
         self.assertEqual(set(expected_shard_mapping_list2),  set(obtained_shard_mapping_list[1]))

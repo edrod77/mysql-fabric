@@ -211,7 +211,7 @@ class ShardMapping(_persistence.Persistable):
             raise _errors.ShardingError("Unknown Sharding Type")
         return shard_mappings
 
-
+    # TODO: FOLLOW THE SAME PATTERN ADOPTED IN MySQLServer.
     def remove(self, persister=None):
         """Remove the shard mapping represented by the Shard Mapping object.
         The method basically results in removing the association between a

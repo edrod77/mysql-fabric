@@ -22,16 +22,15 @@ class TestShardingServices(unittest.TestCase):
             "address"  : "server_1.mysql.com:3060",
         }
         self.__server_1 = MySQLServer(**self.__options_1)
-        MySQLServer.add(self.__options_1["uuid"], self.__options_1["address"],
-                        None, None)
+        MySQLServer.add(self.__server_1)
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_2.mysql.com:3060",
         }
         self.__server_2 = MySQLServer(**self.__options_2)
-        MySQLServer.add(self.__options_2["uuid"], self.__options_2["address"],
-                        None, None)
-        self.__group_1 = Group.add("GROUPID1", "First description.")
+        MySQLServer.add(self.__server_2)
+        self.__group_1 = Group("GROUPID1", "First description.")
+        Group.add(self.__group_1)
         self.__group_1.add_server(self.__server_1)
         self.__group_1.add_server(self.__server_2)
         self.__group_1.master = self.__options_1["uuid"]
@@ -41,16 +40,15 @@ class TestShardingServices(unittest.TestCase):
             "address"  : "server_3.mysql.com:3060",
         }
         self.__server_3 = MySQLServer(**self.__options_3)
-        MySQLServer.add(self.__options_3["uuid"], self.__options_3["address"],
-                        None, None)
+        MySQLServer.add(self.__server_3)
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_4.mysql.com:3060",
         }
         self.__server_4 = MySQLServer(**self.__options_4)
-        MySQLServer.add(self.__options_4["uuid"], self.__options_4["address"],
-                        None, None)
-        self.__group_2 = Group.add("GROUPID2", "Second description.")
+        MySQLServer.add(self.__server_4)
+        self.__group_2 = Group("GROUPID2", "Second description.")
+        Group.add(self.__group_2)
         self.__group_2.add_server(self.__server_3)
         self.__group_2.add_server(self.__server_4)
         self.__group_2.master = self.__options_3["uuid"]
@@ -60,32 +58,42 @@ class TestShardingServices(unittest.TestCase):
             "address"  : "server_5.mysql.com:3060",
         }
         self.__server_5 = MySQLServer(**self.__options_5)
-        MySQLServer.add(self.__options_5["uuid"], self.__options_5["address"],
-                        None, None)
+        MySQLServer.add(self.__server_5)
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_6.mysql.com:3060",
         }
         self.__server_6 = MySQLServer(**self.__options_6)
-        MySQLServer.add(self.__options_6["uuid"], self.__options_6["address"],
-                        None, None)
-        self.__group_3 = Group.add("GROUPID3", "Third description.")
+        MySQLServer.add(self.__server_6)
+        self.__group_3 = Group("GROUPID3", "Third description.")
+        Group.add(self.__group_3)
         self.__group_3.add_server(self.__server_5)
         self.__group_3.add_server(self.__server_6)
         self.__group_3.master = self.__options_5["uuid"]
 
 
-        Group.add("GROUPID4", "4th description.")
-        Group.add("GROUPID5", "5th description.")
-        Group.add("GROUPID6", "6th description.")
-        Group.add("GROUPID7", "7th description.")
-        Group.add("GROUPID8", "8th description.")
-        Group.add("GROUPID9", "9th description.")
-        Group.add("GROUPID10", "10th description.")
-        Group.add("GROUPID11", "11th description.")
-        Group.add("GROUPID12", "12th description.")
-        Group.add("GROUPID13", "13th description.")
-        Group.add("GROUPID14", "14th description.")
+        group_4 = Group("GROUPID4", "4th description.")
+        Group.add(group_4)
+        group_5 = Group("GROUPID5", "5th description.")
+        Group.add(group_5)
+        group_6 = Group("GROUPID6", "6th description.")
+        Group.add(group_6)
+        group_7 = Group("GROUPID7", "7th description.")
+        Group.add(group_7)
+        group_8 = Group("GROUPID8", "8th description.")
+        Group.add(group_8)
+        group_9 = Group("GROUPID9", "9th description.")
+        Group.add(group_9)
+        group_10 = Group("GROUPID10", "10th description.")
+        Group.add(group_10)
+        group_11 = Group("GROUPID11", "11th description.")
+        Group.add(group_11)
+        group_12 = Group("GROUPID12", "12th description.")
+        Group.add(group_12)
+        group_13 = Group("GROUPID13", "13th description.")
+        Group.add(group_13)
+        group_14 = Group("GROUPID14", "14th description.")
+        Group.add(group_14)
 
         status = self.proxy.sharding.define("RANGE", "GROUPID10")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -376,8 +384,8 @@ class TestShardingServices(unittest.TestCase):
                          "Tried to execute action (_lookup).")
     def test_list_shard_mappings(self):
         expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]
-        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"] 
-        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"] 
+        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"]
+        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"]
         expected_shard_mapping_list4 =   [4, "RANGE", "GROUPID13"]
         status = self.proxy.sharding.list_definitions()
         self.assertStatus(status, _executor.Job.SUCCESS)

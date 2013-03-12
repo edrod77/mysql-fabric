@@ -28,6 +28,7 @@ import mysql.hub.failure_detector as _detector
 
 _LOGGER = logging.getLogger(__name__)
 
+# TODO: Improve this function and make it generic.
 def server_logging(function):
     """This logs information on functions being called within server
     instances.
@@ -53,13 +54,18 @@ def server_logging(function):
 class Group(_persistence.Persistable):
     """Provide interfaces to organize servers into groups.
 
-    This class does not provide any monitoring feature and this becomes
-    necessary one should extend it or rely on an external service.
+    :param group_id: The id that uniquely identifies the group.
+    :param description: The group's description.
+    :param master: The master's uuid in the group.
+    :rtype master: UUID
+    :param status: Group's status.
+    :rtype status: ACTIVE or INACTIVE.
     """
     CREATE_GROUP = ("CREATE TABLE groups"
                     "(group_id VARCHAR(64) NOT NULL, "
                     "description VARCHAR(256), "
                     "master_uuid VARCHAR(40), "
+                    "status BIT(1) NOT NULL,"
                     "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
 
     #Create the referential integrity constraint with the servers table
@@ -81,7 +87,8 @@ class Group(_persistence.Persistable):
                  "(group_id VARCHAR(64) NOT NULL, "
                  "server_uuid VARCHAR(40) NOT NULL, "
                  "CONSTRAINT pk_group_id_server_uuid "
-                 "PRIMARY KEY(group_id, server_uuid))")
+                 "PRIMARY KEY(group_id, server_uuid), "
+                 "INDEX idx_server_uuid (server_uuid))")
 
     #Create the referential integrity constraint with the groups table
     ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
@@ -119,23 +126,27 @@ class Group(_persistence.Persistable):
     DROP_GROUP_SERVER = ("DROP TABLE groups_servers")
 
     #SQL statement for inserting a new group into the table
-    INSERT_GROUP = ("INSERT INTO groups(group_id, description) "
-                    "VALUES(%s, %s)")
+    INSERT_GROUP = ("INSERT INTO groups(group_id, description, status) "
+                    "VALUES(%s, %s, %s)")
 
     #SQL statement for inserting a new server into a group
     INSERT_GROUP_SERVER = ("INSERT INTO groups_servers(group_id, server_uuid) "
                            "VALUES(%s, %s)")
 
     #SQL statement for checking for the presence of a server within a group
-    QUERY_GROUP_SERVER = ("SELECT server_uuid from groups_servers where "
-                          "group_id = %s AND server_uuid = %s")
+    QUERY_GROUP_SERVER_EXISTS = ("SELECT server_uuid FROM groups_servers "
+                                 "WHERE group_id = %s AND server_uuid = %s")
 
     #SQL statement for selecting all groups
-    QUERY_GROUPS = ("SELECT group_id from groups")
+    QUERY_GROUPS = ("SELECT group_id FROM groups")
 
     #SQL statement for selecting all the servers from a group
-    QUERY_GROUP_SERVERS = ("SELECT server_uuid from groups_servers where "
+    QUERY_GROUP_SERVERS = ("SELECT server_uuid FROM groups_servers WHERE "
                            "group_id = %s")
+
+    #SQL statement for getting group(s) which the server belongs to.
+    QUERY_GROUP_FROM_SERVER = ("SELECT group_id FROM groups_servers WHERE "
+                               "server_uuid = %s")
 
     #SQL statement for updating the group table identified by the group id.
     UPDATE_GROUP = ("UPDATE groups SET description = %s WHERE group_id = %s")
@@ -148,29 +159,33 @@ class Group(_persistence.Persistable):
                            "server_uuid = %s")
 
     #SQL Statement to retrieve a specific group from the state_store.
-    QUERY_GROUP = ("SELECT group_id, description, master_uuid FROM groups "
-                   "WHERE group_id = %s")
+    QUERY_GROUP = ("SELECT group_id, description, master_uuid, status "
+                   "FROM groups WHERE group_id = %s")
 
     #SQL Statement to update the group's master.
     UPDATE_MASTER = ("UPDATE groups SET master_uuid = %s WHERE group_id = %s")
 
-    def __init__(self, group_id, description=None, master=None):
-        """Constructor for the Group. Check to see if the Group is already
-        present in the state store, if it is, then load the information from
-        the state store, else persist the input information into the state
-        store.
+    #SQL Statement to update the group's status.
+    UPDATE_STATUS = ("UPDATE groups SET status = %s WHERE group_id = %s")
 
-        :param group_id: The id that uniquely identifies the group.
-        :param description: The group's description.
-        :param master: The master's uuid in the group.
-        :rtype master: UUID
+    #Group's statuses
+    INACTIVE, ACTIVE = range(0, 2)
+
+    #List with Group's statuses
+    GROUP_STATUS = [INACTIVE, ACTIVE]
+
+    def __init__(self, group_id, description=None, master=None,
+                 status=INACTIVE):
+        """Constructor for the Group.
         """
         assert(isinstance(group_id, basestring))
         assert(master is None or isinstance(master, _uuid.UUID))
+        assert(status in Group.GROUP_STATUS)
         super(Group, self).__init__()
         self.__group_id = group_id
         self.__description = description
         self.__master = master
+        self.__status = status
 
     def __eq__(self,  other):
         """Two groups are equal if they have the same id.
@@ -302,22 +317,55 @@ class Group(_persistence.Persistable):
             {"params":(param_master, self.__group_id)})
         self.__master = master
 
+    @property
+    def status(self):
+        """Return the group's status.
+        """
+        return self.__status
+
+    @status.setter
+    def status(self, status, persister=None):
+        """Set the group's status.
+
+        :param status: The new group's status.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        assert(status in Group.GROUP_STATUS)
+        persister.exec_stmt(Group.UPDATE_STATUS,
+            {"params":(status, self.__group_id)})
+        self.__status = status
+
     @staticmethod
     def groups(persister=None):
+        # TODO: This must be changed. This must return a set of groups.
         """Return the group_ids of all the available groups.
 
         :param persister: Persister to persist the object to.
         """
         return persister.exec_stmt(Group.QUERY_GROUPS)
 
-    def remove(self, persister=None):
-        """Remove the Group object from the state store.
+    @staticmethod
+    def group_from_server(uuid, persister=None):
+        cur = persister.exec_stmt(
+            Group.QUERY_GROUP_FROM_SERVER,
+            {"fetch" : False, "params" : (str(uuid), )}
+            )
+        row = cur.fetchone()
 
+        if row:
+            return Group.fetch(row[0])
+
+    @staticmethod
+    def remove(group, persister=None):
+        """Remove the group object from the state store.
+
+        :param group: A reference to a group.
         :param persister: Persister to persist the object to.
-
         """
-        persister.exec_stmt(Group.REMOVE_GROUP,
-                            {"params" : (self.__group_id,)})
+        persister.exec_stmt(
+            Group.REMOVE_GROUP, {"params" : (group.group_id, )}
+            )
 
     def contains_server(self, uuid, persister=None):
         """Check if the server represented by the uuid is part of the
@@ -330,7 +378,7 @@ class Group(_persistence.Persistable):
                  False if the server is not part of the Group.
         """
         assert isinstance(uuid, (_uuid.UUID, basestring))
-        cur = persister.exec_stmt(Group.QUERY_GROUP_SERVER,
+        cur = persister.exec_stmt(Group.QUERY_GROUP_SERVER_EXISTS,
             {"fetch" : False, "params":(self.__group_id, str(uuid))})
         row = cur.fetchone()
 
@@ -351,28 +399,31 @@ class Group(_persistence.Persistable):
                  None if the Group object does not exist.
         """
         group = None
-        cur = persister.exec_stmt(Group.QUERY_GROUP,
-                                  {"fetch" : False, "params" : (group_id,)})
+        cur = persister.exec_stmt(
+            Group.QUERY_GROUP, {"fetch" : False, "raw" : False,
+            "params" : (group_id,)}
+            )
         row = cur.fetchone()
         if row:
-            group_id, description, master = row
+            group_id, description, master, status = row
             if master:
                 master = _uuid.UUID(master)
-            group = Group(group_id, description, master)
+            group = Group(
+                group_id=group_id, description=description, master=master,
+                status=status
+                )
         return group
 
     @staticmethod
-    def add(group_id, description=None, persister=None):
-        """Create a Group and return the Group object.
+    def add(group, persister=None):
+        """Write a group object into the state store.
 
-        :param string group_id: The group ID.
-        :param string description: The group's description.
+        :param group: A reference to a group.
         :param persister: Persister to persist the object to.
         """
-
         persister.exec_stmt(Group.INSERT_GROUP,
-                            {"params": (group_id, description)})
-        return Group(group_id, description)
+            {"params": (group.group_id, group.description, group.status)}
+            )
 
     @staticmethod
     def create(persister=None):
@@ -510,16 +561,24 @@ class MySQLServer(_persistence.Persistable):
 
     Changing the value of the properties user or password triggers a call to
     disconnect.
+
+    :param uuid: The uuid of the server.
+    :param address:  The address of the server.
+    :param user: The username used to access the server.
+    :param passwd: The password used to access the server.
+    :param default_charset: The default charset that will be used.
+    :param status: Server's status.
+    :type status: OFFLINE, RUNNING, SPARE, etc.
     """
     #SQL Statement for creating the table used to store details about the
     #server.
-    CREATE_SERVER = ("CREATE TABLE "
-                     "servers "
-                     "(server_uuid VARCHAR(40) NOT NULL, "
-                     "server_address VARCHAR(128) NOT NULL, "
-                     "user CHAR(16), "
-                     "passwd TEXT, "
-                     "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
+    CREATE_SERVER = (
+        "CREATE TABLE servers "
+        "(server_uuid VARCHAR(40) NOT NULL, "
+        "server_address VARCHAR(128) NOT NULL, "
+        "user CHAR(16), passwd TEXT, "
+        "status ENUM(%s) NOT NULL, "
+        "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
 
     #SQL Statement for dropping the table used to store the details about the
     #server.
@@ -527,44 +586,72 @@ class MySQLServer(_persistence.Persistable):
 
     #SQL statement for inserting a new server into the table
     INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_address, user, "
-                     "passwd) values(%s, %s, %s, %s)")
+                     "passwd, status) values(%s, %s, %s, %s, %s)")
 
     #SQL statement for updating the server table identified by the server id.
     UPDATE_SERVER_USER = ("UPDATE servers SET user = %s WHERE server_uuid = %s")
-    UPDATE_SERVER_PASSWD = ("UPDATE servers SET passwd = %s "
-                            "WHERE server_uuid = %s")
+
+    #SQL statement for updating the server table identified by the server id.
+    UPDATE_SERVER_PASSWD = (
+        "UPDATE servers SET passwd = %s WHERE server_uuid = %s"
+        )
+
+    #SQL statement for updating the server table identified by the server id.
+    UPDATE_SERVER_STATUS = (
+        "UPDATE servers SET status = %s WHERE server_uuid = %s"
+        )
 
     #SQL statement used for deleting the server identified by the server id.
     REMOVE_SERVER = ("DELETE FROM servers WHERE server_uuid = %s")
 
     #SQL Statement to retrieve the server from the state_store.
-    QUERY_SERVER = ("SELECT server_uuid, server_address, user, passwd FROM "
-                    "servers where server_uuid = %s")
+    QUERY_SERVER = (
+        "SELECT server_uuid, server_address, user, passwd, status "
+        "FROM servers WHERE server_uuid = %s"
+        )
 
-    SESSION_CONTEXT, GLOBAL_CONTEXT = range(0, 2)
-    CONTEXT_STR = ["SESSION", "GLOBAL"]
+    # Define a session context for a variable.
+    SESSION_CONTEXT = "SESSION"
+
+    # Define a global context for a variable.
+    GLOBAL_CONTEXT = "GLOBAL"
+
+    # Set of contexts.
+    CONTEXTS = [SESSION_CONTEXT, GLOBAL_CONTEXT]
+
+    # Define an off-line status.
+    OFFLINE = "OFFLINE"
+
+    # Define a running status.
+    RUNNING = "RUNNING"
+
+    # Define an spare status.
+    SPARE = "SPARE"
+
+    # Define an faulty status.
+    FAULTY = "FAULTY"
+
+    # Define a recovering status.
+    RECOVERING = "RECOVERING"
+
+    # Set of possible statuses.
+    SERVER_STATUS = [OFFLINE, RUNNING, SPARE, FAULTY, RECOVERING]
 
     def __init__(self, uuid, address, user=None, passwd=None,
-                 default_charset="latin1"):
-        """Constructor for MySQLServer. The constructor searches for the uuid
-        in the state store and if the uuid is present it loads the server from
-        the state store. otherwise it creates and persists a new Server object.
-
-        :param uuid: The uuid of the server.
-        :param address:  The address of the server.
-        :param user: The username used to access the server.
-        :param passwd: The password used to access the server.
-        :param default_charset: The default charset that will be used.
+                 status=RUNNING, default_charset="latin1"):
+        """Constructor for MySQLServer.
         """
         super(MySQLServer, self).__init__()
         assert(isinstance(uuid, _uuid.UUID))
+        assert(status in MySQLServer.SERVER_STATUS)
+        self.__cnx = None
         self.__uuid = uuid
         self.__address = address
         self.__pool = ConnectionPool()
         self.__user = user
         self.__passwd = passwd
-        self.__cnx = None
         self.__default_charset = default_charset
+        self.__status = status
         self.__read_only = None
         self.__server_id = None
         self.__version = None
@@ -621,7 +708,6 @@ class MySQLServer(_persistence.Persistable):
             autocommit=True, use_unicode=False, database="mysql",
             charset=self.__default_charset, host=host, port=port,
             user=user, passwd=passwd)
-
 
     def connect(self):
         """Connect to a MySQL Server instance.
@@ -811,6 +897,25 @@ class MySQLServer(_persistence.Persistable):
                                 {"params":(passwd, str(self.uuid))})
             self.__passwd = passwd
 
+    @property
+    def status(self):
+        """Return the server's status.
+        """
+        return self.__status
+
+    @status.setter
+    def status(self, status, persister=None):
+        """Set the server's status.
+
+        :param status: The new server's status.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        assert(status in MySQLServer.SERVER_STATUS)
+        persister.exec_stmt(MySQLServer.UPDATE_SERVER_STATUS,
+                            {"params":(status, str(self.uuid))})
+        self.__status = status
+
     def check_version_compat(self, expected_version):
         """Check version of the server against requested version.
 
@@ -926,19 +1031,21 @@ class MySQLServer(_persistence.Persistable):
     def get_variable(self, variable, context=None):
         """Execute the SELECT command for the client and return a result set.
         """
-        context_str = MySQLServer.CONTEXT_STR[\
-            context if context is not None else MySQLServer.GLOBAL_CONTEXT]
+        if not context:
+            context = MySQLServer.GLOBAL_CONTEXT
+        assert(context in MySQLServer.CONTEXTS)
         ret = self.exec_stmt("SELECT @@%s.%s as %s" % \
-                             (context_str, variable, variable))
+                             (context, variable, variable))
         return ret[0][0]
 
     def set_variable(self, variable, value, context=None):
         """Execute the SET command for the client and return a result set.
         """
-        context_str = MySQLServer.CONTEXT_STR[\
-            context if context is not None else MySQLServer.GLOBAL_CONTEXT]
+        if not context:
+            context = MySQLServer.GLOBAL_CONTEXT
+        assert(context in MySQLServer.CONTEXTS)
         return self.exec_stmt("SET @@%s.%s = %s" \
-                              % (context_str, variable, value))
+                              % (context, variable, value))
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
@@ -951,20 +1058,24 @@ class MySQLServer(_persistence.Persistable):
         """
         self.disconnect()
 
-    def remove(self, persister=None):
-        """remove the server information from the persistent store.
+    @staticmethod
+    def remove(server, persister=None):
+        """Remove a server from the state store.
+
+        :param server: A reference to a server.
         :param persister: Persister to persist the object to.
         """
-        persister.exec_stmt(MySQLServer.REMOVE_SERVER,
-                            {"params": (str(self.uuid),)})
+        persister.exec_stmt(
+            MySQLServer.REMOVE_SERVER, {"params": (str(server.uuid), )}
+            )
 
     @staticmethod
     def fetch(uuid, persister=None):
-        """Return the server object corresponding to the uuid.
+        """Return a server object corresponding to the uuid.
 
-        :param persister: Persister to persist the object to.
         :param uuid: The server id of the server object that needs to be
                      returned.
+        :param persister: Persister to persist the object to.
         :return: The server object that corresponds to the server id
                  None if the server id does not exist.
         """
@@ -972,7 +1083,11 @@ class MySQLServer(_persistence.Persistable):
                                   {"fetch" : False, "params":(str(uuid),)})
         row = cur.fetchone()
         if row:
-            return MySQLServer(_uuid.UUID(row[0]), row[1], row[2], row[3])
+            uuid, address, user, passwd, status = row
+            return MySQLServer(
+                _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
+                status=status
+                )
 
     @staticmethod
     def create(persister=None):
@@ -982,7 +1097,8 @@ class MySQLServer(_persistence.Persistable):
         :param persister: Persister to persist the object to.
         :raises: DatabaseError If the table already exists.
         """
-        persister.exec_stmt(MySQLServer.CREATE_SERVER)
+        statuses = "'" + "', '".join(MySQLServer.SERVER_STATUS) + "'"
+        persister.exec_stmt(MySQLServer.CREATE_SERVER % statuses)
 
     @staticmethod
     def drop(persister=None):
@@ -995,21 +1111,16 @@ class MySQLServer(_persistence.Persistable):
         persister.exec_stmt(MySQLServer.DROP_SERVER)
 
     @staticmethod
-    def add(uuid, address, user=None, passwd=None,
-            default_charset="latin1", persister=None):
-        """Persist the Server information and return the Server object.
+    def add(server, persister=None):
+        """Write a server object into the state store.
 
-        :param uuid: The uuid of the server being created
-        :param address: The address of the server being created
-        :param user: The user name to be used for logging into the server
-        :param passwd: The password to be used for logging into the server
+        :param server: A reference to a server.
         :param persister: Persister to persist the object to.
-        :return: Server object
         """
-        assert(isinstance(uuid, _uuid.UUID))
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
-                            {"params":(str(uuid), address, user, passwd)})
-        return MySQLServer(uuid, address, user, passwd, default_charset)
+            {"params":(str(server.uuid), server.address, server.user,
+            server.passwd, server.status)}
+            )
 
     def __eq__(self,  other):
         """Two servers are equal if they are both subclasses of MySQLServer
@@ -1021,3 +1132,8 @@ class MySQLServer(_persistence.Persistable):
         """A server is hashable through its uuid.
         """
         return hash(self.__uuid)
+
+    def __str__(self):
+        ret = "<server(uuid={0}, address={1}, status={2}>".\
+            format(self.__uuid, self.__address, self.__status)
+        return ret

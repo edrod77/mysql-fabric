@@ -25,6 +25,7 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.autodoc',
+    'sphinx.ext.graphviz',
     'sphinxcontrib.seqdiag',
     ]
 

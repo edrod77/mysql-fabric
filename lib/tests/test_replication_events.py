@@ -1,6 +1,5 @@
 """Unit tests for administrative on servers.
 """
-
 import unittest
 import uuid as _uuid
 
@@ -47,7 +46,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[1][-1]["description"],
                          "Executed action (_import_topology).")
         expected_topology = {str(master.uuid): {"address": master.address,
-                             "slaves": [{str(slave.uuid): 
+                             "slaves": [{str(slave.uuid):
                              {"address": slave.address, "slaves": []}}]}}
         self.assertEqual(topology[2], expected_topology)
 
@@ -67,8 +66,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-            [str(slave.uuid), slave.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+              _server.MySQLServer.RUNNING],
+            [str(slave.uuid), slave.address, False,
+              _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -77,10 +79,10 @@ class TestReplicationServices(unittest.TestCase):
         group_ = Group.fetch("group_id-1")
         group_.master = None
         group_.remove_server(master)
-        master.remove()
+        _server.MySQLServer.remove(master)
         master = None
         group_.remove_server(slave)
-        slave.remove()
+        _server.MySQLServer.remove(slave)
         slave = None
         instances = tests.utils.MySQLInstances()
         instances.destroy_instances()
@@ -120,9 +122,13 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-            [str(slave_1.uuid), slave_1.address, False],
-            [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+              _server.MySQLServer.RUNNING],
+            [str(slave_1.uuid), slave_1.address, False,
+              _server.MySQLServer.RUNNING],
+            [str(slave_2.uuid), slave_2.address, False,
+              _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -131,13 +137,13 @@ class TestReplicationServices(unittest.TestCase):
         # Create topology: M1 ---> S2 ---> S3
         group_.master = None
         group_.remove_server(master)
-        master.remove()
+        _server.MySQLServer.remove(master)
         master = None
         group_.remove_server(slave_1)
-        slave_1.remove()
+        _server.MySQLServer.remove(slave_1)
         slave_1 = None
         group_.remove_server(slave_2)
-        slave_2.remove()
+        _server.MySQLServer.remove(slave_2)
         slave_2 = None
         instances = tests.utils.MySQLInstances()
         instances.destroy_instances()
@@ -184,8 +190,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected =  [[str(master.uuid), master.address, True],
-            [str(slave_1.uuid), slave_1.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+             _server.MySQLServer.RUNNING],
+            [str(slave_1.uuid), slave_1.address, False,
+             _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -206,8 +215,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(slave_1.uuid), slave_1.address, True],
-            [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(slave_1.uuid), slave_1.address, True,
+             _server.MySQLServer.RUNNING],
+            [str(slave_2.uuid), slave_2.address, False,
+             _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -299,9 +311,13 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-            [str(slave_1.uuid), slave_1.address, False],
-            [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+             _server.MySQLServer.RUNNING],
+            [str(slave_1.uuid), slave_1.address, False,
+             _server.MySQLServer.RUNNING],
+            [str(slave_2.uuid), slave_2.address, False,
+             _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -322,9 +338,13 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, False],
-            [str(slave_1.uuid), slave_1.address, True],
-            [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, False,
+             _server.MySQLServer.RUNNING],
+            [str(slave_1.uuid), slave_1.address, True,
+             _server.MySQLServer.RUNNING],
+            [str(slave_2.uuid), slave_2.address, False,
+             _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -358,9 +378,11 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_find_candidate_switch).")
 
         # Try to use an invalid candidate (simulating that a server went down).
-        invalid_server = _server.MySQLServer.add(
+        invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:8080", user, passwd)
+            "unknown_host:8080", user, passwd
+            )
+        _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
         status = self.proxy.group.switch_over("group_id")
@@ -369,7 +391,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_find_candidate_switch).")
         group.remove_server(invalid_server)
-        invalid_server.remove()
+        _server.MySQLServer.remove(invalid_server)
 
         # Try to use a slave with an invalid master.
         self.proxy.group.add("group_id", slave_1.address, user, passwd)
@@ -387,9 +409,11 @@ class TestReplicationServices(unittest.TestCase):
         # a different master.
         self.proxy.group.add("group_id", master.address, user, passwd)
         group.master = master.uuid
-        invalid_server = _server.MySQLServer.add(
+        invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:8080", user, passwd)
+            "unknown_host:8080", user, passwd
+            )
+        _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
         _repl.stop_slave(slave_3, wait=True)
@@ -402,12 +426,17 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-            [str(slave_1.uuid), slave_1.address, False],
-            [str(slave_2.uuid), slave_2.address, False],
-            [str(slave_3.uuid), slave_3.address, False],
-            [str(invalid_server.uuid), invalid_server.address,
-            False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+             _server.MySQLServer.RUNNING],
+            [str(slave_1.uuid), slave_1.address, False,
+             _server.MySQLServer.RUNNING],
+            [str(slave_2.uuid), slave_2.address, False,
+             _server.MySQLServer.RUNNING],
+            [str(slave_3.uuid), slave_3.address, False,
+             _server.MySQLServer.RUNNING],
+            [str(invalid_server.uuid), invalid_server.address, False,
+             _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(expected, retrieved)
@@ -485,9 +514,11 @@ class TestReplicationServices(unittest.TestCase):
 
         # Everything is in place but the environment is not perfect.
         # The group points to an invalid master.
-        invalid_server = _server.MySQLServer.add(
+        invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:8080", user, passwd)
+            "unknown_host:8080", user, passwd
+            )
+        _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
         group.master = invalid_server.uuid
@@ -509,11 +540,15 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-            [str(slave_1.uuid), slave_1.address, False],
-            [str(slave_2.uuid), slave_2.address, False],
-            [str(invalid_server.uuid), invalid_server.address,
-            False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+              _server.MySQLServer.RUNNING],
+             [str(slave_1.uuid), slave_1.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(slave_2.uuid), slave_2.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(invalid_server.uuid), invalid_server.address, False,
+              _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(expected, retrieved)
@@ -534,18 +569,18 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, False],
-            [str(slave_1.uuid), slave_1.address, True],
-            [str(slave_2.uuid), slave_2.address, False],
-            [str(invalid_server.uuid), invalid_server.address,
-            False]]
+        expected = \
+            [[str(master.uuid), master.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(slave_1.uuid), slave_1.address, True,
+              _server.MySQLServer.RUNNING],
+             [str(slave_2.uuid), slave_2.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(invalid_server.uuid), invalid_server.address, False,
+              _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
-        # The failover testing and the failure detector are running in parallel
-        # and as consequence a different server may be elected.
-        # We need to seek for more details on this. For now, we just check if
-        # the invalid_server is never promoted as master.
-        self.assertEqual(expected[3], retrieved[3])
+        self.assertEqual(expected, retrieved)
 
     def test_promote_master(self):
         # Create topology: M1 ---> S2, M1 ---> S3
@@ -581,9 +616,13 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-         [str(slave_1.uuid), slave_1.address, False],
-         [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+              _server.MySQLServer.RUNNING],
+             [str(slave_1.uuid), slave_1.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(slave_2.uuid), slave_2.address, False,
+              _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(expected, retrieved)
@@ -645,9 +684,14 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, True],
-            [str(slave_1.uuid), slave_1.address, False],
-            [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, True,
+              _server.MySQLServer.RUNNING],
+             [str(slave_1.uuid), slave_1.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(slave_2.uuid), slave_2.address, False,
+              _server.MySQLServer.RUNNING]
+            ]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -668,9 +712,14 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1][-1]["description"],
                          "Executed action (_lookup_servers).")
         retrieved = servers[2]
-        expected = [[str(master.uuid), master.address, False],
-            [str(slave_1.uuid), slave_1.address, False],
-            [str(slave_2.uuid), slave_2.address, False]]
+        expected = \
+            [[str(master.uuid), master.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(slave_1.uuid), slave_1.address, False,
+              _server.MySQLServer.RUNNING],
+             [str(slave_2.uuid), slave_2.address, False,
+              _server.MySQLServer.RUNNING]
+            ]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)

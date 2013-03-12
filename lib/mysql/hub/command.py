@@ -213,11 +213,22 @@ class Command(object):
 class ProcedureCommand(Command):
     # TODO: IMPROVE THE CODE SO USERS MAY DECIDE NOT TO USE WAIT_FOR_PROCEDURES.
     """Class used to implement commands that are built as procedures and
-    schedule job(s) to be executed.
+    schedule job(s) to be executed. Any command that needs to access the
+    state store must be built upon this class.
 
-    Basically, it is used to process and present user-friendly results
-    as a procedure might return information on every job executed on
-    its behalf.
+    A procedure is asynchronously executed and schedules one or more jobs
+    (i.e. functions) that are eventually processed. The scheduling is done
+    through the executor which enqueues them and serializes their execution
+    within a Fabric Server.
+
+    Any job object encapsulates a function to be executed, its parameters,
+    its execution's status and its result. Due to its asynchronous nature,
+    a job accesses a snapshot produced by previously executed functions
+    which are atomically processed so that Fabric is never left in an
+    inconsistent state after a failure.
+
+    To make it easy to use these commands, one might hide the asynchronous
+    behavior by exploiting the :meth:`wait_for_procedures`.
     """
     def __init__(self):
         """Create the ProcedureCommand object.
@@ -239,7 +250,7 @@ class ProcedureCommand(Command):
     @staticmethod
     def wait_for_procedures(procedure_param, synchronous):
         """Wait until a procedure completes its execution and return
-        detailed information on it. 
+        detailed information on it.
 
         However, if the parameter synchronous is not set, only the
         procedure's uuid is returned because it is not safe to access

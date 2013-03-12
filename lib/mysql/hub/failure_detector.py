@@ -119,14 +119,15 @@ class FailureDetector(object):
                 group_availability = CheckHealth().execute(self.__group_id)
                 if group_availability[2]:
                     for server_uuid, status in group_availability[2].items():
-                        (is_available, is_master) = status
+                        (is_available, is_master, server_status) = status
                         if not is_available:
-                            _LOGGER.info("Server (%s) in group (%s) has "
-                                "been lost.", server_uuid, self.__group_id)
+                            _LOGGER.info("Server (%s) in group (%s) seems "
+                                "to be faulty.", server_uuid, self.__group_id)
+                            trigger("SET_SERVER_FAULTY", server_uuid)
                             trigger("SERVER_LOST", self.__group_id, server_uuid)
                             if is_master:
-                                _LOGGER.info("Master (%s) in group (%s) has "
-                                    "been lost.", server_uuid, self.__group_id)
+                                _LOGGER.info("Master (%s) in group (%s) seems "
+                                    "to be faulty.", server_uuid, self.__group_id)
                                 trigger("FAIL_OVER", self.__group_id)
             except ExecutorError as error:
                 _LOGGER.exception(error)
