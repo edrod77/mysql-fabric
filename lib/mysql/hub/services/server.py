@@ -183,7 +183,7 @@ class ServerLookups(ProcedureCommand):
         exception is thrown. The list of servers returned has the following
         format::
 
-          [uuid, ...]
+          [[uuid, address, is_master, status], ...]
         """
         procedures = _events.trigger(LOOKUP_SERVERS, group_id, status)
         return self.wait_for_procedures(procedures, synchronous)
