@@ -31,8 +31,10 @@ import functools
 import inspect
 import logging
 import threading
+import uuid as _uuid
 
 import mysql.hub.server_utils as _server_utils
+import mysql.hub.errors as _errors
 
 DEFAULT_DATABASE = 'fabric'
 
@@ -253,6 +255,10 @@ class MySQLPersister(object):
         self.__cnx = _server_utils.create_mysql_connection(
             autocommit=True, use_unicode=False,
             **self.connection_info)
+        if self.uuid is None:
+            _LOGGER.warning(
+                "MySQLPersister does not support or have the uuid configured."
+                )
 
     def __del__(self):
         """Destructor for MySQLPersister.
@@ -277,6 +283,20 @@ class MySQLPersister(object):
         """Roll back an on-going transaction.
         """
         self.exec_stmt("ROLLBACK")
+
+    @property
+    def uuid(self):
+        """Return the MySQLPersister's uuid if the server supports it.
+        Otherwise, return None.
+        """
+        try:
+            row = _server_utils.exec_mysql_stmt(self.__cnx,
+                                                "SELECT @@GLOBAL.SERVER_UUID")
+            return _uuid.UUID(row[0][0])
+        except _errors.DatabaseError:
+            pass
+
+        return None
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.

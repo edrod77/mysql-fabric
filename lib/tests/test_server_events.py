@@ -173,6 +173,29 @@ class TestServerServices(unittest.TestCase):
                          "Tried to execute action (_lookup_uuid).")
         self.assertEqual(status[2], False)
 
+        # Add a server with a connection that does not have
+        # root privileges.
+        address = tests.utils.MySQLInstances().get_address(1)
+        status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
+        server = _server.MySQLServer(
+            _uuid.UUID(status_uuid[2]), address, "root", ""
+            )
+        server.connect()
+        server.exec_stmt(
+            "CREATE USER 'jeffrey'@'localhost' IDENTIFIED BY 'mypass'"
+            )
+        server.exec_stmt(
+            "GRANT ALL ON mysql.* TO 'jeffrey'@'localhost'"
+            )
+        status = self.proxy.group.add("group_1", address, "jeffrey", "mypass")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_add_server).")
+
+        # Drop temporary user.
+        server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
+
     def test_destroy_group_events(self):
         # Prepare group and servers
         address = tests.utils.MySQLInstances().get_address(0)

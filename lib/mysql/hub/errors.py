@@ -40,9 +40,9 @@ class DatabaseError(Error):
     """
     pass
 
-class MismatchUuidError(DatabaseError):
-    """Exception raised when server object and server process' uuids
-    do not match.
+class UuidError(DatabaseError):
+    """Exception raised when there are problems with uuids. For example,
+    if the expected uuid does not match the server's uuid.
     """
     pass
 
