@@ -360,6 +360,7 @@ def _create_server(group_id, address, user, passwd):
             "User (%s) needs root privileges on Server (%s, %s)."
             % (user, address, uuid)
             )
+        server.disconnect()
 
     group.add_server(server)
     _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
