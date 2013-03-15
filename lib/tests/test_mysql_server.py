@@ -42,7 +42,7 @@ class TestMySQLServer(unittest.TestCase):
         # Check wrong uuid.
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
         server = MySQLServer(**OPTIONS)
-        self.assertRaises(_errors.MismatchUuidError, server.connect)
+        self.assertRaises(_errors.UuidError, server.connect)
 
     def test_properties(self):
         server = self.server
@@ -245,6 +245,45 @@ class TestMySQLServer(unittest.TestCase):
         hash_info[server_1] = server_1
         hash_info[server_2] = server_2
         self.assertEqual(len(hash_info), 1)
+
+    def test_persister_id(self):
+        # Get persister'a address.
+        from __main__ import options
+        address = "%s:%s" % (options.host, options.port)
+        user = options.user
+        passwd = options.password
+
+        # Try to manage the MySQLPersister.
+        uuid = MySQLServer.discover_uuid(address=address, user=user, passwd=passwd)
+        self.assertRaises(
+            _errors.UuidError, MySQLServer.add, _uuid.UUID(uuid),
+            address, None, None
+            )
+
+    def test_root_privileges(self):
+        # Connect to server as root and create temporary user.
+        server = self.server
+        server.connect()
+        server.exec_stmt(
+            "CREATE USER 'jeffrey'@'localhost' IDENTIFIED BY 'mypass'"
+            )
+        server.exec_stmt(
+            "GRANT ALL ON mysql.* TO 'jeffrey'@'localhost'"
+            )
+
+        # Check if root really has root privileges.
+        self.assertTrue(server.has_root_privileges())
+
+        # Check if jeffrey (temporary user) has root privileges.
+        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        new_server = MySQLServer(
+            _uuid.UUID(uuid), OPTIONS["address"], "jeffrey", "mypass"
+            )
+        new_server.connect()
+        self.assertFalse(new_server.has_root_privileges())
+
+        # Drop temporary user.
+        server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
 
 class TestConnectionPool(unittest.TestCase):
     def setUp(self):

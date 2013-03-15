@@ -10,7 +10,7 @@ import mysql.hub.server as _server
 _LOGGER = logging.getLogger(__name__)
 
 _RPL_USER_QUERY = (
-    "SELECT user, host, password = '' as has_password "
+    "SELECT user, host, password != '' as has_password "
     "FROM mysql.user "
     "WHERE repl_slave_priv = 'Y'"
 )

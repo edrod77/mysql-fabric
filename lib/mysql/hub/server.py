@@ -636,8 +636,10 @@ class MySQLServer(_persistence.Persistable):
         ret_uuid = _uuid.UUID(ret_uuid)
         if ret_uuid != self.uuid:
             self.disconnect()
-            raise _errors.MismatchUuidError("Uuids do not match "\
-              "(stored (%s), read (%s))." % (self.uuid, ret_uuid))
+            raise _errors.UuidError(
+                "Uuids do not match (stored (%s), read (%s))." % \
+                (self.uuid, ret_uuid)
+                )
 
         # Get server's id.
         self.__server_id = int(self.get_variable("SERVER_ID"))
@@ -681,6 +683,20 @@ class MySQLServer(_persistence.Persistable):
             self.__version = None
             self.__gtid_enabled = None
             self.__binlog_enabled = None
+
+    def has_root_privileges(self):
+        """Check if the current user has root privileges.
+        """
+        host, port = _server_utils.split_host_port(self.__address,
+            _server_utils.MYSQL_DEFAULT_PORT)
+
+        ret = self.exec_stmt(
+            "SELECT user FROM mysql.user WHERE user = %s "
+            "AND host = %s AND grant_priv = 'Y' AND super_priv = 'Y'",
+            {"params" : (self.__user, host)})
+        if ret:
+            return True
+        return False
 
     def is_alive(self):
         """Determine if connection to server is still alive.
@@ -822,6 +838,7 @@ class MySQLServer(_persistence.Persistable):
                  False if server version is LT (<) version specified.
         :rtype: Bool
         """
+        assert(isinstance(expected_version, tuple))
         index = self.__version.find("-")
         version_str = self.__version[0 : index] \
             if self.__version.find("-") >= 0 else self.__version
@@ -1007,6 +1024,11 @@ class MySQLServer(_persistence.Persistable):
         :return: Server object
         """
         assert(isinstance(uuid, _uuid.UUID))
+
+        persister_uuid = persister.uuid
+        if persister_uuid is not None and persister_uuid == uuid:
+            raise _errors.UuidError("The MySQLPersister cannot be managed.")
+
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
                             {"params":(str(uuid), address, user, passwd)})
         return MySQLServer(uuid, address, user, passwd, default_charset)

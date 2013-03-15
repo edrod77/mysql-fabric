@@ -348,6 +348,19 @@ def _create_server(group_id, address, user, passwd):
         raise _errors.ServerError("Server (%s) already exists in group (%s)." \
                                   % (str(uuid), group_id))
     server = _server.MySQLServer.add(uuid, address, user, passwd)
+    server.connect()
+
+    if not server.check_version_compat((5,6,8)):
+        raise _errors.ServerError(
+            "Server (%s) has an outdated version (%s). 5.6.8 or greater "
+            "is required." % (uuid, server.version)
+            )
+    if not server.has_root_privileges():
+        _LOGGER.warning(
+            "User (%s) needs root privileges on Server (%s, %s)."
+            % (user, address, uuid)
+            )
+
     group.add_server(server)
     _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
 
