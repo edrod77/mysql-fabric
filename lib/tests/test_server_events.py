@@ -192,6 +192,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
+        _server.ConnectionPool().purge_connections(_uuid.UUID(status_uuid[2]))
 
         # Drop temporary user.
         server.exec_stmt("DROP USER 'jeffrey'@'localhost'")

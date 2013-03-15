@@ -300,6 +300,8 @@ class TestMySQLServer(unittest.TestCase):
             )
         new_server.connect()
         self.assertFalse(new_server.has_root_privileges())
+        new_server.disconnect()
+        ConnectionPool().purge_connections(_uuid.UUID(uuid))
 
         # Drop temporary user.
         server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
