@@ -548,6 +548,7 @@ def _check_candidate_switch(group_id, slave_uuid):
     master.
     """
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
+    # TODO: TRY TO MERGE THE TWO CHECK_CANDIDATE FUNCTIONS.
 
     group = _server.Group.fetch(group_id)
     if not group:

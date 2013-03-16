@@ -59,6 +59,7 @@ import uuid as _uuid
 import mysql.hub.events as _events
 import mysql.hub.server as _server
 import mysql.hub.errors as _errors
+import mysql.hub.replication as _replication
 import mysql.hub.failure_detector as _detector
 
 from mysql.hub.command import (
@@ -474,11 +475,12 @@ def _add_server(group_id, address, user, passwd):
                                              passwd=passwd)
     uuid = _uuid.UUID(uuid)
     group = _server.Group.fetch(group_id)
+
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
     if group.contains_server(uuid):
         raise _errors.ServerError("Server (%s) already exists in group (%s)." \
-                                  % (str(uuid), group_id))
+                                  % (uuid, group_id))
 
     server = _server.MySQLServer(uuid=uuid, address=address, user=user,
                                  passwd=passwd)
@@ -498,6 +500,28 @@ def _add_server(group_id, address, user, passwd):
         server.disconnect()
 
     group.add_server(server)
+
+    try:
+        server.connect()
+
+        # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
+        if not server.gtid_enabled or not server.binlog_enabled:
+            raise _errors.ServerError(
+                "Server (%s) does not have the binary log or gtid enabled."
+                % (uuid, )
+                )
+
+        if group.master:
+            master = _server.MySQLServer.fetch(group.master)
+            master.connect()
+            _replication.stop_slave(server, wait=True)
+            _replication.switch_master(server, master, master.user,
+                                       master.passwd)
+            _replication.start_slave(server, wait=True)
+
+    except _errors.DatabaseError as error:
+        _LOGGER.error(error)
+
     _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
 
 @_events.on_event(REMOVE_SERVER)
@@ -587,7 +611,7 @@ def _set_server_offline(server):
     if group.master == server.uuid:
         raise _errors.ServerError(
             "Server (%s) is master in group (%s) and cannot be put in "
-            "off-line mode." % (str(uuid), group.group_id)
+            "off-line mode." % (uuid, group.group_id)
             )
     server.status = _server.MySQLServer.OFFLINE
     _server.ConnectionPool().purge_connections(server.uuid)

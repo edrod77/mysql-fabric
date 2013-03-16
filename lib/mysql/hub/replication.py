@@ -347,7 +347,7 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=3):
     # Wait for slave to read the master log file
     res = server.exec_stmt(_MASTER_POS_WAIT,
         {"params": (binlog_file, binlog_pos, timeout), "raw" : False })
-    
+
     if res is None or res[0] is None or res[0][0] is None:
         return False
     elif res[0][0] > -1:
