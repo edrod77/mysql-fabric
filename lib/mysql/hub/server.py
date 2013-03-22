@@ -347,6 +347,11 @@ class Group(_persistence.Persistable):
 
     @staticmethod
     def group_from_server(uuid, persister=None):
+        """Return the group which a server belongs to.
+
+        :param uuid: Server's uuid.
+        :return: Group or None.
+        """
         cur = persister.exec_stmt(
             Group.QUERY_GROUP_FROM_SERVER,
             {"fetch" : False, "params" : (str(uuid), )}
@@ -773,7 +778,7 @@ class MySQLServer(_persistence.Persistable):
     def has_root_privileges(self):
         """Check if the current user has root privileges.
         """
-        host, port = _server_utils.split_host_port(self.__address,
+        host, _ = _server_utils.split_host_port(self.__address,
             _server_utils.MYSQL_DEFAULT_PORT)
 
         ret = self.exec_stmt(

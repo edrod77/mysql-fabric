@@ -428,7 +428,7 @@ def _lookup_servers(group_id, status):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if status is not None and status not in _server.MySQLServer.SERVER_STATUS:
-        raise ServerError(
+        raise _errors.ServerError(
             "Unknown server status (%s). Possible status are (%s)." %
             (status,  _server.MySQLServer.SERVER_STATUS)
             )
@@ -487,7 +487,7 @@ def _add_server(group_id, address, user, passwd):
     _server.MySQLServer.add(server)
     server.connect()
 
-    if not server.check_version_compat((5,6,8)):
+    if not server.check_version_compat((5, 6, 8)):
         raise _errors.ServerError(
             "Server (%s) has an outdated version (%s). 5.6.8 or greater "
             "is required." % (uuid, server.version)
@@ -611,7 +611,7 @@ def _set_server_offline(server):
     if group.master == server.uuid:
         raise _errors.ServerError(
             "Server (%s) is master in group (%s) and cannot be put in "
-            "off-line mode." % (uuid, group.group_id)
+            "off-line mode." % (server.uuid, group.group_id)
             )
     server.status = _server.MySQLServer.OFFLINE
     _server.ConnectionPool().purge_connections(server.uuid)

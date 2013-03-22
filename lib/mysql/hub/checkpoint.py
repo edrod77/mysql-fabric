@@ -80,8 +80,8 @@ class Checkpoint(_persistence.Persistable):
         )
 
     #SQL statement for updating the finished time.
-    UPDATE_CHECKPOINT = ("UPDATE checkpoints set finished = %s WHERE proc_uuid = %s "
-        "and job_uuid = %s"
+    UPDATE_CHECKPOINT = ("UPDATE checkpoints set finished = %s WHERE "
+        "proc_uuid = %s and job_uuid = %s"
         )
 
     #SQL statement for deleting the checkpoint executed on behalf of
