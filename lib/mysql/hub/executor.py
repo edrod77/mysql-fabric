@@ -1,7 +1,7 @@
 import Queue
 import threading
 import logging
-import uuid
+import uuid as _uuid
 import traceback
 import time
 
@@ -11,6 +11,9 @@ import mysql.hub.persistence as _persistence
 import mysql.hub.errors as _errors
 
 from mysql.hub.utils import Singleton
+from mysql.hub.checkpoint import (
+    Checkpoint,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,21 +24,22 @@ class Procedure(object):
     Any job must belong to a procedure whereas a procedure may have several
     jobs associated to it. When job is created and is about to be scheduled,
     it is added to a set of scheduled jobs. Upon the end of its execution,
-    it is moved from the aforementioned set to a list of executed jobs. 
+    it is moved from the aforementioned set to a list of executed jobs.
     During the execution of a job, new jobs may be scheduled in the context
     of the current procedure.
 
     A procedure is marked as finished (i.e. complete) when its last job
     finishes. Specifically, when a job finishes and there is no scheduled
     job on behalf of the procedure.
-        
+
     This class is mainly used to keep track of requests and to provide the
     necessary means to build a synchronous execution.
     """
-    def __init__(self):
+    def __init__(self, uuid=None):
         """Create a Procedure object.
         """
-        self.__uuid = uuid.uuid4()
+        assert(uuid is None or isinstance(uuid, _uuid.UUID))
+        self.__uuid = uuid or _uuid.uuid4()
         self.__lock = threading.Condition()
         self.__complete = False
         self.__result = False
@@ -55,7 +59,7 @@ class Procedure(object):
             assert(job not in self.__executed_jobs)
             assert(job.procedure == self)
 
-            self.__scheduled_jobs.add(job) 
+            self.__scheduled_jobs.add(job)
 
     def add_executed_job(self, job):
         """Register that a job has been executed on behalf of the
@@ -69,7 +73,7 @@ class Procedure(object):
             assert(job not in self.__executed_jobs)
             assert(job.procedure == self)
 
-            self.__scheduled_jobs.remove(job) 
+            self.__scheduled_jobs.remove(job)
             self.__executed_jobs.append(job)
 
             if job.result is not None:
@@ -79,6 +83,7 @@ class Procedure(object):
             if not self.__scheduled_jobs:
                 self.__complete = True
                 self.__lock.notify_all()
+                Checkpoint.remove(job.checkpoint)
 
     @property
     def uuid(self):
@@ -128,8 +133,15 @@ class Job(object):
         """
         if not callable(action):
             raise _errors.NotCallableError("Callable expected")
+        elif not Checkpoint.is_recoverable(action):
+            # Currently we only print out a warning message. In the future,
+            # we may decide to change this and raise an error.
+            _LOGGER.warning(
+                "(%s) is not recoverable. So after a failure Fabric may "
+                "not be able to restore the system to a consistent state."
+                )
 
-        self.__uuid = uuid.uuid4()
+        self.__uuid = _uuid.uuid4()
         self.__action = action
         self.__args = args or []
         self.__kwargs = kwargs or {}
@@ -137,6 +149,12 @@ class Job(object):
         self.__result = None
         self.__complete = False
         self.__procedure = procedure
+        self.__is_recoverable = Checkpoint.is_recoverable(action)
+
+        action_fqn = action.__module__ + "." + action.__name__
+        self.__checkpoint = Checkpoint(
+            self.__procedure.uuid, self.__uuid, action_fqn, args, kwargs
+            )
 
         self._add_status(Job.SUCCESS, Job.ENQUEUED, description)
         self.__procedure.job_scheduled(self)
@@ -180,6 +198,12 @@ class Job(object):
         assert(self.__complete)
         return self.__result
 
+    @property
+    def checkpoint(self):
+        """Return the checkpoint associated with the job.
+        """
+        return self.__checkpoint
+
     def _add_status(self, success, state, description, diagnosis=False):
         """Add a new status to this job.
         """
@@ -198,29 +222,50 @@ class Job(object):
         """Execute the job.
         """
         try:
+            # Register that the job has started the execution.
+            if self.__is_recoverable:
+                self.__checkpoint.begin()
+
+            # Start the job transactional context.
             persister.begin()
+
+            # Execute the job.
             self.__result = self.__action(*self.__args, **self.__kwargs)
         except Exception as error: # pylint: disable=W0703
             # TODO: The rollback and commit cannot fail. Otherwise, there will
             # be problems. This can be broken easily, for example by
             # calling "SELECT * FROM TABLE WHERE name = %s" % (False, )
-            # 
+            #
             # What does it happen if the connection is idle for a long
             # time?
             #
             # We need to investigate this.
             #
             _LOGGER.exception(error)
+
+            # Update the job status.
             message = "Tried to execute action ({0}).".format(
                 self.__action.__name__)
             self._add_status(Job.ERROR, Job.COMPLETE, message, True)
+
+            # Rollback the job transactional context.
             persister.rollback()
         else:
+            # Update the job status.
             message = "Executed action ({0}).".format(self.__action.__name__)
             self._add_status(Job.SUCCESS, Job.COMPLETE, message)
+
+            # Commit the job transactional context.
             persister.commit()
         finally:
+            # Mark the job as complete
             self.__complete = True
+
+            # Register that the job has finished the execution.
+            if self.__is_recoverable:
+                self.__checkpoint.finish()
+
+            # Update the job status within the procedure.
             self.__procedure.add_executed_job(self)
 
     def __eq__(self,  other):
@@ -285,7 +330,7 @@ class ExecutorThread(threading.Thread):
         _LOGGER.debug("Initializing Executor thread %s", self.name)
         self.__persister = _persistence.MySQLPersister()
         _persistence.PersistentMeta.init_thread(self.__persister)
-        
+
         self.__current_thread = threading.current_thread()
 
         while True:
@@ -313,6 +358,12 @@ class Executor(Singleton):
         self.__procedures = WeakValueDictionary()
         self.__thread_lock = threading.RLock()
         self.__thread = None
+
+    @property
+    def thread(self):
+        """Return a reference to the ExecutorThread.
+        """
+        return self.__thread
 
     def start(self):
         """Start the executor.
@@ -353,15 +404,20 @@ class Executor(Singleton):
         :return: Reference to the procedure.
         :rtype: Procedure
 
-        If the within_procedure parameter is not set, a new procedure is created.
-        Otherwise, the job is associated to current job's procedure. It is only
-        possible though to schedule jobs within the context of the current job's
-        procedure if the request comes from the job's code block. If this does
-        not happen, the :class:`mysql.hub.errors.ProgrammingError` exception is
-        raised.
+        If the within_procedure parameter is not set, a new procedure is
+        created. Otherwise, the job is associated to a previously defined
+        procedure. When the within_procedure parameter uses a boolean type,
+        the current job's procedure is associated to it and when it uses a
+        UUID type, the new procedure takes its id upon the within_parameter.
+
+        It is only possible to schedule jobs within the context of the current
+        job's procedure if the request comes from the job's code block. If
+        this does not happen, the :class:`mysql.hub.errors.ProgrammingError`
+        exception is raised.
         """
         procedure = None
         thread = None
+
         with self.__thread_lock:
             if self.__thread and self.__thread.is_alive():
                 thread = self.__thread
@@ -369,15 +425,27 @@ class Executor(Singleton):
                 raise _errors.ExecutorError("Executor is not running.")
         assert(thread is not None)
 
-        if within_procedure and not thread.is_current_thread():
+        assert(isinstance(within_procedure, bool) or \
+               isinstance(within_procedure, _uuid.UUID))
+        if within_procedure and isinstance(within_procedure, bool) and \
+            not thread.is_current_thread():
             raise _errors.ProgrammingError(
                 "One can only create a job within the context "
                 "of the current procedure from a job that belongs "
                 "to this procedure."
                 )
-
-        if within_procedure:
+        elif within_procedure and isinstance(within_procedure, _uuid.UUID) \
+            and thread.is_current_thread():
+            raise _errors.ProgrammingError(
+                "One can only create a job within the context "
+                "of an specific procedure while recovering."
+                )
+        elif within_procedure and isinstance(within_procedure, bool):
             procedure = thread.current_job.procedure
+        elif within_procedure and isinstance(within_procedure, _uuid.UUID):
+            procedure = Procedure(within_procedure)
+            with self.__procedures_lock:
+                self.__procedures[procedure.uuid] = procedure
         else:
             procedure = Procedure()
             with self.__procedures_lock:
@@ -396,7 +464,7 @@ class Executor(Singleton):
     def get_procedure(self, proc_uuid):
         """Retrieve a reference to a procedure.
         """
-        assert(isinstance(proc_uuid, uuid.UUID))
+        assert(isinstance(proc_uuid, _uuid.UUID))
         _LOGGER.debug("Checking procedure (%s).", str(proc_uuid))
         try:
             with self.__procedures_lock:

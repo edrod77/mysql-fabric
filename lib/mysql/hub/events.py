@@ -22,7 +22,6 @@ the event.
                             note = "procedures.append(procedure)" ]
      Source <-- Handler [ label = "procedure" ]
    }
-
 """
 import functools
 import logging
@@ -56,27 +55,27 @@ def on_event(event):
     def register_func(func):
         """Wrapper that registers the function and attaches wrappers
         to the provided function."""
-
-        def undo_decorate(undo_func):
-            "Undo decorator."
-            func.compensate = undo_func
-
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             "Wrapper that execute undo function on an exception."
             try:
-                _LOGGER.debug("Executing %s", func.__name__)
-                return func(*args, **kwargs)
+                _LOGGER.debug("Executing %s", wrapped.function.__name__)
+                return wrapped.function(*args, **kwargs)
             except Exception as error:       # pylint: disable=W0703
                 _LOGGER.debug("%s failed, executing compensation",
                               func.__name__)
                 _LOGGER.exception(error)
-                if func.compensate is not None:
-                    func.compensate(*args, **kwargs)
+                if wrapped.undo_function is not None:
+                    wrapped.undo_function(*args, **kwargs)
                 raise
 
-        func.compensate = None
+        def undo_decorate(undo_func):
+            "Undo decorator."
+            wrapped.undo_function = undo_func
+
         wrapped.undo = undo_decorate
+        wrapped.function = func
+        wrapped.undo_function = None
         Handler().register(event, wrapped)
         return wrapped
 
@@ -198,9 +197,10 @@ class Handler(Singleton):
         if not isinstance(event, Event):
             raise _errors.NotEventError(
                 "Not possible to unregister with non-event")
+
         if not callable(block):
             raise _errors.NotCallableError(
-                "Not possible to unregister a callable")
+                "Not possible to unregister a non-callable")
 
         _LOGGER.debug("Unregistering %s from event %s", block, event)
 
@@ -230,9 +230,11 @@ class Handler(Singleton):
         if not isinstance(event, Event):
             raise _errors.NotEventError(
                 "Not possible to check registration for non-event")
+
         if not callable(block):
             raise _errors.NotCallableError(
                 "Not possible to check for non-callable")
+
         try:
             return block in self.__blocks_for[event]
         except KeyError:

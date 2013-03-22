@@ -19,3 +19,4 @@ Contents
    failure_detector
    sharding
    sharding_services
+   recovery
