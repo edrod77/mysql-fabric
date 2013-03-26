@@ -255,7 +255,7 @@ def _configure_connections(config):
     try:
         timeout = config.get("storage", "connect_timeout")
         timeout = float(timeout)
-    except (_config.NoOptionError, ValueError) as error:
+    except (_config.NoOptionError, ValueError):
         timeout = None
 
     # Define state store configuration.
