@@ -101,7 +101,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
              or a cursor.
     """
     if cnx is None or not cnx.is_connected():
-        raise _errors.DatabaseError("Connection is invalid.")
+        raise _errors.DatabaseError("Invalid database connection.")
 
     options = options or {}
     params = options.get('params', ())
@@ -164,7 +164,24 @@ def destroy_mysql_connection(cnx):
     """Close the connection.
     """
     try:
-        cnx.disconnect()
+        if cnx:
+            cnx.disconnect()
     except Exception as error:
         raise _errors.DatabaseError("Error tyring to disconnect. "\
                                     "Error %s" % (str(error)))
+
+def is_valid_mysql_connection(cnx):
+    """Check if it is a valid MySQL connection.
+    """
+    if cnx is not None and cnx.is_connected():
+        return True
+    return False
+         
+def reestablish_mysql_connection(cnx, attempt, delay):
+    """Try to reconnect if it is not already connected.
+    """
+    try:
+        if cnx is not None and not cnx.is_connected():
+            cnx.reconnect(attempt, delay)
+    except mysql.connector.errors.InterfaceError:
+        raise _errors.DatabaseError("Invalid database connection.")

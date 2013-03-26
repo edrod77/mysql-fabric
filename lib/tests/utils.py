@@ -174,6 +174,7 @@ def setup_xmlrpc():
             'user': options.user,
             'password': options.password,
             'database': 'fabric',
+            'connection_timeout': 'None',
             },
         }
     config = _config.Config(None, params, True)
@@ -187,6 +188,7 @@ def setup_xmlrpc():
     _configure_connections(config)
     _persistence.setup()
     manager_thread = threading.Thread(target=_start, name="Services")
+    manager_thread.daemon = True
     manager_thread.start()
 
     # Set up the client

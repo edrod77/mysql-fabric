@@ -232,7 +232,13 @@ def _configure_connections(config):
     """Configure information on database connection and remote
     servers.
     """
-    # Fetch options to configure the services.
+    # Fetch options to configure the XML-RPC.
+    address = config.get('protocol.xmlrpc', "address")
+
+    # Define XML-RPC configuration.
+    _services.ServiceManager(address)
+
+    # Fetch options to configure the state store.
     address = config.get('storage', 'address')
     try:
         host, port = address.split(':')
@@ -240,22 +246,22 @@ def _configure_connections(config):
     except ValueError:
         host = address
         port = 3306 # TODO: DEFINE A CONSTANT
-
     user = config.get('storage', 'user')
     database = config.get('storage', 'database')
     try:
         password = config.get('storage', 'password')
     except _config.NoOptionError:
         password = getpass.getpass()
-
-    # Define XML-RPC configuration.
-    address = config.get("protocol.xmlrpc", "address")
-    _services.ServiceManager(address)
+    try:
+        timeout = config.get("storage", "connect_timeout")
+        timeout = float(timeout)
+    except (_config.NoOptionError, ValueError) as error:
+        timeout = None
 
     # Define state store configuration.
     _persistence.init(host=host, port=port,
                       user=user, password=password,
-                      database=database)
+                      database=database, timeout=timeout)
 
 
 def _start():

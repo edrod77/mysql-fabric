@@ -176,13 +176,13 @@ class MySQLPersister(object):
     :class:`MySQLPersister` instance created, set up the object
     database, and give each subclass of :class:`Persistable` a chance
     to set itself up by calling the class init method.
-
     """
     # Information for connecting to the database
     connection_info = None
 
     @classmethod
-    def init(cls, host, user, password=None, port=None, database=None):
+    def init(cls, host, user, password=None, port=None, database=None,
+             timeout=None):
         """Initialize the object persistance system.
 
         This function initializes the persistance system. The function
@@ -198,6 +198,7 @@ class MySQLPersister(object):
                          database server.
         :param database: Database where the persistance information is
                          stored. Default is :const:`DEFAULT_DATABASE`.
+        :param timeout: Timeout to connect to the database server.
         """
         if port is None:
             port = _server_utils.MYSQL_DEFAULT_PORT
@@ -207,9 +208,10 @@ class MySQLPersister(object):
         # Save away the connection information, it will be used by the
         # threads.
         cls.connection_info = {
-            'host': host, 'port': port,
-            'user': user, 'password': password,
-            'database': database,
+            "host": host, "port": port,
+            "user": user, "password": password,
+            "database": database,
+            "connection_timeout" : timeout,
             }
 
     @classmethod
@@ -223,6 +225,7 @@ class MySQLPersister(object):
         conn = _server_utils.create_mysql_connection(
             host=info["host"], port=info["port"],
             user=info["user"], password=info["password"],
+            connection_timeout=info["connection_timeout"],
             autocommit=True, use_unicode=False
             )
         #TODO: Can 'database' be used for SQL injection?
@@ -243,6 +246,7 @@ class MySQLPersister(object):
         conn = _server_utils.create_mysql_connection(
             host=info['host'], port=info['port'],
             user=info['user'], password=info['password'],
+            connection_timeout=info["connection_timeout"],
             autocommit=True, use_unicode=False)
         conn.cursor().execute(
             "DROP DATABASE IF EXISTS %s" % (info['database'],)
@@ -252,12 +256,16 @@ class MySQLPersister(object):
         """Constructor for MySQLPersister.
         """
         assert self.connection_info is not None
+        info = self.connection_info
         self.__cnx = _server_utils.create_mysql_connection(
-            autocommit=True, use_unicode=False,
-            **self.connection_info)
+            host=info['host'], port=info['port'],
+            user=info['user'], password=info['password'],
+            connection_timeout=info["connection_timeout"],
+            database=info["database"], autocommit=True, use_unicode=False)
         if self.uuid is None:
             _LOGGER.warning(
-                "MySQLPersister does not support or have the uuid configured."
+                "MySQLPersister does not support uuid or "
+                "it is not configured."
                 )
 
     def __del__(self):
@@ -302,23 +310,31 @@ class MySQLPersister(object):
         """Execute statements against the server.
         See :meth:`mysql.hub.server_utils.exec_stmt`.
         """
-        return _server_utils.exec_mysql_stmt(self.__cnx, stmt_str, options)
+        while True:
+            try:
+                return _server_utils.exec_mysql_stmt(
+                    self.__cnx, stmt_str, options
+                    )
+            except _errors.DatabaseError as error:
+                if _server_utils.is_valid_mysql_connection(self.__cnx):
+                    raise
+                _server_utils.reestablish_mysql_connection(
+                    self.__cnx, attempt=1, delay=0
+                    )
 
 def init_thread():
     """Initialize the persistence system for the thread.
     """
-
     PersistentMeta.init_thread(MySQLPersister())
 
 def deinit_thread():
     """Initialize the persistence system for the thread.
     """
-
     PersistentMeta.deinit_thread()
 
 _LOGGER = logging.getLogger(__name__)
 
-def init(host, user, password=None, port=None, database=None):
+def init(host, user, password=None, port=None, database=None, timeout=None):
     """Initialize the persistance system.
 
     This function is idempotent in the sense that it can be executed
@@ -342,7 +358,7 @@ def init(host, user, password=None, port=None, database=None):
 
     MySQLPersister.init(host=host, port=port,
                         user=user, password=password,
-                        database=database)
+                        database=database, timeout=timeout)
 
 def setup():
     """ Setup the persistance system globally.

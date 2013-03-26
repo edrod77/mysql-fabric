@@ -232,15 +232,6 @@ class Job(object):
             # Execute the job.
             self.__result = self.__action(*self.__args, **self.__kwargs)
         except Exception as error: # pylint: disable=W0703
-            # TODO: The rollback and commit cannot fail. Otherwise, there will
-            # be problems. This can be broken easily, for example by
-            # calling "SELECT * FROM TABLE WHERE name = %s" % (False, )
-            #
-            # What does it happen if the connection is idle for a long
-            # time?
-            #
-            # We need to investigate this.
-            #
             _LOGGER.exception(error)
 
             # Update the job status.
@@ -249,14 +240,20 @@ class Job(object):
             self._add_status(Job.ERROR, Job.COMPLETE, message, True)
 
             # Rollback the job transactional context.
-            persister.rollback()
+            try:
+                persister.rollback()
+            except _errors.DatabaseError as db_error:
+                _LOGGER.exception(db_error)
         else:
             # Update the job status.
             message = "Executed action ({0}).".format(self.__action.__name__)
             self._add_status(Job.SUCCESS, Job.COMPLETE, message)
 
             # Commit the job transactional context.
-            persister.commit()
+            try:
+                persister.commit()
+            except _errors.DatabaseError as db_error:
+                _LOGGER.exception(db_error)
         finally:
             # Mark the job as complete
             self.__complete = True
@@ -308,6 +305,7 @@ class ExecutorThread(threading.Thread):
         self.__persister = None
         self.__job = None
         self.__current_thread = None
+        self.daemon = True
 
     def is_current_thread(self):
         """Check if the current thread is the same as the executor's thread.

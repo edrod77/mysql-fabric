@@ -49,6 +49,7 @@ class DataDirCopy(threading.Thread):
         self.__source_free = source_free
         self.__quiet = quiet
         self.__pool_sema = pool_sema
+        self.daemon = True
 
     def run(self):
         """The method is invoked to start a thread of copy from the source
