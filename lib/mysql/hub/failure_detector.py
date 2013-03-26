@@ -98,6 +98,7 @@ class FailureDetector(object):
         self.__check = True
         self.__thread = threading.Thread(target=self._run,
             name="FailureDetector(" + self.__group_id + ")")
+        self.__thread.daemon = True
         self.__thread.start()
 
     def shutdown(self):

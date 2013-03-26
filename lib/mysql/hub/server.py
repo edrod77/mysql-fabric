@@ -424,17 +424,15 @@ class ConnectionPool(_utils.Singleton):
         The method gets a connection from a pool if there is any.
         """
         assert(isinstance(uuid, _uuid.UUID))
-        cnx = None
         with self.__lock:
             try:
-                cnx = self.__pool[uuid].pop()
+                while len(self.__pool[uuid]):
+                    cnx = self.__pool[uuid].pop()
+                    if _server_utils.is_valid_mysql_connection(cnx):
+                        return cnx
             except (KeyError, IndexError):
                 pass
-
-        if cnx and not cnx.is_connected():
-            cnx = None
-
-        return cnx
+        return None
 
     def release_connection(self, uuid, cnx):
         """Release a connection to the pool.
@@ -467,7 +465,7 @@ class ConnectionPool(_utils.Singleton):
         with self.__lock:
             try:
                 for cnx in self.__pool[uuid]:
-                    cnx.disconnect()
+                    _server_utils.destroy_mysql_connection(cnx)
                 del self.__pool[uuid]
             except KeyError:
                 pass
@@ -706,7 +704,7 @@ class MySQLServer(_persistence.Persistable):
         """
         res = False
         try:
-            if self.__cnx is not None and self.__cnx.is_connected():
+            if _server_utils.is_valid_mysql_connection(self.__cnx):
                 self.exec_stmt("SHOW DATABASES")
                 res = True
         except _errors.DatabaseError:
