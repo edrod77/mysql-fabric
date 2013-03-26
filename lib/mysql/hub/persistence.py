@@ -315,7 +315,7 @@ class MySQLPersister(object):
                 return _server_utils.exec_mysql_stmt(
                     self.__cnx, stmt_str, options
                     )
-            except _errors.DatabaseError as error:
+            except _errors.DatabaseError:
                 if _server_utils.is_valid_mysql_connection(self.__cnx):
                     raise
                 _server_utils.reestablish_mysql_connection(
