@@ -87,14 +87,14 @@ class TestShardingServices(unittest.TestCase):
         Group.add("GROUPID13", "13th description.")
         Group.add("GROUPID14", "14th description.")
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID10")
+        status = self.proxy.sharding.define("range", "GROUPID10")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID11")
+        status = self.proxy.sharding.define("range", "GROUPID11")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -203,7 +203,54 @@ class TestShardingServices(unittest.TestCase):
         _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
+    def test_define_shard_mapping_wrong_sharding_type(self):
+        status = self.proxy.sharding.define("WRONG", "GROUPID12")
+        self.assertStatus(status,  _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_define_shard_mapping).")
+
+    def test_add_shard_invalid_group_exception(self):
+        status = self.proxy.sharding.add_shard(4, 8001, 9000, "WRONG_GROUP",
+                                               "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_add_shard).")
+
+    def test_add_shard_invalid_state_exception(self):
+        status = self.proxy.sharding.add_shard(4, 8001, 9000, "GROUP10",
+                                               "WRONG_STATE")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_add_shard).")
+
+    def test_add_shard_invalid_range_exception(self):
+        status = self.proxy.sharding.add_shard(4, 9000, 5000, "GROUP10",
+                                               "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_add_shard).")
+
+
+    def test_add_shard_invalid_shard_mapping(self):
+        status = self.proxy.sharding.add_shard(25000, 8001, 9000, "GROUPID10",
+                                               "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_add_shard).")
+
     def test_remove_shard_mapping(self):
+        #Remove the shards before removing the mapping
+        self.proxy.sharding.disable_shard(1)
+        self.proxy.sharding.remove_shard(1)
+        self.proxy.sharding.disable_shard(2)
+        self.proxy.sharding.remove_shard(2)
+        self.proxy.sharding.disable_shard(3)
+        self.proxy.sharding.remove_shard(3)
         status = self.proxy.sharding.remove_mapping("db1.t1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -211,10 +258,22 @@ class TestShardingServices(unittest.TestCase):
                          "Executed action (_remove_shard_mapping).")
 
         status = self.proxy.sharding.lookup_mapping("db1.t1")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_lookup_shard_mapping).")
+        self.assertEqual(status[2], {"shard_mapping_id":"",
+                                     "table_name":"",
+                                     "column_name":"",
+                                     "type_name":"",
+                                     "global_group":""})
+
+    def test_remove_shard_mapping_shards_exist_exception(self):
+        status = self.proxy.sharding.remove_mapping("db1.t1")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_lookup_shard_mapping).")
+                         "Tried to execute action (_remove_shard_mapping).")
 
     def test_remove_shard_mapping_exception(self):
         status = self.proxy.sharding.remove_mapping("Wrong")
@@ -239,6 +298,13 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup).")
+
+    def test_remove_sharding_specification_exception(self):
+        status = self.proxy.sharding.remove_shard(1)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_remove_shard).")
 
     def test_remove_sharding_specification_wrong_key_exception(self):
         status = self.proxy.sharding.remove_shard(55500)
@@ -292,12 +358,17 @@ class TestShardingServices(unittest.TestCase):
                                      "type_name":"RANGE",
                                      "global_group":"GROUPID13"})
 
-    def test_lookup_shard_mapping_exception(self):
+    def test_lookup_shard_mapping_empty(self):
         status = self.proxy.sharding.lookup_mapping("Wrong")
-        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_lookup_shard_mapping).")
+                         "Executed action (_lookup_shard_mapping).")
+        self.assertEqual(status[2], {"shard_mapping_id":"",
+                                     "table_name":"",
+                                     "column_name":"",
+                                     "type_name":"",
+                                     "global_group":""})
 
     def test_list(self):
         status = self.proxy.sharding.list_mappings("RANGE")
@@ -361,6 +432,15 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
         self.assertEqual(set(expected_address_list), set(obtained_address_list))
 
+    def test_lookup_disabled_exception(self):
+        self.proxy.sharding.disable_shard(1)
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_lookup).")
+
+
     def test_lookup_wrong_table_exception(self):
         status = self.proxy.sharding.lookup_servers("Wrong", 500)
         self.assertStatus(status, _executor.Job.ERROR)
@@ -376,8 +456,8 @@ class TestShardingServices(unittest.TestCase):
                          "Tried to execute action (_lookup).")
     def test_list_shard_mappings(self):
         expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]
-        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"] 
-        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"] 
+        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"]
+        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"]
         expected_shard_mapping_list4 =   [4, "RANGE", "GROUPID13"]
         status = self.proxy.sharding.list_definitions()
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -389,3 +469,17 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(set(expected_shard_mapping_list2),  set(obtained_shard_mapping_list[1]))
         self.assertEqual(set(expected_shard_mapping_list3),  set(obtained_shard_mapping_list[2]))
         self.assertEqual(set(expected_shard_mapping_list4),  set(obtained_shard_mapping_list[3]))
+
+    def test_enable_shard_exception(self):
+        status = self.proxy.sharding.enable_shard(25000)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_enable_shard).")
+
+    def test_disable_shard_exception(self):
+        status = self.proxy.sharding.disable_shard(25000)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_disable_shard).")

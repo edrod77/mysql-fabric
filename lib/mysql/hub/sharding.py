@@ -60,7 +60,7 @@ class ShardMapping(_persistence.Persistable):
     CREATE_SHARD_MAPPING_DEFN = ("CREATE TABLE shard_mapping_defn"
                                  "(shard_mapping_id INT AUTO_INCREMENT "
                                  "NOT NULL PRIMARY KEY, "
-                                 "type_name VARCHAR(64) NOT NULL, "
+                                 "type_name ENUM('RANGE') NOT NULL, "
                                  "global_group VARCHAR(64))")
 
     #Drop the schema for the tables used to store the shard specification
@@ -120,7 +120,6 @@ class ShardMapping(_persistence.Persistable):
     #Delete the sharding specification to table mapping for a given table.
     DELETE_SHARD_MAPPING = ("DELETE FROM shard_mapping "
                             "WHERE shard_mapping_id = %s")
-
 
     def __init__(self, shard_mapping_id, table_name, column_name, type_name,
                  global_group):
@@ -188,10 +187,9 @@ class ShardMapping(_persistence.Persistable):
 
         :return: A list of sharding specification names that are of the
                   sharding type.
-        :raises: Sharding Error if Sharding type is not found.
         """
 
-        shard_mappings = []
+        sharding_type = sharding_type.upper()
         cur = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPINGS,
                                   {"raw" : False,
                                   "fetch" : False,
@@ -204,12 +202,7 @@ class ShardMapping(_persistence.Persistable):
         #TODO: define a local variable.
         #TODO: An alternative is to "unpack" the row into local variables that
         #TODO: make sense. E.g., "id, table_name, ... = row".
-        for row in rows:
-            shard_mappings.append(ShardMapping(row[0], row[1], row[2],
-                                               row[3], row[4]))
-        if shard_mappings == []:
-            raise _errors.ShardingError("Unknown Sharding Type")
-        return shard_mappings
+        return [ ShardMapping(*row[0:5]) for row in rows ]
 
 
     def remove(self, persister=None):
@@ -285,7 +278,6 @@ class ShardMapping(_persistence.Persistable):
         :param persister: A valid handle to the state store.
         :return: The ShardMapping object that encapsulates the shard mapping
                     information for the given table.
-        :raises: Sharding Error if the table name is not found.
         """
         cur = persister.exec_stmt(
                                   ShardMapping.SELECT_SHARD_MAPPING,
@@ -293,10 +285,10 @@ class ShardMapping(_persistence.Persistable):
                                   "fetch" : False,
                                   "params" : (table_name,)})
         row = cur.fetchone()
-        if row is None:
-            raise _errors.ShardingError("Table Name Not found")
         if row:
             return ShardMapping(row[0], row[1], row[2], row[3], row[4])
+
+        return None
 
     @staticmethod
     def fetch_shard_mapping_defn(shard_mapping_id, persister=None):
@@ -312,10 +304,13 @@ class ShardMapping(_persistence.Persistable):
                                   {"raw" : False,
                                   "fetch" : True,
                                   "params" : (shard_mapping_id,)})
-        if row is None:
-            raise _errors.ShardingError("Table Name Not found")
-        if row:
+        if row is not None:
+            #There is no abstraction for a shard mapping definition. A
+            #shard mapping definition is just a triplet of
+            #(shard_id, sharding_type, global_group)
             return row[0]
+
+        return None
 
     @staticmethod
     def list_shard_mapping_defn(persister=None):
@@ -326,9 +321,10 @@ class ShardMapping(_persistence.Persistable):
         rows = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPING_DEFN,
                                   {"raw" : False,
                                   "fetch" : True})
-        if rows is None:
-            raise _errors.ShardingError("No shard mapping definitions found")
-        return rows
+        if rows is not None:
+            return rows
+
+        return []
 
     @staticmethod
     def define(type_name, global_group_id, persister=None):
@@ -348,7 +344,6 @@ class ShardMapping(_persistence.Persistable):
         row = persister.exec_stmt("SELECT LAST_INSERT_ID()")
         return int(row[0][0])
 
-
     @staticmethod
     def add(shard_mapping_id, table_name, column_name, persister=None):
         """Add a table to a shard mapping.
@@ -362,7 +357,6 @@ class ShardMapping(_persistence.Persistable):
 
         :return: The ShardMapping object for the mapping created.
                  None if the insert failed.
-
         """
         persister.exec_stmt(
             ShardMapping.ADD_SHARD_MAPPING,
@@ -386,6 +380,12 @@ class Shards(_persistence.Persistable):
     shard_id - Unique identifier for the shard of a particular table
     group_id - The Server location for the given partition of the table.
     """
+
+    #Tuple stores the list of valid shard mapping types.
+    VALID_SHARDING_TYPES = ('RANGE', )
+
+    #Valid states of the shards
+    VALID_SHARD_STATES = ("ENABLED", "DISABLED")
 
     #Create the schema for storing the shard to groups mapping
     CREATE_SHARDS = ("CREATE TABLE "
@@ -516,6 +516,10 @@ class Shards(_persistence.Persistable):
         #TODO: They are done in a consistent manner. It should either
         #TODO: return a list of a cursor everywhere in the sharding
         #TODO: code.
+
+        if row is None:
+            return None
+
         return Shards(shard_id, row[0][0])
 
     @property
@@ -553,10 +557,10 @@ class RangeShardingSpecification(_persistence.Persistable):
     * state - Indicates whether a given shard is ENABLED or DISABLED
     """
 
-#TODO: Create Forgein keys and Indexes for the table.
-#TODO: verify if state should be string or if a enum or bool is possible
-#TODO: MySQL does not support CHECK contraint. If it does restrict State
-#TODO: to store only 'ENABLED' and 'DISABLED'
+#TODO: The state should be moved to the Shards table. The Shards table contains
+#TODO: the mapping of the shard_id to the group_id and it should also store
+#TODO: if the shard is enabled or not. But we can wait until having multiple
+#TODO: sharding types to enable this.
     #Create the schema for storing the RANGE sharding specificaton.
     CREATE_RANGE_SPECIFICATION = ("CREATE TABLE "
                                 "range_sharding_specification "
@@ -701,7 +705,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         persister.exec_stmt(
           RangeShardingSpecification.UPDATE_RANGE_SPECIFICATION_STATUS,
                              {"params":('ENABLED', self.__shard_id)})
-        return True
 
     def disable(self, persister=None):
         """Set the state of the shard to DISABLED.
@@ -709,7 +712,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         persister.exec_stmt(
           RangeShardingSpecification.UPDATE_RANGE_SPECIFICATION_STATUS,
                              {"params":('DISABLED', self.__shard_id)})
-        return True
 
     def remove(self, persister=None):
         """Remove the RANGE specification mapping represented by the current
@@ -719,14 +721,9 @@ class RangeShardingSpecification(_persistence.Persistable):
         :return: True if the remove succeeded
                 False if the query failed
         """
-#TODO: Throw an exception if the shard is not disabled.
-        if self.__state == "DISABLED":
-            persister.exec_stmt(
-                RangeShardingSpecification.DELETE_RANGE_SPECIFICATION,
-                {"params":(self.__shard_id,)})
-            return True
-        else:
-            return False
+        persister.exec_stmt(
+            RangeShardingSpecification.DELETE_RANGE_SPECIFICATION,
+            {"params":(self.__shard_id,)})
 
     @staticmethod
     def add(shard_mapping_id, lower_bound, upper_bound,
@@ -748,10 +745,10 @@ class RangeShardingSpecification(_persistence.Persistable):
         persister.exec_stmt(
                   RangeShardingSpecification.INSERT_RANGE_SPECIFICATION,
                                      {"params":(shard_mapping_id,
-                                                lower_bound,
-                                                upper_bound,
-                                                shard_id,
-                                                state)})
+                                                          lower_bound,
+                                                           upper_bound,
+                                                           shard_id,
+                                                           state)})
         return RangeShardingSpecification(shard_mapping_id, lower_bound,
                                           upper_bound, shard_id, state)
 
@@ -829,22 +826,14 @@ class RangeShardingSpecification(_persistence.Persistable):
         :return: A  list of RangeShardingSpecification objects which belong to
                 to this shard mapping.
                 None if the shard mapping is not found
-        :raises: Sharding Error if the Sharding Specification is not found.
         """
-        range_sharding_specifications = []
         cur = persister.exec_stmt(
                     RangeShardingSpecification.LIST_RANGE_SPECIFICATION,
                         {"raw" : False,
                         "fetch" : False,
                         "params" : (shard_mapping_id,)})
         rows = cur.fetchall()
-        for row in rows:
-            range_sharding_specifications.append(RangeShardingSpecification
-                                            (row[0], row[1], row[2],
-                                             row[3], row[4]))
-        if range_sharding_specifications == []:
-            raise _errors.ShardingError("Sharding specification not found")
-        return  range_sharding_specifications
+        return [ RangeShardingSpecification(*row[0:5]) for row in rows ]
 
     @staticmethod
     def fetch(shard_id, persister=None):
@@ -857,7 +846,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         :return: A list that represents the information in the
                     RangeShardingSpecification.
                     An Empty list otherwise.
-        :raises: Sharding Error if the Sharding Specification is not found.
         """
         cur = persister.exec_stmt(
                     RangeShardingSpecification.SELECT_RANGE_SPECIFICATION,
@@ -865,12 +853,10 @@ class RangeShardingSpecification(_persistence.Persistable):
                         "fetch" : False,
                         "params" : (shard_id,)})
         row = cur.fetchone()
-        range_sharding_specification = RangeShardingSpecification(
-                                                 row[0], row[1], row[2],
-                                                 row[3], row[4])
-        if range_sharding_specification is None:
-            raise _errors.ShardingError("Sharding specification not found")
-        return  range_sharding_specification
+        if row is None:
+            return None
+        return RangeShardingSpecification(row[0], row[1], row[2], row[3],
+                                                                  row[4])
 
 #TODO: Should a lookup fail if a shard is DISABLED ?
     @staticmethod
@@ -885,19 +871,19 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         :return: The Range Sharding Specification that contains the range in
                 which the key belongs.
-        :raises: Sharding Error if the sharding specification is not found
         """
         cur = persister.exec_stmt(
                         RangeShardingSpecification.LOOKUP_KEY,
                         {"raw" : False,
                         "fetch" : False,
                         "params" : (key, key, shard_mapping_id)})
+
         row = cur.fetchone()
+
         if row is None:
-            raise _errors.ShardingError("Sharding specification not found")
-        if row:
-            return RangeShardingSpecification(row[0], row[1], row[2],
-                                              row[3], row[4])
+            return None
+        return RangeShardingSpecification(row[0], row[1], row[2],
+                                          row[3], row[4])
 
     @staticmethod
     def delete_from_shard_db(table_name):
@@ -957,31 +943,3 @@ class RangeShardingSpecification(_persistence.Persistable):
             #Fire the DELETE query
             master.exec_stmt(delete_query)
         return True
-
-def lookup_servers(table_name, key):
-    """Given a table name and a key return the server where the shard of this
-    table can be found
-
-    :param table_name: The table whose sharding specification needs to be
-                        looked up.
-    :param key: The key value that needs to be looked up
-
-    :return: The master UUID of the Group that contains the range in which the
-            key belongs None if lookup fails.
-    :raises: Sharding Error if the table name does not map to a Group.
-    """
-    group = None
-    shard_mapping = ShardMapping.fetch(table_name)
-    if shard_mapping.type_name == "RANGE":
-        range_sharding_specification = RangeShardingSpecification.lookup \
-                                        (key,
-                                         shard_mapping.shard_mapping_id)
-        shard = Shards.fetch(str(range_sharding_specification.shard_id))
-        # TODO: This should reuse whatever is available in services.group.py
-        # instead of copying the code from there.
-        group = Group.fetch(shard.group_id)
-    ret = []
-    for server in group.servers():
-        ret.append([str(server.uuid), server.address,
-                   group.master == server.uuid])
-    return ret
