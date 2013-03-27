@@ -17,6 +17,7 @@ from mysql.hub.command import (
 class Trigger(Command):
     """Trigger an event.
     """
+    group_name = "event"
     command_name = "trigger"
 
     def execute(self, event, *args, **kwargs):
@@ -32,11 +33,11 @@ class Trigger(Command):
                  for proc in _events.trigger(event, *args, **kwargs) ]
 
 class WaitForProcedures(Command):
-    """Wait until procedures finish their execution.
-
-    If a procedure which is uniquely identified by a uuid is not found an
-    error is returned.
+    """Wait until procedures, which are identified through their uuid in a
+    list and separated by comma, finish their execution. If a procedure is
+    not found an error is returned.
     """
+    group_name = "event"
     command_name = "wait_for_procedures"
 
     def execute(self, proc_uuids):
@@ -50,8 +51,9 @@ class WaitForProcedures(Command):
         :param proc_uuids: Iterable with procedures' uuids.
         """
         procs = []
-        for proc_uuid in proc_uuids:
-            proc_uuid = _uuid.UUID(proc_uuid)
+        it_proc_uuids = proc_uuids.split(",")
+        for proc_uuid in it_proc_uuids:
+            proc_uuid = _uuid.UUID(proc_uuid.strip())
             procedure = _executor.Executor().get_procedure(proc_uuid)
             if not procedure:
                 raise _errors.ProcedureError("Procedure (%s) was not found." %
@@ -61,28 +63,4 @@ class WaitForProcedures(Command):
         for procedure in procs:
             procedure.wait()
 
-        return True
-
-class WaitForProcedure(Command):
-    """Wait until a procedure finishes its execution.
-
-    If the procedure which is uniquely identified by a uuid is not found an
-    error is returned.
-    """
-    command_name = "wait_for_procedure"
-
-    def execute(self, proc_uuid):
-        """Wait until a procedure uniquely identified by proc_uuid finishes its
-        execution. If the procedure is not found the following exception is
-        returned: :class:`mysql.hub.errors.ProcedureError`.
-
-        :param proc_uuid: Procedure's uuid.
-        :return: Procedure's status and result.
-        """
-        proc_uuid = _uuid.UUID(proc_uuid)
-        procedure = _executor.Executor().get_procedure(proc_uuid)
-        if not procedure:
-            raise _errors.ProcedureError("Procedure (%s) was not found." %
-                                         (proc_uuid, ))
-        procedure.wait()
-        return procedure.status, procedure.result
+        return False

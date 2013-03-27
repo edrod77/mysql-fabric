@@ -19,6 +19,7 @@ sentence of the description is the brief description and is shown in
 listings, while the remaining text is the more elaborate description
 shown in command help message.
 """
+import re
 import mysql.hub.executor as _executor
 
 _COMMANDS_CLASS = {}
@@ -68,6 +69,30 @@ def get_command(group_name, command_name):
     """
     return _COMMANDS_CLASS[group_name][command_name]
 
+class CommandMeta(type):
+    """Metaclass for defining new commands.
+
+    This class will register any new commands defined and add them to
+    the a list of existing commands.
+    """
+    def __init__(cls, cname, cbases, cdict):
+        """Register command definitions.
+        """
+        try:
+            cls.group_name
+        except AttributeError:
+            cls.group_name = cdict["__module__"]
+               
+        try:
+            cls.command_name
+        except AttributeError:
+            cls.command_name = cname.lower()
+
+        # TODO: Try to find a better way of removing false positives.
+        if cls.command_name not in ("command", "procedurecommand") and \
+            re.match("[A-Za-z]\w+", cls.command_name):
+            register_command(cls.group_name, cls.command_name, cls)
+
 class Command(object):
     """Base class for all commands.
 
@@ -106,6 +131,8 @@ class Command(object):
     the command name, which means that if the *command_name* class
     property is not defined, the class name is automatically used.
     """
+    __metaclass__ = CommandMeta
+
     command_options = []
 
     def __init__(self):

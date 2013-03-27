@@ -26,6 +26,7 @@ _LOGGER = logging.getLogger("mysql.hub.services.manage")
 class Logging(Command):
     """Set logging level.
     """
+    group_name = "manage"
     command_name = "logging_level"
 
     def execute(self, module, level):
@@ -49,6 +50,7 @@ class Logging(Command):
 class Ping(Command):
     """Check whether Fabric server is running or not.
     """
+    group_name = "manage"
     command_name = "ping"
 
     def execute(self):
@@ -60,6 +62,7 @@ class Ping(Command):
 class Help(Command):
     """Give help on a command.
     """
+    group_name = "manage"
     command_name = "help"
 
     def dispatch(self, group_name, command_name):
@@ -93,6 +96,7 @@ class Help(Command):
 class List(Command):
     """List the possible commands.
     """
+    group_name = "manage"
     command_name = "list-commands"
 
     def dispatch(self):
@@ -135,6 +139,7 @@ class List(Command):
 class Start(Command):
     """Start the Fabric server.
     """
+    group_name = "manage"
     command_name = "start"
 
     command_options = [
@@ -170,6 +175,7 @@ class Setup(Command):
 
     Create a database and necessary objects.
     """
+    group_name = "manage"
     command_name = "setup"
 
     def dispatch(self):
@@ -190,6 +196,7 @@ class Teardown(Command):
 
     Drop database and its objects.
     """
+    group_name = "manage"
     command_name = "teardown"
 
     def dispatch(self):
@@ -282,6 +289,7 @@ def _start():
 class Stop(Command):
     """Stop the Fabric server.
     """
+    group_name = "manage"
     command_name = "stop"
 
     def execute(self):
@@ -302,6 +310,7 @@ def _shutdown():
 class FabricLookups(Command):
     """Return a list of Fabric servers.
     """
+    group_name = "manage"
     command_name = "lookup_fabrics"
 
     def execute(self):

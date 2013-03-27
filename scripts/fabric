@@ -3,7 +3,7 @@ import sys
 import os
 
 from mysql.hub.services import (
-    find_services,
+    find_commands,
     find_client,
     )
 
@@ -29,6 +29,7 @@ from mysql.hub.errors import (
     Error, ConfigurationError,
 )
 
+# TODO: BOTH xxx-yyy and xxx_yyy should be possible.
 HELP_COMMANDS = ("help", "list-commands")
 
 PARSER = OptionParser(
@@ -80,7 +81,7 @@ def create_command(group_name, command_name):
 
     try:
         # Load information on available commands.
-        find_services()
+        find_commands()
 
         # Fetch command class and create the command instance.
         command = get_command(group_name, command_name)()

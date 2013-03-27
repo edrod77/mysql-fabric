@@ -5,10 +5,8 @@ Services are interfaces accessible externally over the network.
 import socket
 import logging
 import pkgutil
-import re
 import threading
-import types
-import inspect
+import os
 
 import mysql.hub.protocols.xmlrpc as _protocol
 
@@ -21,9 +19,6 @@ from mysql.hub.errors import (
     )
 
 from mysql.hub.command import (
-    Command,
-    ProcedureCommand,
-    register_command,
     get_groups,
     get_commands,
     get_command,
@@ -31,33 +26,13 @@ from mysql.hub.command import (
 
 _LOGGER = logging.getLogger(__name__)
 
-def find_services():
+def find_commands():
     """Find which are the available commands.
     """
-    services = [
-        imp.find_module(name).load_module(name)
-        for imp, name, ispkg in pkgutil.iter_modules(__path__)
-        if not ispkg
-        ]
-
-    for mod in services:
-        for sym, val in mod.__dict__.items():
-            if isinstance(val, type) and issubclass(val, Command) and \
-                val not in (Command, ProcedureCommand) and \
-                re.match("[A-Za-z]\w+", sym):
-                try:
-                    val.group_name
-                except AttributeError:
-                    val.group_name = mod.__name__
-                try:
-                    val.command_name
-                except AttributeError:
-                    val.command_name = sym.lower()
-                register_command(val.group_name, val.command_name, val)
-
-    # TODO: We temporarily keep this while we are changing the current
-    # services into commands.
-    return services
+    paths = [ root for root, _, _ in os.walk(__path__[0]) ]
+    for imp, name, ispkg in pkgutil.iter_modules(paths):
+        if not ispkg:
+            imp.find_module(name).load_module(name)
 
 def find_client():
     """Return a proxy to access the Fabric server.
@@ -120,21 +95,14 @@ class ServiceManager(Singleton):
         """
         _LOGGER.info("Loading Services.")
 
-        services = find_services()
+        find_commands()
 
         for group_name in get_groups():
             for command_name in get_commands(group_name):
                 command = get_command(group_name, command_name)
                 if hasattr(command, "execute"):
-                    self.__rpc_server.register_command(command())
-
-        # TODO: We temporarily keep this while we are changing the current
-        # services into commands.
-        for mod in services:
-            for sym, val in mod.__dict__.items():
-                if isinstance(val, types.FunctionType) \
-                        and re.match("[A-Za-z]\w+", sym):
-                    _LOGGER.debug("Registering %s.", mod.__name__ + '.' + sym)
-                    self.__rpc_server.register_function(
-                        val, mod.__name__ + '.' + sym
+                    _LOGGER.debug(
+                        "Registering %s.", command.group_name + '.' + \
+                        command.command_name
                         )
+                    self.__rpc_server.register_command(command())

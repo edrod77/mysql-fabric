@@ -122,8 +122,7 @@ def run_tests(pkg, options, args):
     if len(args) == 0:
         args = tests.__all__
 
-    # Find out which MySQL Instances can be used for the for the
-    # tests.
+    # Find out which MySQL Instances can be used for the tests.
     if not check_connector() or not configure_servers(options.servers):
         return None
 
