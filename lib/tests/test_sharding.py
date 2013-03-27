@@ -120,11 +120,14 @@ class TestSharding(unittest.TestCase):
         group_14 = Group("GROUPID14", "14TH description.")
         Group.add(group_14)
 
+        self.__shard_mapping_list = ShardMapping.list_shard_mapping_defn()
+        self.assertEquals( self.__shard_mapping_list,  [])
         self.__shard_mapping_id_1 = ShardMapping.define("RANGE", "GROUPID10")
         self.__shard_mapping_id_2 = ShardMapping.define("RANGE", "GROUPID11")
         self.__shard_mapping_id_3 = ShardMapping.define("RANGE", "GROUPID12")
-        self.__shard_mapping_id_4 = ShardMapping.define("RANGE", "GROUPID13")
-        self.__shard_mapping_id_5 = ShardMapping.define("RANGE", "GROUPID14")
+        #Test with sharding type values in lower case
+        self.__shard_mapping_id_4 = ShardMapping.define("range", "GROUPID13")
+        self.__shard_mapping_id_5 = ShardMapping.define("range", "GROUPID14")
 
         self.__shard_mapping_1 = ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
         self.__shard_mapping_2 = ShardMapping.add(self.__shard_mapping_id_2, "db2.t2", "userID2")
@@ -214,9 +217,6 @@ class TestSharding(unittest.TestCase):
         self.assertTrue(ShardingUtils.compare_shard_mapping
                          (self.__shard_mapping_4, shard_mapping_4))
 
-    def test_fetch_shard_mapping_exception(self):
-        self.assertRaises(_errors.ShardingError, ShardMapping.fetch, "Wrong")
-
     def test_fetch_sharding_scheme(self):
         range_sharding_specifications = RangeShardingSpecification.list(1)
 
@@ -230,10 +230,6 @@ class TestSharding(unittest.TestCase):
                         (range_sharding_specifications[2],
                          self.__range_sharding_specification_3))
 
-    def test_fetch_sharding_scheme_exception(self):
-        self.assertRaises(_errors.ShardingError,
-                          RangeShardingSpecification.list, "Wrong")
-
     def test_lookup_sharding_scheme(self):
         r_spec_1 = RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1)
         self.assertEqual(r_spec_1.shard_id, self.__shard_id_1.shard_id)
@@ -241,47 +237,6 @@ class TestSharding(unittest.TestCase):
         self.assertEqual(r_spec_2.shard_id, self.__shard_id_4.shard_id)
         r_spec_3 = RangeShardingSpecification.lookup(6500, self.__shard_mapping_id_3)
         self.assertEqual(r_spec_3.shard_id, self.__shard_id_6.shard_id)
-
-    def test_lookup_sharding_scheme_exception_wrong_key(self):
-        self.assertRaises(_errors.ShardingError,
-                          RangeShardingSpecification.lookup, 30000, self.__shard_mapping_id_1)
-
-    def test_lookup_sharding_scheme_exception_wrong_name(self):
-        self.assertRaises(_errors.ShardingError,
-                          RangeShardingSpecification.lookup, 500, 32000)
-
-    def test_lookup(self):
-        expected_server_list = [
-                                ["bb75b12b-98d1-414c-96af-9e9d4b179678",
-                                 "server_1.mysql.com:3060",
-                                 True],
-                                ["aa75a12a-98d1-414c-96af-9e9d4b179678",
-                                 "server_2.mysql.com:3060",
-                                 False]
-                                ]
-
-        obtained_server_list = _sharding.lookup_servers("db1.t1", 500)
-
-        expected_uuid_list = [expected_server_list[0][0],
-                              expected_server_list[1][0]]
-        obtained_uuid_list = [obtained_server_list[0][0],
-                              obtained_server_list[1][0]]
-
-        expected_address_list = [expected_server_list[0][1],
-                                expected_server_list[1][1]]
-        obtained_address_list = [obtained_server_list[0][1],
-                                obtained_server_list[1][1]]
-
-        self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
-        self.assertEqual(set(expected_address_list), set(obtained_address_list))
-
-    def test_lookup_wrong_table_exception(self):
-        self.assertRaises(_errors.ShardingError,
-                          _sharding.lookup_servers, "Wrong", 500)
-
-    def test_lookup_wrong_key_exception(self):
-        self.assertRaises(_errors.ShardingError,
-                          _sharding.lookup_servers, "db1.t1", 55000)
 
     def test_shard_mapping_list_mappings(self):
         shard_mappings = ShardMapping.list("RANGE")
@@ -294,10 +249,6 @@ class TestSharding(unittest.TestCase):
         self.assertTrue(ShardingUtils.compare_shard_mapping
                          (self.__shard_mapping_4, shard_mappings[3]))
 
-    def test_shard_mapping_list_exceptions(self):
-        self.assertRaises(_errors.ShardingError, ShardMapping.list,
-                          "NOT EXISTS")
-
     def test_shard_mapping_getters(self):
         self.assertEqual(self.__shard_mapping_1.table_name, "db1.t1")
         self.assertEqual(self.__shard_mapping_1.column_name, "userID1")
@@ -308,7 +259,6 @@ class TestSharding(unittest.TestCase):
     def test_shard_mapping_remove(self):
         shard_mapping_1 = ShardMapping.fetch("db1.t1")
         shard_mapping_1.remove()
-        self.assertRaises(_errors.ShardingError, ShardMapping.fetch, "db1.t1")
 
     def test_range_sharding_specification_getters(self):
         self.assertEqual(self.__range_sharding_specification_1.
