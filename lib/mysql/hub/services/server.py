@@ -132,9 +132,9 @@ class ServerLookups(ProcedureCommand):
         """Return information on existing server(s) in a group.
 
         :param group_id: Group's id.
-        :param server_id: None if one wants to list the existing servers
-                          in a group or server's id if one wants information
-                          on a server in a group.
+        :param uuid: None if one wants to list the existing servers
+                     in a group or server's id if one wants information
+                     on a server in a group.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: List with existing severs in a group or detailed information
@@ -211,7 +211,7 @@ class ServerRemove(ProcedureCommand):
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(LOOKUP_GROUPS)
-def _lookup_groups(group_id):
+def _lookup_groups(group_id=None):
     """Return a list of existing groups or fetch information on a group
     identified by group_id.
     """
