@@ -290,11 +290,11 @@ class Handler(Singleton):
                 event = None
 
         # Enqueue the procedures and return a list of the procedures scheduled
-        return [
-            self.__executor.enqueue_procedure(within_procedure, block,
-               "Triggered by %s" % (event, ), *args, **kwargs)
+        actions = [
+            (block, "Triggered by %s." % (event, ), args, kwargs)
             for block in self.__blocks_for.get(event, [])
             ]
+        return self.__executor.enqueue_procedures(within_procedure, actions)
 
 def trigger(event, *args, **kwargs):
     """Trigger an event by name or instance.

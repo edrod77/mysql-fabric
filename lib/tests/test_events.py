@@ -36,12 +36,14 @@ class TestHandler(unittest.TestCase):
         _persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
         _persistence.setup()
+        _persistence.init_thread()
         self.handler = _events.Handler()
         self.handler.start()
 
     def tearDown(self):
         self.handler.shutdown()
         _persistence.teardown()
+        _persistence.deinit_thread()
 
     def test_events(self):
         "Test creating events."
@@ -176,11 +178,13 @@ class TestDecorator(unittest.TestCase):
         _persistence.init(host=options.host, port=options.port,
                           user=options.user, password=options.password)
         _persistence.setup()
+        _persistence.init_thread()
         self.handler.start()
 
     def tearDown(self):
         self.handler.shutdown()
         _persistence.teardown()
+        _persistence.deinit_thread()
 
     def test_decorator(self):
         global _PROMOTED, _DEMOTED

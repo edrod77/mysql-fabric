@@ -109,6 +109,7 @@ class TestCheckpoint(unittest.TestCase):
         checkpoint = _checkpoint.Checkpoint(
             proc_uuid, job_uuid, do_action_fqn, args, kwargs
             )
+        checkpoint.schedule()
         checkpoint.begin()
 
         self.assertEqual(COUNT_1, 0)
@@ -125,6 +126,7 @@ class TestCheckpoint(unittest.TestCase):
         checkpoint = _checkpoint.Checkpoint(
             proc_uuid, job_uuid, do_action_fqn, args, kwargs
             )
+        checkpoint.schedule()
         checkpoint.begin()
         do_action(count_1, count_2)
 
@@ -142,6 +144,7 @@ class TestCheckpoint(unittest.TestCase):
         checkpoint = _checkpoint.Checkpoint(
             proc_uuid, job_uuid, do_action_fqn, args, kwargs
             )
+        checkpoint.schedule()
         checkpoint.begin()
         do_action(count_1, count_2)
         checkpoint.finish()
@@ -170,6 +173,7 @@ class TestCheckpoint(unittest.TestCase):
         checkpoint = _checkpoint.Checkpoint(
             proc_uuid, job_uuid, do_action_fqn, args, kwargs
             )
+        checkpoint.schedule()
         checkpoint.begin()
         do_action(count_1)
 
@@ -180,6 +184,38 @@ class TestCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_1, 20)
         self.assertEqual(COUNT_2, "Executed undo, Executed do")
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
+
+    def test_schedule_recovery(self):
+        global COUNT_1, COUNT_2
+        count_1 = 10
+        count_2 = 30
+        proc_uuid = _uuid.UUID("01da10ed-514e-43a4-8388-ab05c04d67e1")
+        job_uuid = _uuid.UUID("e4e1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        do_action = check_scheduled_action
+        do_action_fqn = do_action.__module__ + "." + do_action.__name__
+        args = (count_1, count_2)
+        kwargs = {}
+
+        # (FAILURE) BEGIN DO FINISH
+        COUNT_1 = 0
+        COUNT_2 = 0
+        checkpoint = _checkpoint.Checkpoint(
+            proc_uuid, job_uuid, do_action_fqn, args, kwargs
+            )
+        checkpoint.schedule()
+
+        self.assertEqual(COUNT_1, 0)
+        self.assertEqual(COUNT_2, 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 1)
+        _recovery.recovery()
+        executor = _executor.Executor()
+        procedure = executor.get_procedure(checkpoint.proc_uuid)
+        if procedure is not None:
+            procedure.wait()
+        self.assertEqual(COUNT_1, 10)
+        self.assertEqual(COUNT_2, 30)
+        self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
 
 @_events.on_event(EVENT_CHECK_PROPERTIES)
 def check_properties(param_01, param_02):
@@ -228,6 +264,26 @@ def undo_check_undo(count_1):
 
     COUNT_1 = 0
     COUNT_2 = "Executed undo, "
+
+def check_scheduled_action(count_1, count_2):
+    executor = _executor.Executor()
+    job = executor.thread.current_job
+    assert(len(_checkpoint.Checkpoint.fetch(job.procedure.uuid)) == 1)
+    assert(len(_checkpoint.Checkpoint.unfinished()) == 1)
+    assert(len(_checkpoint.Checkpoint.scheduled()) == 0)
+
+    global COUNT_1, COUNT_2
+
+    if COUNT_1 == 0:
+       COUNT_1 += count_1
+    elif COUNT_1 != count_1:
+        raise Exception("Error")
+
+    if COUNT_2 == 0:
+       COUNT_2 += count_2
+    elif COUNT_2 != count_2:
+        raise Exception("Error")
+
 
 if __name__ == "__main__":
     unittest.main()

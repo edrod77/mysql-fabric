@@ -4,6 +4,7 @@ consistent state after a crash.
 import logging
 
 import mysql.hub.executor as _executor
+import mysql.hub.persistence as _persistence
 
 from mysql.hub.checkpoint import (
     Checkpoint,
@@ -21,9 +22,7 @@ def recovery():
              return True.
     """
     error = False
-    unfinished = Checkpoint.unfinished()
-
-    for checkpoint in unfinished:
+    for checkpoint in Checkpoint.unfinished():
 
         if checkpoint.undo_action:
             procedure = _executor.Executor().enqueue_procedure(
@@ -50,9 +49,29 @@ def recovery():
                 _LOGGER.error("Error while recovering %s.",
                               (checkpoint.do_action, ))
                 error = True
-        else:
-            error = True
-            _LOGGER.warning("It is not possible to recover (%s) which was "
-                            "a callable object.")
+
+    procedures = []
+    procedure_uuid = None
+    for checkpoint in Checkpoint.scheduled():
+
+        procedures.append({
+            "job" : checkpoint.job_uuid,
+            "action" : (checkpoint.do_action,
+            "Recovering %s." % (checkpoint.do_action, ),
+            checkpoint.param_args, checkpoint.param_kwargs)}
+            )
+
+        if procedure_uuid is not None and \
+            procedure_uuid != checkpoint.proc_uuid:
+            _executor.Executor().enqueue_scheduler(
+                procedure_uuid, procedures
+                )
+            procedure_uuid = None
+            procedures = []
+        
+        procedure_uuid = checkpoint.proc_uuid
+
+    if procedure_uuid is not None:
+        _executor.Executor().enqueue_scheduler(procedure_uuid, procedures)
 
     return error

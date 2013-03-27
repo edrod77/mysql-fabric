@@ -62,7 +62,7 @@ class Checkpoint(_persistence.Persistable):
         "CREATE TABLE checkpoints (proc_uuid VARCHAR(40) NOT NULL, "
         "job_uuid VARCHAR(40) NOT NULL, sequence INTEGER NOT NULL, "
         "action_fqn TEXT NOT NULL, param_args BLOB NULL, "
-        "param_kwargs BLOB NULL, started DOUBLE(16, 6) NOT NULL, "
+        "param_kwargs BLOB NULL, started DOUBLE(16, 6) NULL, "
         "finished DOUBLE(16, 6) NULL, "
         "CONSTRAINT pk_checkpoint PRIMARY KEY (proc_uuid, job_uuid))"
         )
@@ -74,18 +74,23 @@ class Checkpoint(_persistence.Persistable):
     #SQL statement for inserting a new checkpoint into the table.
     INSERT_CHECKPOINT = (
         "INSERT INTO checkpoints(proc_uuid, job_uuid, sequence, action_fqn, "
-        "param_args, param_kwargs, started) "
-        "SELECT %s, %s, coalesce(MAX(sequence), 0) + 1, %s, %s, %s, %s FROM "
+        "param_args, param_kwargs) "
+        "SELECT %s, %s, coalesce(MAX(sequence), 0) + 1, %s, %s, %s FROM "
         "checkpoints WHERE proc_uuid = %s"
         )
 
+    #SQL statement for updating the started time.
+    UPDATE_START_CHECKPOINT = ("UPDATE checkpoints set started = %s WHERE "
+        "proc_uuid = %s and job_uuid = %s"
+        )
+
     #SQL statement for updating the finished time.
-    UPDATE_CHECKPOINT = ("UPDATE checkpoints set finished = %s WHERE "
+    UPDATE_FINISH_CHECKPOINT = ("UPDATE checkpoints set finished = %s WHERE "
         "proc_uuid = %s and job_uuid = %s"
         )
 
     #SQL statement for deleting the checkpoint executed on behalf of
-    #a table.
+    #a procedure.
     DELETE_CHECKPOINTS = ("DELETE FROM checkpoints WHERE proc_uuid = %s")
 
     #SQL statement for retrieving the checkpoints stored on behalf of a
@@ -98,16 +103,22 @@ class Checkpoint(_persistence.Persistable):
     #SQL statement for retrieving all occurrences in the checkptoint which
     #is used for recovery.
     #TODO: Simplify this statement.
-    QUERY_ALL_CHECKPOINTS = (
+    QUERY_EXECUTED_CHECKPOINTS = (
         "SELECT chk_info.proc_uuid, chk_info.job_uuid, chk_info.sequence, "
         "chk_info.action_fqn, chk_info.param_args, chk_info.param_kwargs, "
         "chk_info.started, chk_info.finished FROM "
         "(SELECT proc_uuid, max(sequence) as sequence FROM checkpoints "
-        "GROUP BY proc_uuid) AS chk_core INNER JOIN "
+        "WHERE started is NOT NULL GROUP BY proc_uuid) AS chk_core INNER JOIN "
         "(SELECT proc_uuid, job_uuid, sequence, action_fqn, param_args, "
         "param_kwargs, started, finished FROM checkpoints) AS chk_info ON "
         "chk_info.proc_uuid = chk_core.proc_uuid and "
         "chk_info.sequence = chk_core.sequence"
+        )
+
+    QUERY_SCHEDULED_CHECKPOINTS = (
+        "SELECT proc_uuid, job_uuid, sequence, action_fqn, param_args, "
+        "param_kwargs, started, finished FROM checkpoints WHERE started "
+        "is NULL ORDER BY proc_uuid, sequence"
         )
 
     def __init__(self, proc_uuid, job_uuid, action_fqn, param_args,
@@ -185,26 +196,24 @@ class Checkpoint(_persistence.Persistable):
         """
         return self.__sequence
 
-    def begin(self, persister=None):
-        """Register that an action is about about to start.
-
-        :param job_uuid: Job uuid.
-        :param do_action: Reference to the main function.
-        :type do_action: Callable
-        :param param_args: List with non-keyworded arguments to the
-                           function(s).
-        :param param_kwargs: Dictionary with neyworded arguments to the
-                             function(s).
-        :param persister: The DB server that can be used to access the
-                          state store.
+    def schedule(self, persister=None):
+        """Register that an action has been scheduled.
         """
-        started = time.time()
         param_args, param_kwargs = \
             Checkpoint.serialize(self.__param_args, self.__param_kwargs)
         persister.exec_stmt(Checkpoint.INSERT_CHECKPOINT,
             {"params":(str(self.__proc_uuid), str(self.__job_uuid),
-            self.__action_fqn, param_args, param_kwargs, started,
+            self.__action_fqn, param_args, param_kwargs,
             str(self.__proc_uuid))}
+            )
+
+    def begin(self, persister=None):
+        """Register that an action is about to start.
+        """
+        started = time.time()
+        persister.exec_stmt(Checkpoint.UPDATE_START_CHECKPOINT,
+            {"params":(started, str(self.__proc_uuid),
+            str(self.__job_uuid))}
             )
         self.__started = started
 
@@ -216,7 +225,7 @@ class Checkpoint(_persistence.Persistable):
                           state store.
         """
         finished = time.time()
-        persister.exec_stmt(Checkpoint.UPDATE_CHECKPOINT,
+        persister.exec_stmt(Checkpoint.UPDATE_FINISH_CHECKPOINT,
             {"params":(finished, str(self.__proc_uuid),
             str(self.__job_uuid))}
             )
@@ -250,7 +259,23 @@ class Checkpoint(_persistence.Persistable):
         :rtype: set(Checkpoint, ...)
         """
         checkpoints = set()
-        rows = persister.exec_stmt(Checkpoint.QUERY_ALL_CHECKPOINTS,
+        rows = persister.exec_stmt(Checkpoint.QUERY_EXECUTED_CHECKPOINTS,
+                                   {"raw": False})
+        for row in rows:
+            checkpoints.add(Checkpoint._create_object_from_row(row))
+        return checkpoints
+
+    @staticmethod
+    def scheduled(persister=None):
+        """Return scheduled procedures.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        :return: Set of procedures that were scheduled.
+        :rtype: set(Checkpoint, ...)
+        """
+        checkpoints = set()
+        rows = persister.exec_stmt(Checkpoint.QUERY_SCHEDULED_CHECKPOINTS,
                                    {"raw": False})
         for row in rows:
             checkpoints.add(Checkpoint._create_object_from_row(row))
