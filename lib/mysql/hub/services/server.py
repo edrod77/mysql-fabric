@@ -46,42 +46,22 @@ _LOGGER = logging.getLogger("mysql.hub.services.server")
 
 LOOKUP_GROUPS = _events.Event()
 class GroupLookups(ProcedureCommand):
-    """Return a list with existing groups.
+    """Return information on existing group(s).
     """
     group_name = "group"
     command_name = "lookup_groups"
 
-    def execute(self, synchronous=True):
-        """Return a list of existing groups.
+    def execute(self, group_id=None, synchronous=True):
+        """Return information on existing group(s).
 
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
-        :return: A list with existing groups.
-        :rtype: [[group], ....].
+        :param group_id: None if one wants to list the existing groups or
+                         group's id if one wants information on a group.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
+        :return: List with existing groups or detailed information on group.
+        :rtype: [[group], ....] or {group_id : ..., description : ...}.
         """
-        procedures = _events.trigger(LOOKUP_GROUPS)
-        return self.wait_for_procedures(procedures, synchronous)
-
-LOOKUP_GROUP = _events.Event()
-class GroupLookup(ProcedureCommand):
-    """Return information on a group.
-    """
-    group_name = "group"
-    command_name = "lookup_group"
-
-    def execute(self, group_id, synchronous=True):
-        """Look up a group identified by an id.
-
-        :param group_id: Group's id.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
-        :return: Return group's information.
-        :rtype: {"group_id" : group_id, "description": description}.
-
-        If the group does not exist, the :class:`mysql.hub.errors.GroupError`
-        exception is thrown. Otherwise, the group's information is returned.
-        """
-        procedures = _events.trigger(LOOKUP_GROUP, group_id)
+        procedures = _events.trigger(LOOKUP_GROUPS, group_id)
         return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_GROUP = _events.Event()
@@ -143,26 +123,29 @@ class RemoveGroup(ProcedureCommand):
 
 LOOKUP_SERVERS = _events.Event()
 class ServerLookups(ProcedureCommand):
-    """Return a list of existing servers in a group.
+    """Return information on existing server(s) in a group.
     """ 
     group_name = "group"
     command_name = "lookup_servers"
 
-    def execute(self, group_id, synchronous=True):
-        """Return list of existing servers in a group.
+    def execute(self, group_id, uuid=None, synchronous=True):
+        """Return information on existing server(s) in a group.
 
         :param group_id: Group's id.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
-        :return: List of existing servers.
+        :param server_id: None if one wants to list the existing servers
+                          in a group or server's id if one wants information
+                          on a server in a group.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
+        :return: List with existing severs in a group or detailed information
+                 on a server in a group.
+        :rtype: [server_uuid, ....] or  {"uuid" : uuid, "address": address,
+                "user": user, "passwd": passwd}
 
         If the group does not exist, the :class:`mysqly.hub.errors.GroupError`
-        exception is thrown. The list of servers returned has the following
-        format::
-
-          [uuid, ...]
+        exception is thrown.
         """
-        procedures = _events.trigger(LOOKUP_SERVERS, group_id)
+        procedures = _events.trigger(LOOKUP_SERVERS, group_id, uuid)
         return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_UUID = _events.Event()
@@ -183,26 +166,6 @@ class ServerUuid(ProcedureCommand):
         :return: uuid.
         """
         procedures = _events.trigger(LOOKUP_UUID, address, user, passwd)
-        return self.wait_for_procedures(procedures, synchronous)
-
-LOOKUP_SERVER = _events.Event()
-class ServerLookup(ProcedureCommand):
-    """Return information on a server.
-    """
-    group_name = "group"
-    command_name = "lookup_server"
-
-    def execute(self, group_id, uuid, synchronous=True):
-        """Retrieve information on a server.
-
-        :param group_id: Group's id.
-        :param uuid: Server's uuid.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
-        :return: List of existing servers.
-        :rtype: {"uuid" : uuid, "address": address, "user": user, "passwd": passwd}.
-        """
-        procedures = _events.trigger(LOOKUP_SERVER, group_id, uuid)
         return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_SERVER = _events.Event()
@@ -248,19 +211,19 @@ class ServerRemove(ProcedureCommand):
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(LOOKUP_GROUPS)
-def _lookup_groups():
-    """Return a list of existing groups.
+def _lookup_groups(group_id):
+    """Return a list of existing groups or fetch information on a group
+    identified by group_id.
     """
-    return _server.Group.groups()
-
-@_events.on_event(LOOKUP_GROUP)
-def _lookup_group(group_id):
-    """Fetch information on a group identified by an id.
-    """
+    if group_id is None:
+        return _server.Group.groups()
+    
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    return {"group_id" : group.group_id, "description": group.description}
+
+    return {"group_id" : group.group_id,
+            "description": group.description if group.description else ""}
 
 @_events.on_event(CREATE_GROUP)
 def _create_group(group_id, description):
@@ -301,17 +264,27 @@ def _remove_group(group_id, force):
     _detector.FailureDetector.unregister_group(group_id)
 
 @_events.on_event(LOOKUP_SERVERS)
-def _lookup_servers(group_id):
-    """Return list of existing servers in a group.
+def _lookup_servers(group_id, uuid=None):
+    """Return existing servers in a group or information on a server.
     """
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
-    ret = []
-    for server in group.servers():
-        ret.append([str(server.uuid), server.address,
-                   group.master == server.uuid])
-    return ret
+
+    if uuid is None:
+        ret = []
+        for server in group.servers():
+            ret.append([str(server.uuid), server.address,
+                       group.master == server.uuid])
+        return ret
+
+    if not group.contains_server(uuid):
+        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
+                                 % (group_id, uuid))
+
+    server = _server.MySQLServer.fetch(uuid)
+    return {"uuid": str(server.uuid), "address": server.address,
+            "user": server.user, "passwd": server.passwd}
 
 @_events.on_event(LOOKUP_UUID)
 def _lookup_uuid(address, user, passwd):
@@ -319,20 +292,6 @@ def _lookup_uuid(address, user, passwd):
     """
     return _server.MySQLServer.discover_uuid(address=address, user=user,
                                              passwd=passwd)
-
-@_events.on_event(LOOKUP_SERVER)
-def _lookup_server(group_id, uuid):
-    """Retrieve information on a server.
-    """
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if not group.contains_server(uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
-                                 % (group_id, uuid))
-    server = _server.MySQLServer.fetch(uuid)
-    return {"uuid": str(server.uuid), "address": server.address,
-            "user": server.user, "passwd": server.passwd}
 
 @_events.on_event(CREATE_SERVER)
 def _create_server(group_id, address, user, passwd):

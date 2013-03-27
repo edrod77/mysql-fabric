@@ -23,6 +23,13 @@ import threading
 import time
 import logging
 
+import mysql.hub.errors as _errors
+import mysql.hub.persistence as _persistence
+
+from mysql.hub.events import (
+    trigger,
+    )
+
 _LOGGER = logging.getLogger(__name__)
 
 class FailureDetector(object):
@@ -109,26 +116,26 @@ class FailureDetector(object):
     def _run(self):
         """Function that verifies servers' availabilities.
         """
-        from mysql.hub.services.highavailability import CheckHealth
-        from mysql.hub.events import trigger
-        from mysql.hub.errors import ExecutorError
+        from mysql.hub.server import (
+            Group,
+            )
 
+        _persistence.init_thread()
         while self.__check:
             try:
-                # TODO: This currently triggers a job. However, this is not
-                # really necessary. Please, fix this after release 0.1.1.
-                group_availability = CheckHealth().execute(self.__group_id)
-                if group_availability[2]:
-                    for server_uuid, status in group_availability[2].items():
-                        (is_available, is_master) = status
-                        if not is_available:
-                            _LOGGER.info("Server (%s) in group (%s) has "
-                                "been lost.", server_uuid, self.__group_id)
-                            trigger("SERVER_LOST", self.__group_id, server_uuid)
-                            if is_master:
-                                _LOGGER.info("Master (%s) in group (%s) has "
-                                    "been lost.", server_uuid, self.__group_id)
-                                trigger("FAIL_OVER", self.__group_id)
-            except ExecutorError as error:
-                _LOGGER.exception(error)
+                group = Group.fetch(self.__group_id)
+                if group is not None:
+                    for server in group.servers():
+                        if server.is_alive():
+                            continue
+                        _LOGGER.info("Server (%s) in group (%s) has "
+                            "been lost.", server.uuid, self.__group_id)
+                        trigger("SERVER_LOST", self.__group_id, server.uuid)
+                        if group.master == server.uuid:
+                            _LOGGER.info("Master (%s) in group (%s) has "
+                                "been lost.", server.uuid, self.__group_id)
+                            trigger("FAIL_OVER", self.__group_id)
+            except (_errors.ExecutorError, _errors.DatabaseError):
+                pass
             time.sleep(self.__sleep)
+        _persistence.deinit_thread()

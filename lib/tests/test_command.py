@@ -57,19 +57,6 @@ class NewRemoteCommand(_command.Command):
         self.execution = "executed"
         return self.execution
 
-class NewErrorRemoteCommand(_command.Command):
-    group_name = "test"
-
-    command_name = "error_remote_command"
-
-    def __init__(self):
-        super(NewErrorRemoteCommand, self).__init__()
-        self.execution = None
-
-    def execute(self):
-        self.execution = "executed"
-        return self.execution
-
 class TestCommand(unittest.TestCase):
     "Test command interface."
 
@@ -125,11 +112,6 @@ class TestCommand(unittest.TestCase):
     def test_remote_command(self):
         """Create a remote command and fire it.
         """
-        # Create a remote command.
-        remote_cmd = NewRemoteCommand()
-        srv_manager = _services.ServiceManager()
-        srv_manager.rpc_server.register_command(remote_cmd)
-
         # Configure a local command.
         from __main__ import xmlrpc_next_port
         from optparse import OptionParser
@@ -145,34 +127,6 @@ class TestCommand(unittest.TestCase):
         # Dispatch request through local command to remote command.
         self.assertEqual(local_cmd.dispatch(), "Command :\n{ return = executed\n}")
         self.assertEqual(local_cmd.execution, None)
-        self.assertEqual(remote_cmd.execution, "executed")
-
-    def test_remote_command_error(self):
-        """Try to execute unknown remote command.
-        """
-        # Configure a local command.
-        from __main__ import xmlrpc_next_port
-        from optparse import OptionParser
-        params = {
-            'protocol.xmlrpc': {
-                'address': 'localhost:%d' % (xmlrpc_next_port, ),
-                },
-            }
-        config = _config.Config(None, params, True)
-        local_cmd = NewErrorRemoteCommand()
-        local_cmd.setup_client(_xmlrpc.MyClient(), None, config)
-
-        # Dispatch request through local command to unknown
-        # remote command.
-        old_stderr = sys.stderr
-        sys.stderr = StringIO()
-        output = (
-            "<Fault 1: \'<type \\\'exceptions.Exception\\\'>:method "
-            "\"test.error_remote_command\" is not supported\'>\n"
-            )
-        self.assertEqual(local_cmd.dispatch(), "Command :\n{ return = None\n}")
-        self.assertEqual(sys.stderr.getvalue(), output)
-        sys.stderr = old_stderr
 
 if __name__ == "__main__":
     unittest.main()

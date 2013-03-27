@@ -52,11 +52,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
-        group = self.proxy.group.lookup_group("group_id-1")
+        group = self.proxy.group.lookup_groups("group_id-1")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_group).")
+                         "Executed action (_lookup_groups).")
         self.assertEqual(group[2], {"group_id": "group_id-1", "description":
                                     "description..."})
 
@@ -105,11 +105,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
-        group = self.proxy.group.lookup_group("group_id-2")
+        group = self.proxy.group.lookup_groups("group_id-2")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_group).")
+                         "Executed action (_lookup_groups).")
         self.assertEqual(group[2], {"group_id": "group_id-2", "description":
                                     "description..."})
 
@@ -169,11 +169,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[2], expected_topology)
 
         # Look up a group.
-        group = self.proxy.group.lookup_group("group_id-3")
+        group = self.proxy.group.lookup_groups("group_id-3")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_group).")
+                         "Executed action (_lookup_groups).")
         self.assertEqual(group[2], {"group_id": "group_id-3", "description":
                                     "description..."})
 
@@ -191,11 +191,11 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(retrieved, expected)
 
         # Look up a group.
-        group = self.proxy.group.lookup_group("group_id-4")
+        group = self.proxy.group.lookup_groups("group_id-4")
         self.assertStatus(group, _executor.Job.SUCCESS)
         self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_group).")
+                         "Executed action (_lookup_groups).")
         self.assertEqual(group[2], {"group_id": "group_id-4", "description":
                                     "description..."})
 
