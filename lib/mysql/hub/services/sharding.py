@@ -15,7 +15,7 @@ import mysql.hub.sharding as _sharding
 from mysql.hub.server import Group
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
 
-_LOGGER = logging.getLogger("mysql.hub.services.sharding")
+_LOGGER = logging.getLogger(__name__)
 
 #Error messages
 INVALID_SHARDING_TYPE = "Invalid Sharding Type %s"

@@ -21,7 +21,7 @@ from mysql.hub.command import (
     get_command,
     )
 
-_LOGGER = logging.getLogger("mysql.hub.services.manage")
+_LOGGER = logging.getLogger(__name__)
 
 class Logging(Command):
     """Set logging level.

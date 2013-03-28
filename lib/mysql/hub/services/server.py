@@ -66,7 +66,7 @@ from mysql.hub.command import (
     ProcedureCommand,
     )
 
-_LOGGER = logging.getLogger("mysql.hub.services.server")
+_LOGGER = logging.getLogger(__name__)
 
 LOOKUP_GROUPS = _events.Event()
 class GroupLookups(ProcedureCommand):

@@ -16,7 +16,7 @@ from mysql.hub.command import (
     ProcedureCommand,
     )
 
-_LOGGER = logging.getLogger("mysql.hub.services.highavailability")
+_LOGGER = logging.getLogger(__name__)
 
 # Discover the replication topology.
 DISCOVER_TOPOLOGY = _events.Event()
