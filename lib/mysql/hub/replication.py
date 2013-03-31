@@ -2,6 +2,7 @@
 """
 import time
 import logging
+import uuid as _uuid
 
 import mysql.hub.errors as _errors
 import mysql.hub.server_utils as _server_utils
@@ -174,7 +175,12 @@ def slave_has_master(server):
     """
     ret = get_slave_status(server)
     if ret:
-        return ret[0].Master_UUID
+        try:
+            _uuid.UUID(ret[0].Master_UUID) # TODO: In the future, return UUID.
+            return ret[0].Master_UUID
+        except ValueError:
+            pass
+    return None
 
 @_server.server_logging
 def get_num_gtid(gtids, server_uuid=None):
@@ -229,14 +235,16 @@ def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
 
     # The subtract function does not accept empty strings.
     if master_gtids == "" and slave_gtids != "":
-        raise _errors.ProgrammingError("It is not possible to check the lag "
-                                       "when the master's GTID is empty.")
+        raise _errors.InvalidGtidError(
+            "It is not possible to check the lag when the "
+            "master's GTID is empty."
+            )
     elif master_gtids == "" and slave_gtids == "":
         return 0
     elif slave_gtids == "":
         gtids = master_gtids
     else:
-        assert (not master_gtids == "" and slave_gtids != "")
+        assert (master_gtids != "" and slave_gtids != "")
         gtids = server.exec_stmt("SELECT GTID_SUBTRACT(%s,%s)",
                                  {"params": (master_gtids, slave_gtids)})[0][0]
         if gtids == "":

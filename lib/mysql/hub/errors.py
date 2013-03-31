@@ -34,6 +34,11 @@ class ExecutorError(Error):
     not properly configured.
     """
 
+class InvalidGtidError(Error):
+    """Exception raised when the one tries to use and make operations with
+    invalid GTID(s).
+    """
+
 class DatabaseError(Error):
     """Exception raised when something bad happens while accessing a
     database.

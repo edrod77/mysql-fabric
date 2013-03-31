@@ -444,7 +444,7 @@ def _do_import_topology(pattern_group_id, group_description,
                           status=_server.Group.INACTIVE)
     _server.Group.add(group)
     groups.add(group_id)
-    _LOGGER.debug("Added group (%s).", str(group))
+    _LOGGER.debug("Added group (%s).", group)
 
     # Create master of the group.
     master_address = topology[master_uuid]["address"]
@@ -457,8 +457,8 @@ def _do_import_topology(pattern_group_id, group_description,
     # Added created master to the group.
     group.add_server(server)
     group.master = server.uuid
-    _LOGGER.debug("Added server (%s) as master to group (%s).", str(server),
-                  str(group))
+    _LOGGER.debug("Added server (%s) as master to group (%s).", server,
+                  group)
 
     # Process slaves.
     for slave in slaves:
@@ -476,8 +476,8 @@ def _do_import_topology(pattern_group_id, group_description,
                                              slave, user, passwd))
             server = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
         group.add_server(server)
-        _LOGGER.debug("Added server (%s) as slave to group (%s).", str(server),
-                      str(group))
+        _LOGGER.debug("Added server (%s) as slave to group (%s).", server,
+                      group)
     return groups
 
 @_events.on_event(FIND_CANDIDATE_SWITCH)
@@ -515,14 +515,19 @@ def _do_find_candidate(group_id):
             candidate.status == _server.MySQLServer.RUNNING:
             try:
                 gtid_status = candidate.get_gtid_status()
-                health = _replication.check_master_health(candidate)
+                health = _replication.check_master_health(candidate) # TODO: IMPROVE HEALTH INFORMATION
                 has_valid_master = (master_uuid is None or \
                     _replication.slave_has_master(candidate) == master_uuid)
                 can_become_master = False
                 if chosen_gtid_status:
-                    n_trans = _replication.get_slave_num_gtid_behind(candidate,
-                        chosen_gtid_status)
-                    if not n_trans and health[0][0] and has_valid_master:
+                    n_trans = 0
+                    try:
+                        n_trans = _replication.get_slave_num_gtid_behind(
+                            candidate, chosen_gtid_status
+                            )
+                    except _errors.InvalidGtidError:
+                        pass
+                    if n_trans == 0 and health[0][0] and has_valid_master:
                         chosen_gtid_status = gtid_status
                         chosen_uuid = str(candidate.uuid)
                         can_become_master = True
@@ -538,8 +543,11 @@ def _do_find_candidate(group_id):
                 _LOGGER.exception(error)
 
     if not chosen_uuid:
-        raise _errors.GroupError("There is no valid candidate in group "
-                                 "(%s)." % (group_id, ))
+        raise _errors.GroupError(
+            "There is no valid candidate that can be automatically "
+            "chosen in group (%s). Please, choose one manually." %
+            (group_id, )
+            )
     return chosen_uuid
 
 @_events.on_event(CHECK_CANDIDATE_SWITCH)
@@ -558,27 +566,40 @@ def _check_candidate_switch(group_id, slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, slave_uuid))
 
+    if not group.master:
+        raise _errors.GroupError(
+            "Group (%s) does not contain a valid "
+            "master. Please, run a promote or failover." % (group_id, )
+            )
+
+    if group.master == _uuid.UUID(slave_uuid):
+        raise _errors.ServerError(
+            "Candidate slave (%s) is already master." % (slave_uuid, )
+            )
+
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    health = _replication.check_master_health(slave)
+    health = _replication.check_master_health(slave) # TODO: IMPROVE HEALTH INFORMATION.
     if not health[0][0]:
-        raise _errors.ServerError("Server (%s) is not a valid candidate slave "
-                                  "due to the following reason: (%s).", health)
+        raise _errors.ServerError(
+            "Server (%s) is not a valid candidate slave "
+            "due to the following reason(s): (%s)." % (slave.uuid, health)
+            )
 
-    health = _replication.check_slave_running_health(slave)
+    health = _replication.check_slave_running_health(slave) # TODO: IMPROVE HEALTH INFORMATION
     if not health[0][0]:
-        raise _errors.ServerError("Server (%s) is not a valid candidate slave "
-                                  "due to the following reason: (%s).", health)
+        raise _errors.ServerError(
+            "Server (%s) is not a valid candidate slave "
+            "due to the following reason: (%s)." % (slave.uuid, health)
+            )
+
     master_uuid = _replication.slave_has_master(slave)
-
-    if not group.contains_server(master_uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
-                                 % (group_id, master_uuid))
-
-    if not group.master or str(group.master) != master_uuid:
-        raise _errors.GroupError("Group (%s) does not contain correct " \
-                                 "master (%s)." % (group_id, master_uuid))
+    if master_uuid is None or group.master != _uuid.UUID(master_uuid):
+        raise _errors.GroupError(
+            "The group's master (%s) is different from the candidate's "
+            "master (%s)." % (grooup.master, master_uuid)
+            )
 
     if slave.status not in \
         (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
@@ -643,7 +664,7 @@ def _do_wait_candidates_catch(group_id, master, skip_servers=None):
                     _synchronize(server, master)
                 else:
                     _LOGGER.debug("Slave (%s) has a different master "
-                        "from group (%s).", str(server.uuid), group_id)
+                        "from group (%s).", server.uuid, group_id)
             except _errors.DatabaseError as error:
                 _LOGGER.exception(error)
 
@@ -664,7 +685,7 @@ def _change_to_candidate(group_id, master_uuid):
     group.master = master.uuid
 
     for server in group.servers():
-        if str(server.uuid) != master_uuid:
+        if server.uuid != _uuid.UUID(master_uuid):
             try:
                 _replication.stop_slave(server, wait=True)
                 _replication.switch_master(server, master, master.user,
@@ -691,6 +712,7 @@ def _check_candidate_fail(group_id, slave_uuid):
     """
     # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
     group = _server.Group.fetch(group_id)
+
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
@@ -698,32 +720,34 @@ def _check_candidate_fail(group_id, slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
                                  % (group_id, slave_uuid))
 
+    if group.master == _uuid.UUID(slave_uuid):
+        raise _errors.ServerError(
+            "Candidate slave (%s) is already master." % (slave_uuid, )
+            )
+
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    health = _replication.check_master_health(slave)
+    health = _replication.check_master_health(slave) # TODO: IMPROVE HEALTH INFORMATION
     if not health[0][0]:
-        raise _errors.ServerError("Server (%s) is not a valid candidate slave "
-                                  "due to the following reason: (%s).", health)
+        raise _errors.ServerError(
+            "Server (%s) is not a valid candidate slave "
+            "due to the following reason(s): (%s)." % (slave.uuid, health)
+            )
 
-    master_uuid = _replication.slave_has_master(slave)
-    if master_uuid and not group.contains_server(_uuid.UUID(master_uuid)):
-        raise _errors.GroupError("Group (%s) does not contain the master "
-                                 "(%s) reported by server (%s)." \
-                                 % (group_id, master_uuid, slave_uuid))
     if group.master:
         try:
             server = _server.MySQLServer.fetch(group.master)
             server.connect()
             if server.is_alive():
-                _LOGGER.debug("Failover is not possible because "
-                    "the master in group (%s) is still alive.", group_id)
+                _LOGGER.warning(
+                    "Failover or promote is being executed in group (%s). "
+                    "Switchover should have been executed in order to guarantee "
+                    "consistency as the master is apparently running." %
+                    (group_id, )
+                    )
         except _errors.DatabaseError as error:
             _LOGGER.debug(error)
-
-        if str(group.master) != master_uuid:
-            raise _errors.GroupError("Group (%s) does not contain correct " \
-                                     "master (%s)." % (group_id, master_uuid))
 
     if slave.status not in \
         (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
@@ -797,7 +821,8 @@ def _synchronize(slave, master):
         except _errors.TimeoutError as error:
             _LOGGER.exception(error)
     if not _replication.is_slave_thread_running(slave):
-        health = _replication.check_slave_running_health(slave)
+        health = _replication.check_slave_running_health(slave) # TODO: IMPROVE HEALTH INFORMATION
+        _replication.stop_slave(slave, wait=True)
         raise _errors.DatabaseError("Slave's thread(s) stopped due to (%s).",
                                     health)
     _replication.stop_slave(slave, wait=True)

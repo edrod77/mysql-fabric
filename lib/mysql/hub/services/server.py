@@ -329,7 +329,7 @@ def _create_group(group_id, description):
     group = _server.Group(group_id=group_id, description=description,
                           status=_server.Group.INACTIVE)
     _server.Group.add(group)
-    _LOGGER.debug("Added group (%s).", str(group))
+    _LOGGER.debug("Added group (%s).", group)
 
 @_events.on_event(ACTIVATE_GROUP)
 def _activate_group(group_id):
@@ -339,8 +339,9 @@ def _activate_group(group_id):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     group.status = _server.Group.ACTIVE
+
     _detector.FailureDetector.register_group(group_id)
-    _LOGGER.debug("Group (%s) is active.", str(group))
+    _LOGGER.debug("Group (%s) is active.", group)
 
 @_events.on_event(DEACTIVATE_GROUP)
 def _deactivate_group(group_id):
@@ -351,7 +352,7 @@ def _deactivate_group(group_id):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     group.status = _server.Group.INACTIVE
     _detector.FailureDetector.unregister_group(group_id)
-    _LOGGER.debug("Group (%s) is active.", str(group))
+    _LOGGER.debug("Group (%s) is active.", group)
 
 @_events.on_event(UPDATE_GROUP)
 def _update_group_description(group_id, description):
@@ -361,7 +362,7 @@ def _update_group_description(group_id, description):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
     group.description = description
-    _LOGGER.debug("Updated group (%s).", str(group))
+    _LOGGER.debug("Updated group (%s).", group)
 
 @_events.on_event(DESTROY_GROUP)
 def _destroy_group(group_id, force):
@@ -382,7 +383,7 @@ def _destroy_group(group_id, force):
     cnx_pool = _server.ConnectionPool()
     for uuid in servers_uuid:
         cnx_pool.purge_connections(uuid)
-    _LOGGER.debug("Removed group (%s).", str(group))
+    _LOGGER.debug("Removed group (%s).", group)
     _detector.FailureDetector.unregister_group(group_id)
 
 @_events.on_event(LOOKUP_SERVERS)
@@ -483,7 +484,7 @@ def _add_server(group_id, address, user, passwd):
     except _errors.DatabaseError as error:
         _LOGGER.error(error)
 
-    _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
+    _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
 @_events.on_event(REMOVE_SERVER)
 def _remove_server(group_id, uuid):
@@ -582,5 +583,5 @@ def _do_remove_server(group, server):
     """
     group.remove_server(server)
     _server.MySQLServer.remove(server)
-    _LOGGER.debug("Removed server (%s) from group (%s).", str(server),
-                  str(group))
+    _LOGGER.debug("Removed server (%s) from group (%s).", server,
+                  group)
