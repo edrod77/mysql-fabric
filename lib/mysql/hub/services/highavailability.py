@@ -598,7 +598,7 @@ def _check_candidate_switch(group_id, slave_uuid):
     if master_uuid is None or group.master != _uuid.UUID(master_uuid):
         raise _errors.GroupError(
             "The group's master (%s) is different from the candidate's "
-            "master (%s)." % (grooup.master, master_uuid)
+            "master (%s)." % (group.master, master_uuid)
             )
 
     if slave.status not in \
@@ -742,9 +742,9 @@ def _check_candidate_fail(group_id, slave_uuid):
             if server.is_alive():
                 _LOGGER.warning(
                     "Failover or promote is being executed in group (%s). "
-                    "Switchover should have been executed in order to guarantee "
-                    "consistency as the master is apparently running." %
-                    (group_id, )
+                    "Switchover should have been executed in order to "
+                    "guarantee consistency as the master is apparently "
+                    "running." % (group_id, )
                     )
         except _errors.DatabaseError as error:
             _LOGGER.debug(error)
