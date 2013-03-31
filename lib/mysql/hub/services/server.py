@@ -230,7 +230,7 @@ def _create_group(group_id, description):
     """Create group.
     """
     group = _server.Group.add(group_id, description)
-    _LOGGER.debug("Added group (%s).", str(group))
+    _LOGGER.debug("Added group (%s).", group)
     _detector.FailureDetector.register_group(group_id)
 
 @_events.on_event(UPDATE_GROUP)
@@ -240,7 +240,7 @@ def _update_group_description(group_id, description):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
     group.description = description
-    _LOGGER.debug("Updated group (%s).", str(group))
+    _LOGGER.debug("Updated group (%s).", group)
 
 @_events.on_event(REMOVE_GROUP)
 def _remove_group(group_id, force):
@@ -260,7 +260,7 @@ def _remove_group(group_id, force):
     cnx_pool = _server.ConnectionPool()
     for uuid in servers_uuid:
         cnx_pool.purge_connections(uuid)
-    _LOGGER.debug("Removed group (%s).", str(group))
+    _LOGGER.debug("Removed group (%s).", group)
     _detector.FailureDetector.unregister_group(group_id)
 
 @_events.on_event(LOOKUP_SERVERS)
@@ -305,7 +305,7 @@ def _create_server(group_id, address, user, passwd):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id))
     if group.contains_server(uuid):
         raise _errors.ServerError("Server (%s) already exists in group (%s)." \
-                                  % (str(uuid), group_id))
+                                  % (uuid, group_id))
     server = _server.MySQLServer.add(uuid, address, user, passwd)
     server.connect()
 
@@ -322,7 +322,7 @@ def _create_server(group_id, address, user, passwd):
         server.disconnect()
 
     group.add_server(server)
-    _LOGGER.debug("Added server (%s) to group (%s).", str(server), str(group))
+    _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
 @_events.on_event(REMOVE_SERVER)
 def _remove_server(group_id, uuid):
@@ -346,5 +346,5 @@ def _do_remove_server(group, server):
     """Remove a server from a group."""
     group.remove_server(server)
     server.remove()
-    _LOGGER.debug("Removed server (%s) from group (%s).", str(server),
-                  str(group))
+    _LOGGER.debug("Removed server (%s) from group (%s).", server,
+                  group)

@@ -367,7 +367,7 @@ class TestMySQLSlave(unittest.TestCase):
         slave.exec_stmt("DROP TABLE IF EXISTS test")
         master_gtid_status = master.get_gtid_status()
         slave_gtid_status = slave.get_gtid_status()
-        self.assertRaises(_errors.ProgrammingError, get_slave_num_gtid_behind,
+        self.assertRaises(_errors.InvalidGtidError, get_slave_num_gtid_behind,
                           slave, master_gtid_status)
         self.assertNotEqual(slave_gtid_status[0].GTID_EXECUTED, "")
         self.assertEqual(master_gtid_status[0].GTID_EXECUTED, "")

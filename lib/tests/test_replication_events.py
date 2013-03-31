@@ -47,7 +47,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(topology[1][-1]["description"],
                          "Executed action (_import_topology).")
         expected_topology = {str(master.uuid): {"address": master.address,
-                             "slaves": [{str(slave.uuid): 
+                             "slaves": [{str(slave.uuid):
                              {"address": slave.address, "slaves": []}}]}}
         self.assertEqual(topology[2], expected_topology)
 
@@ -329,6 +329,15 @@ class TestReplicationServices(unittest.TestCase):
         expected.sort()
         self.assertEqual(retrieved, expected)
 
+        # Try to switch over to the same server.
+        status = self.proxy.group.switch_over(
+            "group_id", str(slave_1.uuid)
+            )
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_check_candidate_switch).")
+
     def test_switch_over(self):
         # Create topology: M1 ---> S2, M1 ---> S3, M1 ---> S4
         user = "root"
@@ -429,7 +438,7 @@ class TestReplicationServices(unittest.TestCase):
         retrieved.sort()
         self.assertNotEqual(expected, retrieved)
 
-    def test_fail_over(self):
+    def test_fail_over_to(self):
         # Create topology: M1 ---> S2, M1 ---> S3
         user = "root"
         passwd = ""
@@ -459,47 +468,16 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_fail).")
 
-        # Try to use a slave without any master.
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
-        status = self.proxy.group.fail_over(
-            "group_id", str(slave_1.uuid)
-            )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_fail).")
-
-        # Try to use a slave with an invalid master.
-        # The slave is not running and connected to the master.
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        group = _server.Group.fetch("group_id")
-        group.master = slave_1.uuid
-        status = self.proxy.group.fail_over(
-            "group_id", str(slave_1.uuid)
-            )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_fail).")
-
         # Everything is in place but the environment is not perfect.
         # The group points to an invalid master.
+        self.proxy.group.add("group_id", slave_1.address, user, passwd)
+        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address, user, passwd)
         invalid_server = _server.MySQLServer.add(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
             "unknown_host:8080", user, passwd)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
-        group.master = invalid_server.uuid
-        status = self.proxy.group.fail_over(
-            "group_id", str(slave_1.uuid)
-            )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_fail).")
-
-        # Make the group point to a valid master.
         group.master = master.uuid
 
         # Look up servers.
@@ -541,11 +519,16 @@ class TestReplicationServices(unittest.TestCase):
             False]]
         retrieved.sort()
         expected.sort()
-        # The failover testing and the failure detector are running in parallel
-        # and as consequence a different server may be elected.
-        # We need to seek for more details on this. For now, we just check if
-        # the invalid_server is never promoted as master.
         self.assertEqual(expected[3], retrieved[3])
+
+        # Try to fail over to the same server.
+        status = self.proxy.group.fail_over(
+            "group_id", str(slave_1.uuid)
+            )
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_check_candidate_fail).")
 
     def test_promote_master(self):
         # Create topology: M1 ---> S2, M1 ---> S3
