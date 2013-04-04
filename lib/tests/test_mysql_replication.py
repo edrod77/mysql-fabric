@@ -154,6 +154,28 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
         self.assertEqual(slave_has_master(slave), str(master.uuid))
 
+        # Change master's password, reset and try to reconnect master
+        # and slave.
+        stop_slave(slave, wait=True)
+        master.exec_stmt(
+            "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('foobar')"
+            )
+        switch_master(slave, master, "root", "foobar")
+        start_slave(slave, wait=True)
+        self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
+        self.assertEqual(slave_has_master(slave), str(master.uuid))
+
+        # Reset master's password, reset and try to reconnect master
+        # and slave.
+        stop_slave(slave, wait=True)
+        master.exec_stmt(
+            "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('')"
+            )
+        switch_master(slave, master, "root", "")
+        start_slave(slave, wait=True)
+        self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
+        self.assertEqual(slave_has_master(slave), str(master.uuid))
+
     def test_slave_binary_log(self):
         # TODO: Test it also without binary log.
         # These tests requires to restart the slave what will be done

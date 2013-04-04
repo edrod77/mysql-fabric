@@ -437,16 +437,17 @@ def switch_master(slave, master, master_user, master_passwd=None,
     params.append(master_host)
     commands.append("MASTER_PORT = %s")
     params.append(int(master_port))
-    if master_user:
-        commands.append("MASTER_USER = %s")
-        params.append(master_user)
+    commands.append("MASTER_USER = %s")
+    params.append(master_user)
     if master_passwd:
         commands.append("MASTER_PASSWORD = %s")
         params.append(master_passwd)
+    else:
+        commands.append("MASTER_PASSWORD = ''")
     if slave.gtid_enabled:
         commands.append("MASTER_AUTO_POSITION = 1")
     elif not from_beginning:
-        commands.append("READ_MASTER_LOG_FILE = %s")
+        commands.append("MASTER_LOG_FILE = %s")
         params.append(master_log_file)
         if master_log_pos >= 0:
             commands.append("MASTER_LOG_POS = %s" % master_log_pos)
