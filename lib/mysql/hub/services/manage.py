@@ -23,6 +23,15 @@ from mysql.hub.command import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Logging levels.
+_LOGGING_LEVELS = {
+    "CRITICAL" : logging.CRITICAL,
+    "ERROR" : logging.ERROR,
+    "WARNING" : logging.WARNING,
+    "INFO" : logging.INFO,
+    "DEBUG" : logging.DEBUG
+}
+
 class Logging(Command):
     """Set logging level.
     """
@@ -40,8 +49,8 @@ class Logging(Command):
         try:
             __import__(module)
             logger = logging.getLogger(module)
-            logger.setLevel(level)
-        except ImportError as error:
+            logger.setLevel(_LOGGING_LEVELS[level.upper()])
+        except (KeyError, ImportError) as error:
             _LOGGER.exception(error)
             return False
         return True
@@ -230,8 +239,11 @@ def _configure_logging(config, daemon):
         "[%(levelname)s] %(asctime)s - %(threadName)s"
         " %(thread)d - %(message)s")
     handler.setFormatter(formatter)
-    logging_level = config.get('logging', 'level')
-    logger.setLevel(logging_level)
+    try:
+        level = config.get("logging", "level")
+        logger.setLevel(_LOGGING_LEVELS[level.upper()])
+    except KeyError:
+        logger.setLevel(_LOGGING_LEVELS["INFO"])
     logger.addHandler(handler)
 
 

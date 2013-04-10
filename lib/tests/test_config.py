@@ -30,7 +30,7 @@ class TestConfig(unittest.TestCase):
         config = _config.Config(None, None)
 
         # Checking defaults
-        self.assertEqual(config.get('logging', 'level'), 'WARNING')
+        self.assertEqual(config.get('logging', 'level'), 'INFO')
         self.assertEqual(config.get('logging.syslog', 'address'), '/dev/log')
 
         # Read from main-1.cfg file
