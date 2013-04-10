@@ -63,14 +63,13 @@ class Config(ConfigParser.SafeConfigParser):
 
     """
 
-    # Defaults are currently strings, but maybe we should do some
-    # internal parsing to create the correct objects, e.g.,
-    # logging.WARNING instead of 'WARNING'. That would relieve the
-    # configuration class user of some interpretation and ensure that
-    # all users interpret it the same
+    # Defaults are currently strings and we do some internal parsing
+    # to create the correct objects, e.g., logging.INFO instead of
+    # 'INFO'. That relieves the configuration class user of some
+    # interpretation and ensure that all users interpret it the same.
     _DEFAULTS = {
         'logging': {
-            'level': 'WARNING',
+            'level': 'INFO',
             },
         'logging.syslog': {
             'address': '/dev/log',

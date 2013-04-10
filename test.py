@@ -158,14 +158,35 @@ if __name__ == '__main__':
         # the user just want a test report.
         handler = NullHandler()
 
+    # Logging levels.
+    logging_levels = {
+        "CRITICAL" : logging.CRITICAL,
+        "ERROR" : logging.ERROR,
+        "WARNING" : logging.WARNING,
+        "INFO" : logging.INFO,
+        "DEBUG" : logging.DEBUG
+    }
+ 
+    # Get Logging level.
+    if options.log_level:
+        level = options.log_level.upper()
+    else:
+        level = "DEBUG"
+
     # Setting logging for "mysql.hub".
     logger = logging.getLogger("mysql.hub")
-    logger.setLevel(options.log_level or 'DEBUG')
+    try:
+        logger.setLevel(logging_levels[level])
+    except KeyError:
+        logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
 
     # Setting logging for "tests".
     logger = logging.getLogger("tests")
-    logger.setLevel(options.log_level or 'DEBUG')
+    try:
+        logger.setLevel(logging_levels[level])
+    except KeyError:
+        logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
 
     result = run_tests('tests', options, args)
