@@ -175,7 +175,7 @@ class Start(Command):
 
         # Start Fabric server.
         _LOGGER.info("Fabric node starting.")
-        _start()
+        _start(self.options, self.config)
         _LOGGER.info("Fabric node stopped.")
 
 
@@ -283,11 +283,11 @@ def _configure_connections(config):
                       database=database, timeout=timeout)
 
 
-def _start():
+def _start(options, config):
     """Start Fabric server.
     """
     # Load all services into the service manager
-    _services.ServiceManager().load_services()
+    _services.ServiceManager().load_services(options, config)
 
     # Initilize the state store.
     _persistence.init_thread()

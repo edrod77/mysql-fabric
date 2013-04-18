@@ -187,7 +187,9 @@ def setup_xmlrpc():
 
     _configure_connections(config)
     _persistence.setup()
-    manager_thread = threading.Thread(target=_start, name="Services")
+    manager_thread = threading.Thread(
+        target=_start, name="Services", args=(options, config)
+        )
     manager_thread.daemon = True
     manager_thread.start()
 

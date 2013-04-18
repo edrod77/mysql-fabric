@@ -184,7 +184,7 @@ class Command(object):
         self.__options = options
         self.__config = config
 
-    def setup_server(self, server):
+    def setup_server(self, server, options, config):
         """Provide server-side information to the command.
 
         This function is called after creating an instance of the
@@ -193,10 +193,13 @@ class Command(object):
         server available.
 
         :param server: Protocol server instance for the command.
+        :param options: The options for the command.
+        :param config: The configuration for the command.
         """
         assert self.__client is None
-        assert self.__options is None and self.__config is None
         self.__server = server
+        self.__options = options
+        self.__config = config
 
     def add_options(self, parser):
         """Method called to set up options from the class instance.
