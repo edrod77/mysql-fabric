@@ -29,10 +29,10 @@ _LOGGER = logging.getLogger(__name__)
 def find_commands():
     """Find which are the available commands.
     """
-    paths = [ root for root, _, _ in os.walk(__path__[0]) ]
-    for imp, name, ispkg in pkgutil.iter_modules(paths):
-        if not ispkg:
-            imp.find_module(name).load_module(name)
+    for imp, name, ispkg in pkgutil.walk_packages(__path__, __name__ + "."):
+        mod = imp.find_module(name).load_module(name)
+        _LOGGER.debug("%s %s has got __name__ %s" % (
+            "Package" if ispkg else "Module", name, mod.__name__))
 
 def find_client():
     """Return a proxy to access the Fabric server.
