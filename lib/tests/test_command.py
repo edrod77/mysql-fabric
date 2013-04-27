@@ -76,16 +76,20 @@ class TestCommand(unittest.TestCase):
         cmd = NewCommand()
 
         # Setup client-side data.
-        cmd.setup_client("Fake Client", None, None)
+        cmd.setup_client("Fake Client", "Client Options", "Client Config")
         self.assertEqual(cmd.client, "Fake Client")
-        self.assertEqual(cmd.options, None)
-        self.assertEqual(cmd.config, None)
-        self.assertRaises(AssertionError, cmd.setup_server, None)
+        self.assertEqual(cmd.options, "Client Options")
+        self.assertEqual(cmd.config, "Client Config")
+        self.assertRaises(
+            AssertionError, cmd.setup_server, None, None, None
+            )
 
         # Setup server-side data.
         cmd.setup_client(None, None, None)
-        cmd.setup_server("Fake Server")
+        cmd.setup_server("Fake Server", "Server Options", "Server Config")
         self.assertEqual(cmd.server, "Fake Server")
+        self.assertEqual(cmd.options, "Server Options")
+        self.assertEqual(cmd.config, "Server Config")
         self.assertRaises(
             AssertionError, cmd.setup_client, None, None, None
             )

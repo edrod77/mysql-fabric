@@ -90,8 +90,13 @@ class ServiceManager(Singleton):
         """
         self.__rpc_server.shutdown()
 
-    def load_services(self):
+    def load_services(self, options, config):
         """Load services into each protocol server.
+
+        :param options: The options for the commands that shall be
+                        created.
+        :param config: The configuration for the commands that shall
+                       be created.
         """
         _LOGGER.info("Loading Services.")
 
@@ -105,4 +110,6 @@ class ServiceManager(Singleton):
                         "Registering %s.", command.group_name + '.' + \
                         command.command_name
                         )
-                    self.__rpc_server.register_command(command())
+                    cmd = command()
+                    cmd.setup_server(self.__rpc_server, options, config)
+                    self.__rpc_server.register_command(cmd)

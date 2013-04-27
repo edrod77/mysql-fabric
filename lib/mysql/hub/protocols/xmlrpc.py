@@ -33,7 +33,6 @@ class MyServer(SimpleXMLRPCServer):
 
     def register_command(self, command):
         "Register a command with the server."
-        command.setup_server(self)
         self.register_function(
             command.execute, command.group_name + "." + command.command_name
             )
