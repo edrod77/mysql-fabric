@@ -3,6 +3,23 @@ ChangeLog for Fabric
 ####################
 
 
+Release 0.1.2 (released April 18, 2013)
+---------------------------------------
+
+* HAM-52: Mismatch between service and logging.
+* HAM-58: start_slave() may block due to errors during startup.
+* HAM-74: Add version checking
+* HAM-100: Fixed documentation issues in the README and README.devel.
+* HAM-102: MySQL Fabric manage stop hangs when we interrupt in the fabric start page
+* HAM-103: Fabric manage setup hangs when the corresponding server is not started.
+* HAM-108: Starting a failure detector re-register events.
+* HAM-109: Replication topology fails after a switchover/promote.
+* HAM-112: Remove "duplicate" commands from the interface.
+* HAM-113: Promote fails after demote.
+* HAM-114: Promote fails after removing the previous master from the group.
+* HAM-120: Incorrect error message while promoting a server again in a group.
+* HAM-136: logger.setLevel("INFO") does not work with python 2.6
+
 Release 0.1.1 (released February 28, 2013)
 ------------------------------------------
 
