@@ -277,7 +277,7 @@ class TestMySQLServer(unittest.TestCase):
         # Try to manage the MySQLPersister.
         uuid = MySQLServer.discover_uuid(address=address, user=user, passwd=passwd)
         server = MySQLServer(_uuid.UUID(uuid), address, None, None)
-        self.assertRaises(_errors.UuidError, MySQLServer.add, server)
+        self.assertRaises(_errors.ServerError, MySQLServer.add, server)
 
     def test_root_privileges(self):
         # Connect to server as root and create temporary user.

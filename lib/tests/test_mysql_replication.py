@@ -82,13 +82,13 @@ class TestMySQLMaster(unittest.TestCase):
 
         # Check health as a master before calling connect.
         master.disconnect()
-        ret = check_master_health(master)
-        self.assertEqual(ret, [(False, ["Cannot connect to server"])])
+        ret = check_master_issues(master)
+        self.assertEqual(ret, {'is_running': False})
 
         # Check health as a master after calling connect.
         master.connect()
-        ret = check_master_health(master)
-        self.assertEqual(ret, [(True, [])])
+        ret = check_master_issues(master)
+        self.assertEqual(ret, {})
 
 class TestMySQLSlave(unittest.TestCase):
     """Unit test for the configuration file handling.
@@ -242,18 +242,17 @@ class TestMySQLSlave(unittest.TestCase):
 
         # Wait until the slave catches up. It returns False because
         # the threads are stopped.
-        self.assertFalse(wait_for_slave(slave, binlog_file, binlog_pos,
-                                        timeout=0))
+        self.assertRaises(_errors.DatabaseError, wait_for_slave, slave,
+                          binlog_file, binlog_pos, timeout=0)
 
         # Wait until the slave catches up. It returns True because
         # the threads are running.
         start_slave(slave, wait=True)
-        self.assertTrue(wait_for_slave(slave, binlog_file, binlog_pos,
-                                       timeout=0))
+        wait_for_slave(slave, binlog_file, binlog_pos, timeout=0)
 
         # This times out because there are no new events.
         self.assertRaises(_errors.TimeoutError, wait_for_slave, slave,
-                          binlog_file, 2 * binlog_pos)
+                          binlog_file, 2 * binlog_pos, timeout=3)
         stop_slave(slave, wait=True)
 
         master.exec_stmt("DROP TABLE IF EXISTS test")
@@ -261,19 +260,20 @@ class TestMySQLSlave(unittest.TestCase):
         gtid_status = master.get_gtid_status()
 
         # It returns False because the threads are stopped.
-        self.assertFalse(wait_for_slave_gtid(slave, gtid_status, timeout=0))
+        self.assertRaises(_errors.DatabaseError, wait_for_slave_gtid,
+                          slave, gtid_status, timeout=0)
 
         # Wait until the slave catches up. It returns True because
         # the threads are running.
         start_slave(slave, wait=True)
-        self.assertTrue(wait_for_slave_gtid(slave, gtid_status, timeout=0))
+        wait_for_slave_gtid(slave, gtid_status, timeout=0)
 
         # This times out because there are no new events.
         Row = namedtuple("Row", ["GTID_EXECUTED", "GTID_PURGED", "GTID_OWNED"])
         gtid_executed = "%s:%s" % (str(master.uuid), "1-20")
         gtid_status = [Row(gtid_executed, "", "")]
         self.assertRaises(_errors.TimeoutError, wait_for_slave_gtid, slave,
-                          gtid_status)
+                          gtid_status, timeout=3)
 
     def test_check_rpl_health(self):
         # Set up replication.
@@ -282,33 +282,23 @@ class TestMySQLSlave(unittest.TestCase):
         slave.disconnect()
 
         # Try to check the health when one cannot connect to the server.
-        master_status = get_master_status(master)
-        gtid_status = master.get_gtid_status()
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, 5, 5, 5)
-        self.assertEqual(ret, [(False, ["Cannot connect to server",
-                                        "Cannot connect to server"])])
+        ret = check_slave_issues(slave)
+        self.assertEqual(ret, {'is_running': False})
 
         # Try to check the health when change master has not been executed.
         slave.connect()
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, 5, 5, 5)
-        self.assertEqual(ret, [(False, ["Not connected or not running.",
-                                       "Not connected or not running."])])
+        ret = check_slave_issues(slave)
+        self.assertEqual(ret, {'is_configured': False})
 
         # Try to check the health after executing change master.
         switch_master(slave, master, "root")
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, 5, 5, 5)
-        self.assertEqual(ret, \
-          [(False, ['IO thread is not running.',
-          'SQL thread is not running.'])])
+        ret = check_slave_issues(slave)
+        self.assertEqual(ret, {'io_running': False, 'sql_running': False})
 
         # Try to check the health after starting one thread.
         start_slave(slave, wait=True, threads=(SQL_THREAD, ))
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, 5, 5, 5)
-        self.assertEqual(ret, [(False, ['IO thread is not running.'])])
+        ret = check_slave_issues(slave)
+        self.assertEqual(ret, {'io_running': False})
 
         # Create data and synchronize to show there is not gtid behind.
         master.exec_stmt("USE test")
@@ -317,29 +307,9 @@ class TestMySQLSlave(unittest.TestCase):
         start_slave(slave, wait=True, threads=(IO_THREAD, ))
         master_status = get_master_status(master)
         gtid_status = master.get_gtid_status()
-        self.assertTrue(wait_for_slave_gtid(slave, gtid_status, timeout=0))
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, 5, 5, 5)
-        self.assertEqual(ret, [(True, [])])
-
-        # Notice that a negative delay makes the function return False
-        # the slave reports zero as the minimum value.
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, -1, 5, 5)
-        self.assertEqual(ret,
-            [(False, ['Slave delay is 0 seconds behind master.'])])
-
-        # Stop and create data to show there is gtid behind.
-        stop_slave(slave, wait=True)
-        for var in range(1, 12):
-            master.exec_stmt("INSERT INTO test(id) VALUES(%d)" % (var))
-        master_status = get_master_status(master)
-        gtid_status = master.get_gtid_status()
-        ret = check_slave_health(slave, master.uuid, master_status,
-                                 gtid_status, 5, 5, 5)
-        self.assertEqual(ret, \
-          [(False, ['IO thread is not running.', 'SQL thread is not running.',
-                    'Slave has 11 transactions behind master.'])])
+        wait_for_slave_gtid(slave, gtid_status, timeout=0)
+        ret = check_slave_delay(slave, master)
+        self.assertEqual(ret, {})
 
     def test_get_gtid_behind(self):
         # Set up replication.

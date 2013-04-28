@@ -15,12 +15,12 @@ the following status:
 - RUNNING - This is the regular status of a server and means that a server
   is alive and kicking.
 - OFFLINE - It should be used before shutting down a server otherwise the
-  failure detector will trigger notifications. If users, however, want to
+  failure detector will trigger a notification. If users, however, want to
   bring a master offline they must firstly run a switchover.
 - SPARE - This is used to make a slave not automatically eligible to become
   a master in a switchover or failover operation. Nor are users redirected
   to such a server to execute read-only transactions.
-- FAULTY - This is set by the failover routine and indicates that a server
+- FAULTY - This is set by the failure detector and indicates that a server
   is not reachable.
 
 Find in what follows the possible state transitions:
@@ -287,7 +287,7 @@ class SetServerStatus(ProcedureCommand):
     it is aliving and kicking. Otherwise, it could not be inserted into
     the group.
 
-    A server may have its status automatically changed to FAULTY, if the
+    A server will have its status automatically changed to FAULTY, if the
     failure detector is not able to reach it.
 
     Users can also manually change the server's status. Usually, a user

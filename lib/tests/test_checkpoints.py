@@ -251,6 +251,8 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             procedure.wait()
             result = procedure.result
 
+
+            ctrl = False
             # Fetch and check all the properties.
             self.assertEqual(len(result), 3)
             for checkpoint in result:
@@ -264,13 +266,15 @@ class TestPropertiesCheckpoint(unittest.TestCase):
                     self.assertEqual(checkpoint.param_args, ("NEW 01", "NEW 02"))
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
-                    self.assertEqual(checkpoint.finished, None)
+                    if checkpoint.finished:
+                        assert(ctrl == False)
 
                 if checkpoint.do_action == check_properties_2_proc_2:
                     self.assertEqual(checkpoint.param_args, ("NEW 01", "NEW 02"))
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
-                    self.assertNotEqual(checkpoint.finished, None)
+                    if checkpoint.finished:
+                        assert(ctrl == False)
 
         # There should not be any entry for this procedure.
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(procedure.uuid)), 0)

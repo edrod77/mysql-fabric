@@ -51,7 +51,7 @@ class FailureDetector(object):
         """
         from mysql.hub.server import Group
         _LOGGER.info("Starting failure detector.")
-        for row in Group.groups():
+        for row in Group.groups_by_status(Group.ACTIVE):
             FailureDetector.register_group(row[0])
 
     @staticmethod
@@ -117,8 +117,9 @@ class FailureDetector(object):
         """Function that verifies servers' availabilities.
         """
         from mysql.hub.server import (
-            Group,
+            Group, MySQLServer
             )
+        ignored_status = [MySQLServer.FAULTY, MySQLServer.OFFLINE]
 
         _persistence.init_thread()
         while self.__check:
@@ -126,7 +127,8 @@ class FailureDetector(object):
                 group = Group.fetch(self.__group_id)
                 if group is not None:
                     for server in group.servers():
-                        if server.is_alive():
+                        if server.status in ignored_status or \
+                            server.is_alive():
                             continue
                         _LOGGER.info("Server (%s) in group (%s) has "
                             "been lost.", server.uuid, self.__group_id)
@@ -135,7 +137,8 @@ class FailureDetector(object):
                             _LOGGER.info("Master (%s) in group (%s) has "
                                 "been lost.", server.uuid, self.__group_id)
                             trigger("FAIL_OVER", self.__group_id)
-            except (_errors.ExecutorError, _errors.DatabaseError):
+                        server.status = MySQLServer.FAULTY
+            except (_errors.ExecutorError, _errors.DatabaseError) as error:
                 pass
             time.sleep(self.__sleep)
         _persistence.deinit_thread()

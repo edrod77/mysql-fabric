@@ -91,7 +91,7 @@ CHECK_CANDIDATE_SWITCH = _events.Event()
 # Block any write access to the master.
 BLOCK_WRITE_SWITCH = _events.Event()
 # Wait until all slaves synchronize with the master.
-WAIT_CANDIDATES_SWITCH = _events.Event()
+WAIT_SLAVES_SWITCH = _events.Event()
 # Enable the new master by making slaves point to it.
 CHANGE_TO_CANDIDATE = _events.Event()
 
@@ -143,9 +143,9 @@ class SwitchOver(ProcedureCommand):
             check_candidate --> executor [ label = "schedule(block_write)" ];
             check_candidate <-- executor;
             executor <- check_candidate;
-            === Execute "block_write_switch" and schedule "wait_candidates_switch" ===
+            === Execute "block_write_switch" and schedule "wait_slaves_switch" ===
             executor -> block_write [ label = "execute(block_write)" ];
-            block_write --> executor [ label = "schedule(wait_candidates)" ];
+            block_write --> executor [ label = "schedule(wait_slaves)" ];
             block_write <-- executor;
             executor <- block_write;
             === Continue in the next diagram ===
@@ -157,11 +157,11 @@ class SwitchOver(ProcedureCommand):
             activation = none;
             edge_length = 350;
             === Continuation from previous diagram ===
-            === Execute "wait_candidates_catch" and schedule "change_to_candidate" ===
-            executor -> wait_candidates [ label = "execute(wait_candidates)" ];
-            wait_candidates --> executor [ label = "schedule(change_to_candidate)" ];
-            wait_candidates <-- executor;
-            executor <- wait_candidates;
+            === Execute "wait_slaves_catch" and schedule "change_to_candidate" ===
+            executor -> wait_slaves [ label = "execute(wait_slaves)" ];
+            wait_slaves --> executor [ label = "schedule(change_to_candidate)" ];
+            wait_slaves <-- executor;
+            executor <- wait_slaves;
             === Execute "change_to_candidate" ===
             executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
             executor <- change_to_candidate;
@@ -197,13 +197,18 @@ CHECK_CANDIDATE_FAIL = _events.Event()
 class FailOver(ProcedureCommand):
     """Do a fail over.
 
+    If the master is alive and kicking, the switchover must be used as it
+    provides a lower cost and guarantees consistency among slaves. In
+    contrast, the failover operation has a higher cost and may not guarantee
+    consistency among slaves.
+
     If a slave is not provided, the best candidate to become the new
-    master is found. Any candidate must have the binary log enabled and
-    should have logged the updates executed through the SQL Thread. If there
-    is a registered master, it must not be accessible and both candidate and
-    master must belong to the same group. The smaller the lag between slave
-    and the master the better. So the candidate which satisfies the
-    requirements and has the smaller lag is chosen to become the new master.
+    master is found. Any candidate must have the binary log enabled, should
+    have logged the updates executed through the SQL Thread and both
+    candidate and master must belong to the same group. The smaller the lag
+    between slave and the master the better. So the candidate which satisfies
+    the requirements and has the smaller lag is chosen to become the new
+    master.
 
     After choosing a candidate, one makes the slaves point to the new master
     and updates the database setting the new master.
@@ -265,7 +270,7 @@ class PromoteMaster(ProcedureCommand):
 # Block any write access to the master.
 BLOCK_WRITE_DEMOTE = _events.Event()
 # Wait until all slaves synchronize with the master.
-WAIT_CANDIDATES_DEMOTE = _events.Event()
+WAIT_SLAVES_DEMOTE = _events.Event()
 
 class DemoteMaster(ProcedureCommand):
     """Demote the current master if there is one.
@@ -296,16 +301,16 @@ class DemoteMaster(ProcedureCommand):
             === Schedule "block_write_demote" ===
             demote --> executor [ label = "schedule(block_write)" ];
             demote <-- executor;
-            === Execute "block_write_demote" and schedule "wait_candidates_demote" ===
+            === Execute "block_write_demote" and schedule "wait_slaves_demote" ===
             executor -> block_write [ label = "execute(block_write)" ];
-            block_write --> executor [ label = "schedule(wait_candidates)" ];
+            block_write --> executor [ label = "schedule(wait_slaves)" ];
             block_write <-- executor;
             executor <- block_write;
-            === Execute "wait_candidates_demote" and schedule "reset_candidates_demote" ===
-            executor -> wait_candidates [ label = "execute(wait_candidates)" ];
-            wait_candidates --> executor [ label = "schedule(reset_candidates)" ];
-            wait_candidates <-- executor;
-            executor <- wait_candidates;
+            === Execute "wait_slaves_demote" and schedule "reset_candidates_demote" ===
+            executor -> wait_slaves [ label = "execute(wait_slaves)" ];
+            wait_slaves --> executor [ label = "schedule(reset_candidates)" ];
+            wait_slaves <-- executor;
+            executor <- wait_slaves;
             === Execute "reset_candidates_demote" ===
             executor -> reset_candidates [ label = "execute(reset_candidates)" ];
             executor <- reset_candidates;
@@ -314,15 +319,10 @@ class DemoteMaster(ProcedureCommand):
         procedures = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
         return self.wait_for_procedures(procedures, synchronous)
 
-# Check which servers are up or down within a group.
-# TODO: Move this to services/server.py.
 CHECK_GROUP_AVAILABILITY = _events.Event()
 class CheckHealth(ProcedureCommand):
-    """Check if any server within a group has failed. Servers which have
-    the FAULTY or OFFLINE status are considered not alive even though
-    after being brought up on-line. In order to change this, one needs
-    to call one of the following functions: make_server_running or
-    make_server_spare.
+    """Check if any server within a group has failed and report health
+    information.
     """
     group_name = "group"
     command_name = "check_group_availability"
@@ -483,11 +483,11 @@ def _do_import_topology(pattern_group_id, group_description,
 def _find_candidate_switch(group_id):
     """Find the best slave to replace the current master.
     """
-    slave_uuid = _do_find_candidate(group_id)
+    slave_uuid = _do_find_candidate(group_id, FIND_CANDIDATE_SWITCH)
     _events.trigger_within_procedure(CHECK_CANDIDATE_SWITCH, group_id,
                                      slave_uuid)
 
-def _do_find_candidate(group_id):
+def _do_find_candidate(group_id, event):
     """Find out the best candidate in a group that may be used to replace a
     master.
 
@@ -498,7 +498,15 @@ def _do_find_candidate(group_id):
     :return: Return the uuid of the best candidate to become a master in the
              group.
     """
-    # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . CHECK FILTERS COMPATIBILITY.
+    #  . CHECK PURGED GTIDS.
+    #  . REPLACE get_slave_num_gtid_behind() BY get_num_gtid().
+    #  . USE ALSO check_slave_delay().
+    #  . CHECK determined fields in the reported issues according to the
+    #    event.
+    #  . If the do_find_candidate is executed, it is not necessary to
+    #    run more checks in future jobs.
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
@@ -514,7 +522,13 @@ def _do_find_candidate(group_id):
             candidate.status == _server.MySQLServer.RUNNING:
             try:
                 gtid_status = candidate.get_gtid_status()
-                health = _replication.check_master_health(candidate) # TODO: IMPROVE HEALTH INFORMATION
+                master_issues = \
+                    _replication.check_master_issues(candidate)
+                if event == FIND_CANDIDATE_SWITCH:
+                    slave_issues = \
+                        _replication.check_slave_issues(candidate)
+                else:
+                    slave_issues = {}
                 has_valid_master = (master_uuid is None or \
                     _replication.slave_has_master(candidate) == master_uuid)
                 can_become_master = False
@@ -526,18 +540,24 @@ def _do_find_candidate(group_id):
                             )
                     except _errors.InvalidGtidError:
                         pass
-                    if n_trans == 0 and health[0][0] and has_valid_master:
+                    if n_trans == 0 and not master_issues and \
+                        has_valid_master and not slave_issues:
                         chosen_gtid_status = gtid_status
                         chosen_uuid = str(candidate.uuid)
                         can_become_master = True
-                elif health[0][0] and has_valid_master:
+                elif not master_issues and has_valid_master and \
+                    not slave_issues:
                     chosen_gtid_status = gtid_status
                     chosen_uuid = str(candidate.uuid)
                     can_become_master = True
                 if not can_become_master:
-                    _LOGGER.debug("Candidate (%s) cannot become a master due "
-                        "to the following reasons: health (%s), valid master "
-                        "(%s).", candidate.uuid, health, has_valid_master)
+                    _LOGGER.debug(
+                        "Candidate (%s) cannot become a master due to the "
+                        "following reasons: issues to become a "
+                        "master (%s), prerequistes as a slave (%s), valid "
+                        "master (%s).", candidate.uuid, master_issues,
+                        slave_issues, has_valid_master
+                        )
             except _errors.DatabaseError as error:
                 _LOGGER.exception(error)
 
@@ -551,12 +571,13 @@ def _do_find_candidate(group_id):
 
 @_events.on_event(CHECK_CANDIDATE_SWITCH)
 def _check_candidate_switch(group_id, slave_uuid):
-    """Check if the candidate has all the prerequisites to become the new
+    """Check if the candidate has all the issues to become the new
     master.
     """
-    # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . CHECK FILTERS COMPATIBILITY.
+    #  . CHECK PURGED GTIDS.
     # TODO: TRY TO MERGE THE TWO CHECK_CANDIDATE FUNCTIONS.
-
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
@@ -579,18 +600,20 @@ def _check_candidate_switch(group_id, slave_uuid):
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    health = _replication.check_master_health(slave) # TODO: IMPROVE HEALTH INFORMATION.
-    if not health[0][0]:
+    master_issues = _replication.check_master_issues(slave)
+    if master_issues:
         raise _errors.ServerError(
             "Server (%s) is not a valid candidate slave "
-            "due to the following reason(s): (%s)." % (slave.uuid, health)
+            "due to the following reason(s): (%s)." %
+            (slave.uuid, master_issues)
             )
 
-    health = _replication.check_slave_running_health(slave) # TODO: IMPROVE HEALTH INFORMATION
-    if not health[0][0]:
+    slave_issues = _replication.check_slave_issues(slave)
+    if slave_issues:
         raise _errors.ServerError(
             "Server (%s) is not a valid candidate slave "
-            "due to the following reason: (%s)." % (slave.uuid, health)
+            "due to the following reason: (%s)." %
+            (slave.uuid, slave_issues)
             )
 
     master_uuid = _replication.slave_has_master(slave)
@@ -614,13 +637,15 @@ def _block_write_switch(group_id, master_uuid, slave_uuid):
     """Block and disable write access to the current master.
     """
     _do_block_write_master(group_id, master_uuid)
-    _events.trigger_within_procedure(WAIT_CANDIDATES_SWITCH, group_id,
+    _events.trigger_within_procedure(WAIT_SLAVES_SWITCH, group_id,
         master_uuid, slave_uuid
         )
 
 def _do_block_write_master(group_id, master_uuid):
     """Block and disable write access to the current master.
     """
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #   . KILL CONNECTIONS AND MAKE THIS FASTER.
     group = _server.Group.fetch(group_id)
 
     # Temporarily unset the master in this group.
@@ -631,24 +656,23 @@ def _do_block_write_master(group_id, master_uuid):
     server.connect()
     _utils.set_read_only(server, True)
 
-@_events.on_event(WAIT_CANDIDATES_SWITCH)
-def _wait_candidates_switch(group_id, master_uuid, slave_uuid):
+@_events.on_event(WAIT_SLAVES_SWITCH)
+def _wait_slaves_switch(group_id, master_uuid, slave_uuid):
     """Synchronize candidate with master and also all the other slaves.
-
-    In the future, we may improve this and skip the synchronization with
-    other slaves.
     """
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . DETERMINE WHICH SLAVES MUST BE SYNCHRONIZED.
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
     _utils.synchronize(slave, master)
-    _do_wait_candidates_catch(group_id, master, [slave_uuid])
+    _do_wait_slaves_catch(group_id, master, [slave_uuid])
 
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 
-def _do_wait_candidates_catch(group_id, master, skip_servers=None):
+def _do_wait_slaves_catch(group_id, master, skip_servers=None):
     """Synchronize slaves with master.
     """
     skip_servers = skip_servers or []
@@ -676,7 +700,7 @@ def _change_to_candidate(group_id, master_uuid):
     """
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
-    _utils.stop_master_as_slave(master)
+    _utils.reset_slave(master)
     _utils.set_read_only(master, False)
 
     group = _server.Group.fetch(group_id)
@@ -697,7 +721,7 @@ def _change_to_candidate(group_id, master_uuid):
 def _find_candidate_fail(group_id):
     """Find the best candidate to replace the failed master.
     """
-    slave_uuid = _do_find_candidate(group_id)
+    slave_uuid = _do_find_candidate(group_id, FIND_CANDIDATE_FAIL)
     _events.trigger_within_procedure(CHECK_CANDIDATE_FAIL, group_id,
                                      slave_uuid)
 
@@ -706,7 +730,9 @@ def _check_candidate_fail(group_id, slave_uuid):
     """Check if the candidate has all the prerequisites to become the new
     master.
     """
-    # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . CHECK FILTERS COMPATIBILITY.
+    #  . INTRODUCE A STEP TO FETCH INFORMATION FROM ALL SLAVES.
     group = _server.Group.fetch(group_id)
 
     if not group:
@@ -724,11 +750,12 @@ def _check_candidate_fail(group_id, slave_uuid):
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    health = _replication.check_master_health(slave) # TODO: IMPROVE HEALTH INFORMATION
-    if not health[0][0]:
+    master_issues = _replication.check_master_issues(slave)
+    if master_issues:
         raise _errors.ServerError(
             "Server (%s) is not a valid candidate slave "
-            "due to the following reason(s): (%s)." % (slave.uuid, health)
+            "due to the following reason(s): (%s)." %
+            (slave.uuid, master_issues)
             )
 
     if group.master:
@@ -767,26 +794,35 @@ def _block_write_demote(group_id):
     master_uuid = str(group.master)
     _do_block_write_master(group_id, master_uuid)
 
-    _events.trigger_within_procedure(WAIT_CANDIDATES_DEMOTE, group_id,
+    _events.trigger_within_procedure(WAIT_SLAVES_DEMOTE, group_id,
                                      master_uuid)
 
-@_events.on_event(WAIT_CANDIDATES_DEMOTE)
-def _wait_candidates_demote(group_id, master_uuid):
+@_events.on_event(WAIT_SLAVES_DEMOTE)
+def _wait_slaves_demote(group_id, master_uuid):
     """Synchronize slaves with master.
     """
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
 
-    _do_wait_candidates_catch(group_id, master)
+    _do_wait_slaves_catch(group_id, master)
+
+    # TODO: Connect is called from servers(). Revisit this.
+    group = _server.Group.fetch(group_id)
+    for server in group.servers():
+        try:
+            _utils.stop_slave(server)
+        except _errors.DatabaseError as error:
+            _LOGGER.exception(error)
 
 @_events.on_event(CHECK_GROUP_AVAILABILITY)
 def _check_group_availability(group_id):
-    #TODO: MOVE THIS TO server.py
     """Check which servers in a group are up and down.
     """
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . SHOW INFORMATION ON FILTERS.
+    #  . PURGED GTIDS.
+    #  . SHOW check_slave_delay().
     availability = {}
-    ignored_status = [_server.MySQLServer.FAULTY,
-                      _server.MySQLServer.OFFLINE]
 
     group = _server.Group.fetch(group_id)
     if not group:
@@ -794,12 +830,30 @@ def _check_group_availability(group_id):
 
     for server in group.servers():
         alive = False
+        threads = False
+        is_master = (group.master == server.uuid)
+        thread_issues = {}
         try:
-            if server.status not in ignored_status:
-                alive = server.is_alive()
+            alive = server.is_alive()
+            if not is_master:
+               slave_issues = \
+                   _replication.check_slave_issues(server)
+               str_master_uuid = _replication.slave_has_master(server)
+               if (group.master is None or str(group.master) != \
+                   str_master_uuid) and not slave_issues:
+                   thread_issues = \
+                       "Group has master (%s) and server is connect " \
+                       "to master (%s)." % \
+                       (group.master, str_master_uuid)
+               elif slave_issues:
+                   thread_issues = slave_issues
         except _errors.DatabaseError as error:
             _LOGGER.exception(error)
-        availability[str(server.uuid)] = \
-            (alive, (group.master == server.uuid), server.status)
+        availability[str(server.uuid)] = {
+            "is_alive" : alive,
+            "is_master" : is_master,
+            "status" : server.status,
+            "threads" : thread_issues
+            }
 
     return availability

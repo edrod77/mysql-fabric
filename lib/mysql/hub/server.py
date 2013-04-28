@@ -140,6 +140,9 @@ class Group(_persistence.Persistable):
     #SQL statement for selecting all groups
     QUERY_GROUPS = ("SELECT group_id FROM groups")
 
+    #SQL statement for selecting all groups
+    QUERY_GROUPS_BY_STATUS = ("SELECT group_id FROM groups WHERE status = %s")
+
     #SQL statement for selecting all the servers from a group
     QUERY_GROUP_SERVERS = ("SELECT server_uuid FROM groups_servers WHERE "
                            "group_id = %s")
@@ -335,6 +338,18 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.UPDATE_STATUS,
             {"params":(status, self.__group_id)})
         self.__status = status
+
+    @staticmethod
+    def groups_by_status(status, persister=None):
+        # TODO: This must be changed. This must return a set of groups.
+        """Return the group_ids of all the available groups.
+
+        :param persister: Persister to persist the object to.
+        """
+        assert(status in Group.GROUP_STATUS)
+        return persister.exec_stmt(Group.QUERY_GROUPS_BY_STATUS,
+            {"params":(status, )}
+            )
 
     @staticmethod
     def groups(persister=None):
@@ -1141,7 +1156,7 @@ class MySQLServer(_persistence.Persistable):
 
         persister_uuid = persister.uuid
         if persister_uuid is not None and persister_uuid == server.uuid:
-            raise _errors.UuidError("The MySQLPersister cannot be managed.")
+            raise _errors.ServerError("The MySQLPersister cannot be managed.")
 
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
             {"params":(str(server.uuid), server.address, server.user,

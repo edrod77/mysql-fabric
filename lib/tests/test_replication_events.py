@@ -558,7 +558,7 @@ class TestReplicationServices(unittest.TestCase):
               _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
-        self.assertEqual(expected[3], retrieved[3]) # PORRA
+        self.assertEqual(expected[3], retrieved[3])
 
         # Try to fail over to the same server.
         status = self.proxy.group.fail_over(
@@ -690,7 +690,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_wait_candidates_demote).")
+                         "Executed action (_wait_slaves_demote).")
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")

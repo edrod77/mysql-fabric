@@ -80,68 +80,53 @@ def get_master_slaves(server, options=None):
     return server.exec_stmt("SHOW SLAVE HOSTS", options)
 
 @_server.server_logging
-def check_master_health(server):
-    """Check replication health on the master.
+def check_master_issues(server):
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . CHECK FILTERS.
+    #  . CHECK PURGED GTIDS.
+    """Check if there is any issue to make the server a master.
 
-    This method checks if the master is set up correctly to operate in a
-    replication environment. It returns a tuple with a bool to indicate
-    if health is Ok (True), and a list that contains errors encountered
-    during the checks, if there is any. Basically, it checks if the master
-    is alive and kicking, the binary log is enabled, the gtid is enabled,
-    the server is able to log the updates through the SQL Thread and finally
-    if there is a user that has the `REPLICATION SLAVE PRIVILEGE`. One may
-    find in what follows the set of possible returned values::
+    This method checks if there is any issue to make the server a master.
+    and returns a dictionary that contains information on any issue found
+    , if there is any. Basically, it checks if the master is alive and
+    kicking, if the binary log is enabled, if the gtid is enabled, if the
+    server is able to log the updates through the SQL Thread and finally
+    if there is a user that has the `REPLICATION SLAVE PRIVILEGE`.
 
-      ret = check_master_health(server)
-      assert ret == [(False, ["Cannot connect to server"])],
-        ("This is what happens when the master is not running.")
+    The dictionary returned may have the following keys::
 
-      ret = check_master_health(server)
-      assert ret == [(False, ["No binlog on master"])],
-        ("This is what happens when the binary log is not enabled.")
+      status["is_running"] = False
+      status["is_binlog_enabled"] = False
+      status["is_gtid_enabled"] = False
+      status["is_slave_updates_enabled"] = False
+      status["rpl_user_exists"] = False
 
-      ret = check_master_health(server)
-      assert ret == [(False, ["There are no users with replication "
-        privileges."])],
-        ("This is what happens when there are no users with the appropriate "
-         "privileges.")
-
-    In other words, one needs to check whether ret[0][0] is True or False.
-    If it is True, the server is set up correctly to operate as a master.
-    Otherwise, there is some problem and ret[0][1] may be used to get
-    detailed information on the problem.
+    :param server: MySQL Server.
+    :return: A dictionary with issues, if there is any.
     """
-    errors = []
-    rpl_ok = True
+    status = {}
 
-    # TODO: Check if this is the bet way of returning data on health.
-    # Quoting Mats: I still find it strange to return a list of a single
-    # tuple consisting of a boolean and a list where the boolean indicate
-    # if the list has length zero or not.
     if not server.is_alive():
-        return [(False, ["Cannot connect to server"])]
+        status["is_running"] = False
+        return status
 
-    # Check for binlogging
+    # Check for binlog.
     if not server.binlog_enabled:
-        errors.append("No binlog on master.")
-        rpl_ok = False
+        status["is_binlog_enabled"] = False
 
+    # Check for gtid.
     if not server.gtid_enabled:
-        errors.append("No gtid on master.")
-        rpl_ok = False
+        status["is_gtid_enabled"] = False
 
+    # Check for slave updates.
     if not server.get_variable("LOG_SLAVE_UPDATES"):
-        errors.append("log_slave_updates is not set.")
-        rpl_ok = False
-
-    # TODO: FILTERS?
+        status["is_slave_updates_enabled"] = False
 
     # See if there is at least one user with rpl privileges
     if not get_master_rpl_users(server):
-        errors.append("There are no users with replication privileges.")
-        rpl_ok = False
+        status["rpl_user_exists"] = False
 
-    return [(rpl_ok, errors)]
+    return status
 
 @_server.server_logging
 def get_slave_status(server, options=None):
@@ -206,7 +191,7 @@ def get_num_gtid(gtids, server_uuid=None):
                 raise _errors.ProgrammingError("Malformed GTID (%s)." % gtid)
             trx_ids = gtid
 
-        # Ignore differences if server_uuid is passed and does
+        # Ignore differences if server_uuid is set and does
         # not match.
         if server_uuid and str(server_uuid).upper() != sid.upper():
             continue
@@ -251,8 +236,6 @@ def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
             return 0
     return get_num_gtid(gtids, master_uuid)
 
-#TODO: In the WAIT FUNCTION, we need to verify if any problem is
-#      reported so that we don't wait forever.
 @_server.server_logging
 def start_slave(server, threads=None, wait=False, timeout=None):
     """Start the slave. Look up the `START SLAVE` command in the MySQL
@@ -318,9 +301,9 @@ def wait_for_slave_thread(server, timeout=None, wait_for_running=True,
 
     :param timeout: Number of seconds one waits until the condition is
                     achieved. If it is None, one waits indefinitely.
-    :param wait_for_running: If one should check if threads are
+    :param wait_for_running: If one should check whether threads are
                              running or stopped.
-    :type check_if_running: bool
+    :type check_if_running: Bool
     :param threads: Which threads should be checked.
     :type threads: `SQL_THREAD` or `IO_THREAD`.
     """
@@ -329,87 +312,80 @@ def wait_for_slave_thread(server, timeout=None, wait_for_running=True,
         time.sleep(1)
         timeout = timeout - 1 if timeout is not None else None
     if not _check_condition(server, threads, wait_for_running):
-        _LOGGER.debug("Error waiting for slave thread to "
-                      "either start or stop.")
-        _LOGGER.debug("Slave's status (%s) after error.",
-                      get_slave_status(server))
-        raise _errors.TimeoutError("Error waiting for slave thread to "
-                                   "either start or stop.")
+        raise _errors.TimeoutError(
+            "Error waiting for slave's thread(s) to either start or stop."
+            )
 
 @_server.server_logging
-def wait_for_slave(server, binlog_file, binlog_pos, timeout=3):
+def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
     """Wait for the slave to read the master's binlog up to a specified
     position.
 
     This methods call the MySQL function `SELECT MASTER_POS_WAIT`. If
     the timeout period expires prior to achieving the condition the
-    :class:`mysql.hub.errors.TimeoutError` exception is raised.
+    :class:`mysql.hub.errors.TimeoutError` exception is raised. If any
+    thread is stopped, the :class:`mysql.hub.errors.DatabaseError`
+    exception is raised.
 
     :param binlog_file: Master's binlog file.
     :param binlog_pos: Master's binlog file position.
     :param timeout: Maximum number of seconds to wait for the condition to
                     be achieved.
-    :return: True if slave has read to the file and pos, and
-             False if slave is behind.
     """
     # Wait for slave to read the master log file
     res = server.exec_stmt(_MASTER_POS_WAIT,
         {"params": (binlog_file, binlog_pos, timeout), "raw" : False })
 
     if res is None or res[0] is None or res[0][0] is None:
-        return False
-    elif res[0][0] > -1:
-        return True
-    else:
-        assert(res[0][0] == -1)
-        _LOGGER.debug("Error waiting for slave to catch up. "\
-                      "Binary log (%s, %s).", binlog_file, binlog_pos)
-        _LOGGER.debug("Slave's status (%s) after error.",
-                      get_slave_status(server))
-        raise _errors.TimeoutError("Error waiting for slave to catch up. "\
-                                   "Binary log (%s, %s)." %
-                                   (binlog_file, binlog_pos))
+        raise _errors.DatabaseError(
+            "Error waiting for slave to catch up. Binary log (%s, %s)." %
+            (binlog_file, binlog_pos)
+            )
+    elif res[0][0] == -1:
+        raise _errors.TimeoutError(
+            "Error waiting for slave to catch up. Binary log (%s, %s)." %
+            (binlog_file, binlog_pos)
+            )
+
+    assert(res[0][0] > -1)
 
 @_server.server_logging
-def wait_for_slave_gtid(server, master_gtids, timeout=3):
+def wait_for_slave_gtid(server, master_gtids, timeout=0):
     """Wait for the slave to read the master's GTIDs.
 
     The function `SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS` is called until the
     slave catches up. If the timeout period expires prior to achieving
     the condition the :class:`mysql.hub.errors.TimeoutError` exception is
-    raised.
+    raised. If any thread is stopped, the
+    :class:`mysql.hub.errors.DatabaseError` exception is raised.
 
     :param master_gtids: Result of running `get_gtid_status`.
     :param timeout: Timeout for waiting for slave to catch up.
-    :return: True if slave has read all GTIDs or False if slave is
-             behind.
     """
     # Check servers for GTID support
     if not server.gtid_enabled:
-        raise _errors.ProgrammingError("Global Transaction IDs are not "\
-                                       "supported.")
+        raise _errors.ProgrammingError(
+            "Global Transaction IDs are not supported."
+            )
+
     gtid = master_gtids[0].GTID_EXECUTED
-    _LOGGER.debug("Slave (%s).",
-        _server_utils.split_host_port(server.address,
-                                      _server_utils.MYSQL_DEFAULT_PORT))
-    _LOGGER.debug("Query (%s).", _GTID_WAIT % (gtid.strip(','), timeout))
     res = server.exec_stmt(_GTID_WAIT,
         {"params": (gtid.strip(','), timeout), "raw" : False })
-    _LOGGER.debug("Return code (%s).", res)
-    if res is None or res[0] is None or res[0][0] is None:
-        return False
-    elif res[0][0] > -1:
-        return True
-    else:
-        assert(res[0][0] == -1)
-        _LOGGER.debug("Error waiting for slave to catch up. "\
-                      "GTID (%s).", master_gtids[0].GTID_EXECUTED)
-        _LOGGER.debug("Slave's status (%s) after error.",
-                      get_slave_status(server))
-        raise _errors.TimeoutError("Error waiting for slave to catch up. "\
-                                   "GTID (%s)." %
-                                   (master_gtids[0].GTID_EXECUTED, ))
 
+    if res is None or res[0] is None or res[0][0] is None:
+        raise _errors.DatabaseError(
+            "Error waiting for slave to catch up. "
+            "GTID (%s)." % (master_gtids[0].GTID_EXECUTED, )
+            )
+    elif res[0][0] == -1:
+        raise _errors.TimeoutError(
+            "Error waiting for slave to catch up. "
+            "GTID (%s)." % (master_gtids[0].GTID_EXECUTED, )
+            )
+
+    assert(res[0][0] > -1)
+
+# TODO: SPLIT THIS FUNCTION IN TWO: GTIDS and NO GTIDS.
 @_server.server_logging
 def switch_master(slave, master, master_user, master_passwd=None,
                   from_beginning=True, master_log_file=None,
@@ -457,153 +433,115 @@ def switch_master(slave, master, master_user, master_passwd=None,
                     {"params": tuple(params)})
 
 @_server.server_logging
-def check_slave_running_health(server):
-    """Check replication health of the slave.
+def check_slave_issues(server):
+    """Check slave's health.
 
     This method checks if the slave is setup correctly to operate in a
-    replication environment. It returns a tuple with a bool to indicate
-    if health is Ok (True), and a list that contains errors encountered
-    during the checks, if there is any.
+    replication environment and returns a dictionary that contains
+    information on any issue found, if there is any. Specifically, it
+    checks if the slave is alive and kicking and whether the `SQL_THREAD`
+    and `IO_THREAD` are running or not.
 
-    Specifically, it checks if `SQL_THREAD` and `IO_THREAD` are running.
+    The dictionary returned may have the following keys::
 
-    One needs to check whether ret[0][0] is True or False. If it is True,
-    the slave is health. Otherwise, there is some problem and ret[0][1]
-    may be used to get detailed information on the problem.
+      status["is_running"] = False
+      status["is_configured"] = False
+      status["io_running"] = False
+      status["sql_running"] = False
+      status["io_error"] = False
+      status["sql_error"] = False
 
-    :param server: Slave.
-    :return: Return a list reporting on the slave's health.
-    :rtype: [(health, ["error", "error"])]
+    :param server: MySQL Server.
+    :return: A dictionary with issues, if there is any.
     """
-    errors = []
-    rpl_ok = True
+    status = {}
 
     if not server.is_alive():
-        return [(False, ["Cannot connect to server"])]
+        status["is_running"] = False
+        return status
 
     ret = get_slave_status(server)
 
     if not ret:
-        return [(False, ["Not connected or not running."])]
+        status["is_configured"] = False
+        return status
 
     # Check slave status for errors, threads activity
     if ret[0].Slave_IO_Running.upper() != "YES":
-        errors.append("IO thread is not running.")
-        rpl_ok = False
+        status["io_running"] = False       
     if ret[0].Slave_SQL_Running.upper() != "YES":
-        errors.append("SQL thread is not running.")
-        rpl_ok = False
+        status["sql_running"] = False       
     if ret[0].Last_IO_Errno > 0:
-        errors.append(ret[0].Last_IO_Error)
-        rpl_ok = False
+        status["io_error"] = ret[0].Last_IO_Error
     if ret[0].Last_SQL_Errno > 0:
-        errors.append(ret[0].Last_SQL_Error)
-        rpl_ok = False
+        status["sql_error"] = ret[0].Last_SQL_Error
 
-    return [(rpl_ok, errors)]
+    return status
 
-# TODO: We need to check if this function that encapsulates others
-#       are really necessary.
 @_server.server_logging
-def check_slave_delay_health(server, master_uuid, master_status,
-                             master_gtid_status, max_delay_behind,
-                             max_pos_behind, max_gtid_behind):
-    """Check replication health of the slave.
+def check_slave_delay(slave, master):
+    """Check slave's delay.
 
-    This method checks if the slave is setup correctly to operate in a
-    replication environment. It returns a tuple with a bool to indicate
-    if health is Ok (True), and a list that contains errors encountered
-    during the checks, if there is any.
+    It checks if both the master and slave are alive and kicking, whether
+    the `SQL_THREAD` and `IO_THREAD` are running or not. It reports the
+    `SQL_Delay`, `Seconds_Behind_Master` and finally if GTIDs are enabled
+    the number of transactions behind master or the number of bytes behind
+    master otherwise.
 
-    Specifically, it checks if the slave's delay is within determined
-    boundaries.
+    The dictionary returned may have the following keys::
 
-    One needs to check whether ret[0][0] is True or False. If it is True,
-    the slave is health. Otherwise, there is some problem and ret[0][1]
-    may be used to get detailed information on the problem.
+      status["is_running"] = False
+      status["is_configured"] = False
+      status["sql_delay"] = Value
+      status["seconds_behind"] = Value
+      status["bytes_behind"] = Value
+      status["gtids_behind"] = Value
 
-    :param server: Slave.
-    :param master_uuid: Master's uuid.
-    :param master_status: Result of running `get_master_status`.
-    :param master_gtid_status: Result of running `get_gtid_status`.
-    :param max_delay_behind: Maximum acceptable delay.
-    :param mas_pos_behind: Maximum acceptable difference in positions.
-    :param mas_gtid_behind: Maximum acceptable difference number of
-                            transactions.
-    :return: Return a list reporting on the slave's health.
-    :rtype: [(health, ["error", "error"])]
+    :param slave: MySQL Slave.
+    :param master: MySQL Master.
+    :return: A dictionary with delays, if there is any.
     """
-    errors = []
-    rpl_ok = True
+    status = {}
 
-    if not server.is_alive():
-        return [(False, ["Cannot connect to server"])]
+    if not slave.is_alive() or not master.is_alive():
+        status["is_running"] = False
+        return status
 
-    ret = get_slave_status(server)
+    slave_status = get_slave_status(slave)
 
-    if not ret:
-        return [(False, ["Not connected or not running."])]
+    if not slave_status:
+        status["is_configured"] = False
+        return status
 
-    # Check slave delay with threshhold of SBM, and master's log pos
-    s_delay = ret[0].SQL_Delay
-    delay = s_delay if s_delay is not None else 0
-    if delay > max_delay_behind:
-        errors.append("Slave delay is %s seconds behind master." %
-                      delay)
-        if ret[0].SQL_Remaining_Delay:
-            errors.append(ret[0].SQL_Remaining_Delay)
-        rpl_ok = False
+    # Check if the slave must lag behind the master.
+    sql_delay = slave_status[0].SQL_Delay
+    if sql_delay:
+        status["sql_delay"] = sql_delay
 
-    # Check master position
-    # TODO: Improve by creating a function to calculate the diff.
-    # Similar to the get_slave_num_gtid_behind.
-    if not server.gtid_enabled:
-        if ret[0].Master_Log_File != master_status[0].File:
-            errors.append("Wrong master log file.")
-            rpl_ok = False
-        elif (ret[0].Read_Master_Log_Pos + max_pos_behind) \
-             < master_status[0].Position:
-            errors.append("Slave's master position exceeds maximum.")
-            rpl_ok = False
+    # Check if the slave is lagging behind the master.
+    seconds_behind = slave_status[0].Seconds_Behind_Master
+    if seconds_behind:
+        status["seconds_behind"] = seconds_behind
+
+    if not slave.gtid_enabled:
+        master_status = get_master_status(master)
+        # TODO: Create a function similar to get_slave_num_gtid_behind().
 
     # Check GTID trans behind.
-    elif server.gtid_enabled:
-        num_gtids_behind = get_slave_num_gtid_behind(server,
+    elif slave.gtid_enabled:
+        master_gtid_status = master.get_gtid_status()
+        num_gtids_behind = get_slave_num_gtid_behind(slave,
                                                      master_gtid_status,
-                                                     master_uuid)
-        if num_gtids_behind > max_gtid_behind:
-            errors.append("Slave has %s transactions behind master." %
-                          num_gtids_behind)
-            rpl_ok = False
+                                                     master.uuid)
+        if num_gtids_behind:
+            status["gtids_behind"] = num_gtids_behind
 
-    return [(rpl_ok, errors)]
-
-# TODO: We need to check if this function that encapsulates others
-#       are really necessary.
-def check_slave_health(server, master_uuid, master_status,
-                       master_gtid_status, max_delay_behind,
-                       max_pos_behind, max_gtid_behind):
-    """Check replication health of the slave.
-    See :meth:`check_slave_running_health` and
-    :meth:`check_slave_delay_health`.
-    """
-    errors = []
-    rpl_ok = True
-
-    # TODO: FILTERS?
-    ret_running = check_slave_running_health(server)
-    ret_delay = check_slave_delay_health(server, master_uuid, master_status,
-                                         master_gtid_status, max_delay_behind,
-                                         max_pos_behind, max_gtid_behind)
-
-    rpl_ok = ret_running[0][0] and ret_delay[0][0]
-    errors.extend(ret_running[0][1])
-    errors.extend(ret_delay[0][1])
-
-    return [(rpl_ok, errors)]
+    return status
 
 def _check_condition(server, threads, check_if_running):
-    """Check if slave's threads are either running or stopped.
+    """Check if slave's threads are either running or stopped. If the
+    `SQL_THREAD` or the `IO_THREAD` are stopped and there is an error,
+    the :class:`mysql.hub.errors.DatabaseError` exception is raised.
 
     :param threads: Which threads should be checked.
     :type threads: `SQL_THREAD` or `IO_THREAD`.
@@ -611,25 +549,35 @@ def _check_condition(server, threads, check_if_running):
                              running or stopped.
     :type check_if_running: Bool
     """
-    if threads is None:
+    if not threads:
         threads = (SQL_THREAD, IO_THREAD)
     assert(isinstance(threads, tuple))
 
     io_status = not check_if_running
     sql_status = not check_if_running
+    check_stmt = "YES" if check_if_running else "NO"
+    io_errno = sql_errno = 0
+    io_error = sql_error = ""
 
     ret = get_slave_status(server)
-    io_status = sql_status = not check_if_running
-    check_stmt = "YES" if check_if_running else "NO"
     if ret:
         io_status = ret[0].Slave_IO_Running.upper() == check_stmt
+        io_error = ret[0].Last_IO_Error
+        io_errno = int(ret[0].Last_IO_Errno)
+
         sql_status = ret[0].Slave_SQL_Running.upper() == check_stmt
+        sql_error = ret[0].Last_SQL_Error
+        sql_errno = int(ret[0].Last_SQL_Errno)
 
     achieved = True
     if SQL_THREAD in threads:
         achieved = achieved and sql_status
+        if check_if_running and sql_errno != 0:
+            raise _errors.DatabaseError(sql_error)
 
     if IO_THREAD in threads:
         achieved = achieved and io_status
+        if check_if_running and io_errno != 0:
+            raise _errors.DatabaseError(io_error)
 
     return achieved
