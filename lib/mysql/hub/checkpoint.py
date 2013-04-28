@@ -103,12 +103,13 @@ class Checkpoint(_persistence.Persistable):
     #SQL statement for retrieving all occurrences in the checkptoint which
     #is used for recovery.
     #TODO: Simplify this statement.
-    QUERY_EXECUTED_CHECKPOINTS = (
+    QUERY_UNFINISHED_CHECKPOINTS = (
         "SELECT chk_info.proc_uuid, chk_info.job_uuid, chk_info.sequence, "
         "chk_info.action_fqn, chk_info.param_args, chk_info.param_kwargs, "
         "chk_info.started, chk_info.finished FROM "
         "(SELECT proc_uuid, max(sequence) as sequence FROM checkpoints "
-        "WHERE started is NOT NULL GROUP BY proc_uuid) AS chk_core INNER JOIN "
+        "WHERE started is NOT NULL AND finished is NULL GROUP BY proc_uuid) "
+        "AS chk_core INNER JOIN "
         "(SELECT proc_uuid, job_uuid, sequence, action_fqn, param_args, "
         "param_kwargs, started, finished FROM checkpoints) AS chk_info ON "
         "chk_info.proc_uuid = chk_core.proc_uuid and "
@@ -117,8 +118,16 @@ class Checkpoint(_persistence.Persistable):
 
     QUERY_SCHEDULED_CHECKPOINTS = (
         "SELECT proc_uuid, job_uuid, sequence, action_fqn, param_args, "
-        "param_kwargs, started, finished FROM checkpoints WHERE started "
+        "param_kwargs, started, finished FROM checkpoints WHERE finished "
         "is NULL ORDER BY proc_uuid, sequence"
+        )
+
+    QUERY_FINISHED_CHECKPOINTS = (
+        "SELECT DISTINCT proc_uuid FROM checkpoints WHERE proc_uuid IN "
+        "(SELECT DISTINCT chk_info.proc_uuid FROM checkpoints as chk_info "
+        "WHERE chk_info.finished is NOT NULL) and proc_uuid NOT IN "
+        "(SELECT DISTINCT chk_info.proc_uuid FROM checkpoints as chk_info "
+        "WHERE chk_info.finished is NULL)"
         )
 
     def __init__(self, proc_uuid, job_uuid, action_fqn, param_args,
@@ -259,7 +268,7 @@ class Checkpoint(_persistence.Persistable):
         :rtype: set(Checkpoint, ...)
         """
         checkpoints = set()
-        rows = persister.exec_stmt(Checkpoint.QUERY_EXECUTED_CHECKPOINTS,
+        rows = persister.exec_stmt(Checkpoint.QUERY_UNFINISHED_CHECKPOINTS,
                                    {"raw": False})
         for row in rows:
             checkpoints.add(Checkpoint._create_object_from_row(row))
@@ -316,6 +325,24 @@ class Checkpoint(_persistence.Persistable):
         persister.exec_stmt(Checkpoint.DELETE_CHECKPOINTS,
             {"params":(str(checkpoint.proc_uuid), )}
             )
+
+    @staticmethod
+    def cleanup(persister=None):
+        """Remove all the checkpoints which are related to procedures
+        that have finished the execution but did not get the chance
+        of calling remove.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        rows = persister.exec_stmt(Checkpoint.QUERY_FINISHED_CHECKPOINTS,
+            {"raw": False}
+            )
+        if rows:
+            for row in rows:
+                persister.exec_stmt(Checkpoint.DELETE_CHECKPOINTS,
+                    {"params":(row[0], )}
+                    )
 
     @staticmethod
     def create(persister=None):

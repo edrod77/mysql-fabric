@@ -61,6 +61,7 @@ import mysql.hub.server as _server
 import mysql.hub.errors as _errors
 import mysql.hub.replication as _replication
 import mysql.hub.failure_detector as _detector
+import mysql.hub.services.utils as _utils
 
 from mysql.hub.command import (
     ProcedureCommand,
@@ -148,7 +149,7 @@ class DestroyGroup(ProcedureCommand):
 LOOKUP_SERVERS = _events.Event()
 class ServerLookups(ProcedureCommand):
     """Return information on existing server(s) in a group.
-    """ 
+    """
     group_name = "group"
     command_name = "lookup_servers"
 
@@ -314,10 +315,10 @@ def _lookup_groups(group_id=None):
     """
     if group_id is None:
         return _server.Group.groups()
-    
+
     group = _server.Group.fetch(group_id)
     if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     return {"group_id" : group.group_id,
             "description": group.description if group.description else ""}
@@ -326,6 +327,10 @@ def _lookup_groups(group_id=None):
 def _create_group(group_id, description):
     """Create a group.
     """
+    group = _server.Group.fetch(group_id)
+    if group:
+        raise _errors.GroupError("Group (%s) already exists." % (group_id, ))
+
     group = _server.Group(group_id=group_id, description=description,
                           status=_server.Group.INACTIVE)
     _server.Group.add(group)
@@ -379,12 +384,12 @@ def _destroy_group(group_id, force):
             _do_remove_server(group, server)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
-    _server.Group.remove(group)
     cnx_pool = _server.ConnectionPool()
     for uuid in servers_uuid:
         cnx_pool.purge_connections(uuid)
-    _LOGGER.debug("Removed group (%s).", group)
     _detector.FailureDetector.unregister_group(group_id)
+    _server.Group.remove(group)
+    _LOGGER.debug("Removed group (%s).", group)
 
 @_events.on_event(LOOKUP_SERVERS)
 def _lookup_servers(group_id, uuid=None, status=None):
@@ -439,10 +444,20 @@ def _add_server(group_id, address, user, passwd):
     group = _server.Group.fetch(group_id)
 
     if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
-    if group.contains_server(uuid):
-        raise _errors.ServerError("Server (%s) already exists in group (%s)." \
-                                  % (uuid, group_id))
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+
+    server = _server.MySQLServer.fetch(uuid)
+    if server:
+        group = _server.Group.group_from_server(uuid)
+        if not group:
+            raise _errors.ServerError(
+                "State store seems to be corrupted. Server (%s) does not "
+                "belong to a group." % (uuid, )
+                )
+        raise _errors.ServerError(
+            "Server (%s) already exists in group (%s)." %
+            (uuid, group.group_id)
+            )
 
     server = _server.MySQLServer(uuid=uuid, address=address, user=user,
                                  passwd=passwd)
@@ -454,6 +469,7 @@ def _add_server(group_id, address, user, passwd):
             "Server (%s) has an outdated version (%s). 5.6.8 or greater "
             "is required." % (uuid, server.version)
             )
+
     if not server.has_root_privileges():
         _LOGGER.warning(
             "User (%s) needs root privileges on Server (%s, %s)."
@@ -476,10 +492,7 @@ def _add_server(group_id, address, user, passwd):
         if group.master:
             master = _server.MySQLServer.fetch(group.master)
             master.connect()
-            _replication.stop_slave(server, wait=True)
-            _replication.switch_master(server, master, master.user,
-                                       master.passwd)
-            _replication.start_slave(server, wait=True)
+            _utils.switch_master(server, master)
 
     except _errors.DatabaseError as error:
         _LOGGER.error(error)
@@ -494,15 +507,17 @@ def _remove_server(group_id, uuid):
     group = _server.Group.fetch(group_id)
 
     if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if not group.contains_server(uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
+        raise _errors.GroupError("Group (%s) does not contain server (%s)."
                                  % (group_id, uuid))
+
     if group.master == uuid:
         raise _errors.ServerError("Cannot remove server (%s), which is master "
                                   "in group (%s). Please, demote it first."
                                   % (uuid, group_id))
+
     server = _server.MySQLServer.fetch(uuid)
 
     _do_remove_server(group, server)

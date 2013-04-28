@@ -21,6 +21,8 @@ def recovery():
     :return: False, if nothing bad happened while recovering. Otherwise,
              return True.
     """
+    Checkpoint.cleanup()
+
     error = False
     for checkpoint in Checkpoint.unfinished():
 
@@ -35,26 +37,12 @@ def recovery():
                 _LOGGER.error("Error while recovering %s.",
                 (checkpoint.do_action, ))
                 error = True
-                continue
 
-        if checkpoint.do_action:
-            checkpoint.finish()
-            procedure = _executor.Executor().enqueue_procedure(
-                checkpoint.proc_uuid, checkpoint.do_action,
-                "Recovering %s." % (checkpoint.do_action, ),
-                *checkpoint.param_args, **checkpoint.param_kwargs
-                )
-            procedure.wait()
-            if procedure.status[-1]['success'] != _executor.Job.SUCCESS:
-                _LOGGER.error("Error while recovering %s.",
-                              (checkpoint.do_action, ))
-                error = True
-
-    procedures = []
+    actions = []
     procedure_uuid = None
     for checkpoint in Checkpoint.scheduled():
 
-        procedures.append({
+        actions.append({
             "job" : checkpoint.job_uuid,
             "action" : (checkpoint.do_action,
             "Recovering %s." % (checkpoint.do_action, ),
@@ -63,15 +51,15 @@ def recovery():
 
         if procedure_uuid is not None and \
             procedure_uuid != checkpoint.proc_uuid:
-            _executor.Executor().enqueue_scheduler(
-                procedure_uuid, procedures
+            _executor.Executor().reschedule_procedure(
+                procedure_uuid, actions
                 )
             procedure_uuid = None
-            procedures = []
-        
+            actions = []
+
         procedure_uuid = checkpoint.proc_uuid
 
     if procedure_uuid is not None:
-        _executor.Executor().enqueue_scheduler(procedure_uuid, procedures)
+        _executor.Executor().reschedule_procedure(procedure_uuid, actions)
 
     return error

@@ -13,6 +13,7 @@ import mysql.hub.events as _events
 import mysql.hub.persistence as _persistence
 import mysql.hub.failure_detector as _detector
 import mysql.hub.config as _config
+import mysql.hub.recovery as _recovery
 
 from mysql.hub.command import (
     Command,
@@ -294,6 +295,7 @@ def _start(options, config):
 
     # Start the executor, failure detector and then service manager.
     _events.Handler().start()
+    _recovery.recovery()
     _detector.FailureDetector.register_groups()
     _services.ServiceManager().start()
 

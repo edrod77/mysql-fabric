@@ -11,6 +11,7 @@ import mysql.hub.replication as _replication
 import mysql.hub.errors as _errors
 import mysql.hub.server_utils as _server_utils
 import mysql.hub.failure_detector as _detector
+import mysql.hub.services.utils as _utils
 
 from mysql.hub.command import (
     ProcedureCommand,
@@ -265,8 +266,6 @@ class PromoteMaster(ProcedureCommand):
 BLOCK_WRITE_DEMOTE = _events.Event()
 # Wait until all slaves synchronize with the master.
 WAIT_CANDIDATES_DEMOTE = _events.Event()
-# Stop replication and make slaves point to nowhere.
-RESET_CANDIDATES_DEMOTE = _events.Event()
 
 class DemoteMaster(ProcedureCommand):
     """Demote the current master if there is one.
@@ -630,7 +629,7 @@ def _do_block_write_master(group_id, master_uuid):
     # TODO: IN THE FUTURUE, KILL CONNECTIONS AND MAKE THIS FASTER.
     server = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     server.connect()
-    server.read_only = True
+    _utils.set_read_only(server, True)
 
 @_events.on_event(WAIT_CANDIDATES_SWITCH)
 def _wait_candidates_switch(group_id, master_uuid, slave_uuid):
@@ -644,7 +643,7 @@ def _wait_candidates_switch(group_id, master_uuid, slave_uuid):
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    _synchronize(slave, master)
+    _utils.synchronize(slave, master)
     _do_wait_candidates_catch(group_id, master, [slave_uuid])
 
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
@@ -661,7 +660,7 @@ def _do_wait_candidates_catch(group_id, master, skip_servers=None):
             try:
                 used_master_uuid = _replication.slave_has_master(server)
                 if  str(master.uuid) == used_master_uuid:
-                    _synchronize(server, master)
+                    _utils.synchronize(server, master)
                 else:
                     _LOGGER.debug("Slave (%s) has a different master "
                         "from group (%s).", server.uuid, group_id)
@@ -677,20 +676,17 @@ def _change_to_candidate(group_id, master_uuid):
     """
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
-    _replication.stop_slave(master, wait=True)
-    _replication.reset_slave(master)
-    master.read_only = False
+    _utils.stop_master_as_slave(master)
+    _utils.set_read_only(master, False)
 
     group = _server.Group.fetch(group_id)
     group.master = master.uuid
 
+    # TODO: Connect is called from servers(). Revisit this.
     for server in group.servers():
         if server.uuid != _uuid.UUID(master_uuid):
             try:
-                _replication.stop_slave(server, wait=True)
-                _replication.switch_master(server, master, master.user,
-                                           master.passwd)
-                _replication.start_slave(server, wait=True)
+                _utils.switch_master(server, master)
             except _errors.DatabaseError as error:
                 _LOGGER.exception(error)
 
@@ -717,7 +713,7 @@ def _check_candidate_fail(group_id, slave_uuid):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if not group.contains_server(slave_uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
+        raise _errors.GroupError("Group (%s) does not contain server (%s)."
                                  % (group_id, slave_uuid))
 
     if group.master == _uuid.UUID(slave_uuid):
@@ -765,7 +761,7 @@ def _block_write_demote(group_id):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if not group.master:
-        raise _errors.GroupError("Group (%s) does not have a master." % \
+        raise _errors.GroupError("Group (%s) does not have a master." %
                                  (group_id, ))
 
     master_uuid = str(group.master)
@@ -807,22 +803,3 @@ def _check_group_availability(group_id):
             (alive, (group.master == server.uuid), server.status)
 
     return availability
-
-def _synchronize(slave, master):
-    """Synchronize a slave with a master and after that stop the slave.
-    """
-    synced = False
-    _replication.start_slave(slave, wait=True)
-    master_gtids = master.get_gtid_status()
-    while _replication.is_slave_thread_running(slave) and not synced:
-        try:
-            _replication.wait_for_slave_gtid(slave, master_gtids, timeout=3)
-            synced = True
-        except _errors.TimeoutError as error:
-            _LOGGER.exception(error)
-    if not _replication.is_slave_thread_running(slave):
-        health = _replication.check_slave_running_health(slave) # TODO: IMPROVE HEALTH INFORMATION
-        _replication.stop_slave(slave, wait=True)
-        raise _errors.DatabaseError("Slave's thread(s) stopped due to (%s).",
-                                    health)
-    _replication.stop_slave(slave, wait=True)
