@@ -830,23 +830,22 @@ def _check_group_availability(group_id):
 
     for server in group.servers():
         alive = False
-        threads = False
         is_master = (group.master == server.uuid)
         thread_issues = {}
         try:
             alive = server.is_alive()
             if not is_master:
-               slave_issues = \
-                   _replication.check_slave_issues(server)
-               str_master_uuid = _replication.slave_has_master(server)
-               if (group.master is None or str(group.master) != \
-                   str_master_uuid) and not slave_issues:
-                   thread_issues = \
-                       "Group has master (%s) and server is connect " \
-                       "to master (%s)." % \
-                       (group.master, str_master_uuid)
-               elif slave_issues:
-                   thread_issues = slave_issues
+                slave_issues = \
+                    _replication.check_slave_issues(server)
+                str_master_uuid = _replication.slave_has_master(server)
+                if (group.master is None or str(group.master) != \
+                    str_master_uuid) and not slave_issues:
+                    thread_issues = \
+                        "Group has master (%s) and server is connect " \
+                        "to master (%s)." % \
+                        (group.master, str_master_uuid)
+                elif slave_issues:
+                    thread_issues = slave_issues
         except _errors.DatabaseError as error:
             _LOGGER.exception(error)
         availability[str(server.uuid)] = {

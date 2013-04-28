@@ -138,7 +138,7 @@ class FailureDetector(object):
                                 "been lost.", server.uuid, self.__group_id)
                             trigger("FAIL_OVER", self.__group_id)
                         server.status = MySQLServer.FAULTY
-            except (_errors.ExecutorError, _errors.DatabaseError) as error:
+            except (_errors.ExecutorError, _errors.DatabaseError):
                 pass
             time.sleep(self.__sleep)
         _persistence.deinit_thread()

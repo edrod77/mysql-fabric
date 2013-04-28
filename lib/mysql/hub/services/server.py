@@ -59,7 +59,6 @@ import uuid as _uuid
 import mysql.hub.events as _events
 import mysql.hub.server as _server
 import mysql.hub.errors as _errors
-import mysql.hub.replication as _replication
 import mysql.hub.failure_detector as _detector
 import mysql.hub.services.utils as _utils
 
@@ -482,7 +481,9 @@ def _add_server(group_id, address, user, passwd):
     try:
         server.connect()
 
-        # TODO: CHECK FILTERS COMPATIBILITY, CHECK ITS ROLE (SLAVE and SPARE).
+        # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+        #  . CHECK FILTERS COMPATIBILITY.
+        #  . CHECK PURGED GTIDS.
         if not server.gtid_enabled or not server.binlog_enabled:
             raise _errors.ServerError(
                 "Server (%s) does not have the binary log or gtid enabled."
