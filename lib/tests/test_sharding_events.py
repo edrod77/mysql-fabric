@@ -304,10 +304,10 @@ class TestShardingServices(unittest.TestCase):
     def test_lookup(self):
         expected_server_list = [
                         [str(self.__server_3.uuid),
-                         "localhost:13003",
+                         MySQLInstances().get_address(2),
                          True],
                         [str(self.__server_4.uuid),
-                         "localhost:13004",
+                         MySQLInstances().get_address(3),
                          False]
                         ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")

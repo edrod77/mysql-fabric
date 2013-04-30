@@ -131,7 +131,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         returns the information of the Global Group.
         """
         #create the list of the expected servers
-        expected_server_address_list = ["localhost:13001", "localhost:13002"]
+        expected_server_address_list = [MySQLInstances().get_address(0), MySQLInstances().get_address(1)]
 
         #Perform the lookup
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")

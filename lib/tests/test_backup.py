@@ -30,7 +30,7 @@ class TestBackupMySQLDump(unittest.TestCase):
 
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "address":"localhost:13001", 
+            "address":MySQLInstances().get_address(0),
             "user" : "root"
         }
 
@@ -44,7 +44,7 @@ class TestBackupMySQLDump(unittest.TestCase):
             "uuid" :  _uuid.UUID("{aa45b12b-98d1-414c-96af-9e9d4b179678}"),
             #Using localhost causes problems while connecting to running MySQL
             #server.
-            "address":"localhost:13002", 
+            "address":MySQLInstances().get_address(1),
             "user" : "root"
         }
 

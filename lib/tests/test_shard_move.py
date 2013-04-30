@@ -56,12 +56,12 @@ class TestShardMove(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID2", "localhost:13003", "root","")
+        status = self.proxy.group.add("GROUPID2", MySQLInstances().get_address(2), "root","")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status =  self.proxy.group.add("GROUPID2", "localhost:13004", "root","")
+        status =  self.proxy.group.add("GROUPID2", MySQLInstances().get_address(3), "root","")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -72,12 +72,12 @@ class TestShardMove(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID3", "localhost:13005", "root","")
+        status = self.proxy.group.add("GROUPID3", MySQLInstances().get_address(4), "root","")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status = self.proxy.group.add("GROUPID3", "localhost:13006", "root","")
+        status = self.proxy.group.add("GROUPID3", MySQLInstances().get_address(5), "root","")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

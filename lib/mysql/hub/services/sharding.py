@@ -1113,28 +1113,13 @@ def _read_config_value(config,  config_group,  config_name):
                                        belongs
     :param config_name: The name of the configuration that needs to be read,
     """
-    default_group = "DEFAULT"
-
     config_value = None
 
-    # The config value can be present in a feature specific group
-    # (e.g. sharding), or in the DEFAULT group. We first try to read
-    # it from the feature specific group (passed as input)
     try:
         config_value =  config.get(config_group, config_name)
     except AttributeError:
         pass
 
-    # If the value is not found in the feature specific group read it
-    # from the DEFAULT group.
-    if config_value is None:
-        try:
-            config_value =  config.get(default_group, config_name)
-        except AttributeError:
-            pass
-
-    #If the value is not found in the feature specific group of the DEFAULT
-    #group throw an error.
     if config_value is None:
         raise _errors.ShardingError(CONFIG_NOT_FOUND %
                                     (config_group,  config_name))
