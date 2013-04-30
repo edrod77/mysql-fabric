@@ -157,9 +157,11 @@ class TestMySQLSlave(unittest.TestCase):
         # Change master's password, reset and try to reconnect master
         # and slave.
         stop_slave(slave, wait=True)
+        master.set_session_binlog(False)
         master.exec_stmt(
             "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('foobar')"
             )
+        master.set_session_binlog(True)
         switch_master(slave, master, "root", "foobar")
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
@@ -168,9 +170,11 @@ class TestMySQLSlave(unittest.TestCase):
         # Reset master's password, reset and try to reconnect master
         # and slave.
         stop_slave(slave, wait=True)
+        master.set_session_binlog(False)
         master.exec_stmt(
             "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('')"
             )
+        master.set_session_binlog(True)
         switch_master(slave, master, "root", "")
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
@@ -300,7 +304,7 @@ class TestMySQLSlave(unittest.TestCase):
         ret = check_slave_issues(slave)
         self.assertEqual(ret, {'io_running': False})
 
-        # Create data and synchronize to show there is not gtid behind.
+        # Create data and synchronize to show there is no gtid behind.
         master.exec_stmt("USE test")
         master.exec_stmt("DROP TABLE IF EXISTS test")
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
