@@ -3,9 +3,11 @@ tasks on replication.
 """
 import re
 import logging
+import time
 import uuid as _uuid
 
 import mysql.hub.events as _events
+import mysql.hub.group_replication as _group_replication
 import mysql.hub.server as _server
 import mysql.hub.replication as _replication
 import mysql.hub.errors as _errors
@@ -456,8 +458,8 @@ def _do_import_topology(pattern_group_id, group_description,
     # Added created master to the group.
     group.add_server(server)
     group.master = server.uuid
-    _LOGGER.debug("Added server (%s) as master to group (%s).", server,
-                  group)
+    _LOGGER.debug("Added server (%s) as master to group (%s).", str(server),
+                  str(group))
 
     # Process slaves.
     for slave in slaves:
@@ -649,7 +651,7 @@ def _do_block_write_master(group_id, master_uuid):
     group = _server.Group.fetch(group_id)
 
     # Temporarily unset the master in this group.
-    group.master = None
+    _set_group_master_replication(group, None,  False)
 
     # TODO: IN THE FUTURUE, KILL CONNECTIONS AND MAKE THIS FASTER.
     server = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
@@ -704,7 +706,8 @@ def _change_to_candidate(group_id, master_uuid):
     _utils.set_read_only(master, False)
 
     group = _server.Group.fetch(group_id)
-    group.master = master.uuid
+
+    _set_group_master_replication(group,  master.uuid,  False)
 
     # TODO: Connect is called from servers(). Revisit this.
     for server in group.servers():
@@ -856,3 +859,47 @@ def _check_group_availability(group_id):
             }
 
     return availability
+
+def _set_group_master_replication(group,  server_id,  clear_ref):
+    """Set the master for the given group and also reset the
+    replication with the other group masters. Any change of master
+    for a group will be initiated through this method. The method also
+    takes care of resetting the master and the slaves that are registered
+    with this group to connect with the new master.
+
+    The idea is that operations like switchover, failover, promote all are
+    finally master changing operations. Hence the right place to handle
+    these operations is at the place where the master is being changed.
+
+    The following operations need to be done
+
+    - Stop the slave on the old master
+    - Stop the slaves replicating from the old master
+    - Start the slave on the new master
+    - Start the slaves with the new master
+
+    :param group: The group whose master needs to be changed.
+    :param server_id: The server id of the server that is becoming
+                                the master.
+    :param clear_ref: When the master is None this flag is used to
+                                determine if we will be deleting the refences
+                                to a slave.
+    """
+
+    #Stop the slave running on the current master
+    if group.master_group_id is not None and group.master is not None:
+        _group_replication.stop_group_slave(group.master_group_id,
+                                                            group.group_id, clear_ref)
+    #Stop the Groups replicating from the current group.
+    _group_replication.stop_group_slaves(group.group_id,  clear_ref)
+
+    #set the new master
+    group.master = server_id
+
+    #If the master is not None setup the master and the slaves.
+    if group.master is not None:
+        #Start the slave groups for this group.
+        _group_replication.start_group_slaves(group.group_id)
+        if group.master_group_id is not None:
+            #Start the slave on this group
+            _group_replication.setup_group_replication(group.master_group_id, group.group_id)

@@ -82,6 +82,18 @@ class ShardMapping(_persistence.Persistable):
                                     ("ALTER TABLE shard_mapping DROP "
                                      "FOREIGN KEY fk_shard_mapping_id")
 
+    #Create the referential integrity constraint with the groups table.
+    ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
+                            ("ALTER TABLE shard_mapping_defn "
+                            "ADD CONSTRAINT fk_shard_mapping_global_group "
+                            "FOREIGN KEY(global_group) REFERENCES "
+                            "groups(group_id)")
+
+    #Drop the referential integrity constraint with the groups table.
+    DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
+                                ("ALTER TABLE shard_mapping_defn DROP "
+                                "FOREIGN KEY fk_shard_mapping_global_group")
+
     #Define a shard mapping.
     DEFINE_SHARD_MAPPING = ("INSERT INTO "
                             "shard_mapping_defn(type_name, global_group) "
@@ -98,6 +110,15 @@ class ShardMapping(_persistence.Persistable):
                             "shard_mapping_defn as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
                             "AND table_name = %s")
+
+    #Select the shard mapping for a given shard mapping ID.
+    SELECT_SHARD_MAPPING_BY_ID = ("SELECT sm.shard_mapping_id, table_name, "
+                            "column_name, type_name, "
+                            "global_group "
+                            "FROM shard_mapping as sm, "
+                            "shard_mapping_defn as smd "
+                            "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
+                            "AND sm.shard_mapping_id = %s")
 
     #Select all the shard specifications of a particular sharding type name.
     LIST_SHARD_MAPPINGS = ("SELECT sm.shard_mapping_id, table_name, "
@@ -120,6 +141,10 @@ class ShardMapping(_persistence.Persistable):
     #Delete the sharding specification to table mapping for a given table.
     DELETE_SHARD_MAPPING = ("DELETE FROM shard_mapping "
                             "WHERE shard_mapping_id = %s")
+
+    #Delete the shard mapping definition
+    DELETE_SHARD_MAPPING_DEFN = ("DELETE FROM shard_mapping_defn "
+                                 "WHERE shard_mapping_id = %s")
 
     def __init__(self, shard_mapping_id, table_name, column_name, type_name,
                  global_group):
@@ -212,14 +237,16 @@ class ShardMapping(_persistence.Persistable):
 
         :param persister: Represents a valid handle to the state
                           store.
-        :return: True if the remove succeeded.
-                False if the query failed.
         """
-
+        #Remove the shard mapping
         persister.exec_stmt(
             ShardMapping.DELETE_SHARD_MAPPING,
             {"params":(self.__shard_mapping_id,)})
-        return True
+
+        #Remove the shard mapping definition.
+        persister.exec_stmt(
+            ShardMapping.DELETE_SHARD_MAPPING_DEFN,
+            {"params":(self.__shard_mapping_id,)})
 
     @staticmethod
     def create(persister=None):
@@ -227,13 +254,10 @@ class ShardMapping(_persistence.Persistable):
         the sharding specification.
 
         :param persister: A valid handle to the state store.
-        :return: True if the query succeeded but there is no result set
-                False if the query failed
         """
 
         persister.exec_stmt(ShardMapping.CREATE_SHARD_MAPPING)
         persister.exec_stmt(ShardMapping.CREATE_SHARD_MAPPING_DEFN)
-        return True
 
     @staticmethod
     def drop(persister=None):
@@ -241,13 +265,10 @@ class ShardMapping(_persistence.Persistable):
         the table and the sharding specificaton.
 
         :param persister: A valid handle to the state store.
-        :return: True if the query succeeded but there is no result set
-                False if the query failed
         """
 
         persister.exec_stmt(ShardMapping.DROP_SHARD_MAPPING_DEFN)
         persister.exec_stmt(ShardMapping.DROP_SHARD_MAPPING)
-        return True
 
     @staticmethod
     def add_constraints(persister=None):
@@ -257,7 +278,8 @@ class ShardMapping(_persistence.Persistable):
         """
         persister.exec_stmt(
                     ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
-        return True
+        persister.exec_stmt(
+                    ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP)
 
     @staticmethod
     def drop_constraints(persister=None):
@@ -267,7 +289,8 @@ class ShardMapping(_persistence.Persistable):
         """
         persister.exec_stmt(
                     ShardMapping.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
-        return True
+        persister.exec_stmt(
+                    ShardMapping.DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP)
 
     @staticmethod
     def fetch(table_name, persister=None):
@@ -289,6 +312,28 @@ class ShardMapping(_persistence.Persistable):
             return ShardMapping(row[0], row[1], row[2], row[3], row[4])
 
         return None
+
+    @staticmethod
+    def fetch_by_id(shard_mapping_id, persister=None):
+        """Fetch the shard specification mapping for the given shard mapping ID.
+
+        :param shard_mapping_id: The shard mapping id for which the sharding
+                            specification is being queried.
+        :param persister: A valid handle to the state store.
+        :return: The ShardMapping object that encapsulates the shard mapping
+                    information for the given shard mapping ID.
+        """
+        cur = persister.exec_stmt(
+                                  ShardMapping.SELECT_SHARD_MAPPING_BY_ID,
+                                  {"raw" : False,
+                                  "fetch" : False,
+                                  "params" : (shard_mapping_id,)})
+        row = cur.fetchone()
+        if row:
+            return ShardMapping(row[0], row[1], row[2], row[3], row[4])
+
+        return None
+
 
     @staticmethod
     def fetch_shard_mapping_defn(shard_mapping_id, persister=None):
@@ -418,8 +463,10 @@ class Shards(_persistence.Persistable):
     DELETE_SHARD = ("DELETE FROM Shards WHERE shard_id = %s")
 
     #Select the group to which a shard ID maps to.
-    SELECT_SHARD_GROUP = ("SELECT group_id FROM Shards "
-                                  "WHERE shard_id = %s")
+    SELECT_SHARD_GROUP = ("SELECT group_id FROM Shards WHERE shard_id = %s")
+
+    #Select the shard that belongs to a given group.
+    SELECT_GROUP_FOR_SHARD = ("SELECT shard_id FROM Shards WHERE group_id = %s")
 
     def __init__(self, shard_id, group_id):
         """Initialize the Shards object with the shard to group mapping.
@@ -437,24 +484,16 @@ class Shards(_persistence.Persistable):
         """Create the schema to store the current Shard to Group mapping.
 
         :param persister: A valid handle to the state store.
-
-        :return: True if the query succeeded but there is no result set
-                False if the query failed
         """
         persister.exec_stmt(Shards.CREATE_SHARDS)
-        return True
 
     @staticmethod
     def drop(persister=None):
         """Drop the schema to store the current Shard to Group mapping.
 
         :param persister: A valid handle to the state store.
-
-        :return: True if the query succeeded but there is no result set
-                False if the query failed
         """
         persister.exec_stmt(Shards.DROP_SHARDS)
-        return True
 
     @staticmethod
     def add(group_id, persister=None):
@@ -479,7 +518,6 @@ class Shards(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(Shards.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        return True
 
     @staticmethod
     def drop_constraints(persister=None):
@@ -489,7 +527,6 @@ class Shards(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(Shards.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        return True
 
     def remove(self, persister=None):
         """Remove the Shard to Group mapping.
@@ -499,7 +536,6 @@ class Shards(_persistence.Persistable):
         """
         persister.exec_stmt(Shards.DELETE_SHARD, \
                             {"params":(self.__shard_id,)})
-        return True
 
     @staticmethod
     def fetch(shard_id, persister=None):
@@ -522,6 +558,20 @@ class Shards(_persistence.Persistable):
 
         return Shards(shard_id, row[0][0])
 
+    @staticmethod
+    def lookup_shard_id(group_id,  persister=None):
+        """Fetch the shard ID for the given Group.
+
+        :param group_id: The Group that is being looked up.
+        :param persister: A valid handle to the state store.
+
+        :return: The shard_id contained in the given group_id.
+        """
+        row = persister.exec_stmt(Shards.SELECT_GROUP_FOR_SHARD, \
+                                  {"params":(group_id,)})
+        if row:
+            return row[0][0]
+
     @property
     def shard_id(self):
         """Return the shard ID for the Shard to Group mapping.
@@ -533,6 +583,17 @@ class Shards(_persistence.Persistable):
         """Return the Group ID for the Shard to Group mapping.
         """
         return self.__group_id
+
+    @group_id.setter
+    def group_id(self,  group_id,  persister=None):
+        """Set the group_id for the Shard.
+
+        :param group_id: The Group that is being added to store a shard.
+        :param persister: A valid handle to the state store.
+        """
+        persister.exec_stmt(Shards.UPDATE_SHARD,
+                                        {"params":(group_id, self.__shard_id)})
+        self.__group_id = group_id
 
 class RangeShardingSpecification(_persistence.Persistable):
     """Represents a RANGE sharding specification. The class helps encapsulate
@@ -643,12 +704,18 @@ class RangeShardingSpecification(_persistence.Persistable):
                                   "WHERE shard_mapping_id = %s")
 
     #Select the server corresponding to the RANGE to which a given key
-    #belongs
+    #belongs. The range is open on the lower_bound and closed on the
+    #upper bound.
     LOOKUP_KEY = ("SELECT shard_mapping_id, lower_bound, upper_bound, "
                   "shard_id, state "
                   "FROM range_sharding_specification "
-                  "WHERE %s >= lower_bound AND %s <= upper_bound AND "
+                  "WHERE %s > lower_bound AND %s <= upper_bound AND "
                   "shard_mapping_id = %s")
+
+    #Update the Range for a particular shard. The updation needs to happen
+    #for the upper bound and the lower bound simultaneously.
+    UPDATE_RANGE = ("UPDATE range_sharding_specification SET lower_bound = %s "
+                        ", upper_bound = %s WHERE shard_id = %s")
 
     def __init__(self, shard_mapping_id, lower_bound, upper_bound,
                   shard_id, state="DISABLED"):
@@ -718,8 +785,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         RANGE shard specification object.
 
         :param persister: Represents a valid handle to the state store.
-        :return: True if the remove succeeded
-                False if the query failed
         """
         persister.exec_stmt(
             RangeShardingSpecification.DELETE_RANGE_SPECIFICATION,
@@ -757,27 +822,19 @@ class RangeShardingSpecification(_persistence.Persistable):
         """Create the schema to store the current RANGE sharding specification.
 
         :param persister: A valid handle to the state store.
-
-        :return: True if the query succeeded but there is no result set
-                False if the query failed
         """
 
         persister.exec_stmt(
                     RangeShardingSpecification.CREATE_RANGE_SPECIFICATION)
-        return True
 
     @staticmethod
     def drop(persister=None):
         """Drop the Range shard specification schema.
 
         :param persister: A valid handle to the state store.
-
-        :return: True if the query succeeded but there is no result set
-                False if the query failed
         """
         persister.exec_stmt(
                         RangeShardingSpecification.DROP_RANGE_SPECIFICATION)
-        return True
 
     @staticmethod
     def add_constraints(persister=None):
@@ -793,7 +850,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         persister.exec_stmt(
             RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID
             )
-        return True
 
     @staticmethod
     def drop_constraints(persister=None):
@@ -809,7 +865,6 @@ class RangeShardingSpecification(_persistence.Persistable):
             RangeShardingSpecification.\
             DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
             )
-        return True
 
 #TODO: Should fetch accept a shard_mapping_id or a shard_id ?
 #TODO: Should there be a method that accepts shard_mapping_id like list?
@@ -858,6 +913,19 @@ class RangeShardingSpecification(_persistence.Persistable):
         return RangeShardingSpecification(row[0], row[1], row[2], row[3],
                                                                   row[4])
 
+    @staticmethod
+    def update_shard(shard_id, lb, ub, persister=None):
+        """Update the range for a given shard_id.
+
+        :param shard_id: The ID of the shard whose range needs to be updated.
+        :param lb: The new lower bound for the shard.
+        :param ub: The new upper bound for the shard.
+        :param persister: A valid handle to the state store.
+        """
+        cur = persister.exec_stmt(
+                    RangeShardingSpecification.UPDATE_RANGE,
+                        {"params" : (lb, ub, shard_id)})        
+    
 #TODO: Should a lookup fail if a shard is DISABLED ?
     @staticmethod
     def lookup(key, shard_mapping_id, persister=None):
@@ -900,13 +968,12 @@ class RangeShardingSpecification(_persistence.Persistable):
           server.
 
         :param table_name: The table being sharded.
-
-        :return: False If the delete fails
-                True if the delete succeeds.
         """
 
         #Get the shard mapping for the table from the state store.
         shard_mapping = ShardMapping.fetch(table_name)
+        if shard_mapping is None:
+            raise _errors.ShardingError("Shard Mapping not found.")
 
         #Get the shard mapping ID
         shard_mapping_id = shard_mapping.shard_mapping_id
@@ -915,31 +982,58 @@ class RangeShardingSpecification(_persistence.Persistable):
         #shard mapping id
         range_sharding_specs = RangeShardingSpecification.list \
                                                 (shard_mapping_id)
+        if not range_sharding_specs:
+            raise _errors.ShardingError("No shards associated with this"
+                                                         " shard mapping ID.")
 
         #Use the information in each of the range sharding specs to prune the
         #tables.
         for range_sharding_spec in range_sharding_specs:
-            #Form the delete query using the shard mapping and the shard spec
-            #information
-            delete_query = \
-                ("DELETE FROM %s WHERE %s NOT BETWEEN %s and %s")% \
-                                                (table_name,
-                                                shard_mapping.column_name,
-                                                range_sharding_spec.lower_bound,
-                                                range_sharding_spec.upper_bound)
+            #Prune the shard given by the shard_id associated with
+            #the Range Sharding Specification
+            RangeShardingSpecification.prune_shard_id(range_sharding_spec.shard_id)
 
-            #Fetch the shard information using the shard_id
-            shard = Shards.fetch(range_sharding_spec.shard_id)
+    #TODO: Narayanan: Explore if the errors below can be handled at the service
+    #TODO: Narayanan: layer.
+    @staticmethod
+    def prune_shard_id(shard_id):
+        #Fetch the range sharding specification for the shard_id
+        range_sharding_spec = RangeShardingSpecification.fetch(shard_id)
+        if range_sharding_spec is None:
+            raise _errors.ShardingError("No shards associated with this"
+                                                         " shard mapping ID.")
+        #Fetch the shard mapping corresponding to the shard_id
+        shard_mapping = ShardMapping.fetch_by_id(range_sharding_spec.shard_mapping_id)
+        if shard_mapping is None:
+            raise _errors.ShardingError("Shard Mapping not found.")
+        #Fetch the table name from the shard mapping
+        table_name = shard_mapping.table_name
+        #Form the delete query using the shard mapping and the shard spec
+        #information
+        delete_query = \
+            ("DELETE FROM %s WHERE %s NOT BETWEEN %s and %s")% \
+                                            (table_name,
+                                            shard_mapping.column_name,
+                                            range_sharding_spec.lower_bound,
+                                            range_sharding_spec.upper_bound)
 
-            #Fetch the Group object using the group id in the shard information
-            group = Group.fetch(shard.group_id)
+        #Fetch the shard information using the shard_id
+        shard = Shards.fetch(range_sharding_spec.shard_id)
+        if shard is None:
+            raise _errors.ShardingError("Shard not found (%s)" % (range_sharding_spec.shard_id, ))
 
-            #Fetch the master of the group
-            master = MySQLServer.fetch(group.master)
+        #Fetch the Group object using the group id in the shard information
+        group = Group.fetch(shard.group_id)
+        if group is None:
+            raise _errors.ShardingError("Group not found (%s)" % (shard.group_id, ))
 
-            #Get a connection
-            master.connect()
+        #Fetch the master of the group
+        master = MySQLServer.fetch(group.master)
+        if master is None:
+            raise _errors.ShardingError("Group Master not found (%s)" % (str(group.master)))
 
-            #Fire the DELETE query
-            master.exec_stmt(delete_query)
-        return True
+        #Get a connection
+        master.connect()
+
+        #Fire the DELETE query
+        master.exec_stmt(delete_query)

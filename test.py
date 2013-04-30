@@ -10,7 +10,7 @@ from logging import (
     FileHandler,
     )
 
-NUMBER_OF_SERVERS = 4
+NUMBER_OF_SERVERS = 6
 
 if sys.version_info[0:2] < (2,7):
     class NullHandler(logging.Handler):
@@ -136,6 +136,8 @@ if __name__ == '__main__':
     options, args = get_options()
     xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
     mysqld_next_port = 13000
+    mysqldump_path = os.getenv("MYSQLDUMP", "")
+    mysqlclient_path = os.getenv("MYSQLCLIENT", "")
 
     handler = None
     formatter = logging.Formatter(

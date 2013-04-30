@@ -2,6 +2,7 @@ import unittest
 import uuid as _uuid
 import mysql.hub.sharding as _sharding
 import mysql.hub.errors as _errors
+import tests.utils
 
 from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
 from mysql.hub.server import Group, MySQLServer
@@ -17,6 +18,11 @@ class TestSharding(unittest.TestCase):
                          user=options.user, password=options.password)
         persistence.setup()
         persistence.init_thread()
+
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
+
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_1.mysql.com:3060",
@@ -198,8 +204,11 @@ class TestSharding(unittest.TestCase):
 
 
     def tearDown(self):
-        self.__server_3.exec_stmt("DROP DATABASE prune_db")
-        self.__server_5.exec_stmt("DROP DATABASE prune_db")
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         persistence.deinit_thread()
         persistence.teardown()
 
@@ -257,6 +266,16 @@ class TestSharding(unittest.TestCase):
         self.assertEqual(self.__shard_mapping_1.global_group, "GROUPID10")
 
     def test_shard_mapping_remove(self):
+        self.__range_sharding_specification_1.remove()
+        self.__range_sharding_specification_2.remove()
+        self.__range_sharding_specification_3.remove()
+        self.__range_sharding_specification_4.remove()
+        self.__range_sharding_specification_5.remove()
+        self.__range_sharding_specification_6.remove()
+        self.__range_sharding_specification_7.remove()
+        self.__range_sharding_specification_8.remove()
+        self.__range_sharding_specification_9.remove()
+        self.__range_sharding_specification_10.remove()
         shard_mapping_1 = ShardMapping.fetch("db1.t1")
         shard_mapping_1.remove()
 
@@ -269,19 +288,6 @@ class TestSharding(unittest.TestCase):
                          1000)
         self.assertEqual(self.__range_sharding_specification_1.shard_id,
                          1)
-
-    def test_shard_prune(self):
-        RangeShardingSpecification.delete_from_shard_db("prune_db.prune_table")
-        rows = self.__server_3.exec_stmt(
-                                    "SELECT NAME FROM prune_db.prune_table",
-                                    {"fetch" : True})
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0][0], 'TEST 1')
-        rows = self.__server_5.exec_stmt(
-                                    "SELECT NAME FROM prune_db.prune_table",
-                                    {"fetch" : True})
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0][0], 'TEST 2')
 
     def test_list_shard_mapping(self):
         expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]

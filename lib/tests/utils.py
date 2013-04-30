@@ -1,5 +1,7 @@
 """Module holding support utilities for tests.
 """
+import glob
+import os
 import threading
 import time
 import uuid as _uuid
@@ -162,9 +164,40 @@ class ShardingUtils(object):
                 range_specification_1.shard_id == range_specification_2.shard_id and \
                 range_specification_1.state == range_specification_2.state
 
+def cleanup_environment():
+   #Stop slaves and reset slaves on all servers
+    MySQLInstances().destroy_instances()
+   #Remove all the databases from the running MySQL instances
+   #other than the standard ones
+    STANDARD_DB_LIST = ("information_schema", "mtr", "mysql", "performance_schema", "test")
+    server_count = MySQLInstances().get_number_addresses()
+    for i in range(0, server_count):
+        __options = {
+            "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "address"  : MySQLInstances().get_address(i),
+            "user" : "root"
+        }
+
+        __uuid_server = _server.MySQLServer.discover_uuid(**__options )
+        __options ["uuid"] = _uuid.UUID(__uuid_server)
+        __server = _server.MySQLServer(**__options )
+        __server.connect()
+        _replication.reset_master(__server)
+        databases = __server.exec_stmt(
+                                "SHOW DATABASES",
+                                {"fetch" : True})
+        databases_count = len(databases)
+        for j in range(0, databases_count):
+            if databases[j][0] not in STANDARD_DB_LIST:
+                __server.exec_stmt("DROP DATABASE IF EXISTS %s" % (databases[j][0]))
+
+    files = glob.glob(os.path.join(os.getcwd(), "*.sql"))
+    for f in files:
+        os.remove(f)
+    
 def setup_xmlrpc():
     # TODO: Check the xmlrpc_next_port...
-    from __main__ import options, xmlrpc_next_port
+    from __main__ import options, xmlrpc_next_port, mysqldump_path, mysqlclient_path
     params = {
         'protocol.xmlrpc': {
             'address': 'localhost:%d' % (xmlrpc_next_port, ),
@@ -176,6 +209,10 @@ def setup_xmlrpc():
             'database': 'fabric',
             'connection_timeout': 'None',
             },
+            'sharding': {
+                'mysqldump_program': mysqldump_path,
+                'mysqlclient_program': mysqlclient_path,
+            }, 
         }
     config = _config.Config(None, params, True)
 

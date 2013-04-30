@@ -61,6 +61,7 @@ import mysql.hub.server as _server
 import mysql.hub.errors as _errors
 import mysql.hub.failure_detector as _detector
 import mysql.hub.services.utils as _utils
+import mysql.hub.group_replication as _group_replication
 
 from mysql.hub.command import (
     ProcedureCommand,
@@ -356,7 +357,13 @@ def _deactivate_group(group_id):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     group.status = _server.Group.INACTIVE
     _detector.FailureDetector.unregister_group(group_id)
-    _LOGGER.debug("Group (%s) is active.", group)
+    #Since the Group is being deactivated, stop all the slaves
+    #associated with this group. Although the slave groups are
+    #being stopped do not remove the references to the slave
+    #groups. When the group is activated again the slaves need
+    #to be restarted again.
+    _group_replication.stop_group_slaves(group_id, True)
+    _LOGGER.debug("Group (%s) is active.", str(group))
 
 @_events.on_event(UPDATE_GROUP)
 def _update_group_description(group_id, description):
@@ -373,6 +380,15 @@ def _destroy_group(group_id, force):
     """Destroy a group.
     """
     group = _server.Group.fetch(group_id)
+    #Since the group is being destroyed stop all the slaves associated
+    #with this group would have been removed. If the group had been
+    #a slave to another group, this would also have been stopped by the
+    #demote or the deactivate command. But we need to clear the ref
+    #to the other groups that is part of this group object.
+    #Remove the master group ID.
+    group.remove_master_group_id()
+    #Remove the slave group IDs.
+    group.remove_slave_group_ids()
     servers_uuid = []
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
@@ -506,7 +522,6 @@ def _remove_server(group_id, uuid):
     """
     uuid = _uuid.UUID(uuid)
     group = _server.Group.fetch(group_id)
-
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 

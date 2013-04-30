@@ -581,3 +581,65 @@ def _check_condition(server, threads, check_if_running):
             raise _errors.DatabaseError(io_error)
 
     return achieved
+
+#TODO: Optimize the data that is being synchronized between the source
+#TODO: and the destination shards. Currently we are shipping everything
+#TODO: and pruning later. This can possibly be optimized to send only the
+#TODO: necessary information.
+def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
+    """Synchronize the master with the slave. The function accepts a transaction
+    lag and a timeout parameters.
+    
+    The transaction lag is used to determine that number of transactions the
+    slave can lag behind the master before the master is locked to enable a
+    complete sync.
+
+    The timeout indicates the amount of time to wait for before taking a read
+    lock on the master to enable a complete sync with the slave. The transaction
+    lag alone is not enough to ensure that the slave catches up and at sometime
+    we have to assume that the slave will not catch up and lock the source
+    shard.
+
+    :param slave: The MySQLServer object for the slave server.
+    :param master: The MySQLServer object for the master server.
+    :param trnx_lag: The number of transactions by which the slave can lag the
+                                master before we can take a lock.
+    :param timeout: The timeout for which we should wait before taking a
+                               read lock on the master.
+    """
+    
+    #Flag indicates if we are synced enough to take a read lock.
+    synced = False
+
+    #Syncing basically means that we either ensure that the slave
+    #is "trnx_lag" transactions behind the master within the given
+    #timeout. If the slave has managed to reach within "trnx_lag"
+    #transactions we take a read lock and sync. We also take a read
+    #lock and sync if the timeout has exceeded.
+    while not synced:
+        start_time = time.time()
+        master_gtids = master.get_gtid_status()
+        try:
+            wait_for_slave_gtid(slave, master_gtids, timeout)
+            master_gtids = master.get_gtid_status()
+            if get_slave_num_gtid_behind(slave, master_gtids) <= trnx_lag:
+                synced = True
+            else:
+                #Recalculate the amount of time left in the timeout, because
+                #part of the time has already been used up when the code
+                #reaches here.
+                timeout = timeout - (time.time() - start_time)
+                if timeout <= 0:
+                    synced = True
+        except _errors.TimeoutError as error:
+            #If the code flow reaches here the timeout has been exceeded.
+            #We lock the master and let the master and slave sync at this
+            #point.
+            break
+
+    #At this point we lock the master and let the slave sync with the master.
+    #This step is common across the entire algorithm. The preceeding steps
+    #just help minimize the amount of time for which we take a read lock.
+    master.read_only = True
+    master_gtids = master.get_gtid_status()
+    wait_for_slave_gtid(slave, master_gtids, timeout=0)
