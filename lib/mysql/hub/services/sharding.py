@@ -576,7 +576,7 @@ def _remove_shard(shard_id):
     _stop_shard_group_replication(shard_id,  True)
     range_sharding_specification.remove()
     shard.remove()
-    _LOGGER.debug("Removed Shard (%d).", shard_id)
+    _LOGGER.debug("Removed Shard (%s).", shard_id)
 
 @_events.on_event(LOOKUP_SHARD_SERVERS)
 def _lookup(table_name, key,  hint):
