@@ -246,6 +246,8 @@ class TestShardSplit(unittest.TestCase):
         global_master.exec_stmt("INSERT INTO global_db.global_table "
                                   "VALUES(606, 'TEST 6')")
 
+        sleep(5)
+
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
