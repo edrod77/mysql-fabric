@@ -140,7 +140,11 @@ class TestMySQLSlave(unittest.TestCase):
         switch_master(slave, master, "root", "")
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
-        self.assertEqual(slave_has_master(slave), str(master.uuid))
+        # The IO_THREAD status and the UUID are not atomically updated. 
+        master_uuid = slave_has_master(slave)
+        self.assertTrue(
+            master_uuid == None or master_uuid == str(master.uuid)
+            )
 
         # It is not possible to switch when replication is running.
         self.assertRaises(_errors.DatabaseError, switch_master, slave,
