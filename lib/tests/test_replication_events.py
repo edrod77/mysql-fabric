@@ -36,8 +36,7 @@ class TestReplicationServices(unittest.TestCase):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
-    #TODO: Alfranio: Need to fix cleanup.
-    def NEED_FIXING_test_import_topology(self):
+    def test_import_topology(self):
         # Create topology M1 --> S2
         user = "root"
         passwd = ""
@@ -579,8 +578,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_fail).")
 
-    #TODO: Alfranio: Cleanup need to be fixed.
-    def NEED_FIXING_test_promote_master(self):
+    def test_promote_master(self):
         # Create topology: M1 ---> S2, M1 ---> S3
         user = "root"
         passwd = ""
