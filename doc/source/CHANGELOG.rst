@@ -3,7 +3,24 @@ ChangeLog for Fabric
 ####################
 
 
-Release 0.1.2 (released April 18, 2013)
+Release 0.2.0 (released May 06, 2013)
+-------------------------------------
+
+* HAM-59: Clean up replication and high availability functions.
+* HAM-61: Extend the server's properties and life-cycle.
+* HAM-63: Implement compensating operations
+* HAM-65: Fast Re-sharding
+* HAM-78: Automatically configure an added server as slave.
+* HAM-125: Implementing Crash unsafe global operations. 
+* HAM-140: Server Commands don't have access to config and options
+* HAM-160: Tests fail in jenkins due to wrong password
+* HAM-161: Remove the distribute_datadir.py module.
+* HAM-164: Tests that remove shards complain about message format
+* HAM-170: test_check_no_healthy_slave is sporadically failing
+* HAM-177: test_switch_master in test_mysql_replication.py fails
+* HAM-180: Remove non-existent paths in main.cfg
+
+Release 0.1.2 (released April 27, 2013)
 ---------------------------------------
 
 * HAM-52: Mismatch between service and logging.
