@@ -1,6 +1,6 @@
 """Unit tests for testing MySQLServer.
 """
-
+import re
 import unittest
 import uuid as _uuid
 
@@ -151,9 +151,9 @@ class TestMySQLServer(unittest.TestCase):
         server = self.server
         server.connect()
 
+        check = re.compile('\w+-bin.000001')
         for record in server.get_binary_logs():
-            self.assertTrue(record.Log_name in
-                ("master-bin.000001", "mysqld-bin.000001", "slave-bin.000001"))
+            self.assertNotEqual(check.match(record.Log_name), None)
         # TODO: Test with binlog disabled.
 
     def test_exec_stmt_options(self):
