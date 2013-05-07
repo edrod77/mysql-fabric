@@ -1,6 +1,6 @@
 """Unit tests for the configuration file handling.
 """
-
+import re
 import unittest
 import uuid as _uuid
 
@@ -64,9 +64,9 @@ class TestMySQLMaster(unittest.TestCase):
         # with the FakeMySQL.
 
         # Get master status.
+        check = re.compile('\w+-bin.000001')
         ret = get_master_status(master)
-        self.assertTrue(ret[0][0] in \
-            ("master-bin.000001",  "mysqld-bin.000001", "slave-bin.000001"))
+        self.assertNotEqual(check.match(ret[0][0]), None)
 
         # Reset Master.
         reset_master(master)
