@@ -114,8 +114,6 @@ class TestManageServices(unittest.TestCase):
     def setUp(self):
         self.old_stderr = sys.stderr
         sys.stderr = StringIO()
-        self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
         _command.register_command(
             "test", "non_doc_command_1", NonDocCommand
             )
@@ -137,6 +135,8 @@ class TestManageServices(unittest.TestCase):
         _command.register_command(
             "test", "remote_command_2", NewRemoteCommandWithArgs
             )
+        self.manager, self.proxy = tests.utils.setup_xmlrpc()
+        _persistence.init_thread()
 
     def tearDown(self):
         sys.stderr = self.old_stderr
