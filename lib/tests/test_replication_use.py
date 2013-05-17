@@ -17,10 +17,16 @@ from mysql.hub.server import Group
 class TestReplicationUse(unittest.TestCase):
 
     def setUp(self):
+        """Configure the existing environment
+        """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
         _persistence.init_thread()
+        tests.utils.cleanup_environment()
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
@@ -36,7 +42,6 @@ class TestReplicationUse(unittest.TestCase):
         user = "root"
         passwd = ""
         instances = tests.utils.MySQLInstances()
-        instances.destroy_instances()
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -85,7 +90,6 @@ class TestReplicationUse(unittest.TestCase):
         user = "root"
         passwd = ""
         instances = tests.utils.MySQLInstances()
-        instances.destroy_instances()
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -129,7 +133,6 @@ class TestReplicationUse(unittest.TestCase):
         user = "root"
         passwd = ""
         instances = tests.utils.MySQLInstances()
-        instances.destroy_instances()
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -263,7 +266,6 @@ class TestReplicationUse(unittest.TestCase):
         user = "root"
         passwd = ""
         instances = tests.utils.MySQLInstances()
-        instances.destroy_instances()
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)

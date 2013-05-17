@@ -241,6 +241,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertRaises(_errors.TimeoutError, wait_for_slave_thread, slave,
                           timeout=1, wait_for_running=True)
 
+        master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         master.exec_stmt("USE test")
         master.exec_stmt("DROP TABLE IF EXISTS test")
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
@@ -309,6 +310,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertEqual(ret, {'io_running': False})
 
         # Create data and synchronize to show there is no gtid behind.
+        master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         master.exec_stmt("USE test")
         master.exec_stmt("DROP TABLE IF EXISTS test")
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
@@ -363,6 +365,7 @@ class TestMySQLSlave(unittest.TestCase):
 
         # It is not possible to do any comparison if the master_gtid_status
         # is empty.
+        slave.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         slave.exec_stmt("USE test")
         slave.exec_stmt("DROP TABLE IF EXISTS test")
         master_gtid_status = master.get_gtid_status()

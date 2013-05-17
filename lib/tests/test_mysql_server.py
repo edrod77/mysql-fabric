@@ -161,6 +161,7 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         # Populate testing tables.
+        server.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         server.exec_stmt("USE test")
         server.exec_stmt("DROP TABLE IF EXISTS test_1")
         server.exec_stmt("CREATE TABLE test_1(id INTEGER)")
