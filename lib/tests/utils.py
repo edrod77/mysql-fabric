@@ -64,10 +64,7 @@ class MySQLInstances(_utils.Singleton):
         """Destroy the MySQLServer objects created through the
         :meth:`configure_instances` method.
         """
-        for instance in self.__instances.values():
-            _replication.stop_slave(instance, wait=True)
-            _replication.reset_slave(instance, clean=True)
-        self.__instances = {}
+        cleanup_environment()
 
     def configure_instances(self, topology, user, passwd):
         """Configure a replication topology using the MySQL Instances
@@ -101,9 +98,6 @@ class MySQLInstances(_utils.Singleton):
             master = _server.MySQLServer(
                 _uuid.UUID(master_uuid), master_address, user, passwd)
             master.connect()
-            _replication.stop_slave(master, wait=True)
-            _replication.reset_master(master)
-            _replication.reset_slave(master)
             master.read_only = False
             self.__instances[number] = master
             for slave_topology in topology[number]:
@@ -165,11 +159,12 @@ class ShardingUtils(object):
                 range_specification_1.state == range_specification_2.state
 
 def cleanup_environment():
-   #Stop slaves and reset slaves on all servers
-    MySQLInstances().destroy_instances()
-   #Remove all the databases from the running MySQL instances
-   #other than the standard ones
-    STANDARD_DB_LIST = ("information_schema", "mtr", "mysql", "performance_schema", "test")
+    #Clean up information on instances.
+    MySQLInstances().__instances = {}
+
+    #Remove all the databases from the running MySQL instances
+    #other than the standard ones
+    STANDARD_DB_LIST = ("information_schema", "mtr", "mysql", "performance_schema")
     server_count = MySQLInstances().get_number_addresses()
     for i in range(0, server_count):
         __options = {
@@ -182,18 +177,20 @@ def cleanup_environment():
         __options ["uuid"] = _uuid.UUID(__uuid_server)
         __server = _server.MySQLServer(**__options )
         __server.connect()
-        _replication.reset_master(__server)
+        _replication.stop_slave(__server, wait=True)
+
         databases = __server.exec_stmt(
                                 "SHOW DATABASES",
                                 {"fetch" : True})
-        databases_count = len(databases)
-        for j in range(0, databases_count):
-            if databases[j][0] not in STANDARD_DB_LIST:
-                __server.exec_stmt("DROP DATABASE IF EXISTS %s" % (databases[j][0]))
+        for database in databases:
+            if database[0] not in STANDARD_DB_LIST:
+                __server.exec_stmt("DROP DATABASE IF EXISTS %s" % (database[0], ))
 
-    files = glob.glob(os.path.join(os.getcwd(), "*.sql"))
-    for f in files:
-        os.remove(f)
+        _replication.reset_master(__server)
+        _replication.reset_slave(__server, clean=True)
+
+    for __file in glob.glob(os.path.join(os.getcwd(), "*.sql")):
+        os.remove(__file)
     
 def setup_xmlrpc():
     # TODO: Check the xmlrpc_next_port...
