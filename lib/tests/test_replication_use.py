@@ -159,24 +159,24 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
 
         # Inject some events that makes a slave break.
+        slave_1.set_session_binlog(False)
         slave_1.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         slave_1.exec_stmt("USE test")
-        slave_1.exec_stmt("SET sql_log_bin=0")
         slave_1.exec_stmt("DROP TABLE IF EXISTS test")
         slave_1.exec_stmt("CREATE TABLE test (id INTEGER)")
-        slave_1.exec_stmt("SET sql_log_bin=1")
+        slave_1.set_session_binlog(True)
 
+        slave_2.set_session_binlog(False)
         slave_2.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         slave_2.exec_stmt("USE test")
-        slave_2.exec_stmt("SET sql_log_bin=0")
         slave_2.exec_stmt("DROP TABLE IF EXISTS test")
-        slave_2.exec_stmt("SET sql_log_bin=1")
+        slave_2.set_session_binlog(True)
 
+        master.set_session_binlog(False)
         master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         master.exec_stmt("USE test")
-        master.exec_stmt("SET sql_log_bin=0")
         master.exec_stmt("DROP TABLE IF EXISTS test")
-        master.exec_stmt("SET sql_log_bin=1")
+        master.set_session_binlog(True)
         master.exec_stmt("CREATE TABLE test (id INTEGER)")
 
         # Synchronize replicas.
@@ -211,6 +211,12 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
+        # Synchronize replicas.
+        slave_gtids = slave_2.get_gtid_status()
+        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid,
+                          slave_1, slave_gtids, timeout=0)
+        _repl.wait_for_slave_gtid(master, slave_gtids, timeout=0)
+
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
@@ -230,36 +236,23 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
+        # Synchronize replicas.
+        master_gtids = master.get_gtid_status()
+        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid,
+                          slave_1, master_gtids, timeout=0)
+        _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
+
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
+        self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
+            {"sql_running": False, "sql_error": "Error 'Table 'test' "
+            "already exists' on query. Default database: 'test'. Query: "
+            "'CREATE TABLE test (id INTEGER)'"}
+            )
+        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
         self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-
-        if status[2][str(master.uuid)]["is_master"]:
-            self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
-            self.assertEqual(status[2][str(master.uuid)]["threads"], {})
-            self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
-                {"sql_running": False, "sql_error": "Error 'Table 'test' "
-                "already exists' on query. Default database: 'test'. Query: "
-                "'CREATE TABLE test (id INTEGER)'"}
-                )
-            self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
-
-            # Clean up
-            master.exec_stmt("DROP DATABASE IF EXISTS test")
-            master_gtids = master.get_gtid_status()
-            _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
-
-        else:
-            self.assertEqual(status[2][str(slave_1.uuid)]["threads"], {})
-            self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], True)
-
-            # Clean up
-            slave_1.exec_stmt("DROP DATABASE IF EXISTS test")
-            master_gtids = slave_1.get_gtid_status()
-            _repl.wait_for_slave_gtid(master, master_gtids, timeout=0)
-            _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
-
+        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
 
     def test_check_no_healthy_slave(self):
         # Configure replication.
