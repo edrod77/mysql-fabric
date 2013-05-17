@@ -241,7 +241,9 @@ class Command(object):
 
 
 class ProcedureCommand(Command):
-    # TODO: IMPROVE THE CODE SO USERS MAY DECIDE NOT TO USE WAIT_FOR_PROCEDURES.
+    # TODO: IMPROVE THE CODE SO USERS MAY DECIDE NOT TO USE WAIT_FOR_PROCEDURES AND
+    # RETURN SOMETHING SIMPLE INSTEAD OF THE EXECUTION HISTORY ALONG WITH RETURN
+    # VALUES.
     """Class used to implement commands that are built as procedures and
     schedule job(s) to be executed. Any command that needs to access the
     state store must be built upon this class.
@@ -294,7 +296,7 @@ class ProcedureCommand(Command):
                 or (str(procedure.uuid))
         """
         assert(len(procedure_param) == 1)
-        synchronous = synchronous in (True, "True", "1")
+        synchronous = str(synchronous).upper() in ("TRUE", "1")
         if synchronous:
             executor = _executor.Executor()
             for procedure in procedure_param:

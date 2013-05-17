@@ -72,7 +72,6 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_groups).")
-        self.assertEqual(status[2], False)
 
         # Update a group.
         status = self.proxy.group.description("group", "Test Test Test")
@@ -137,7 +136,6 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_servers).")
-        self.assertEqual(status[2], False)
 
         # Look up a server.
         status = self.proxy.group.lookup_servers("group_1", status_uuid[2])
@@ -154,7 +152,6 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_servers).")
-        self.assertEqual(status[2], False)
 
         # Try to look up a server that does not exist.
         status = self.proxy.group.lookup_servers("group_1",
@@ -163,7 +160,6 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_servers).")
-        self.assertEqual(status[2], False)
 
         # Try to look up a server that does not exist
         status = self.proxy.server.lookup_uuid("unknown:15000", "root", "")
@@ -171,7 +167,6 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_lookup_uuid).")
-        self.assertEqual(status[2], False)
 
         # Add a server with a connection that does not have
         # root privileges.

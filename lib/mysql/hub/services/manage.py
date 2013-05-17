@@ -318,7 +318,7 @@ def _shutdown():
     _detector.FailureDetector.unregister_groups()
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
-    return False
+    return True
 
 
 class FabricLookups(Command):

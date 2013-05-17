@@ -63,4 +63,4 @@ class WaitForProcedures(Command):
         for procedure in procs:
             procedure.wait()
 
-        return False
+        return True

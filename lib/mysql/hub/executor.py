@@ -42,7 +42,7 @@ class Procedure(object):
         self.__uuid = uuid or _uuid.uuid4()
         self.__lock = threading.Condition()
         self.__complete = False
-        self.__result = False
+        self.__result = True
         self.__scheduled_jobs = set()
         self.__executed_jobs = []
         self.__status = []
@@ -253,6 +253,7 @@ class Job(object):
             _LOGGER.exception(error)
 
             # Update the job status.
+            self.__result = False
             message = "Tried to execute action ({0}).".format(
                 self.__action.__name__)
             self._add_status(Job.ERROR, Job.COMPLETE, message, True)
