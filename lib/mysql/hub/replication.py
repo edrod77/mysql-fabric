@@ -350,8 +350,31 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
     assert(res[0][0] > -1)
 
 @_server.server_logging
-def wait_for_slave_gtid(server, master_gtids, timeout=0):
-    """Wait for the slave to read the master's GTIDs.
+def sync_slave_with_master(slave, master, timeout=0):
+    """Synchronizes a slave with a master.
+
+    See :func:`wait_for_slave_gtid`.
+
+    This function can block if the master fails and all
+    transactions are not fetched.
+
+    :param slave: Reference to a slave.
+    :param master: Reference to the master.
+    :param timeout: Timeout for waiting for slave to catch up.
+    """
+    # Check servers for GTID support
+    if not slave.gtid_enabled or not master.gtid_enabled:
+        raise _errors.ProgrammingError(
+            "Global Transaction IDs are not supported."
+            )
+
+    master_gtids = master.get_gtid_status()
+    master_gtids = master_gtids[0].GTID_EXECUTED.strip(",")
+    wait_for_slave_gtid(slave, master_gtids)
+
+@_server.server_logging
+def wait_for_slave_gtid(server, gtids, timeout=0):
+    """Wait until a slave executes gtids.
 
     The function `SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS` is called until the
     slave catches up. If the timeout period expires prior to achieving
@@ -359,7 +382,8 @@ def wait_for_slave_gtid(server, master_gtids, timeout=0):
     raised. If any thread is stopped, the
     :class:`mysql.hub.errors.DatabaseError` exception is raised.
 
-    :param master_gtids: Result of running `get_gtid_status`.
+    :param slave: Reference to a slave.
+    :param gtids: Gtid information.
     :param timeout: Timeout for waiting for slave to catch up.
     """
     # Check servers for GTID support
@@ -368,19 +392,18 @@ def wait_for_slave_gtid(server, master_gtids, timeout=0):
             "Global Transaction IDs are not supported."
             )
 
-    gtid = master_gtids[0].GTID_EXECUTED
     res = server.exec_stmt(_GTID_WAIT,
-        {"params": (gtid.strip(','), timeout), "raw" : False })
+        {"params": (gtids, timeout), "raw" : False })
 
     if res is None or res[0] is None or res[0][0] is None:
         raise _errors.DatabaseError(
             "Error waiting for slave to catch up. "
-            "GTID (%s)." % (master_gtids[0].GTID_EXECUTED, )
+            "GTID (%s)." % (gtids, )
             )
     elif res[0][0] == -1:
         raise _errors.TimeoutError(
             "Error waiting for slave to catch up. "
-            "GTID (%s)." % (master_gtids[0].GTID_EXECUTED, )
+            "GTID (%s)." % (gtids, )
             )
 
     assert(res[0][0] > -1)
@@ -468,9 +491,9 @@ def check_slave_issues(server):
 
     # Check slave status for errors, threads activity
     if ret[0].Slave_IO_Running.upper() != "YES":
-        status["io_running"] = False       
+        status["io_running"] = False
     if ret[0].Slave_SQL_Running.upper() != "YES":
-        status["sql_running"] = False       
+        status["sql_running"] = False
     if ret[0].Last_IO_Errno > 0:
         status["io_error"] = ret[0].Last_IO_Error
     if ret[0].Last_SQL_Errno > 0:
@@ -589,7 +612,7 @@ def _check_condition(server, threads, check_if_running):
 def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     """Synchronize the master with the slave. The function accepts a transaction
     lag and a timeout parameters.
-    
+
     The transaction lag is used to determine that number of transactions the
     slave can lag behind the master before the master is locked to enable a
     complete sync.
@@ -607,7 +630,7 @@ def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     :param timeout: The timeout for which we should wait before taking a
                                read lock on the master.
     """
-    
+
     #Flag indicates if we are synced enough to take a read lock.
     synced = False
 
@@ -618,9 +641,8 @@ def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     #lock and sync if the timeout has exceeded.
     while not synced:
         start_time = time.time()
-        master_gtids = master.get_gtid_status()
         try:
-            wait_for_slave_gtid(slave, master_gtids, timeout)
+            sync_slave_with_master(slave, master, timeout)
             master_gtids = master.get_gtid_status()
             if get_slave_num_gtid_behind(slave, master_gtids) <= trnx_lag:
                 synced = True
@@ -641,5 +663,4 @@ def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     #This step is common across the entire algorithm. The preceeding steps
     #just help minimize the amount of time for which we take a read lock.
     master.read_only = True
-    master_gtids = master.get_gtid_status()
-    wait_for_slave_gtid(slave, master_gtids, timeout=0)
+    sync_slave_with_master(slave, master, timeout=0)

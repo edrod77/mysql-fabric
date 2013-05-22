@@ -12,6 +12,7 @@ def switch_master(slave, master):
     """
     _replication.stop_slave(slave, wait=True)
     _replication.switch_master(slave, master, master.user, master.passwd)
+    slave.read_only = True
     _replication.start_slave(slave, wait=True)
 
 
@@ -32,16 +33,30 @@ def reset_slave(slave):
     _replication.reset_slave(slave, clean=True)
 
 
+def process_slave_backlog(slave, gtid_executed, gtid_retrieved):
+    """Wait until slave processes its backlog.
+
+    :param slave: slave.
+    :param gtid_executed: Executed gtids.
+    :param gtid_retrieved: Retrieved gtids.
+    """
+    _replication.stop_slave(slave, wait=True)
+    _replication.start_slave(slave, threads=("SQL_THREAD", ), wait=True)
+    _replication.wait_for_slave_gtid(slave, gtid_executed + "," + gtid_retrieved)
+
+
 def synchronize(slave, master):
     """Synchronize a slave with a master and after that stop the slave.
-
 
     :param slave: Slave.
     :param master: Master.
     """
-    master_gtids = master.get_gtid_status()
-    _replication.wait_for_slave_gtid(slave, master_gtids, timeout=0)
+    _replication.sync_slave_with_master(slave, master, timeout=0)
 
 
 def stop_slave(slave):
+    """Stop slave.
+
+    :param slave: Slave.
+    """
     _replication.stop_slave(slave, wait=True)

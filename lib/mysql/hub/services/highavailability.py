@@ -134,18 +134,20 @@ class SwitchOver(ProcedureCommand):
 
           diagram {
             activation = none;
-            === Schedule "find_candidate_switch" ===
+            === Schedule "find_candidate" ===
             switch_over --> executor [ label = "schedule(find_candidate)" ];
             switch_over <-- executor;
+            === Execute "find_candidate" and schedule "check_candidate" ===
+            executor -> find_candidate [ label = "execute(find_candidate)" ];
             find_candidate --> executor [ label = "schedule(check_candidate)" ];
             find_candidate <-- executor;
             executor <- find_candidate;
-            === Execute "check_candidate_switch" and schedule "block_write_switch" ===
+            === Execute "check_candidate" and schedule "block_write" ===
             executor -> check_candidate [ label = "execute(check_candidate)" ];
             check_candidate --> executor [ label = "schedule(block_write)" ];
             check_candidate <-- executor;
             executor <- check_candidate;
-            === Execute "block_write_switch" and schedule "wait_slaves_switch" ===
+            === Execute "block_write" and schedule "wait_slaves" ===
             executor -> block_write [ label = "execute(block_write)" ];
             block_write --> executor [ label = "schedule(wait_slaves)" ];
             block_write <-- executor;
@@ -196,6 +198,8 @@ def _do_fail_over(obj, group_id, slave_uuid, synchronous):
 FIND_CANDIDATE_FAIL = _events.Event("FAIL_OVER")
 # Check if the candidate is properly configured to become a master.
 CHECK_CANDIDATE_FAIL = _events.Event()
+# Wait until all slaves or a candidate process the relay log.
+WAIT_SLAVE_FAIL = _events.Event()
 class FailOver(ProcedureCommand):
     """Do a fail over.
 
@@ -234,21 +238,36 @@ class FailOver(ProcedureCommand):
 
           diagram {
             activation = none;
-            === Schedule "find_candidate_fail" ===
+            === Schedule "find_candidate" ===
             fail_over --> executor [ label = "schedule(find_candidate)" ];
             fail_over <-- executor;
+            === Execute "find_candidate" and schedule "check_candidate" ===
             executor -> find_candidate [ label = "execute(find_candidate)" ];
             find_candidate --> executor [ label = "schedule(check_candidate)" ];
             find_candidate <-- executor;
             executor <- find_candidate;
-            === Execute "check_candidate_fail" and schedule "change_to_candidate" ===
+            === Execute "check_candidate" and schedule "wait_slave" ===
             executor -> check_candidate [ label = "execute(check_candidate)" ];
-            check_candidate --> executor [ label = "schedule(change_to_candidate)" ];
+            check_candidate --> executor [ label = "schedule(wait_slave)" ];
             check_candidate <-- executor;
             executor <- check_candidate;
+            === Continue in the next diagram ===
+          }
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            edge_length = 300;
+            === Continuation from previous diagram ===
+            === Execute "wait_slaves" and schedule "change_to_candidate" ===
+            executor -> wait_slave [ label = "execute(wait_slave)" ];
+            wait_slave --> executor [ label = "schedule(change_to_candidate)" ];
+            wait_slave <-- executor;
+            executor <- wait_slave;
             === Execute "change_to_candidate" ===
             executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
-            change_to_candidate <-- executor;
+            change_to_candidate <- executor;
           }
         """
         return _do_fail_over(self, group_id, slave_uuid, synchronous)
@@ -273,7 +292,6 @@ class PromoteMaster(ProcedureCommand):
 BLOCK_WRITE_DEMOTE = _events.Event()
 # Wait until all slaves synchronize with the master.
 WAIT_SLAVES_DEMOTE = _events.Event()
-
 class DemoteMaster(ProcedureCommand):
     """Demote the current master if there is one.
 
@@ -300,20 +318,20 @@ class DemoteMaster(ProcedureCommand):
 
           diagram {
             activation = none;
-            === Schedule "block_write_demote" ===
+            === Schedule "block_write" ===
             demote --> executor [ label = "schedule(block_write)" ];
             demote <-- executor;
-            === Execute "block_write_demote" and schedule "wait_slaves_demote" ===
+            === Execute "block_write" and schedule "wait_slaves" ===
             executor -> block_write [ label = "execute(block_write)" ];
             block_write --> executor [ label = "schedule(wait_slaves)" ];
             block_write <-- executor;
             executor <- block_write;
-            === Execute "wait_slaves_demote" and schedule "reset_candidates_demote" ===
+            === Execute "wait_slaves" and schedule "reset_candidates" ===
             executor -> wait_slaves [ label = "execute(wait_slaves)" ];
             wait_slaves --> executor [ label = "schedule(reset_candidates)" ];
             wait_slaves <-- executor;
             executor <- wait_slaves;
-            === Execute "reset_candidates_demote" ===
+            === Execute "reset_candidates" ===
             executor -> reset_candidates [ label = "execute(reset_candidates)" ];
             executor <- reset_candidates;
           }
@@ -779,6 +797,21 @@ def _check_candidate_fail(group_id, slave_uuid):
         (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
         raise _errors.ServerError("Server (%s) is not either running or "
                                   "a spare.", (slave_uuid, ))
+
+    _events.trigger_within_procedure(WAIT_SLAVE_FAIL, group_id, slave_uuid)
+
+@_events.on_event(WAIT_SLAVE_FAIL)
+def _wait_slave_fail(group_id, slave_uuid):
+    """Wait until a slave processes its backlog.
+    """
+    slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
+    slave.connect()
+
+    slave_status = _replication.get_slave_status(slave)
+    if slave_status:
+        gtid_executed = slave.get_gtid_status()[0].GTID_EXECUTED.strip(",")
+        gtid_retrieved = slave_status[0].Retrieved_Gtid_Set.strip(",")
+        _utils.process_slave_backlog(slave, gtid_executed, gtid_retrieved)
 
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 
