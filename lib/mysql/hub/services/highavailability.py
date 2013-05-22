@@ -3,7 +3,6 @@ tasks on replication.
 """
 import re
 import logging
-import time
 import uuid as _uuid
 
 import mysql.hub.events as _events
@@ -883,7 +882,7 @@ def _check_group_availability(group_id):
                         (group.master, str_master_uuid)
                 elif slave_issues:
                     thread_issues = slave_issues
-        except _errors.DatabaseError as error:
+        except _errors.DatabaseError:
             if status not in \
                 (_server.MySQLServer.FAULTY,  _server.MySQLServer.OFFLINE):
                 status = _server.MySQLServer.FAULTY
@@ -925,7 +924,7 @@ def _set_group_master_replication(group,  server_id,  clear_ref):
     #Stop the slave running on the current master
     if group.master_group_id is not None and group.master is not None:
         _group_replication.stop_group_slave(group.master_group_id,
-                                                            group.group_id, clear_ref)
+                                            group.group_id, clear_ref)
     #Stop the Groups replicating from the current group.
     _group_replication.stop_group_slaves(group.group_id,  clear_ref)
 
@@ -938,4 +937,5 @@ def _set_group_master_replication(group,  server_id,  clear_ref):
         _group_replication.start_group_slaves(group.group_id)
         if group.master_group_id is not None:
             #Start the slave on this group
-            _group_replication.setup_group_replication(group.master_group_id, group.group_id)
+            _group_replication.setup_group_replication(group.master_group_id,
+                                                       group.group_id)
