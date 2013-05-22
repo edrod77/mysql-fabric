@@ -266,23 +266,20 @@ class TestMySQLSlave(unittest.TestCase):
 
         master.exec_stmt("DROP TABLE IF EXISTS test")
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
-        gtid_status = master.get_gtid_status()
 
-        # It returns False because the threads are stopped.
-        self.assertRaises(_errors.DatabaseError, wait_for_slave_gtid,
-                          slave, gtid_status, timeout=0)
+        # It throws an error because the threads are stopped.
+        self.assertRaises(_errors.DatabaseError, sync_slave_with_master,
+                          slave, master, timeout=0)
 
-        # Wait until the slave catches up. It returns True because
-        # the threads are running.
+        # Wait until the slave catches up. It does not throw an error
+        # because the threads are running.
         start_slave(slave, wait=True)
-        wait_for_slave_gtid(slave, gtid_status, timeout=0)
+        sync_slave_with_master(slave, master, timeout=0)
 
         # This times out because there are no new events.
-        Row = namedtuple("Row", ["GTID_EXECUTED", "GTID_PURGED", "GTID_OWNED"])
         gtid_executed = "%s:%s" % (str(master.uuid), "1-20")
-        gtid_status = [Row(gtid_executed, "", "")]
         self.assertRaises(_errors.TimeoutError, wait_for_slave_gtid, slave,
-                          gtid_status, timeout=3)
+                          gtid_executed, timeout=3)
 
     def test_check_rpl_health(self):
         # Set up replication.
@@ -315,9 +312,7 @@ class TestMySQLSlave(unittest.TestCase):
         master.exec_stmt("DROP TABLE IF EXISTS test")
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
         start_slave(slave, wait=True, threads=(IO_THREAD, ))
-        master_status = get_master_status(master)
-        gtid_status = master.get_gtid_status()
-        wait_for_slave_gtid(slave, gtid_status, timeout=0)
+        sync_slave_with_master(slave, master, timeout=0)
         ret = check_slave_delay(slave, master)
         self.assertEqual(ret, {})
 

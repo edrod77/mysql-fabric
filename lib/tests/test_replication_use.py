@@ -180,10 +180,9 @@ class TestReplicationUse(unittest.TestCase):
         master.exec_stmt("CREATE TABLE test (id INTEGER)")
 
         # Synchronize replicas.
-        master_gtids = master.get_gtid_status()
-        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid,
-                          slave_1, master_gtids, timeout=0)
-        _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
+        self.assertRaises(_errors.DatabaseError, _repl.sync_slave_with_master,
+                          slave_1, master, timeout=0)
+        _repl.sync_slave_with_master(slave_2, master, timeout=0)
 
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
@@ -212,10 +211,9 @@ class TestReplicationUse(unittest.TestCase):
                          "Executed action (_change_to_candidate).")
 
         # Synchronize replicas.
-        slave_gtids = slave_2.get_gtid_status()
-        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid,
-                          slave_1, slave_gtids, timeout=0)
-        _repl.wait_for_slave_gtid(master, slave_gtids, timeout=0)
+        self.assertRaises(_errors.DatabaseError, _repl.sync_slave_with_master,
+                          slave_1, slave_2, timeout=0)
+        _repl.sync_slave_with_master(master, slave_2, timeout=0)
 
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
@@ -237,10 +235,9 @@ class TestReplicationUse(unittest.TestCase):
                          "Executed action (_change_to_candidate).")
 
         # Synchronize replicas.
-        master_gtids = master.get_gtid_status()
-        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid,
-                          slave_1, master_gtids, timeout=0)
-        _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
+        self.assertRaises(_errors.DatabaseError, _repl.sync_slave_with_master,
+                          slave_1, master, timeout=0)
+        _repl.sync_slave_with_master(slave_2, master, timeout=0)
 
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
@@ -307,11 +304,10 @@ class TestReplicationUse(unittest.TestCase):
         master.exec_stmt("CREATE TABLE test (id INTEGER)")
 
         # Synchronize replicas.
-        master_gtids = master.get_gtid_status()
-        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid, slave_1,
-                          master_gtids, timeout=0)
-        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid, slave_2,
-                          master_gtids, timeout=0)
+        self.assertRaises(_errors.DatabaseError, _repl.sync_slave_with_master,
+                          slave_1, master, timeout=0)
+        self.assertRaises(_errors.DatabaseError, _repl.sync_slave_with_master,
+                          slave_2, master, timeout=0)
 
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
@@ -350,9 +346,8 @@ class TestReplicationUse(unittest.TestCase):
                 )
 
         # Synchronize replica.
-        master_gtids = master.get_gtid_status()
-        self.assertRaises(_errors.DatabaseError, _repl.wait_for_slave_gtid, slave_1,
-                          master_gtids, timeout=0)
+        self.assertRaises(_errors.DatabaseError, _repl.sync_slave_with_master,
+                          slave_1, master, timeout=0)
 
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
@@ -385,9 +380,8 @@ class TestReplicationUse(unittest.TestCase):
         _repl.start_slave(slave_2, wait=True)
 
         # Synchronize replicas.
-        master_gtids = master.get_gtid_status()
-        _repl.wait_for_slave_gtid(slave_1, master_gtids, timeout=0)
-        _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
+        _repl.sync_slave_with_master(slave_1, master, timeout=0)
+        _repl.sync_slave_with_master(slave_2, master, timeout=0)
 
         # Check replication.
         status = self.proxy.group.check_group_availability("group_id")
@@ -397,11 +391,6 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
         self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
 
-        # Clean up.
-        master.exec_stmt("DROP DATABASE IF EXISTS test")
-        master_gtids = master.get_gtid_status()
-        _repl.wait_for_slave_gtid(slave_1, master_gtids, timeout=0)
-        _repl.wait_for_slave_gtid(slave_2, master_gtids, timeout=0)
 
 if __name__ == "__main__":
     unittest.main()
