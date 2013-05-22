@@ -835,6 +835,7 @@ def _check_group_availability(group_id):
         alive = False
         is_master = (group.master == server.uuid)
         thread_issues = {}
+        status = server.status
         try:
             alive = server.is_alive()
             if not is_master:
@@ -850,11 +851,13 @@ def _check_group_availability(group_id):
                 elif slave_issues:
                     thread_issues = slave_issues
         except _errors.DatabaseError as error:
-            _LOGGER.exception(error)
+            if status not in \
+                (_server.MySQLServer.FAULTY,  _server.MySQLServer.OFFLINE):
+                status = _server.MySQLServer.FAULTY
         availability[str(server.uuid)] = {
             "is_alive" : alive,
             "is_master" : is_master,
-            "status" : server.status,
+            "status" : status,
             "threads" : thread_issues
             }
 
