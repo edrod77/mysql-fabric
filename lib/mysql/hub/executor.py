@@ -47,6 +47,10 @@ class Procedure(object):
         self.__executed_jobs = []
         self.__status = []
 
+        _LOGGER.debug("Created procedure (%s, %s).",
+            self.__uuid, time.time()
+        )
+
     def job_scheduled(self, job):
         """Register that a job has been scheduled on behalf of the
         procedeure.
@@ -84,6 +88,9 @@ class Procedure(object):
                 self.__complete = True
                 self.__lock.notify_all()
                 Checkpoint.remove(job.checkpoint)
+                _LOGGER.debug("Complete procedure (%s, %s).",
+                    self.__uuid, time.time()
+                )
 
     @property
     def uuid(self):
@@ -124,9 +131,18 @@ class Job(object):
     """
     ERROR, SUCCESS = range(1, 3)
     EVENT_OUTCOME = [ERROR, SUCCESS]
+    EVENT_OUTCOME_DESCRIPTION = {
+        ERROR : "Error",
+        SUCCESS : "Success"
+    }
 
     ENQUEUED, PROCESSING, COMPLETE = range(3, 6)
     EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
+    EVENT_STATE_DESCRIPTION = {
+        ENQUEUED : "Enqueued",
+        PROCESSING : "Processing",
+        COMPLETE : "Complete"
+    }
 
     def __init__(self, procedure, action, description,
                  args, kwargs, uuid=None):
@@ -139,8 +155,9 @@ class Job(object):
             # we may decide to change this and raise an error.
             _LOGGER.warning(
                 "(%s) is not recoverable. So after a failure Fabric may "
-                "not be able to restore the system to a consistent state."
-                )
+                "not be able to restore the system to a consistent state.",
+                action
+            )
 
         assert(uuid is None or isinstance(uuid, _uuid.UUID))
         self.__uuid = uuid or _uuid.uuid4()
@@ -153,11 +170,11 @@ class Job(object):
         self.__procedure = procedure
         self.__is_recoverable = Checkpoint.is_recoverable(action)
         self.__jobs = []
+        self.__action_fqn = action.__module__ + "." + action.__name__
 
-        action_fqn = action.__module__ + "." + action.__name__
         self.__checkpoint = Checkpoint(
-            self.__procedure.uuid, self.__uuid, action_fqn, args, kwargs
-            )
+            self.__procedure.uuid, self.__uuid, self.__action_fqn, args, kwargs
+        )
 
         self._add_status(Job.SUCCESS, Job.ENQUEUED, description)
         self.__procedure.job_scheduled(self)
@@ -227,8 +244,9 @@ class Job(object):
         """
         assert(success in Job.EVENT_OUTCOME)
         assert(state in Job.EVENT_STATE)
+        when = time.time()
         status = {
-            "when" : time.time(),
+            "when" : when,
             "state" : state,
             "success" : success,
             "description" : description,
@@ -236,10 +254,20 @@ class Job(object):
             }
         self.__status.append(status)
 
+        _LOGGER.debug("%s job (%s, %s, %s, %s, %s).",
+            Job.EVENT_STATE_DESCRIPTION[state],
+            self.__procedure.uuid, self.__uuid, self.__action_fqn, when,
+            Job.EVENT_OUTCOME_DESCRIPTION[success]
+        )
+
     def execute(self, persister, queue):
         """Execute the job.
         """
         try:
+            # Update the job status.
+            message = "Executing action ({0}).".format(self.__action.__name__)
+            self._add_status(Job.SUCCESS, Job.PROCESSING, message)
+
             # Register that the job has started the execution.
             if self.__is_recoverable:
                 self.__checkpoint.begin()
@@ -249,8 +277,16 @@ class Job(object):
 
             # Execute the job.
             self.__result = self.__action(*self.__args, **self.__kwargs)
+
         except Exception as error: # pylint: disable=W0703
+            # Report exception during execution.
             _LOGGER.exception(error)
+
+            try:
+                # Rollback the job transactional context.
+                persister.rollback()
+            except _errors.DatabaseError as db_error:
+                _LOGGER.exception(db_error)
 
             # Update the job status.
             self.__result = False
@@ -258,16 +294,7 @@ class Job(object):
                 self.__action.__name__)
             self._add_status(Job.ERROR, Job.COMPLETE, message, True)
 
-            try:
-                # Rollback the job transactional context.
-                persister.rollback()
-            except _errors.DatabaseError as db_error:
-                _LOGGER.exception(db_error)
         else:
-            # Update the job status.
-            message = "Executed action ({0}).".format(self.__action.__name__)
-            self._add_status(Job.SUCCESS, Job.COMPLETE, message)
-
             try:
                 # Register information jobs created within the context of the
                 # current job.
@@ -285,8 +312,13 @@ class Job(object):
                 queue.schedule(self.__jobs)
             except _errors.DatabaseError as db_error:
                 _LOGGER.exception(db_error)
+
+            # Update the job status.
+            message = "Executed action ({0}).".format(self.__action.__name__)
+            self._add_status(Job.SUCCESS, Job.COMPLETE, message)
+
         finally:
-            # Mark the job as complete
+            # Mark the job as complete.
             self.__complete = True
 
             # Update the job status within the procedure.
@@ -586,10 +618,6 @@ class Executor(Singleton):
         for number in range(0, nactions):
             do_action, description, args, kwargs = actions[number]
             job = Job(procedures[number], do_action, description, args, kwargs)
-            _LOGGER.debug(
-                "Created job (%s) within procedure (%s).", job.uuid,
-                job.procedure.uuid
-                )
             jobs.append(job)
 
         thread = self.__thread
@@ -619,10 +647,6 @@ class Executor(Singleton):
             job = Job(
                 procedures[0], do_action, description, args, kwargs,
                 actions[number]["job"]
-                )
-            _LOGGER.debug(
-                "Created job (%s) within procedure (%s).", job.uuid,
-                job.procedure.uuid
                 )
             jobs.append(job)
         self.__queue.schedule(jobs)
