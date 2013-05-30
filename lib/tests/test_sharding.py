@@ -143,64 +143,78 @@ class TestSharding(unittest.TestCase):
         self.__shard_mapping_5 = ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
                                                   "userID")
 
-        self.__shard_id_1 = Shards.add("GROUPID1")
-        self.__shard_id_2 = Shards.add("GROUPID10")
-        self.__shard_id_3 = Shards.add("GROUPID11")
-        self.__shard_id_4 = Shards.add("GROUPID4")
-        self.__shard_id_5 = Shards.add("GROUPID5")
-        self.__shard_id_6 = Shards.add("GROUPID6")
-        self.__shard_id_7 = Shards.add("GROUPID7")
-        self.__shard_id_8 = Shards.add("GROUPID8")
-        self.__shard_id_9 = Shards.add("GROUPID9")
-        self.__shard_id_10 = Shards.add("GROUPID2")
-        self.__shard_id_11 = Shards.add("GROUPID3")
+        self.__shard_id_1 = Shards.add(self.__shard_mapping_1.shard_mapping_id,
+                                                "GROUPID1")
+        self.__shard_id_2 = Shards.add( self.__shard_mapping_1.shard_mapping_id,
+                                                "GROUPID10")
+        self.__shard_id_3 = Shards.add(self.__shard_mapping_1.shard_mapping_id,
+                                                "GROUPID11")
+        self.__shard_id_4 = Shards.add(self.__shard_mapping_2.shard_mapping_id,
+                                                "GROUPID4")
+        self.__shard_id_5 = Shards.add(self.__shard_mapping_2.shard_mapping_id,
+                                                "GROUPID5")
+        self.__shard_id_6 = Shards.add(
+            self.__shard_mapping_3.shard_mapping_id,
+            "GROUPID6"
+        )
+        self.__shard_id_7 = Shards.add(
+            self.__shard_mapping_3.shard_mapping_id,
+            "GROUPID7", 
+        )
+        self.__shard_id_8 = Shards.add(
+            self.__shard_mapping_4.shard_mapping_id,
+            "GROUPID8"
+        )
+        self.__shard_id_9 = Shards.add(
+            self.__shard_mapping_4.shard_mapping_id,
+            "GROUPID9"
+        )
+        self.__shard_id_10 = Shards.add(
+            self.__shard_mapping_5.shard_mapping_id,
+            "GROUPID2"
+        )
+        self.__shard_id_11 = Shards.add(
+            self.__shard_mapping_5.shard_mapping_id,
+            "GROUPID3"
+        )
 
         self.__range_sharding_specification_1 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_1.shard_mapping_id,
                                                 0, 1000,
                                                 self.__shard_id_1.shard_id)
         self.__range_sharding_specification_2 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_1.shard_mapping_id,
-                                                1001, 2000,
+                                               1001, 2000,
                                                 self.__shard_id_2.shard_id)
         self.__range_sharding_specification_3 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_1.shard_mapping_id,
                                                 2001, 3000,
                                                 self.__shard_id_3.shard_id)
 
         self.__range_sharding_specification_4 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_2.shard_mapping_id,
                                                 3001, 4000,
                                                 self.__shard_id_4.shard_id)
         self.__range_sharding_specification_5 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_2.shard_mapping_id,
                                                 4001, 5000,
                                                 self.__shard_id_5.shard_id)
 
         self.__range_sharding_specification_6 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_3.shard_mapping_id,
                                                 6001, 7000,
                                                 self.__shard_id_6.shard_id)
         self.__range_sharding_specification_7 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_3.shard_mapping_id,
                                                 7001, 8000,
                                                 self.__shard_id_7.shard_id)
 
         self.__range_sharding_specification_8 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_4.shard_mapping_id,
                                                 8001, 9000,
                                                 self.__shard_id_8.shard_id)
         self.__range_sharding_specification_9 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_4.shard_mapping_id,
-                                                10001, 11000,
+                                               10001, 11000,
                                                 self.__shard_id_9.shard_id)
 
         self.__range_sharding_specification_10 = RangeShardingSpecification.add(
-                                        self.__shard_mapping_5.shard_mapping_id,
-                                        100, 200, self.__shard_id_10.shard_id)
+                                        100, 200,
+                                                self.__shard_id_10.shard_id)
         self.__range_sharding_specification_11 = RangeShardingSpecification.add(
-                                                self.__shard_mapping_5.shard_mapping_id,
-                                                201, 300, self.__shard_id_11.shard_id)
+                                                201, 300,
+                                                self.__shard_id_11.shard_id)
 
 
     def tearDown(self):
@@ -227,17 +241,13 @@ class TestSharding(unittest.TestCase):
                          (self.__shard_mapping_4, shard_mapping_4))
 
     def test_fetch_sharding_scheme(self):
-        range_sharding_specifications = RangeShardingSpecification.list(1)
-
-        self.assertTrue(ShardingUtils.compare_range_specifications
-                        (range_sharding_specifications[0],
-                         self.__range_sharding_specification_1))
-        self.assertTrue(ShardingUtils.compare_range_specifications
-                        (range_sharding_specifications[1],
-                         self.__range_sharding_specification_2))
-        self.assertTrue(ShardingUtils.compare_range_specifications
-                        (range_sharding_specifications[2],
-                         self.__range_sharding_specification_3))
+        shards = Shards.list(1)
+        self.assertTrue(ShardingUtils.compare_shards
+                        (shards[0], self.__shard_id_1))
+        self.assertTrue(ShardingUtils.compare_shards
+                        (shards[1], self.__shard_id_2))
+        self.assertTrue(ShardingUtils.compare_shards
+                        (shards[2], self.__shard_id_3))
 
     def test_lookup_sharding_scheme(self):
         r_spec_1 = RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1)
@@ -276,12 +286,20 @@ class TestSharding(unittest.TestCase):
         self.__range_sharding_specification_8.remove()
         self.__range_sharding_specification_9.remove()
         self.__range_sharding_specification_10.remove()
+        self.__shard_id_1.remove()
+        self.__shard_id_2.remove()
+        self.__shard_id_3.remove()
+        self.__shard_id_4.remove()
+        self.__shard_id_5.remove()
+        self.__shard_id_6.remove()
+        self.__shard_id_7.remove()
+        self.__shard_id_8.remove()
+        self.__shard_id_9.remove()
+        self.__shard_id_10.remove()
         shard_mapping_1 = ShardMapping.fetch("db1.t1")
         shard_mapping_1.remove()
 
     def test_range_sharding_specification_getters(self):
-        self.assertEqual(self.__range_sharding_specification_1.
-                         shard_mapping_id, 1)
         self.assertEqual(self.__range_sharding_specification_1.lower_bound,
                          0)
         self.assertEqual(self.__range_sharding_specification_1.upper_bound,

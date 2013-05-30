@@ -51,13 +51,13 @@ class ShardMapping(_persistence.Persistable):
 
     #Create the schema for the tables used to store the shard specification
     #mapping information
-    CREATE_SHARD_MAPPING = ("CREATE TABLE shard_mapping"
+    CREATE_SHARD_MAPPING = ("CREATE TABLE shard_tables"
                             "(shard_mapping_id INT NOT NULL, "
                             "table_name VARCHAR(64) NOT NULL, "
                             "column_name VARCHAR(64) NOT NULL, "
                             "PRIMARY KEY (table_name, column_name), "
-                            "INDEX(table_name))")
-    CREATE_SHARD_MAPPING_DEFN = ("CREATE TABLE shard_mapping_defn"
+                            "INDEX(shard_mapping_id))")
+    CREATE_SHARD_MAPPING_DEFN = ("CREATE TABLE shard_maps"
                                  "(shard_mapping_id INT AUTO_INCREMENT "
                                  "NOT NULL PRIMARY KEY, "
                                  "type_name ENUM('RANGE') NOT NULL, "
@@ -65,40 +65,40 @@ class ShardMapping(_persistence.Persistable):
 
     #Drop the schema for the tables used to store the shard specification
     #mapping information
-    DROP_SHARD_MAPPING = ("DROP TABLE shard_mapping")
-    DROP_SHARD_MAPPING_DEFN = ("DROP TABLE shard_mapping_defn")
+    DROP_SHARD_MAPPING = ("DROP TABLE shard_tables")
+    DROP_SHARD_MAPPING_DEFN = ("DROP TABLE shard_maps")
 
-    #Create the referential integrity constraint with the shard_mapping_defn
+    #Create the referential integrity constraint with the shard_maps
     #table.
     ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                ("ALTER TABLE shard_mapping "
+                                ("ALTER TABLE shard_tables "
                                   "ADD CONSTRAINT fk_shard_mapping_id "
                                   "FOREIGN KEY(shard_mapping_id) REFERENCES "
-                                  "shard_mapping_defn(shard_mapping_id)")
+                                  "shard_maps(shard_mapping_id)")
 
-    #Drop the referential integrity constraint with the shard_mapping_defn
+    #Drop the referential integrity constraint with the shard_maps
     #table.
     DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                    ("ALTER TABLE shard_mapping DROP "
+                                    ("ALTER TABLE shard_tables DROP "
                                      "FOREIGN KEY fk_shard_mapping_id")
 
     #Create the referential integrity constraint with the groups table.
     ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
-                            ("ALTER TABLE shard_mapping_defn "
+                            ("ALTER TABLE shard_maps "
                             "ADD CONSTRAINT fk_shard_mapping_global_group "
                             "FOREIGN KEY(global_group) REFERENCES "
                             "groups(group_id)")
 
     #Drop the referential integrity constraint with the groups table.
     DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
-                                ("ALTER TABLE shard_mapping_defn DROP "
+                                ("ALTER TABLE shard_maps DROP "
                                 "FOREIGN KEY fk_shard_mapping_global_group")
 
     #Define a shard mapping.
     DEFINE_SHARD_MAPPING = ("INSERT INTO "
-                            "shard_mapping_defn(type_name, global_group) "
+                            "shard_maps(type_name, global_group) "
                             "VALUES(%s, %s)")
-    ADD_SHARD_MAPPING = ("INSERT INTO shard_mapping"
+    ADD_SHARD_MAPPING = ("INSERT INTO shard_tables"
                          "(shard_mapping_id, table_name, column_name) "
                          "VALUES(%s, %s, %s)")
 
@@ -106,8 +106,8 @@ class ShardMapping(_persistence.Persistable):
     SELECT_SHARD_MAPPING = ("SELECT sm.shard_mapping_id, table_name, "
                             "column_name, type_name, "
                             "global_group "
-                            "FROM shard_mapping as sm, "
-                            "shard_mapping_defn as smd "
+                            "FROM shard_tables as sm, "
+                            "shard_maps as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
                             "AND table_name = %s")
 
@@ -115,8 +115,8 @@ class ShardMapping(_persistence.Persistable):
     SELECT_SHARD_MAPPING_BY_ID = ("SELECT sm.shard_mapping_id, table_name, "
                             "column_name, type_name, "
                             "global_group "
-                            "FROM shard_mapping as sm, "
-                            "shard_mapping_defn as smd "
+                            "FROM shard_tables as sm, "
+                            "shard_maps as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
                             "AND sm.shard_mapping_id = %s")
 
@@ -124,26 +124,26 @@ class ShardMapping(_persistence.Persistable):
     LIST_SHARD_MAPPINGS = ("SELECT sm.shard_mapping_id, table_name, "
                             "column_name, type_name, "
                             "global_group "
-                            "FROM shard_mapping as sm, "
-                            "shard_mapping_defn as smd "
+                            "FROM shard_tables as sm, "
+                            "shard_maps as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
                             "AND type_name = %s")
 
     #Select the shard mapping for a given shard mapping ID.
     SELECT_SHARD_MAPPING_DEFN = ("SELECT shard_mapping_id, type_name, "
-                                 "global_group FROM shard_mapping_defn "
+                                 "global_group FROM shard_maps "
                                  "WHERE shard_mapping_id = %s")
 
     #Select all the shard mapping definitions
     LIST_SHARD_MAPPING_DEFN = ("SELECT shard_mapping_id, type_name, "
-                               "global_group FROM shard_mapping_defn")
+                               "global_group FROM shard_maps")
 
     #Delete the sharding specification to table mapping for a given table.
-    DELETE_SHARD_MAPPING = ("DELETE FROM shard_mapping "
+    DELETE_SHARD_MAPPING = ("DELETE FROM shard_tables "
                             "WHERE shard_mapping_id = %s")
 
     #Delete the shard mapping definition
-    DELETE_SHARD_MAPPING_DEFN = ("DELETE FROM shard_mapping_defn "
+    DELETE_SHARD_MAPPING_DEFN = ("DELETE FROM shard_maps "
                                  "WHERE shard_mapping_id = %s")
 
     def __init__(self, shard_mapping_id, table_name, column_name, type_name,
@@ -334,7 +334,6 @@ class ShardMapping(_persistence.Persistable):
 
         return None
 
-
     @staticmethod
     def fetch_shard_mapping_defn(shard_mapping_id, persister=None):
         """Fetch the shard mapping definition corresponding to the
@@ -414,16 +413,18 @@ class Shards(_persistence.Persistable):
     A typical mapping between the shards and their location looks like
     the following
 
-        +--------------------+--------------------+
-        |     shard_id       |      group_id      |
-        +====================+====================+
-        |1                   |GroupID1            |
-        +--------------------+--------------------+
++--------------------+--------------------+--------------------+--------------------+
+|  shard_mapping_id  |     shard_id       |      group_id      |     state          | 
++====================+====================+====================+====================+
+|1                   |1                   |GroupID1            |ENABLED             |
++--------------------+--------------------+--------------------+--------------------+
 
     The columns are explained as follows,
 
-    shard_id - Unique identifier for the shard of a particular table
+    shard_mapping_id - The unique identification for a shard mapping.
+    shard_id - Unique identifier for the shard of a particular table.
     group_id - The Server location for the given partition of the table.
+    state - Indicates whether a given shard is ENABLED or DISABLED.
     """
 
     #Tuple stores the list of valid shard mapping types.
@@ -433,51 +434,86 @@ class Shards(_persistence.Persistable):
     VALID_SHARD_STATES = ("ENABLED", "DISABLED")
 
     #Create the schema for storing the shard to groups mapping
-    CREATE_SHARDS = ("CREATE TABLE "
-                    "Shards (shard_id INT AUTO_INCREMENT "
-                    "NOT NULL PRIMARY KEY, "
-                    "group_id VARCHAR(64) UNIQUE NOT NULL)")
+    CREATE_SHARDS = ("CREATE TABLE shards ("
+                    "shard_id INT AUTO_INCREMENT NOT NULL PRIMARY KEY, "
+                    "shard_mapping_id INT NOT NULL, INDEX(shard_mapping_id), "
+                    "group_id VARCHAR(64) UNIQUE NOT NULL, "
+                    "state ENUM('DISABLED', 'ENABLED') NOT NULL)")
 
     #Create the referential integrity constraint with the groups table.
     ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
-                                ("ALTER TABLE Shards "
+                                ("ALTER TABLE shards "
                                   "ADD CONSTRAINT fk_shards_group_id "
                                   "FOREIGN KEY(group_id) REFERENCES "
                                   "groups(group_id)")
 
     #Drop the referential integrity constraint with the groups table.
     DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
-                                    ("ALTER TABLE Shards DROP "
+                                    ("ALTER TABLE shards DROP "
                                      "FOREIGN KEY fk_shards_group_id")
 
+    #Create the referential integrity constraint with the shard_mapping_defn
+    #table
+    ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
+                                ("ALTER TABLE shards "
+                                  "ADD CONSTRAINT "
+                                  "fk_shard_mapping_id_sharding_spec "
+                                  "FOREIGN KEY(shard_mapping_id) REFERENCES "
+                                  "shard_maps(shard_mapping_id)")
+
+    #Drop the referential integrity constraint with the shard_maps
+    #table
+    DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
+                                    ("ALTER TABLE shards "
+                                       "DROP FOREIGN KEY "
+                                       "fk_shard_mapping_id_sharding_spec")
+
     #Drop the schema for storing the shard to group mapping.
-    DROP_SHARDS = ("DROP TABLE Shards")
+    DROP_SHARDS = ("DROP TABLE shards")
 
     #Insert the Range to Shard mapping into the table.
-    INSERT_SHARD = ("INSERT INTO Shards(group_id) VALUES(%s)")
+    INSERT_SHARD = ("INSERT INTO shards(shard_mapping_id, group_id, state) VALUES(%s, %s, %s)")
 
     #Update the group_id for a shard.
-    UPDATE_SHARD = ("UPDATE Shards SET group_id=%s WHERE shard_id=%s")
+    UPDATE_SHARD = ("UPDATE shards SET group_id=%s WHERE shard_id=%s")
 
     #Delete a given shard to group mapping.
-    DELETE_SHARD = ("DELETE FROM Shards WHERE shard_id = %s")
+    DELETE_SHARD = ("DELETE FROM shards WHERE shard_id = %s")
 
     #Select the group to which a shard ID maps to.
-    SELECT_SHARD_GROUP = ("SELECT group_id FROM Shards WHERE shard_id = %s")
+    SELECT_SHARD = ("SELECT shard_id, shard_mapping_id, group_id, state "
+                                    "FROM shards WHERE shard_id = %s")
 
     #Select the shard that belongs to a given group.
-    SELECT_GROUP_FOR_SHARD = ("SELECT shard_id FROM Shards WHERE group_id = %s")
+    SELECT_GROUP_FOR_SHARD = ("SELECT shard_id FROM shards WHERE group_id = %s")
 
-    def __init__(self, shard_id, group_id):
+    #Update the state of a shard
+    UPDATE_SHARD_STATE = ("UPDATE shards SET state=%s where shard_id=%s")
+
+    #Given a Shard Mapping ID select all the RANGE mappings that it
+    #defines.
+    LIST_SHARDS = ("SELECT shard_id, "
+                                "shard_mapping_id, "
+                                "group_id, "
+                                "state "
+                                "FROM shards "
+                                "WHERE shard_mapping_id = %s")
+
+
+    def __init__(self, shard_id, shard_mapping_id,  group_id,  state="DISABLED"):
         """Initialize the Shards object with the shard to group mapping.
 
         :param shard_id: An unique identification, a logical representation for a
                     shard of a particular table.
+        :param shard_mapping_id: The unique identification for a shard mapping.
         :param group_id: The group ID to which the shard maps to.
+        :param state: Indicates whether a given shard is ENABLED or DISABLED
         """
         super(Shards, self).__init__()
         self.__shard_id = shard_id
+        self.__shard_mapping_id = shard_mapping_id
         self.__group_id = group_id
+        self.__state = state
 
     @staticmethod
     def create(persister=None):
@@ -496,19 +532,22 @@ class Shards(_persistence.Persistable):
         persister.exec_stmt(Shards.DROP_SHARDS)
 
     @staticmethod
-    def add(group_id, persister=None):
+    def add(shard_mapping_id, group_id, state="DISABLED", persister=None):
         """Add a Group that will store a shard. A shard ID is automatically
         generated for a given added Group.
 
+        :param shard_mapping_id: The unique identification for a shard mapping.
         :param group_id: The Group that is being added to store a shard.
         :param persister: A valid handle to the state store.
+        :param state: Indicates whether a given shard is ENABLED or DISABLED
 
         :return: The Shards object containing a mapping between the shard
                     and the group.
         """
-        persister.exec_stmt(Shards.INSERT_SHARD, {"params":(group_id,)})
+        persister.exec_stmt(Shards.INSERT_SHARD, {"params":(shard_mapping_id,
+                                                            group_id, state)})
         row = persister.exec_stmt("SELECT LAST_INSERT_ID()")
-        return Shards(int(row[0][0]), group_id)
+        return Shards(int(row[0][0]), shard_mapping_id, group_id, state)
 
     @staticmethod
     def add_constraints(persister=None):
@@ -518,6 +557,7 @@ class Shards(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(Shards.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
+        persister.exec_stmt(Shards.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
 
     @staticmethod
     def drop_constraints(persister=None):
@@ -526,6 +566,7 @@ class Shards(_persistence.Persistable):
         :param persister: The DB server that can be used to access the
                           state store.
         """
+        persister.exec_stmt(Shards.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
         persister.exec_stmt(Shards.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
 
     def remove(self, persister=None):
@@ -546,7 +587,7 @@ class Shards(_persistence.Persistable):
         :param persister: The DB server that can be used to access the
                           state store.
         """
-        row = persister.exec_stmt(Shards.SELECT_SHARD_GROUP, \
+        row = persister.exec_stmt(Shards.SELECT_SHARD, \
                                   {"params":(shard_id,)})
         #TODO: exec_stmt can return a list as well as a cursor, but
         #TODO: They are done in a consistent manner. It should either
@@ -556,7 +597,21 @@ class Shards(_persistence.Persistable):
         if row is None:
             return None
 
-        return Shards(shard_id, row[0][0])
+        return Shards(row[0][0], row[0][1], row[0][2], row[0][3],)
+
+    def enable(self, persister=None):
+        """Set the state of the shard to ENABLED.
+        """
+        persister.exec_stmt(
+          Shards.UPDATE_SHARD_STATE,
+                             {"params":('ENABLED', self.__shard_id)})
+
+    def disable(self, persister=None):
+        """Set the state of the shard to DISABLED.
+        """
+        persister.exec_stmt(
+          Shards.UPDATE_SHARD_STATE,
+                             {"params":('DISABLED', self.__shard_id)})
 
     @staticmethod
     def lookup_shard_id(group_id,  persister=None):
@@ -571,6 +626,32 @@ class Shards(_persistence.Persistable):
                                   {"params":(group_id,)})
         if row:
             return row[0][0]
+
+    @staticmethod
+    def list(shard_mapping_id, persister=None):
+        """Return the RangeShardingSpecification objects corresponding to the
+        given sharding scheme.
+
+        :param shard_mapping_id: The unique identification for a shard mapping.
+        :param persister: A valid handle to the state store.
+
+        :return: A  list of RangeShardingSpecification objects which belong to
+                to this shard mapping.
+                None if the shard mapping is not found
+        """
+        cur = persister.exec_stmt(
+                    Shards.LIST_SHARDS,
+                        {"raw" : False,
+                        "fetch" : False,
+                        "params" : (shard_mapping_id,)})
+        rows = cur.fetchall()
+        return [ Shards(*row[0:5]) for row in rows ]
+
+    @property
+    def shard_mapping_id(self):
+        """Return the shard mapping to which this RANGE definition belongs.
+        """
+        return self.__shard_mapping_id
 
     @property
     def shard_id(self):
@@ -595,6 +676,12 @@ class Shards(_persistence.Persistable):
                                         {"params":(group_id, self.__shard_id)})
         self.__group_id = group_id
 
+    @property
+    def state(self):
+        """Return whether the state is ENABLED or DISABLED.
+        """
+        return self.__state
+
 class RangeShardingSpecification(_persistence.Persistable):
     """Represents a RANGE sharding specification. The class helps encapsulate
     the representation of a typical RANGE sharding implementation in the
@@ -602,144 +689,89 @@ class RangeShardingSpecification(_persistence.Persistable):
 
     A typical RANGE sharding representation looks like the following,
 
-        +--------------+---------+--------+-----------+-----------+
-        | shard_map_id |   LB    |  UB    |  shard_id |   state   |
-        +==============+=========+========+===========+===========+
-        |1             |10000    |20000   |1          |ENABLED    |
-        +--------------+---------+--------+-----------+-----------+
+        +---------+--------+-----------+
+       |   LB    |  UB    |  shard_id |
+        +=========+========+===========+
+        |10000    |20000   |1          |
+        +---------+--------+-----------+
 
     The columns in the above table are explained as follows,
 
-    * shard_mapping_id - The unique identification for a shard mapping.
     * LB -The lower bound of the given RANGE sharding scheme instance
     * UB - The upper bound of the given RANGE sharding scheme instance
     * shard_id - An unique identification, a logical representation for a
                     shard of a particular table.
-    * state - Indicates whether a given shard is ENABLED or DISABLED
     """
 
-#TODO: The state should be moved to the Shards table. The Shards table contains
-#TODO: the mapping of the shard_id to the group_id and it should also store
-#TODO: if the shard is enabled or not. But we can wait until having multiple
-#TODO: sharding types to enable this.
     #Create the schema for storing the RANGE sharding specificaton.
     CREATE_RANGE_SPECIFICATION = ("CREATE TABLE "
-                                "range_sharding_specification "
-                                "(shard_mapping_id INT NOT NULL, "
-                                "INDEX(shard_mapping_id), "
-                                "lower_bound INT NOT NULL, "
+                                "shard_ranges "
+                                "(lower_bound INT NOT NULL, "
                                 "upper_bound INT NOT NULL, "
                                 "INDEX(lower_bound, upper_bound), "
-                                "shard_id INT NOT NULL, "
-                                "state ENUM('DISABLED', 'ENABLED') NOT NULL)")
+                                "shard_id INT NOT NULL)")
 
-    #Create the referential integrity constraint with the shard_mapping_defn
-    #table
-    ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                ("ALTER TABLE range_sharding_specification "
-                                  "ADD CONSTRAINT "
-                                  "fk_shard_mapping_id_sharding_spec "
-                                  "FOREIGN KEY(shard_mapping_id) REFERENCES "
-                                  "shard_mapping_defn(shard_mapping_id)")
-
-    #Drop the referential integrity constraint with the shard_mapping_defn
-    #table
-    DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                    ("ALTER TABLE range_sharding_specification "
-                                       "DROP FOREIGN KEY "
-                                       "fk_shard_mapping_id_sharding_spec")
-
-#TODO: Verify if the table name and the column name can be he
-#TODO: same value.
     #Create the referential integrity constraint with the shard_id
     #table
     ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID = \
-                                ("ALTER TABLE range_sharding_specification "
+                                ("ALTER TABLE shard_ranges "
                                   "ADD CONSTRAINT fk_shard_id_sharding_spec "
                                   "FOREIGN KEY(shard_id) REFERENCES "
-                                  "Shards(shard_id)")
+                                  "shards(shard_id)")
 
     #Drop the referential integrity constraint with the shard_id
     #table
     DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID = \
-                                    ("ALTER TABLE range_sharding_specification "
+                                    ("ALTER TABLE shard_ranges "
                                        "DROP FOREIGN KEY "
                                        "fk_shard_id_sharding_spec")
 
     #Drop the schema for storing the RANGE sharding specification.
-    DROP_RANGE_SPECIFICATION = ("DROP TABLE "
-                                "range_sharding_specification")
+    DROP_RANGE_SPECIFICATION = ("DROP TABLE shard_ranges")
 
     #Insert a RANGE of keys and the server to which they belong.
-    INSERT_RANGE_SPECIFICATION = ("INSERT INTO "
-                                  "range_sharding_specification "
-                                  "VALUES(%s, %s, %s, %s, %s)")
-
-    #Update the state of a shard
-    UPDATE_RANGE_SPECIFICATION_STATUS = ("UPDATE range_sharding_specification "
-                                         "SET state=%s "
-                                         "where shard_id=%s")
+    INSERT_RANGE_SPECIFICATION = ("INSERT INTO shard_ranges "
+                                  "VALUES(%s, %s, %s)")
 
     #Delete a given RANGE specification instance.
-    DELETE_RANGE_SPECIFICATION = ("DELETE FROM "
-                                  "range_sharding_specification "
+    DELETE_RANGE_SPECIFICATION = ("DELETE FROM shard_ranges "
                                   "WHERE "
                                   "shard_id = %s")
 
     #Given a Shard ID select the RANGE Scheme that it defines.
-    SELECT_RANGE_SPECIFICATION = ("SELECT shard_mapping_id, lower_bound, "
+    SELECT_RANGE_SPECIFICATION = ("SELECT lower_bound, "
                                   "upper_bound, "
-                                  "shard_id, "
-                                  "state "
-                                  "FROM range_sharding_specification "
+                                  "shard_id "
+                                  "FROM shard_ranges "
                                   "WHERE shard_id = %s")
-
-    #Given a Shard Mapping ID select all the RANGE mappings that it
-    #defines.
-    LIST_RANGE_SPECIFICATION = ("SELECT shard_mapping_id, lower_bound, "
-                                  "upper_bound, "
-                                  "shard_id, "
-                                  "state "
-                                  "FROM range_sharding_specification "
-                                  "WHERE shard_mapping_id = %s")
 
     #Select the server corresponding to the RANGE to which a given key
     #belongs. The range is open on the lower_bound and closed on the
     #upper bound.
-    LOOKUP_KEY = ("SELECT shard_mapping_id, lower_bound, upper_bound, "
-                  "shard_id, state "
-                  "FROM range_sharding_specification "
-                  "WHERE %s > lower_bound AND %s <= upper_bound AND "
-                  "shard_mapping_id = %s")
+    LOOKUP_KEY = ("SELECT sr.lower_bound, sr.upper_bound, s.shard_id "
+                  "FROM shard_ranges AS sr, shards AS s "
+                  "WHERE %s > sr.lower_bound "
+                  "AND %s <= sr.upper_bound "
+                  "AND s.shard_mapping_id = %s "
+                  "AND s.shard_id = sr.shard_id")
 
     #Update the Range for a particular shard. The updation needs to happen
     #for the upper bound and the lower bound simultaneously.
-    UPDATE_RANGE = ("UPDATE range_sharding_specification SET lower_bound = %s "
+    UPDATE_RANGE = ("UPDATE shard_ranges SET lower_bound = %s "
                         ", upper_bound = %s WHERE shard_id = %s")
 
-    def __init__(self, shard_mapping_id, lower_bound, upper_bound,
-                  shard_id, state="DISABLED"):
+    def __init__(self, lower_bound, upper_bound, shard_id):
         """Initialize a given RANGE sharding mapping specification.
 
-        :param shard_mapping_id: The unique identification for a shard mapping.
         :param lower_bound: The lower bound of the given RANGE sharding defn
         :param upper_bound: The upper bound of the given RANGE sharding defn
         :param shard_id: An unique identification, a logical representation
                         for a shard of a particular table.
-        :param state: Indicates whether a given shard is ENABLED or DISABLED
         """
         super(RangeShardingSpecification, self).__init__()
-        self.__shard_mapping_id = shard_mapping_id
         self.__lower_bound = lower_bound
         self.__upper_bound = upper_bound
         self.__shard_id = shard_id
-        self.__state = state
-
-    @property
-    def shard_mapping_id(self):
-        """Return the shard mapping to which this RANGE definition belongs.
-        """
-        return self.__shard_mapping_id
 
     @property
     def lower_bound(self):
@@ -760,26 +792,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         return self.__shard_id
 
-    @property
-    def state(self):
-        """Return whether the state is ENABLED or DISABLED.
-        """
-        return self.__state
-
-    def enable(self, persister=None):
-        """Set the state of the shard to ENABLED.
-        """
-        persister.exec_stmt(
-          RangeShardingSpecification.UPDATE_RANGE_SPECIFICATION_STATUS,
-                             {"params":('ENABLED', self.__shard_id)})
-
-    def disable(self, persister=None):
-        """Set the state of the shard to DISABLED.
-        """
-        persister.exec_stmt(
-          RangeShardingSpecification.UPDATE_RANGE_SPECIFICATION_STATUS,
-                             {"params":('DISABLED', self.__shard_id)})
-
     def remove(self, persister=None):
         """Remove the RANGE specification mapping represented by the current
         RANGE shard specification object.
@@ -791,17 +803,14 @@ class RangeShardingSpecification(_persistence.Persistable):
             {"params":(self.__shard_id,)})
 
     @staticmethod
-    def add(shard_mapping_id, lower_bound, upper_bound,
-                  shard_id, state="DISABLED", persister=None):
+    def add(lower_bound, upper_bound, shard_id, persister=None):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
-        :param shard_mapping_id: The unique identification for a shard mapping.
         :param lower_bound: The lower bound of the given RANGE sharding defn
         :param upper_bound: The upper bound of the given RANGE sharding defn
         :param shard_id: An unique identification, a logical representation
                         for a shard of a particular table.
-        :param state: Indicates whether a given shard is ENABLED or DISABLED
 
         :return: A RangeShardSpecification object representing the current
                 Range specification.
@@ -809,13 +818,11 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         persister.exec_stmt(
                   RangeShardingSpecification.INSERT_RANGE_SPECIFICATION,
-                                     {"params":(shard_mapping_id,
-                                                          lower_bound,
+                                     {"params":(lower_bound,
                                                            upper_bound,
-                                                           shard_id,
-                                                           state)})
-        return RangeShardingSpecification(shard_mapping_id, lower_bound,
-                                          upper_bound, shard_id, state)
+                                                           shard_id
+                                                           )})
+        return RangeShardingSpecification(lower_bound, upper_bound, shard_id)
 
     @staticmethod
     def create(persister=None):
@@ -844,10 +851,6 @@ class RangeShardingSpecification(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(
-            RangeShardingSpecification.\
-            ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
-            )
-        persister.exec_stmt(
             RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID
             )
 
@@ -861,34 +864,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         persister.exec_stmt(
             RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID
             )
-        persister.exec_stmt(
-            RangeShardingSpecification.\
-            DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
-            )
-
-#TODO: Should fetch accept a shard_mapping_id or a shard_id ?
-#TODO: Should there be a method that accepts shard_mapping_id like list?
-#TODO: Changing fetch to list, and adding a fetch that accepts a shard_id.
-#TODO: Verify this is correct.
-    @staticmethod
-    def list(shard_mapping_id, persister=None):
-        """Return the RangeShardingSpecification objects corresponding to the
-        given sharding scheme.
-
-        :param shard_mapping_id: The unique identification for a shard mapping.
-        :param persister: A valid handle to the state store.
-
-        :return: A  list of RangeShardingSpecification objects which belong to
-                to this shard mapping.
-                None if the shard mapping is not found
-        """
-        cur = persister.exec_stmt(
-                    RangeShardingSpecification.LIST_RANGE_SPECIFICATION,
-                        {"raw" : False,
-                        "fetch" : False,
-                        "params" : (shard_mapping_id,)})
-        rows = cur.fetchall()
-        return [ RangeShardingSpecification(*row[0:5]) for row in rows ]
 
     @staticmethod
     def fetch(shard_id, persister=None):
@@ -910,8 +885,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         row = cur.fetchone()
         if row is None:
             return None
-        return RangeShardingSpecification(row[0], row[1], row[2], row[3],
-                                                                  row[4])
+        return RangeShardingSpecification(row[0], row[1], row[2])
 
     @staticmethod
     def update_shard(shard_id, lb, ub, persister=None):
@@ -950,8 +924,7 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         if row is None:
             return None
-        return RangeShardingSpecification(row[0], row[1], row[2],
-                                          row[3], row[4])
+        return RangeShardingSpecification(row[0], row[1], row[2])
 
     @staticmethod
     def delete_from_shard_db(table_name):
@@ -970,46 +943,37 @@ class RangeShardingSpecification(_persistence.Persistable):
         :param table_name: The table being sharded.
         """
 
-        #Get the shard mapping for the table from the state store.
         shard_mapping = ShardMapping.fetch(table_name)
         if shard_mapping is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
-        #Get the shard mapping ID
         shard_mapping_id = shard_mapping.shard_mapping_id
 
-        #Query the range sharding specifications defined for the
-        #shard mapping id
-        range_sharding_specs = RangeShardingSpecification.list \
-                                                (shard_mapping_id)
-        if not range_sharding_specs:
+        shards = Shards.list(shard_mapping_id)
+        if not shards:
             raise _errors.ShardingError("No shards associated with this"
                                                          " shard mapping ID.")
 
-        #Use the information in each of the range sharding specs to prune the
-        #tables.
-        for range_sharding_spec in range_sharding_specs:
-            #Prune the shard given by the shard_id associated with
-            #the Range Sharding Specification
-            RangeShardingSpecification.prune_shard_id(range_sharding_spec.shard_id)
+        for shard in shards:
+            RangeShardingSpecification.prune_shard_id(shard.shard_id)
 
     #TODO: Narayanan: Explore if the errors below can be handled at the service
     #TODO: Narayanan: layer.
     @staticmethod
     def prune_shard_id(shard_id):
-        #Fetch the range sharding specification for the shard_id
         range_sharding_spec = RangeShardingSpecification.fetch(shard_id)
         if range_sharding_spec is None:
             raise _errors.ShardingError("No shards associated with this"
                                                          " shard mapping ID.")
-        #Fetch the shard mapping corresponding to the shard_id
-        shard_mapping = ShardMapping.fetch_by_id(range_sharding_spec.shard_mapping_id)
+
+        shard = Shards.fetch(shard_id)
+
+        shard_mapping = ShardMapping.fetch_by_id(shard.shard_mapping_id)
         if shard_mapping is None:
             raise _errors.ShardingError("Shard Mapping not found.")
-        #Fetch the table name from the shard mapping
+
         table_name = shard_mapping.table_name
-        #Form the delete query using the shard mapping and the shard spec
-        #information
+
         delete_query = \
             ("DELETE FROM %s WHERE %s NOT BETWEEN %s and %s")% \
                                             (table_name,
@@ -1017,23 +981,18 @@ class RangeShardingSpecification(_persistence.Persistable):
                                             range_sharding_spec.lower_bound,
                                             range_sharding_spec.upper_bound)
 
-        #Fetch the shard information using the shard_id
         shard = Shards.fetch(range_sharding_spec.shard_id)
         if shard is None:
             raise _errors.ShardingError("Shard not found (%s)" % (range_sharding_spec.shard_id, ))
 
-        #Fetch the Group object using the group id in the shard information
         group = Group.fetch(shard.group_id)
         if group is None:
             raise _errors.ShardingError("Group not found (%s)" % (shard.group_id, ))
 
-        #Fetch the master of the group
         master = MySQLServer.fetch(group.master)
         if master is None:
             raise _errors.ShardingError("Group Master not found (%s)" % (str(group.master)))
 
-        #Get a connection
         master.connect()
 
-        #Fire the DELETE query
         master.exec_stmt(delete_query)

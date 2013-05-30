@@ -407,7 +407,7 @@ def _remove_shard_mapping(table_name):
     if shard_mapping is None:
         raise _errors.ShardingError(TABLE_NAME_NOT_FOUND % (table_name, ))
     if shard_mapping.type_name == "RANGE":
-        if not RangeShardingSpecification.list(shard_mapping.shard_mapping_id):
+        if not Shards.list(shard_mapping.shard_mapping_id):
             shard_mapping.remove()
             _LOGGER.debug("Removed Shard Mapping (%s, %s, %s, %s, %s).",
                           shard_mapping.shard_mapping_id,
@@ -524,18 +524,16 @@ def _add_shard(shard_mapping_id, lower_bound, upper_bound, group_id, state):
         raise _errors.ShardingError(SHARD_MAPPING_NOT_FOUND % \
                                                     (shard_mapping_id,  ))
 
-    shard = Shards.add(group_id)
+    shard = Shards.add(shard_mapping_id, group_id, state)
 
     shard_id = shard.shard_id
 
     schema_type = shard_mapping[1]
     if schema_type == "RANGE":
         range_sharding_specification = RangeShardingSpecification.add(
-                                            shard_mapping_id, lower_bound,
-                                            upper_bound, shard_id, state)
-        _LOGGER.debug("Added Shard (%s, %s, %s, %s, %s).",
-                            shard_mapping_id, lower_bound,
-                            upper_bound, shard_id, state)
+                                            lower_bound, upper_bound, shard_id)
+        _LOGGER.debug("Added Shard (%s, %s, %s).",
+                            lower_bound, upper_bound, shard_id)
     else:
         raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type,  ))
 
@@ -563,7 +561,7 @@ def _remove_shard(shard_id):
 #TODO: query the RangeShardingTables. This information WILL NOT be
 #TODO: supplied by the user. For now proceed assuming it is RANGE.
     range_sharding_specification, shard = _verify_and_fetch_shard(shard_id)
-    if range_sharding_specification.state == "ENABLED":
+    if shard.state == "ENABLED":
         raise _errors.ShardingError(SHARD_NOT_DISABLED)
     #Stop the replication of the shard group with the global
     #group. Also clear the references of the master and the
@@ -606,14 +604,10 @@ def _lookup(table_name, key,  hint):
                                         (key, shard_mapping.shard_mapping_id)
         if range_sharding_specification is None:
             raise _errors.ShardingError(INVALID_SHARDING_KEY % (key,  ))
-        if range_sharding_specification.state == "DISABLED":
-            raise _errors.ShardingError(SHARD_NOT_ENABLED)
-         #shard cannot be None since there is a foreign key mapping on the
-         #shard_id. But an exception will be thrown nevertheless. This
-         #could point to a problem in the state store.
         shard = Shards.fetch(str(range_sharding_specification.shard_id))
-        if shard is None:
-            raise _errors.ShardingError(SHARD_NOT_FOUND % ("",  ))
+        if shard.state == "DISABLED":
+            raise _errors.ShardingError(SHARD_NOT_ENABLED)
+
         #group cannot be None since there is a foreign key on the group_id.
         #An exception will be thrown nevertheless.
         group = Group.fetch(shard.group_id)
@@ -654,7 +648,7 @@ def _enable_shard(shard_id):
     #When you enable a shard, setup replication with the global server
     #of the shard mapping associated with this shard.
     _setup_shard_group_replication(shard_id)
-    range_sharding_spec.enable()
+    shard.enable()
 
 @_events.on_event(SHARD_DISABLE)
 def _disable_shard(shard_id):
@@ -675,7 +669,7 @@ def _disable_shard(shard_id):
     #When you disable a shard, disable replication with the global server
     #of the shard mapping associated with the shard.
     _stop_shard_group_replication(shard_id,  False)
-    range_sharding_spec.disable()
+    shard.disable()
 
 #TODO: Removed Go Fish Lookup. Provide Dump facility.
 
@@ -931,17 +925,17 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     #TODO: required?
 
     #Add the new shard
-    new_shard = Shards.add(destination_group_id)
+    new_shard = Shards.add(source_shard.shard_mapping_id,
+                            destination_group_id,
+                            "ENABLED")
 
     #Add the new split range (split_value, upper_bound)
     new_range_sharding_spec = \
-        RangeShardingSpecification.add(range_sharding_spec.shard_mapping_id, 
-                                                             split_value, 
-                                                             range_sharding_spec.upper_bound,
-                                                             new_shard.shard_id, 
-                                                             "ENABLED")
+        RangeShardingSpecification.add(split_value,
+                                       range_sharding_spec.upper_bound,
+                                       new_shard.shard_id)
     #Disable the old shard id
-    range_sharding_spec.disable()
+    source_shard.disable()
 
     #Update the range for the old shard.
     RangeShardingSpecification.update_shard(shard_id,
@@ -949,7 +943,7 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
                                                 split_value)
 
     #Enable the old shard id
-    range_sharding_spec.enable()
+    source_shard.enable()
 
     #The source shard group master would have been marked as read only
     #during the sync. Remove the read_only flag.
@@ -1003,7 +997,7 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     #Fetch the shard mapping definition for the given range specification.
     #The shard mapping contains the information about the global group.
     shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn \
-                                           (range_sharding_spec.shard_mapping_id)
+                                           (source_shard.shard_mapping_id)
     if shard_mapping_defn is None:
         raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
                             (range_sharding_spec.shard_mapping_id, ))
@@ -1069,10 +1063,10 @@ def _setup_shard_group_replication(shard_id):
     #Fetch the shard mapping definition for the given range specification.
     #The shard mapping contains the information about the global group.
     shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn \
-                                           (range_sharding_spec.shard_mapping_id)
+                                           (shard.shard_mapping_id)
     if shard_mapping_defn is None:
         raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
-                            (range_sharding_spec.shard_mapping_id, ))
+                            (shard.shard_mapping_id, ))
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
             (shard_mapping_defn[2],  shard.group_id)
@@ -1092,11 +1086,13 @@ def _stop_shard_group_replication(shard_id,  clear_ref):
     range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
     #Fetch the shard mapping for the given range specification. From the
     #shard mapping the details of the global group can be obtained.
-    shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn \
-                                               (range_sharding_spec.shard_mapping_id)
+    shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn(
+        shard.shard_mapping_id
+    )
     if shard_mapping_defn is None:
-        raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
-                            (range_sharding_spec.shard_mapping_id, ))
+        raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % (
+            shard.shard_mapping_id,
+        ))
     #Stop the replication between the shard group and the global group. Also
     #based on the clear_ref flag decide if you want to clear the references associated
     #with the group.
