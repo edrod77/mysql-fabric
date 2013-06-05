@@ -1,10 +1,12 @@
 import unittest
 import uuid as _uuid
 
-import mysql.hub.executor as _executor
-import mysql.hub.persistence as _persistence
+from mysql.fabric import (
+    executor as _executor,
+    persistence as _persistence,
+)
 
-from mysql.hub.server import Group, MySQLServer
+from mysql.fabric.server import Group, MySQLServer
 
 import tests.utils
 

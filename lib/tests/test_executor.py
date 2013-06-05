@@ -4,7 +4,7 @@ import unittest
 import logging
 import uuid
 
-from mysql.hub import (
+from mysql.fabric import (
     executor as _executor,
     errors as _errors,
     persistence as _persistence,

@@ -1,8 +1,8 @@
-:mod:`mysql.hub.utils` --- Utilities
-====================================
+:mod:`mysql.fabric.utils` --- Utilities
+=======================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.utils
+.. automodule:: mysql.fabric.utils
    :members:

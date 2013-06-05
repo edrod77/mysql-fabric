@@ -1,12 +1,12 @@
 import unittest
 import uuid as _uuid
-import mysql.hub.sharding as _sharding
-import mysql.hub.errors as _errors
+import mysql.fabric.sharding as _sharding
+import mysql.fabric.errors as _errors
 import tests.utils
 
-from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
-from mysql.hub.server import Group, MySQLServer
-from mysql.hub import persistence
+from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
+from mysql.fabric.server import Group, MySQLServer
+from mysql.fabric import persistence
 
 from tests.utils import ShardingUtils, MySQLInstances
 

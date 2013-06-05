@@ -8,7 +8,7 @@ import uuid as _uuid
 import xmlrpclib
 import logging
 
-from mysql.hub import (
+from mysql.fabric import (
     config as _config,
     persistence as _persistence,
     replication as _replication,
@@ -16,7 +16,7 @@ from mysql.hub import (
     utils as _utils,
     )
 
-from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
+from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -231,7 +231,7 @@ def setup_xmlrpc():
     config = _config.Config(None, params, True)
 
     # Set up the manager
-    from mysql.hub.services.manage import (
+    from mysql.fabric.services.manage import (
         _start,
         _configure_connections,
         )

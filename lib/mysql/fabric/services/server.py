@@ -56,16 +56,19 @@ provided elsewhere.
 import logging
 import uuid as _uuid
 
-import mysql.hub.events as _events
-import mysql.hub.server as _server
-import mysql.hub.errors as _errors
-import mysql.hub.failure_detector as _detector
-import mysql.hub.services.utils as _utils
-import mysql.hub.group_replication as _group_replication
+import mysql.fabric.services.utils as _utils
 
-from mysql.hub.command import (
+from mysql.fabric import (
+    events as _events,
+    server as _server,
+    errors as _errors,
+    failure_detector as _detector,
+    group_replication as _group_replication,
+)
+
+from mysql.fabric.command import (
     ProcedureCommand,
-    )
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -167,7 +170,7 @@ class ServerLookups(ProcedureCommand):
         :rtype: [server_uuid, ....] or  {"uuid" : uuid, "address": address,
                 "user": user, "passwd": passwd}
 
-        If the group does not exist, the :class:`mysqly.hub.errors.GroupError`
+        If the group does not exist, the :class:`mysqly.fabric.errors.GroupError`
         exception is thrown. The information returned has the following
         format::
 

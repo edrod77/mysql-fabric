@@ -1,15 +1,15 @@
 import unittest
 import uuid as _uuid
 
-import mysql.hub.server_utils as _server_utils
+import mysql.fabric.server_utils as _server_utils
 
 import os
 
 import tests.utils
 
-from mysql.hub.backup import BackupImage,  MySQLDump
-from mysql.hub.server import Group, MySQLServer
-import mysql.hub.persistence as _persistence
+from mysql.fabric.backup import BackupImage,  MySQLDump
+from mysql.fabric.server import Group, MySQLServer
+import mysql.fabric.persistence as _persistence
 
 from tests.utils import MySQLInstances
 

@@ -31,14 +31,14 @@ the unit tests:
 
       python setup.py build
 
-      hubdir=`pwd`
+      fabricdir=`pwd`
       (
         cd <connector-directory>
-        python setup.py build --build-base=${hubdir}/build
-        cp version.py ${hubdir}/build/lib*/mysql/connector/.
+        python setup.py build --build-base=${fabricdir}/build
+        cp version.py ${fabricdir}/build/lib*/mysql/connector/.
       )
 
-      python test.py --build-dir=${hubdir}/build/lib --host=<host> \
+      python test.py --build-dir=${fabricdir}/build/lib --host=<host> \
       --port=<port> --user=<user> --password=<password> \
       --servers="<servers' addresses>"
 
@@ -49,14 +49,14 @@ Running commands
 
 If you have built all the files you can execute a command by resetting
 the Python path. There is also a sample configuration file, so you can
-use the following command to start the hub process un-daemonized and
-print debug log messages to the terminal.
+use the following command to start the MySQL Fabric node un-daemonized
+and print debug log messages to the terminal.
 
     export PYTHONPATH=build/lib
     export PATH=build/script:$PATH
     fabric manage start --config=data/main.cfg --ignore-site-config
 
-You can stop the hub using:
+You can stop the MySQL Fabric using:
 
     export PYTHONPATH=build/lib
     export PATH=build/script:$PATH

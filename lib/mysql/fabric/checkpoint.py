@@ -8,7 +8,7 @@ import time
 import pickle as pickle
 import sys
 
-import mysql.hub.persistence as _persistence
+import mysql.fabric.persistence as _persistence
 
 _LOGGER = logging.getLogger(__name__)
 

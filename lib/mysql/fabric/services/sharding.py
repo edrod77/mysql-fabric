@@ -4,20 +4,21 @@ in FABRIC.
 
 import logging
 
-from mysql.hub.command import (
+from mysql.fabric.command import (
     ProcedureCommand,
 )
 
-import mysql.hub.errors as _errors
-import mysql.hub.events as _events
-import mysql.hub.group_replication as _group_replication
-import mysql.hub.replication as _replication
-import mysql.hub.sharding as _sharding
-import mysql.hub.backup as _backup
+from mysql.fabric import (
+    errors as _errors,
+    events as _events,
+    group_replication as _group_replication,
+    replication as _replication,
+    sharding as _sharding,
+    backup as _backup,
+)
 
-
-from mysql.hub.server import Group,  MySQLServer
-from mysql.hub.sharding import ShardMapping, RangeShardingSpecification, Shards
+from mysql.fabric.server import Group,  MySQLServer
+from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
 
 _LOGGER = logging.getLogger(__name__)
 

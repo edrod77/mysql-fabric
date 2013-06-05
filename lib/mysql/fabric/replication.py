@@ -4,9 +4,9 @@ import time
 import logging
 import uuid as _uuid
 
-import mysql.hub.errors as _errors
-import mysql.hub.server_utils as _server_utils
-import mysql.hub.server as _server
+import mysql.fabric.errors as _errors
+import mysql.fabric.server_utils as _server_utils
+import mysql.fabric.server as _server
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def get_master_status(server, options=None):
     MASTER STATUS` command in the MySQL Manual for further details.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.hub.server.MySQLServer.exec_stmt`.
+                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     if options is None:
         options = {}
@@ -53,7 +53,7 @@ def get_master_rpl_users(server, options=None):
     returned.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.hub.server.MySQLServer.exec_stmt`.
+                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
     :return:  List of users that have the `REPLICATION SLAVE PRIVILEGE`.
     :rtype: user, host, password = (0, 1).
     """
@@ -71,7 +71,7 @@ def get_master_slaves(server, options=None):
     details.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.hub.server.MySQLServer.exec_stmt`.
+                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     if options is None:
         options = {}
@@ -135,7 +135,7 @@ def get_slave_status(server, options=None):
     SLAVE STATUS` command in the MySQL Manual for further details.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.hub.server.MySQLServer.exec_stmt`.
+                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     if options is None:
         options = {}
@@ -210,7 +210,7 @@ def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
     """Get the number of transactions behind the master.
 
     :param master_gtids: GTID information retrieved from the master.
-        See :meth:`mysql.hub.server.MySQLServer.get_gtid_status`.
+        See :meth:`mysql.fabric.server.MySQLServer.get_gtid_status`.
     :param master_uuid: Master which is used as the basis for comparison.
     :return: Number of transactions behind master.
     """
@@ -323,8 +323,8 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
 
     This methods call the MySQL function `SELECT MASTER_POS_WAIT`. If
     the timeout period expires prior to achieving the condition the
-    :class:`mysql.hub.errors.TimeoutError` exception is raised. If any
-    thread is stopped, the :class:`mysql.hub.errors.DatabaseError`
+    :class:`mysql.fabric.errors.TimeoutError` exception is raised. If any
+    thread is stopped, the :class:`mysql.fabric.errors.DatabaseError`
     exception is raised.
 
     :param binlog_file: Master's binlog file.
@@ -378,9 +378,9 @@ def wait_for_slave_gtid(server, gtids, timeout=0):
 
     The function `SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS` is called until the
     slave catches up. If the timeout period expires prior to achieving
-    the condition the :class:`mysql.hub.errors.TimeoutError` exception is
+    the condition the :class:`mysql.fabric.errors.TimeoutError` exception is
     raised. If any thread is stopped, the
-    :class:`mysql.hub.errors.DatabaseError` exception is raised.
+    :class:`mysql.fabric.errors.DatabaseError` exception is raised.
 
     :param slave: Reference to a slave.
     :param gtids: Gtid information.
@@ -564,7 +564,7 @@ def check_slave_delay(slave, master):
 def _check_condition(server, threads, check_if_running):
     """Check if slave's threads are either running or stopped. If the
     `SQL_THREAD` or the `IO_THREAD` are stopped and there is an error,
-    the :class:`mysql.hub.errors.DatabaseError` exception is raised.
+    the :class:`mysql.fabric.errors.DatabaseError` exception is raised.
 
     :param threads: Which threads should be checked.
     :type threads: `SQL_THREAD` or `IO_THREAD`.

@@ -4,13 +4,13 @@ import re
 
 from cStringIO import StringIO
 
-import mysql.hub.persistence as _persistence
-import mysql.hub.command as _command
-import mysql.hub.services as _services
-import mysql.hub.protocols.xmlrpc as _xmlrpc
-import mysql.hub.config as _config
-import mysql.hub.events as _events
-import mysql.hub.executor as _executor
+import mysql.fabric.persistence as _persistence
+import mysql.fabric.command as _command
+import mysql.fabric.services as _services
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
+import mysql.fabric.config as _config
+import mysql.fabric.events as _events
+import mysql.fabric.executor as _executor
 
 import tests.utils
 

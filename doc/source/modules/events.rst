@@ -1,10 +1,10 @@
-:mod:`mysql.hub.events` --- Event handling
-==========================================
+:mod:`mysql.fabric.events` --- Event handling
+=============================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.events
+.. automodule:: mysql.fabric.events
    :members:
 
 .. data:: SERVER_LOST

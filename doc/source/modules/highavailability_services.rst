@@ -1,8 +1,8 @@
-:mod:`mysql.hub.services.highavailability` --- High Availability Services
-=========================================================================
+:mod:`mysql.fabric.services.highavailability` --- High Availability Services
+============================================================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.services.highavailability
+.. automodule:: mysql.fabric.services.highavailability
    :members:

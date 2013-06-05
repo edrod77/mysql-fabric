@@ -3,10 +3,10 @@ consistent state after a crash.
 """
 import logging
 
-import mysql.hub.executor as _executor
-import mysql.hub.persistence as _persistence
+import mysql.fabric.executor as _executor
+import mysql.fabric.persistence as _persistence
 
-from mysql.hub.checkpoint import (
+from mysql.fabric.checkpoint import (
     Checkpoint,
     )
 

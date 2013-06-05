@@ -26,10 +26,10 @@ the event.
 import functools
 import logging
 
-import mysql.hub.errors as _errors
-import mysql.hub.executor as _executor
+import mysql.fabric.errors as _errors
+import mysql.fabric.executor as _executor
 
-from mysql.hub.utils import Singleton
+from mysql.fabric.utils import Singleton
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -279,7 +279,7 @@ class Handler(Singleton):
                   event.
         :rtype: Procedures that were scheduled.
 
-        See :meth:`mysql.com.hub.executor.Executor.enqueue_procedure()`.
+        See :meth:`mysql.fabric.executor.Executor.enqueue_procedure()`.
         """
         _LOGGER.debug("Triggering event %s", event)
 
@@ -314,7 +314,7 @@ def trigger_within_procedure(event, *args, **kwargs):
     procedure.
 
     This method must be called within a job otherwise the
-    :class:`mysql.hub.errors.ProgrammingError` exception will be raised.
+    :class:`mysql.fabric.errors.ProgrammingError` exception will be raised.
 
     :param event: The event to trigger.
     :type event: Event name or event instance.

@@ -74,5 +74,5 @@ class MyClient(xmlrpclib.ServerProxy):
             # TODO: IMPROVE ERROR HANDLING. MAYBE WE SHOULD CREATE AN
             # EXCEPTION IF THE ERROR MESSAGE HAS INFORMATION ON ONE.
             # FOR EXAMPLE:
-            # <Fault 1: "<class 'mysql.hub.errors.JobError'>:Job not found.">
+            # <Fault 1: "<class 'mysql.fabric.errors.JobError'>:Job not found.">
             print >> sys.stderr, error

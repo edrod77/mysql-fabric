@@ -1,8 +1,8 @@
-:mod:`mysql.hub.executor` --- Executor
-======================================
+:mod:`mysql.fabric.executor` --- Executor
+=========================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.executor
+.. automodule:: mysql.fabric.executor
    :members:

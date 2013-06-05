@@ -1,8 +1,8 @@
-:mod:`mysql.hub.failure_detector` --- Failure Detector
-======================================================
+:mod:`mysql.fabric.failure_detector` --- Failure Detector
+=========================================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.failure_detector
+.. automodule:: mysql.fabric.failure_detector
    :members:

@@ -1,8 +1,8 @@
-:mod:`mysql.hub.errors` --- Exceptions
-======================================
+:mod:`mysql.fabric.errors` --- Exceptions
+=========================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.errors
+.. automodule:: mysql.fabric.errors
    :members:

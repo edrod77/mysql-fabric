@@ -4,15 +4,15 @@ highavailability module.
 import unittest
 import uuid as _uuid
 
-import mysql.hub.executor as _executor
-import mysql.hub.server as _server
-import mysql.hub.replication as _repl
-import mysql.hub.persistence as _persistence
-import mysql.hub.errors as _errors
+import mysql.fabric.executor as _executor
+import mysql.fabric.server as _server
+import mysql.fabric.replication as _repl
+import mysql.fabric.persistence as _persistence
+import mysql.fabric.errors as _errors
 
 import tests.utils
 
-from mysql.hub.server import Group
+from mysql.fabric.server import Group
 
 class TestReplicationUse(unittest.TestCase):
 

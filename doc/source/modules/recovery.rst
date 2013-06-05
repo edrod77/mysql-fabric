@@ -1,17 +1,17 @@
-:mod:`mysql.hub.recovery` --- Recovery
-======================================
+:mod:`mysql.fabric.recovery` --- Recovery
+=========================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.recovery
+.. automodule:: mysql.fabric.recovery
    :members:
 
-:mod:`mysql.hub.checkpoint` --- Tracking Execution
-==================================================
+:mod:`mysql.fabric.checkpoint` --- Tracking Execution
+=====================================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.checkpoint
+.. automodule:: mysql.fabric.checkpoint
    :members:

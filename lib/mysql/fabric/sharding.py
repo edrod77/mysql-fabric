@@ -1,10 +1,12 @@
 """This module contains the plumbing necessary for creating, modifying and
 querying the sharding information from the state stores.
-"""
-import mysql.hub.errors as _errors
-import mysql.hub.persistence as _persistence
 
-from mysql.hub.server import MySQLServer, Group
+"""
+
+import mysql.fabric.errors as _errors
+import mysql.fabric.persistence as _persistence
+
+from mysql.fabric.server import MySQLServer, Group
 
 class ShardMapping(_persistence.Persistable):
     """Represents the mapping between the sharding scheme and the table

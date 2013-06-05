@@ -2,31 +2,31 @@
 to monitor the availability of servers within groups.
 
 If a master cannot be accessed through the method
-:meth:`~mysql.hub.server.MySQLServer.is_alive`, one must consider
+:meth:`~mysql.fabric.server.MySQLServer.is_alive`, one must consider
 that it has failed and proceed with the election of a new master if
 there is any candidate slave that can become one. In particular, the
 failure detector does not choose any new master but only triggers some
-events (:const:`~mysql.hub.events.SERVER_LOST` and
-:const:`~mysql.hub.events.FAIL_OVER`) and registered listener(s) will
+events (:const:`~mysql.fabric.events.SERVER_LOST` and
+:const:`~mysql.fabric.events.FAIL_OVER`) and registered listener(s) will
 take the necessary and appropriate actions.
 
 Similar to a master, if a slave has failed, an event
-(:const:`~mysql.hub.events.SERVER_LOST`) is triggered and registered
+(:const:`~mysql.fabric.events.SERVER_LOST`) is triggered and registered
 listener(s) will take the necessary and appropriate actions.
 
-See :meth:`~mysql.hub.server.MySQLServer.is_alive`.
-See :class:`~mysql.hub.services.highavailability.CheckHealth`.
-See :class:`~mysql.hub.services.highavailability.FailOver`.
-See :const:`~mysql.hub.events.SERVER_LOST`.
+See :meth:`~mysql.fabric.server.MySQLServer.is_alive`.
+See :class:`~mysql.fabric.services.highavailability.CheckHealth`.
+See :class:`~mysql.fabric.services.highavailability.FailOver`.
+See :const:`~mysql.fabric.events.SERVER_LOST`.
 """
 import threading
 import time
 import logging
 
-import mysql.hub.errors as _errors
-import mysql.hub.persistence as _persistence
+import mysql.fabric.errors as _errors
+import mysql.fabric.persistence as _persistence
 
-from mysql.hub.events import (
+from mysql.fabric.events import (
     trigger,
     )
 
@@ -37,7 +37,7 @@ class FailureDetector(object):
     group is alive.
 
     It does so by connecting to these servers and executing a query (i.e.
-    :meth:`mysql.hub.server.MySQLServer.is_alive`.
+    :meth:`mysql.fabric.server.MySQLServer.is_alive`.
     """
     LOCK = threading.Condition()
     GROUPS = {}
@@ -49,7 +49,7 @@ class FailureDetector(object):
     def register_groups():
         """Upon startup initializes a failure detector for each group.
         """
-        from mysql.hub.server import Group
+        from mysql.fabric.server import Group
         _LOGGER.info("Starting failure detector.")
         for row in Group.groups_by_status(Group.ACTIVE):
             FailureDetector.register_group(row[0])
@@ -116,9 +116,9 @@ class FailureDetector(object):
     def _run(self):
         """Function that verifies servers' availabilities.
         """
-        from mysql.hub.server import (
+        from mysql.fabric.server import (
             Group, MySQLServer
-            )
+        )
         ignored_status = [MySQLServer.FAULTY, MySQLServer.OFFLINE]
 
         _persistence.init_thread()

@@ -2,7 +2,7 @@
 and change MySQL state. Notice though that after a failure the system does no
 undo the changes made through the execution of these functions.
 """
-import mysql.hub.replication as _replication
+import mysql.fabric.replication as _replication
 
 def switch_master(slave, master):
     """Make slave point to master.

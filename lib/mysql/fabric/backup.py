@@ -10,12 +10,12 @@ import os
 import shlex
 import subprocess
 
-import mysql.hub.errors as _errors
-import mysql.hub.server_utils as _server_utils
+import mysql.fabric.errors as _errors
+import mysql.fabric.server_utils as _server_utils
 
 from urlparse import urlparse
 
-from mysql.hub.server import MySQLServer
+from mysql.fabric.server import MySQLServer
 
 class BackupImage(object):
     """Class that represents a backup image to which the output

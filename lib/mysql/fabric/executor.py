@@ -7,11 +7,11 @@ import time
 
 from weakref import WeakValueDictionary
 
-import mysql.hub.persistence as _persistence
-import mysql.hub.errors as _errors
+import mysql.fabric.persistence as _persistence
+import mysql.fabric.errors as _errors
 
-from mysql.hub.utils import Singleton
-from mysql.hub.checkpoint import (
+from mysql.fabric.utils import Singleton
+from mysql.fabric.checkpoint import (
     Checkpoint,
 )
 
@@ -533,7 +533,7 @@ class Executor(Singleton):
 
         It is only possible to schedule jobs within the context of the current
         job's procedure if the request comes from the job's code block. If
-        this does not happen, the :class:`mysql.hub.errors.ProgrammingError`
+        this does not happen, the :class:`mysql.fabric.errors.ProgrammingError`
         exception is raised.
         """
         procedures = None

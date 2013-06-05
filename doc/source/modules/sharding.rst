@@ -1,8 +1,8 @@
-:mod:`mysql.hub.sharding` --- Sharding
-======================================
+:mod:`mysql.fabric.sharding` --- Sharding
+=========================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.sharding
+.. automodule:: mysql.fabric.sharding
    :members:

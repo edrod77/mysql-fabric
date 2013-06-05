@@ -52,8 +52,8 @@ class Config(ConfigParser.SafeConfigParser):
 
     Sample usage::
 
-       from mysql.hub.options import OptionParser
-       from mysql.hub.config import Config
+       from mysql.fabric.options import OptionParser
+       from mysql.fabric.config import Config
 
        parser = OptionParser()
        ...

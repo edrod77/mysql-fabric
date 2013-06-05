@@ -2,7 +2,7 @@
 """
 import unittest
 
-import mysql.hub.persistence as _persistence
+import mysql.fabric.persistence as _persistence
 
 import tests.utils
 
@@ -22,7 +22,7 @@ class TestLoggingServices(unittest.TestCase):
             self.proxy.manage.logging_level("unknown", "DEBUG")
         )
         self.assertTrue(
-            self.proxy.manage.logging_level("mysql.hub", "DEBUG")
+            self.proxy.manage.logging_level("mysql.fabric", "DEBUG")
         )
 
 if __name__ == "__main__":

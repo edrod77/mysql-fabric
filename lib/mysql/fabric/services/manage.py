@@ -7,15 +7,17 @@ import sys
 import inspect
 import getpass
 
-import mysql.hub.utils as _utils
-import mysql.hub.services as _services
-import mysql.hub.events as _events
-import mysql.hub.persistence as _persistence
-import mysql.hub.failure_detector as _detector
-import mysql.hub.config as _config
-import mysql.hub.recovery as _recovery
+from mysql.fabric import (
+    utils as _utils,
+    services as _services,
+    events as _events,
+    persistence as _persistence,
+    failure_detector as _detector,
+    config as _config,
+    recovery as _recovery,
+)
 
-from mysql.hub.command import (
+from mysql.fabric.command import (
     Command,
     get_groups,
     get_commands,
@@ -226,7 +228,7 @@ def _configure_logging(config, daemon):
     """Configure the logging system.
     """
     # Set up the logging information.
-    logger = logging.getLogger("mysql.hub")
+    logger = logging.getLogger("mysql.fabric")
     handler = None
 
     # Set up syslog handler, if needed

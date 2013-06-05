@@ -1,8 +1,8 @@
-:mod:`mysql.hub.options` --- Options
-====================================
+:mod:`mysql.fabric.options` --- Options
+=======================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.options
+.. automodule:: mysql.fabric.options
    :members:

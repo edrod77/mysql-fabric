@@ -175,8 +175,8 @@ if __name__ == '__main__':
     else:
         level = "DEBUG"
 
-    # Setting logging for "mysql.hub".
-    logger = logging.getLogger("mysql.hub")
+    # Setting logging for "mysql.fabric".
+    logger = logging.getLogger("mysql.fabric")
     try:
         logger.setLevel(logging_levels[level])
     except KeyError:

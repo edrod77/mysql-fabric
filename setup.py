@@ -87,7 +87,7 @@ def check_fabric():
     * Installed - Indicates whether Fabric is properly installed
                   or not.
     * Path MySQL - Path to the package *mysql*.
-    * Fabric Path - Path to the package *mysql.hub*.
+    * Fabric Path - Path to the package *mysql.fabric*.
     """
     path_fabric = None
     path_mysql = None
@@ -95,8 +95,8 @@ def check_fabric():
         import mysql
         path_mysql = os.path.dirname(mysql.__file__)
 
-        import mysql.hub
-        path_fabric = os.path.dirname(mysql.hub.__file__)
+        import mysql.fabric
+        path_fabric = os.path.dirname(mysql.fabric.__file__)
         return True, path_mysql, path_fabric
     except ImportError as error:
         return False, path_mysql, path_fabric
@@ -123,7 +123,7 @@ def check_path_for_docs(directory):
     result, path_myql, path_fabric = check_fabric()
     if not result:
         sys.stderr.write(
-            "Tried to look for mysql.hub at (%s).\n" % \
+            "Tried to look for mysql.fabric at (%s).\n" % \
             (path_mysql, )
             )
         sys.stderr.write(
@@ -192,7 +192,7 @@ else:
             exit(1)
 
 META_INFO = {
-    'name': "mysql-hub",
+    'name': "mysql-fabric",
     'license': "GPLv2",
     'description': "Management system for MySQL deployments",
     'packages': find_packages("lib", exclude=["tests"]),
@@ -203,7 +203,7 @@ META_INFO = {
         'mysql.connector (>=1.0)',
         ],
     'scripts': [
-        'scripts/fabric',
+        'scripts/mysqlfabric',
         ],
     'data_files' : [
         ('/etc/fabric/', ['data/main.cfg']),
@@ -230,5 +230,5 @@ META_INFO = {
 #
 if "build_docs" not in sys.argv:
     fix_path("lib")
-    META_INFO ['version'] = fetch_version('mysql.hub')
+    META_INFO ['version'] = fetch_version('mysql.fabric')
 setup(**META_INFO)

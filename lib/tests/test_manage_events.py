@@ -3,9 +3,12 @@ import sys
 
 from cStringIO import StringIO
 
-import mysql.hub.command as _command
-import mysql.hub.services.manage as _manage
-import mysql.hub.persistence as _persistence
+from mysql.fabric import (
+    command as _command,
+    persistence as _persistence,
+)
+
+import mysql.fabric.services.manage as _manage
 
 import tests.utils
 

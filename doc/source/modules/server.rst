@@ -1,8 +1,8 @@
-:mod:`mysql.hub.server` --- Generic Server Abstraction
-======================================================
+:mod:`mysql.fabric.server` --- Generic Server Abstraction
+=========================================================
 
 .. toctree::
    :maxdepth: 2
 
-.. automodule:: mysql.hub.server
+.. automodule:: mysql.fabric.server
    :members:

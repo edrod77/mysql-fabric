@@ -4,11 +4,11 @@ import re
 import unittest
 import uuid as _uuid
 
-import mysql.hub.errors as _errors
-import mysql.hub.persistence as persistence
-import mysql.hub.server_utils as _server_utils
+import mysql.fabric.errors as _errors
+import mysql.fabric.persistence as persistence
+import mysql.fabric.server_utils as _server_utils
 
-from mysql.hub.server import MySQLServer, Group, ConnectionPool
+from mysql.fabric.server import MySQLServer, Group, ConnectionPool
 
 import tests.utils
 

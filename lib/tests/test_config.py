@@ -4,9 +4,9 @@
 import os.path
 import unittest
 
-import mysql.hub.config as _config
+import mysql.fabric.config as _config
 
-from mysql.hub.options import OptionParser
+from mysql.fabric.options import OptionParser
 
 def _resolve_config(config_file):
     return os.path.abspath(
@@ -62,7 +62,7 @@ class TestConfig(unittest.TestCase):
         # Test the defaults
         options, _args = parser.parse_args([])
         self.assertEqual(options.config_params, None)
-        self.assertEqual(options.config_file, "hub.cfg")
+        self.assertEqual(options.config_file, "fabric.cfg")
         self.assertEqual(options.ignore_site_config, False)
 
         # Test parsing with options

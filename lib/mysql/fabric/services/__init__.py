@@ -8,17 +8,17 @@ import pkgutil
 import threading
 import os
 
-import mysql.hub.protocols.xmlrpc as _protocol
+import mysql.fabric.protocols.xmlrpc as _protocol
 
-from mysql.hub.utils import (
+from mysql.fabric.utils import (
     Singleton
     )
 
-from mysql.hub.errors import (
+from mysql.fabric.errors import (
     ServiceError
     )
 
-from mysql.hub.command import (
+from mysql.fabric.command import (
     get_groups,
     get_commands,
     get_command,

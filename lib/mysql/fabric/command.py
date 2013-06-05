@@ -20,7 +20,7 @@ listings, while the remaining text is the more elaborate description
 shown in command help message.
 """
 import re
-import mysql.hub.executor as _executor
+import mysql.fabric.executor as _executor
 
 _COMMANDS_CLASS = {}
 

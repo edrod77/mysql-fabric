@@ -6,7 +6,7 @@ import mysql.connector
 
 from mysql.connector.cursor import MySQLCursor, MySQLCursorRaw
 
-import mysql.hub.errors as _errors
+import mysql.fabric.errors as _errors
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
 
     This is the singular method to execute queries. If something goes
     wrong while executing a statement, the exception
-   :class:`mysql.hub.errors.DatabaseError` is raised.
+   :class:`mysql.fabric.errors.DatabaseError` is raised.
 
     :param cnx: Database connection.
     :param stmt_str: The statement (e.g. query, updates, etc) to execute.

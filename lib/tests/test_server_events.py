@@ -3,7 +3,7 @@
 import unittest
 import uuid as _uuid
 
-from mysql.hub import (
+from mysql.fabric import (
     executor as _executor,
     server as _server,
     persistence as _persistence,

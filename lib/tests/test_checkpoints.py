@@ -4,7 +4,7 @@
 import unittest
 import uuid as _uuid
 
-from mysql.hub import (
+from mysql.fabric import (
     events as _events,
     executor as _executor,
     persistence as _persistence,

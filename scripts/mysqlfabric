@@ -2,30 +2,30 @@
 import sys
 import os
 
-from mysql.hub.services import (
+from mysql.fabric.services import (
     find_commands,
     find_client,
     )
 
-from mysql.hub.command import (
+from mysql.fabric.command import (
     get_groups,
     get_commands,
     get_command,
     )
 
-from mysql.hub import (
+from mysql.fabric import (
     __version__,
 )
 
-from mysql.hub.options import (
+from mysql.fabric.options import (
     OptionParser,
 )
 
-from mysql.hub.config import (
+from mysql.fabric.config import (
     Config,
 )
 
-from mysql.hub.errors import (
+from mysql.fabric.errors import (
     Error, ConfigurationError,
 )
 

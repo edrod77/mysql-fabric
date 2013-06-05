@@ -4,13 +4,13 @@ until procedures finish their execution.
 """
 import uuid as _uuid
 
-from mysql.hub import (
+from mysql.fabric import (
     events as _events,
     executor as _executor,
     errors as _errors,
     )
 
-from mysql.hub.command import (
+from mysql.fabric.command import (
     Command,
     )
 
@@ -46,7 +46,7 @@ class WaitForProcedures(Command):
 
         However, before starting waiting, the function checks if the procedures
         exist. If one of the procedures is not found, the following exception
-        is raised :class:`mysql.hub.errors.ProcedureError`.
+        is raised :class:`mysql.fabric.errors.ProcedureError`.
 
         :param proc_uuids: Iterable with procedures' uuids.
         """

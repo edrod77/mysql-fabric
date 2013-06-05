@@ -1,16 +1,18 @@
 import unittest
 import uuid as _uuid
 
-import mysql.hub.executor as _executor
-import mysql.hub.errors as _errors
-import mysql.hub.group_replication as _group_replication
-import mysql.hub.persistence as _persistence
-import mysql.hub.sharding as _sharding
-import mysql.hub.replication as _replication
+from mysql.fabric import (
+    executor as _executor,
+    errors as _errors,
+    group_replication as _group_replication,
+    persistence as _persistence,
+    sharding as _sharding,
+    replication as _replication,
+)
 
 from time import time, sleep
 
-from mysql.hub.server import Group, MySQLServer
+from mysql.fabric.server import Group, MySQLServer
 
 import tests.utils
 

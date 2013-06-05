@@ -5,16 +5,19 @@ import re
 import logging
 import uuid as _uuid
 
-import mysql.hub.events as _events
-import mysql.hub.group_replication as _group_replication
-import mysql.hub.server as _server
-import mysql.hub.replication as _replication
-import mysql.hub.errors as _errors
-import mysql.hub.server_utils as _server_utils
-import mysql.hub.failure_detector as _detector
-import mysql.hub.services.utils as _utils
+import mysql.fabric.services.utils as _utils
 
-from mysql.hub.command import (
+from  mysql.fabric import (
+    events as _events,
+    group_replication as _group_replication,
+    server as _server,
+    replication as _replication,
+    errors as _errors,
+    server_utils as _server_utils,
+    failure_detector as _detector,
+)
+
+from mysql.fabric.command import (
     ProcedureCommand,
     )
 

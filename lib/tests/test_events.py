@@ -2,7 +2,7 @@
 """
 import unittest
 
-from mysql.hub import (
+from mysql.fabric import (
     errors as _errors,
     events as _events,
     persistence as _persistence,

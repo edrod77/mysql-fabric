@@ -12,15 +12,15 @@ of the slave groups that replicate from it. This information helps in performing
 clean up during the event of a "master changing operation" in the group.
 
 As a design alternative these methods could have have been moved into the
-mysql.hub.server.py module or into the mysql.py.replication.py module. But this
+mysql.fabric.server.py module or into the mysql.py.replication.py module. But this
 would have resulted in tight coupling between the HA and the Server layers and
 also would have resulted in a circular dependency, since the replication module
 already has a reference to the server module.
 """
 #TODO: Alfranio: Verify error situations in this module.
-from mysql.hub.server import Group,  MySQLServer
-import mysql.hub.replication as _replication
-import mysql.hub.errors as _errors
+from mysql.fabric.server import Group,  MySQLServer
+import mysql.fabric.replication as _replication
+import mysql.fabric.errors as _errors
 
 #TODO: Use error messages from common error file.
 GROUP_REPLICATION_GROUP_NOT_FOUND_ERROR = "Group not found %s"

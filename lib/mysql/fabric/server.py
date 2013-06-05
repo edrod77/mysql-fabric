@@ -20,11 +20,11 @@ import uuid as _uuid
 import logging
 import functools
 
-import mysql.hub.errors as _errors
-import mysql.hub.persistence as _persistence
-import mysql.hub.server_utils as _server_utils
-import mysql.hub.utils as _utils
-import mysql.hub.failure_detector as _detector
+import mysql.fabric.errors as _errors
+import mysql.fabric.persistence as _persistence
+import mysql.fabric.server_utils as _server_utils
+import mysql.fabric.utils as _utils
+import mysql.fabric.failure_detector as _detector
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1235,7 +1235,7 @@ class MySQLServer(_persistence.Persistable):
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
-        See :meth:`mysql.hub.server_utils.exec_stmt`.
+        See :meth:`mysql.fabric.server_utils.exec_stmt`.
         """
         return _server_utils.exec_mysql_stmt(self.__cnx, stmt_str, options)
 

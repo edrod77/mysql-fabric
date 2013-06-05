@@ -11,7 +11,7 @@ Before creating any persisters, it is necessary to set up the
 persistance system using connection information where objects should
 be persisted::
 
-   import mysql.hub.persistence as persistence
+   import mysql.fabric.persistence as persistence
 
    persistence.init(host="localhost", port=3307,
                     user="fabric_user", password="xyzzy")
@@ -23,7 +23,7 @@ Thread Initialization
 When starting a new thread, a persister have to be created.  Typical
 code for initializing the persister system for a thread is::
 
-   import mysql.hub.persistence as persistence
+   import mysql.fabric.persistence as persistence
    persistence.init_thread()
 
 """
@@ -33,8 +33,8 @@ import logging
 import threading
 import uuid as _uuid
 
-import mysql.hub.server_utils as _server_utils
-import mysql.hub.errors as _errors
+import mysql.fabric.server_utils as _server_utils
+import mysql.fabric.errors as _errors
 
 DEFAULT_DATABASE = 'fabric'
 
@@ -308,8 +308,11 @@ class MySQLPersister(object):
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
-        See :meth:`mysql.hub.server_utils.exec_stmt`.
+
+        See :meth:`mysql.fabric.server_utils.exec_stmt`.
+        
         """
+
         while True:
             try:
                 return _server_utils.exec_mysql_stmt(

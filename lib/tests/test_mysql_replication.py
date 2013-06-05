@@ -6,13 +6,13 @@ import uuid as _uuid
 
 from collections import namedtuple
 
-from mysql.hub import (
+from mysql.fabric import (
     errors as _errors,
     persistence as persistence,
     )
 
-from mysql.hub.server import MySQLServer
-from mysql.hub.replication import *
+from mysql.fabric.server import MySQLServer
+from mysql.fabric.replication import *
 # TODO: Remove the * and test the following functions:
 # Unused import get_master_rpl_users from wildcard import
 # Unused import check_slave_delay_health from wildcard import

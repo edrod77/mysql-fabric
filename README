@@ -1,51 +1,49 @@
                Management system for MySQL deployments
                =======================================
 
-This is a management system for managing a deployment of MySQL
-servers.
+This is a management system for managing a deployment of MySQL servers.
 
 
 Dependencies
 ------------
 
-To build the documentation, you need to have Sphinx installed. The
-documentation also requires adding seqdiag to build. These can be
-installed from PyPI using:
+To build the documentation, you need to have Sphinx installed. The documentation
+also requires adding seqdiag to build. These can be installed from PyPI using:
 
     pip install sphinx sphinxcontrib-seqdiag
 
 Installation
 ------------
 
-You can install the MySQL Hub using:
+You can install the MySQL Fabric using:
 
     python setup.py build
     python setup.py install
 
-This will install the 'mysql.hub' package (and all sub-packages) and a
-set of command-line scripts that are used to administer the hub.
+This will install the 'mysql.fabric' package (and all sub-packages) and a set of
+command-line scripts that are used to administer the fabric.
 
 Documentation
 -------------
-To build the documentation, one needs to install sphinx and build or
-install MySQL Hub first. After these steps, the following command can
-be used to build the documentation:
+
+To build the documentation, one needs to install sphinx and build or install
+MySQL Fabric first. After these steps, the following command can be used to
+build the documentation:
 
     python setup.py build_docs
 
-By default HTML documents are created under the directory build/sphinx.
-You may change the documentation format, the build directory and other
-options whenever appropriate. Run the following command to see the list
-of available options:
+By default HTML documents are created under the directory build/sphinx.  You may
+change the documentation format, the build directory and other options whenever
+appropriate. Run the following command to see the list of available options:
 
     python setup.py build_docs --help
 
 Running unit tests
 ------------------
 
-The package also contain a bunch of unit tests that are used mainly
-during development to check that all pieces work correctly. The tests
-can be executed using the command:
+The package also contain a bunch of unit tests that are used mainly during
+development to check that all pieces work correctly. The tests can be executed
+using the command:
 
     python test.py --host=<host> --port=<port> --user=<user> \
     --password=<password> --servers="<servers' addresses>"

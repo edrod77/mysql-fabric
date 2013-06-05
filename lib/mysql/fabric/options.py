@@ -1,6 +1,6 @@
 import optparse
 
-import mysql.hub.config as _config
+import mysql.fabric.config as _config
 
 class OptionParser(optparse.OptionParser):
     """Option with default options for all tools.
@@ -32,7 +32,7 @@ class OptionParser(optparse.OptionParser):
     .. attribute:: config_file
 
        File name for extra configuration file to read, provided by the
-       :option:`--config` option. Defaults to ``hub.cfg``.
+       :option:`--config` option. Defaults to ``fabric.cfg``.
 
     .. attribute:: config_param
 
@@ -54,7 +54,7 @@ class OptionParser(optparse.OptionParser):
        be useful when all configuration parameters are given on the
        command line.
 
-    A typical usage can be seen in :mod:`mysql.hub.config`.
+    A typical usage can be seen in :mod:`mysql.fabric.config`.
 
     """
     def __init__(self, *args, **kwrds):
@@ -67,7 +67,7 @@ class OptionParser(optparse.OptionParser):
             help="Override a configuration parameter.")
         self.add_option(
             "--config",
-            action="store", dest="config_file", default="hub.cfg",
+            action="store", dest="config_file", default="fabric.cfg",
             metavar="FILE",
             help="Read configuration from FILE.")
         self.add_option(
