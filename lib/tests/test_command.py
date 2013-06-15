@@ -160,7 +160,7 @@ class TestCommand(unittest.TestCase):
                 'address': 'localhost:%d' % (xmlrpc_next_port, ),
                 },
             }
-        config = _config.Config(None, params, True)
+        config = _config.Config(None, params)
         local_cmd = NewRemoteCommand()
         local_cmd.setup_client(_xmlrpc.MyClient(), None, config)
 

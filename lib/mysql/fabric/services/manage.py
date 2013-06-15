@@ -1,20 +1,23 @@
 """Provide key functions to start, stop and check Fabric's availability and
 information on available commands.
 """
+import getpass
+import inspect
 import logging
 import logging.handlers
+import os.path
 import sys
-import inspect
-import getpass
+import urlparse
 
 from mysql.fabric import (
-    utils as _utils,
-    services as _services,
-    events as _events,
-    persistence as _persistence,
-    failure_detector as _detector,
     config as _config,
+    errors as _errors,
+    events as _events,
+    failure_detector as _detector,
+    persistence as _persistence,
     recovery as _recovery,
+    services as _services,
+    utils as _utils,
 )
 
 from mysql.fabric.command import (
@@ -224,6 +227,57 @@ class Teardown(Command):
         _persistence.teardown()
 
 
+def _create_file_handler(config, info, delay=0):
+    from logging.handlers import RotatingFileHandler
+    assert info.scheme == 'file'
+    if info.netloc:
+        raise _errors.ConfigurationError(
+            "Malformed file URL '%s'" % (info.geturl(),)
+        )
+    if os.path.isabs(info.path):
+        path = info.path
+    else:
+        # Relative path, fetch the logdir from the configuration.
+        # Using 'logging' section instead of 'DEFAULT' to allow
+        # configuration parameters to be overridden in the logging
+        # section.
+        logdir = config.get('logging', 'logdir')
+        path = os.path.join(logdir, info.path)
+    return RotatingFileHandler(path, delay=delay)
+
+# A URL provided should either have a path or an address, but not
+# both. For example:
+#
+#   syslog:///dev/log       ---> Address is /dev/log
+#   syslog://localhost:555  ---> Address is ('localhost', 555)
+#   syslog://my.example.com ---> Address is ('my.example.com', 541)
+#
+# The following is not allowed:
+#
+#   syslog://example.com/foo/bar
+def _create_syslog_handler(config, info):
+    from logging.handlers import SYSLOG_UDP_PORT, SysLogHandler
+    assert info.scheme == 'syslog'
+    if info.netloc and info.path:
+        raise _errors.ConfigurationError(
+            "Malformed syslog URL '%s'" % (info.geturl(),)
+        )
+    if info.netloc:
+        assert not info.path
+        address = info.netloc.split(':')
+        if len(address) == 1:
+            address.append(SYSLOG_UDP_PORT)
+    elif info.path:
+        assert not info.netloc
+        address = info.path
+
+    return SysLogHandler(address=address)
+
+_LOGGING_HANDLER = {
+    'file': _create_file_handler,
+    'syslog': _create_syslog_handler,
+}
+
 def _configure_logging(config, daemon):
     """Configure the logging system.
     """
@@ -231,10 +285,10 @@ def _configure_logging(config, daemon):
     logger = logging.getLogger("mysql.fabric")
     handler = None
 
-    # Set up syslog handler, if needed
+    # Set up logging handler
     if daemon:
-        address = config.get('logging.syslog', 'address')
-        handler = logging.handlers.SysLogHandler(address)
+        urlinfo = urlparse.urlparse(config.get('logging', 'url'))
+        handler = _LOGGING_HANDLER[urlinfo.scheme](config, urlinfo)
     else:
         handler = logging.StreamHandler()
 

@@ -208,7 +208,7 @@ def cleanup_environment():
 
     for __file in glob.glob(os.path.join(os.getcwd(), "*.sql")):
         os.remove(__file)
-    
+
 def setup_xmlrpc():
     # TODO: Check the xmlrpc_next_port...
     from __main__ import options, xmlrpc_next_port, mysqldump_path, mysqlclient_path
@@ -226,9 +226,9 @@ def setup_xmlrpc():
             'sharding': {
                 'mysqldump_program': mysqldump_path,
                 'mysqlclient_program': mysqlclient_path,
-            }, 
+            },
         }
-    config = _config.Config(None, params, True)
+    config = _config.Config(None, params)
 
     # Set up the manager
     from mysql.fabric.services.manage import (

@@ -67,7 +67,7 @@ class OptionParser(optparse.OptionParser):
             help="Override a configuration parameter.")
         self.add_option(
             "--config",
-            action="store", dest="config_file", default="fabric.cfg",
+            action="store", dest="config_file", default=None,
             metavar="FILE",
             help="Read configuration from FILE.")
         self.add_option(

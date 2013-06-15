@@ -22,9 +22,6 @@ import re
 # These are propagated to the importer
 from ConfigParser import NoSectionError, NoOptionError
 
-#: Name of site-wide configuration file
-SITE_CONFIG = "/etc/fabric/main.cfg"
-
 _VALUE_CRE = re.compile(
     r'(?P<section>\w+(?:\.\w+)*)\.(?P<name>\w+)=(?P<value>.*)')
 
@@ -58,45 +55,18 @@ class Config(ConfigParser.SafeConfigParser):
        parser = OptionParser()
        ...
        options, args = parser.parse_args()
-       config = Config(options.config_file, options.config_params,
-                       options.ignore_site_config)
+       config = Config(options.config_file, options.config_params)
 
     """
 
-    # Defaults are currently strings and we do some internal parsing
-    # to create the correct objects, e.g., logging.INFO instead of
-    # 'INFO'. That relieves the configuration class user of some
-    # interpretation and ensure that all users interpret it the same.
-    _DEFAULTS = {
-        'logging': {
-            'level': 'INFO',
-            },
-        'logging.syslog': {
-            'address': '/dev/log',
-            },
-        }
-
-    def __init__(self, config_file, config_params=None,
-                 ignore_site_config=False):
+    def __init__(self, config_file, config_params=None):
         """Create the configuration parser, read the configuration
         files, and set up the configuration from the options.
         """
 
         ConfigParser.SafeConfigParser.__init__(self)
-
-        # Set default values of options from above
-        for section, var_dict in self._DEFAULTS.items():
-            self.add_section(section)
-            for var, val in var_dict.items():
-                self.set(section, var, str(val))
-
-        # Read site-wide configuration file
-        if not ignore_site_config:
-            self.readfp(open(SITE_CONFIG))
-
-        # Read optional configuration file
         if config_file is not None:
-            self.read(config_file)
+            self.readfp(open(config_file))
 
         # Incorporate options into the configuration. These are read
         # from the mapping above and written into the configuration.

@@ -3,6 +3,7 @@
 
 import os.path
 import unittest
+import urlparse
 
 import mysql.fabric.config as _config
 
@@ -16,28 +17,16 @@ class TestConfig(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
 
-    def setUp(self):
-        # Reset the site configuration file so that we read from the
-        # test directory
-        self.__original_site_config = _config.SITE_CONFIG
-        _config.SITE_CONFIG = _resolve_config("main-1.cfg")
-
-    def tearDown(self):
-        _config.SITE_CONFIG = self.__original_site_config
-
     def test_basic(self):
-        "Test reading config file and default values."
-        config = _config.Config(None, None)
-
-        # Checking defaults
-        self.assertEqual(config.get('logging', 'level'), 'INFO')
-        self.assertEqual(config.get('logging.syslog', 'address'), '/dev/log')
+        "Test reading config file and default values"
+        config = _config.Config(_resolve_config('main-1.cfg'), None)
 
         # Read from main-1.cfg file
         self.assertEqual(config.get('protocol.xmlrpc', 'address'),
                          'my.example.com:8080')
 
     def test_override(self):
+        "Check that configuration parameters can be overridden"
         params = {
             'logging': { 'level': 'INFO' },
             }
@@ -55,21 +44,18 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.get('logging', 'level'), 'INFO')
 
     def test_options(self):
-        "Test that the option parsing works as expected."
+        "Test that the option parsing works as expected"
 
         parser = OptionParser()
 
         # Test the defaults
         options, _args = parser.parse_args([])
         self.assertEqual(options.config_params, None)
-        self.assertEqual(options.config_file, "fabric.cfg")
-        self.assertEqual(options.ignore_site_config, False)
 
         # Test parsing with options
         options, _args = parser.parse_args([
                 '--param', 'logging.level=DEBUG',
                 '--param', 'protocol.xmlrpc.address=my.example.com:9999',
-                '--ignore-site-config',
                 '--config=some.cfg',
                 ])
         self.assertEqual(options.config_params, {
@@ -77,7 +63,57 @@ class TestConfig(unittest.TestCase):
                 'protocol.xmlrpc': { 'address': 'my.example.com:9999' },
                 })
         self.assertEqual(options.config_file, "some.cfg")
-        self.assertEqual(options.ignore_site_config, True)
+
+    def test_file_handler(self):
+        "Test file handlers are parsed correctly"
+
+        import mysql.fabric.errors as _errors
+
+        config = _config.Config(_resolve_config('main-1.cfg'), {
+                'logging': { 'logdir': '/some/path' },
+                })
+
+        from mysql.fabric.services.manage import _create_file_handler
+
+        urls = [
+            ('file:fabric.log', '/some/path/fabric.log'),
+            ('file:///foo.log', '/foo.log'),
+        ]
+        for url, expect in urls:
+            handler = _create_file_handler(config, urlparse.urlparse(url), delay=1)
+            self.assertEqual(handler.baseFilename, expect)
+
+        for url in ['file://mats@example.com/some/foo.log']:
+            self.assertRaises(
+                _errors.ConfigurationError,
+                _create_file_handler, config, urlparse.urlparse(url)
+            )
+
+    def test_syslog_handler(self):
+        "Test that syslog handlers are parsed correctly"
+
+        import mysql.fabric.errors as _errors
+
+        config = _config.Config(_resolve_config('main-1.cfg'), {
+                'logging': { 'logdir': '/some/path' },
+                })
+
+        from mysql.fabric.services.manage import _create_syslog_handler
+
+        urls = [
+            ('syslog:///dev/log', '/dev/log'),
+            ('syslog://example.com', ['example.com', 514]),
+            ('syslog://example.com:555', ['example.com', '555']),
+        ]
+        for url, expect in urls:
+            handler = _create_syslog_handler(config, urlparse.urlparse(url))
+            self.assertEqual(handler.address, expect)
+
+        for url in ['syslog://example.com/some/foo.log']:
+            self.assertRaises(
+                _errors.ConfigurationError,
+                _create_syslog_handler, config, urlparse.urlparse(url)
+            )
 
 if __name__ == "__main__":
     unittest.main()

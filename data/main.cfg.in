@@ -10,9 +10,7 @@ address = localhost:8080
 
 [logging]
 level = INFO
-
-[logging.syslog]
-address = /dev/log
+url = file:///var/log/fabric.log
 
 [sharding]
 mysqldump_program = /usr/bin/mysqldump

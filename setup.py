@@ -1,10 +1,13 @@
+import ConfigParser
 import distutils
+import fnmatch
+import glob
 import os
 import sys
-import glob
 
 from distutils.core import setup, Command
 from distutils.sysconfig import get_python_lib
+from distutils.command.install_data import install_data as _install_data
 
 def fetch_version(module_name):
     """Retrieve information on Fabric version within *module_name*.
@@ -191,6 +194,61 @@ else:
                 )
             exit(1)
 
+# We need to edit the configuration file before installing it
+class install_data(_install_data):
+    def run(self):
+        from itertools import groupby
+
+        # Set up paths to write to config file
+        install_dir = self.install_dir
+        install_logdir = '/var/log'
+        if os.name == 'posix' and install_dir in ('/', '/usr'):
+            install_sysconfdir = '/etc'
+        else:
+            install_sysconfdir = os.path.join(install_dir, 'etc')
+
+        # Go over all entries in data_files and process it if needed
+        for df in self.data_files:
+            # Figure out what the entry contain and collect a list of files.
+            if isinstance(df, str):
+                # This was just a file name, so it will be installed
+                # in the install_dir location. This is a copy of the
+                # behaviour inside distutils intall_data.
+                directory = install_dir
+                filenames = [df]
+            else:
+                directory = df[0]
+                filenames = df[1]
+
+            # Process all the files for the entry and build a list of
+            # tuples (directory, file)
+            data_files = []
+            for filename in filenames:
+                # It was a config file template, add install
+                # directories to the config file.
+                if fnmatch.fnmatch(filename, 'data/*.cfg.in'):
+                    config = ConfigParser.RawConfigParser({
+                            'prefix': install_dir,
+                            'logdir': install_logdir,
+                            'sysconfdir': install_sysconfdir,
+                            })
+                    config.readfp(open(filename))
+                    filename = os.path.splitext(filename)[0]
+                    config.write(open(filename, "w"))
+                    directory = os.path.join(install_sysconfdir, directory)
+                data_files.append((directory, filename))
+
+        # Re-construct the data_files entry from what was provided by
+        # merging all tuples with same directory and provide a list of
+        # files as second item, e.g.:
+        #   [('foo', 1), ('bar', 2), ('foo', 3), ('foo', 4), ('bar', 5)]
+        #   --> [('bar', [2, 5]), ('foo', [1, 3, 4])]
+        data_files.sort()
+        data_files = [
+            (d, [ f[1] for f in fs ]) for d, fs in groupby(data_files, key=lambda x: x[0])
+            ]
+        _install_data.run(self)
+
 META_INFO = {
     'name': "mysql-fabric",
     'license': "GPLv2",
@@ -205,14 +263,18 @@ META_INFO = {
     'scripts': [
         'scripts/mysqlfabric',
         ],
+    # The install_data version above will recognize everything that
+    # matches *.cfg (after template processing) and install the file
+    # relative configuration directory instead of the data directory.
     'data_files' : [
-        ('/etc/fabric/', ['data/main.cfg']),
+        ('fabric', ['data/main.cfg.in']),
         ],
     'classifiers': [
-        'Development Status :: 1 - Planning',
+        'Development Status :: 2 - Pre-Alpha',
         'Environment :: Console',
         'Intended Audience :: Developers',
         'Intended Audience :: System Administrators',
+        'Intended Audience :: Database Administrators',
         'License :: OSI Approved :: GNU General Public License v2 (GPLv2)',
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: Microsoft :: Windows',
@@ -221,6 +283,7 @@ META_INFO = {
         ],
     'cmdclass': {
         'build_docs' : build_docs,
+        'install_data': install_data,
         },
 }
 

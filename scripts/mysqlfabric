@@ -74,7 +74,7 @@ def extract_command():
 
 
 def create_command(group_name, command_name):
-    """Creaete command object.
+    """Create command object.
     """
     options = None
     config = None
@@ -92,12 +92,18 @@ def create_command(group_name, command_name):
         # Parse arguments
         options, args = PARSER.parse_args()
 
+        # If no configuration file was provided, figure out the
+        # location of it based on the installed location of the
+        # script location.
+        if not options.config_file:
+            directory = os.path.dirname(__file__)
+            prefix = os.path.join(directory, '..')
+            config_file = os.path.join(prefix, 'etc', 'fabric', 'main.cfg')
+            options.config_file = os.path.normpath(config_file)
+
         # Read configuration file
         if command_name not in HELP_COMMANDS:
-            config = Config(
-                options.config_file, options.config_params,
-                options.ignore_site_config
-                )
+            config = Config(options.config_file, options.config_params)
 
         # Create a protocol client for dispatching the command and set
         # up the client-side information for the command. Inside a
