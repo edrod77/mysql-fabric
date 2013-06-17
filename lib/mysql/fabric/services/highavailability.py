@@ -88,6 +88,14 @@ class ImportTopology(ProcedureCommand):
             )
         return self.wait_for_procedures(procedures, synchronous)
 
+# Find out which operation should be executed.
+DEFINE_HA_OPERATION = _events.Event()
+# Find a slave that was not failing to keep with the master's pace.
+FIND_CANDIDATE_FAIL = _events.Event("FAIL_OVER")
+# Check if the candidate is properly configured to become a master.
+CHECK_CANDIDATE_FAIL = _events.Event()
+# Wait until all slaves or a candidate process the relay log.
+WAIT_SLAVE_FAIL = _events.Event()
 # Find a slave that is not failing to keep with the master's pace.
 FIND_CANDIDATE_SWITCH = _events.Event()
 # Check if the candidate is properly configured to become a master.
@@ -98,38 +106,89 @@ BLOCK_WRITE_SWITCH = _events.Event()
 WAIT_SLAVES_SWITCH = _events.Event()
 # Enable the new master by making slaves point to it.
 CHANGE_TO_CANDIDATE = _events.Event()
+class PromoteMaster(ProcedureCommand):
+    """Promote a server into master.
 
-class SwitchOver(ProcedureCommand):
-    """Do a switch over.
+    If the master within a group fails, a new master is either automatically
+    or manually selected among the slaves in the group. The process of
+    selecting and setting up a new master after detecting that the current
+    master failed is known as failover.
 
-    If a slave is not provided, the best candidate to become the new
-    master is found. Any candidate must have the binary log enabled, should
+    It is also possible to switch to a new master when the current one is still
+    alive and kicking. The process is known as switchover and may be used, for
+    example, when one wants to take the current master off-line for
+    maintenance.
+
+    If a slave is not provided, the best candidate to become the new master is
+    found. Any candidate must have the binary log enabled, should
     have logged the updates executed through the SQL Thread and both
     candidate and master must belong to the same group. The smaller the lag
     between slave and the master the better. So the candidate which satisfies
-    these requirements and has the smaller lag is chosen to become the new
+    the requirements and has the smaller lag is chosen to become the new
     master.
 
-    After choosing a candidate, any write access to the current master is
-    disabled and the slaves are synchronized with it. Failures during the
-    synchronization that do not involve the candidate slave are ignored.
+    In the failover operation, after choosing a candidate, one makes the slaves
+    point to the new master and updates the state store setting the new master.
 
-    After that, slaves are stopped and configured to point to the new master
-    and the database updated setting the new master.
+    In the switchover operation, after choosing a candidate, any write access
+    to the current master is disabled and the slaves are synchronized with it.
+    Failures during the synchronization that do not involve the candidate slave
+    are ignored. Then slaves are stopped and configured to point to the new
+    master and the state store is updated setting the new master.
     """
     group_name = "group"
-    command_name = "switch_over"
+    command_name = "promote"
 
     def execute(self, group_id, slave_uuid=None, synchronous=True):
-        """Do a switch over.
+        """Promote a new master.
 
         :param uuid: Group's id.
         :param slave_uuid: Candidate's UUID.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
+        In what follows, one will find a figure that depicts the sequence of event
+        that happen during a promote operation. The figure is split in two pieces
+        and names are abbreviated in order to ease presentation:
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            === Schedule "find_candidate" ===
+            fail_over --> executor [ label = "schedule(find_candidate)" ];
+            fail_over <-- executor;
+            === Execute "find_candidate" and schedule "check_candidate" ===
+            executor -> find_candidate [ label = "execute(find_candidate)" ];
+            find_candidate --> executor [ label = "schedule(check_candidate)" ];
+            find_candidate <-- executor;
+            executor <- find_candidate;
+            === Execute "check_candidate" and schedule "wait_slave" ===
+            executor -> check_candidate [ label = "execute(check_candidate)" ];
+            check_candidate --> executor [ label = "schedule(wait_slave)" ];
+            check_candidate <-- executor;
+            executor <- check_candidate;
+            === Continue in the next diagram ===
+          }
+
+        .. seqdiag::
+
+          diagram {
+            activation = none;
+            edge_length = 300;
+            === Continuation from previous diagram ===
+            === Execute "wait_slaves" and schedule "change_to_candidate" ===
+            executor -> wait_slave [ label = "execute(wait_slave)" ];
+            wait_slave --> executor [ label = "schedule(change_to_candidate)" ];
+            wait_slave <-- executor;
+            executor <- wait_slave;
+            === Execute "change_to_candidate" ===
+            executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
+            change_to_candidate <- executor;
+          }
+
         In what follows, one will find a figure that depicts the sequence of events
-        that happen during the switch over operation. The figure is split in two
+        that happen during the switchover operation. The figure is split in two
         pieces and names are abreviated in order to ease presentation:
 
         .. seqdiag::
@@ -173,122 +232,44 @@ class SwitchOver(ProcedureCommand):
             executor <- change_to_candidate;
           }
         """
-        procedures = None
-        if not slave_uuid:
-            procedures = _events.trigger(FIND_CANDIDATE_SWITCH, group_id)
-        else:
-            procedures = _events.trigger(CHECK_CANDIDATE_SWITCH, group_id,
-                                     slave_uuid)
-        assert(procedures is not None)
+        procedures = _events.trigger(DEFINE_HA_OPERATION, group_id, slave_uuid)
         return self.wait_for_procedures(procedures, synchronous)
 
-def _do_fail_over(obj, group_id, slave_uuid, synchronous):
-    """Run the fail over procedure.
+@_events.on_event(DEFINE_HA_OPERATION)
+def _define_ha_operation(group_id, slave_uuid):
+    """Define which operation must be called based on the master's status
+    and whether the candidate slave is provided or not.
     """
-    procedures = None
-    if not slave_uuid:
-        procedures = _events.trigger(
-            FIND_CANDIDATE_FAIL, group_id)
+    fail_over = True
+
+    group = _server.Group.fetch(group_id)
+    if not group:
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+
+    if group.master:
+        try:
+            master = _server.MySQLServer.fetch(group.master)
+            master.connect()
+            if master.status == _server.MySQLServer.RUNNING and \
+                master.is_alive():
+                fail_over = False
+        except _errors.DatabaseError:
+            pass
+
+    if fail_over:
+        if not slave_uuid:
+            _events.trigger_within_procedure(FIND_CANDIDATE_FAIL, group_id)
+        else:
+            _events.trigger_within_procedure(CHECK_CANDIDATE_FAIL, group_id,
+                                             slave_uuid
+            )
     else:
-        procedures = _events.trigger(
-            CHECK_CANDIDATE_FAIL, group_id, slave_uuid)
-    assert(procedures is not None)
-    return obj.wait_for_procedures(procedures, synchronous)
-
-
-# Find a slave that was not failing to keep with the master's pace.
-FIND_CANDIDATE_FAIL = _events.Event("FAIL_OVER")
-# Check if the candidate is properly configured to become a master.
-CHECK_CANDIDATE_FAIL = _events.Event()
-# Wait until all slaves or a candidate process the relay log.
-WAIT_SLAVE_FAIL = _events.Event()
-class FailOver(ProcedureCommand):
-    """Do a fail over.
-
-    If the master is alive and kicking, the switchover must be used as it
-    provides a lower cost and guarantees consistency among slaves. In
-    contrast, the failover operation has a higher cost and may not guarantee
-    consistency among slaves.
-
-    If a slave is not provided, the best candidate to become the new
-    master is found. Any candidate must have the binary log enabled, should
-    have logged the updates executed through the SQL Thread and both
-    candidate and master must belong to the same group. The smaller the lag
-    between slave and the master the better. So the candidate which satisfies
-    the requirements and has the smaller lag is chosen to become the new
-    master.
-
-    After choosing a candidate, one makes the slaves point to the new master
-    and updates the database setting the new master.
-    """
-    group_name = "group"
-    command_name = "fail_over"
-
-    def execute(self, group_id, slave_uuid=None, synchronous=True):
-        """Do a fail over.
-
-        :param uuid: Group's id.
-        :param slave_uuid: Candidate's UUID.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
-
-        In what follows, one will find a figure that depicts the sequence of event
-        that happen during the fail over operation. To ease the presentation some
-        names are abbreivated:
-
-        .. seqdiag::
-
-          diagram {
-            activation = none;
-            === Schedule "find_candidate" ===
-            fail_over --> executor [ label = "schedule(find_candidate)" ];
-            fail_over <-- executor;
-            === Execute "find_candidate" and schedule "check_candidate" ===
-            executor -> find_candidate [ label = "execute(find_candidate)" ];
-            find_candidate --> executor [ label = "schedule(check_candidate)" ];
-            find_candidate <-- executor;
-            executor <- find_candidate;
-            === Execute "check_candidate" and schedule "wait_slave" ===
-            executor -> check_candidate [ label = "execute(check_candidate)" ];
-            check_candidate --> executor [ label = "schedule(wait_slave)" ];
-            check_candidate <-- executor;
-            executor <- check_candidate;
-            === Continue in the next diagram ===
-          }
-
-        .. seqdiag::
-
-          diagram {
-            activation = none;
-            edge_length = 300;
-            === Continuation from previous diagram ===
-            === Execute "wait_slaves" and schedule "change_to_candidate" ===
-            executor -> wait_slave [ label = "execute(wait_slave)" ];
-            wait_slave --> executor [ label = "schedule(change_to_candidate)" ];
-            wait_slave <-- executor;
-            executor <- wait_slave;
-            === Execute "change_to_candidate" ===
-            executor -> change_to_candidate [ label = "execute(change_to_candidate)" ];
-            change_to_candidate <- executor;
-          }
-        """
-        return _do_fail_over(self, group_id, slave_uuid, synchronous)
-
-class PromoteMaster(ProcedureCommand):
-    """Promote a server into master if there is no current master.
-    """
-    group_name = "group"
-    command_name = "promote"
-
-    def execute(self, group_id, slave_uuid=None, synchronous=True):
-        """Promote a master if there isn't any. See :class:`FailOver`.
-
-        :param uuid: Group's id.
-        :param uuid: Candidate's uuid.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
-        """
-        return _do_fail_over(self, group_id, slave_uuid, synchronous)
+        if not slave_uuid:
+            _events.trigger_within_procedure(FIND_CANDIDATE_SWITCH, group_id)
+        else:
+            _events.trigger_within_procedure(CHECK_CANDIDATE_SWITCH, group_id,
+                                             slave_uuid
+            )
 
 # Block any write access to the master.
 BLOCK_WRITE_DEMOTE = _events.Event()
@@ -530,8 +511,6 @@ def _do_find_candidate(group_id, event):
     #  . If the do_find_candidate is executed, it is not necessary to
     #    run more checks in future jobs.
     group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     master_uuid = None
     if group.master:
@@ -601,8 +580,6 @@ def _check_candidate_switch(group_id, slave_uuid):
     #  . CHECK PURGED GTIDS.
     # TODO: TRY TO MERGE THE TWO CHECK_CANDIDATE FUNCTIONS.
     group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if not group.contains_server(slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)." \
@@ -757,9 +734,6 @@ def _check_candidate_fail(group_id, slave_uuid):
     #  . CHECK FILTERS COMPATIBILITY.
     #  . INTRODUCE A STEP TO FETCH INFORMATION FROM ALL SLAVES.
     group = _server.Group.fetch(group_id)
-
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if not group.contains_server(slave_uuid):
         raise _errors.GroupError("Group (%s) does not contain server (%s)."

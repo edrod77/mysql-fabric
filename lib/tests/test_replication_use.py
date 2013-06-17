@@ -197,14 +197,14 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
 
         # Try to do a switch over to the faulty replica.
-        status = self.proxy.group.switch_over("group_id", str(slave_1.uuid))
+        status = self.proxy.group.promote("group_id", str(slave_1.uuid))
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_check_candidate_switch).")
 
         # Choose a new master.
-        status = self.proxy.group.switch_over("group_id")
+        status = self.proxy.group.promote("group_id")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -326,7 +326,7 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
 
         # Try to choose a new master through switch over.
-        status = self.proxy.group.switch_over("group_id")
+        status = self.proxy.group.promote("group_id")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

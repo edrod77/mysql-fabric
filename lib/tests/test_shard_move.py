@@ -203,7 +203,7 @@ class TestShardMove(unittest.TestCase):
         global_master.exec_stmt("INSERT INTO global_db.global_table "
                                   "VALUES(202, 'TEST 2')")
 
-        status = self.proxy.group.switch_over("GROUPID1")
+        status = self.proxy.group.promote("GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

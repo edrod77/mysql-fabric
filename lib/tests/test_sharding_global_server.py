@@ -246,7 +246,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         global_master.exec_stmt("INSERT INTO global_db.global_table "
                                   "VALUES(202, 'TEST 2')")
 
-        status = self.proxy.group.switch_over("GROUPID1")
+        status = self.proxy.group.promote("GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -273,7 +273,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         global_master.exec_stmt("INSERT INTO global_db.global_table "
                                   "VALUES(404, 'TEST 4')")
 
-        status = self.proxy.group.switch_over("GROUPID2")
+        status = self.proxy.group.promote("GROUPID2")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -286,7 +286,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         global_master.exec_stmt("INSERT INTO global_db.global_table "
                                   "VALUES(606, 'TEST 6')")
 
-        status = self.proxy.group.switch_over("GROUPID3")
+        status = self.proxy.group.promote("GROUPID3")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -374,7 +374,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         global_master.exec_stmt("INSERT INTO global_db.global_table "
                                   "VALUES(202, 'TEST 2')")
 
-        status = self.proxy.group.fail_over(
+        status = self.proxy.group.promote(
             "GROUPID1", global_slave_uuid
             )
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -415,8 +415,7 @@ class TestShardingGlobalServer(unittest.TestCase):
                 slave_uuid = obtained_server_list[idx][0]
                 break
 
-        status = self.proxy.group.fail_over("GROUPID2",
-                                                  str(slave_uuid))
+        status = self.proxy.group.promote("GROUPID2", str(slave_uuid))
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -440,8 +439,7 @@ class TestShardingGlobalServer(unittest.TestCase):
                 slave_uuid = obtained_server_list[idx][0]
                 break
 
-        status = self.proxy.group.fail_over("GROUPID3",
-                                                  str(slave_uuid))
+        status = self.proxy.group.promote("GROUPID3", str(slave_uuid))
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -463,7 +461,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         for idx in range(0, 2):
             shard_uuid = obtained_server_list[idx][0]
             shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()  
+            shard_server.connect()
             rows = shard_server.exec_stmt(
                                     "SELECT NAME FROM global_db.global_table",
                                     {"fetch" : True})
