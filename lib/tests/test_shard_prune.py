@@ -114,14 +114,14 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, 0, 1000, "GROUPID2",
+        status = self.proxy.sharding.add_shard(1, 0, "GROUPID2",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard).")
 
-        status = self.proxy.sharding.add_shard(1, 1001, 2000, "GROUPID3",
+        status = self.proxy.sharding.add_shard(1, 1001, "GROUPID3",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)

@@ -174,14 +174,13 @@ class AddShard(ProcedureCommand):
     """
     group_name = "sharding"
     command_name = "add_shard"
-    def execute(self, shard_mapping_id, lower_bound, upper_bound, group_id,
-                      state="DISABLED", synchronous=True):
+    def execute(self, shard_mapping_id, lower_bound, group_id, state="DISABLED",
+                synchronous=True):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
         :param shard_mapping_id: The unique identification for a shard mapping.
         :param lower_bound: The lower bound of the given RANGE sharding defn
-        :param upper_bound: The upper bound of the given RANGE sharding defn
         :param group_id: The group that contains the shard information.
         :param state: Indicates whether a given shard is ENABLED or DISABLED
         :param synchronous: Whether one should wait until the execution finishes
@@ -190,7 +189,7 @@ class AddShard(ProcedureCommand):
         :return: A dictionary representing the current Range specification.
         """
         procedures = _events.trigger(ADD_SHARD, shard_mapping_id, lower_bound,
-                                     upper_bound, group_id, state)
+                                     group_id, state)
         return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD = \
@@ -491,13 +490,12 @@ def _list_definitions():
     return ShardMapping.list_shard_mapping_defn()
 
 @_events.on_event(ADD_SHARD)
-def _add_shard(shard_mapping_id, lower_bound, upper_bound, group_id, state):
+def _add_shard(shard_mapping_id, lower_bound, group_id, state):
     """Add the RANGE shard specification. This represents a single instance
     of a shard specification that maps a key RANGE to a server.
 
     :param shard_mapping_id: The unique identification for a shard mapping.
     :param lower_bound: The lower bound of the given RANGE sharding defn
-    :param upper_bound: The upper bound of the given RANGE sharding defn
     :param group_id: The Group that contains the shard information.
     :param state: Indicates whether a given shard is ENABLED or DISABLED
 
@@ -515,11 +513,6 @@ def _add_shard(shard_mapping_id, lower_bound, upper_bound, group_id, state):
     if state not in Shards.VALID_SHARD_STATES:
         raise _errors.ShardingError(INVALID_SHARD_STATE % (state,  ))
 
-    #More checking for the ranges needed, but for now just check that
-    #the upper_bound is greater than the lower_bound
-    if int(lower_bound) >= int(upper_bound):
-        raise _errors.ShardingError(INVALID_SHARDING_RANGE)
-
     shard_mapping = ShardMapping.fetch_shard_mapping_defn(shard_mapping_id)
     if shard_mapping is None:
         raise _errors.ShardingError(SHARD_MAPPING_NOT_FOUND % \
@@ -532,9 +525,9 @@ def _add_shard(shard_mapping_id, lower_bound, upper_bound, group_id, state):
     schema_type = shard_mapping[1]
     if schema_type == "RANGE":
         range_sharding_specification = RangeShardingSpecification.add(
-                                            lower_bound, upper_bound, shard_id)
+                                            lower_bound, shard_id)
         _LOGGER.debug("Added Shard (%s, %s, %s).",
-                            lower_bound, upper_bound, shard_id)
+                            lower_bound, shard_id)
     else:
         raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type,  ))
 
@@ -933,15 +926,9 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     #Add the new split range (split_value, upper_bound)
     new_range_sharding_spec = \
         RangeShardingSpecification.add(split_value,
-                                       range_sharding_spec.upper_bound,
                                        new_shard.shard_id)
     #Disable the old shard id
     source_shard.disable()
-
-    #Update the range for the old shard.
-    RangeShardingSpecification.update_shard(shard_id,
-                                                range_sharding_spec.lower_bound, 
-                                                split_value)
 
     #Enable the old shard id
     source_shard.enable()

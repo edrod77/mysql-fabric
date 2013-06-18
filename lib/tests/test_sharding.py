@@ -179,44 +179,43 @@ class TestSharding(unittest.TestCase):
         )
 
         self.__range_sharding_specification_1 = RangeShardingSpecification.add(
-                                                0, 1000,
+                                                0,
                                                 self.__shard_id_1.shard_id)
         self.__range_sharding_specification_2 = RangeShardingSpecification.add(
-                                               1001, 2000,
+                                               1001,
                                                 self.__shard_id_2.shard_id)
         self.__range_sharding_specification_3 = RangeShardingSpecification.add(
-                                                2001, 3000,
+                                                2001,
                                                 self.__shard_id_3.shard_id)
 
         self.__range_sharding_specification_4 = RangeShardingSpecification.add(
-                                                3001, 4000,
+                                                3001,
                                                 self.__shard_id_4.shard_id)
         self.__range_sharding_specification_5 = RangeShardingSpecification.add(
-                                                4001, 5000,
+                                                4001,
                                                 self.__shard_id_5.shard_id)
 
         self.__range_sharding_specification_6 = RangeShardingSpecification.add(
-                                                6001, 7000,
+                                                6001,
                                                 self.__shard_id_6.shard_id)
         self.__range_sharding_specification_7 = RangeShardingSpecification.add(
-                                                7001, 8000,
+                                                7001,
                                                 self.__shard_id_7.shard_id)
 
         self.__range_sharding_specification_8 = RangeShardingSpecification.add(
-                                                8001, 9000,
+                                                8001,
                                                 self.__shard_id_8.shard_id)
         self.__range_sharding_specification_9 = RangeShardingSpecification.add(
-                                               10001, 11000,
+                                               10001,
                                                 self.__shard_id_9.shard_id)
 
         self.__range_sharding_specification_10 = RangeShardingSpecification.add(
-                                        100, 200,
+                                                100,
                                                 self.__shard_id_10.shard_id)
         self.__range_sharding_specification_11 = RangeShardingSpecification.add(
-                                                201, 300,
+                                                201,
                                                 self.__shard_id_11.shard_id)
-
-
+                                                
     def tearDown(self):
         self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
         self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
@@ -302,8 +301,6 @@ class TestSharding(unittest.TestCase):
     def test_range_sharding_specification_getters(self):
         self.assertEqual(self.__range_sharding_specification_1.lower_bound,
                          0)
-        self.assertEqual(self.__range_sharding_specification_1.upper_bound,
-                         1000)
         self.assertEqual(self.__range_sharding_specification_1.shard_id,
                          1)
 

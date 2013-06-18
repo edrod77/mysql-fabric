@@ -691,16 +691,15 @@ class RangeShardingSpecification(_persistence.Persistable):
 
     A typical RANGE sharding representation looks like the following,
 
-        +---------+--------+-----------+
-       |   LB    |  UB    |  shard_id |
-        +=========+========+===========+
-        |10000    |20000   |1          |
-        +---------+--------+-----------+
+        +---------+-----------+
+       |   LB    |  shard_id |
+        +=========+===========+
+        |10000    |1          |
+        +---------+-----------+
 
     The columns in the above table are explained as follows,
 
     * LB -The lower bound of the given RANGE sharding scheme instance
-    * UB - The upper bound of the given RANGE sharding scheme instance
     * shard_id - An unique identification, a logical representation for a
                     shard of a particular table.
     """
@@ -709,8 +708,7 @@ class RangeShardingSpecification(_persistence.Persistable):
     CREATE_RANGE_SPECIFICATION = ("CREATE TABLE "
                                 "shard_ranges "
                                 "(lower_bound INT NOT NULL, "
-                                "upper_bound INT NOT NULL, "
-                                "INDEX(lower_bound, upper_bound), "
+                                "INDEX(lower_bound), "
                                 "shard_id INT NOT NULL)")
 
     #Create the referential integrity constraint with the shard_id
@@ -732,8 +730,8 @@ class RangeShardingSpecification(_persistence.Persistable):
     DROP_RANGE_SPECIFICATION = ("DROP TABLE shard_ranges")
 
     #Insert a RANGE of keys and the server to which they belong.
-    INSERT_RANGE_SPECIFICATION = ("INSERT INTO shard_ranges "
-                                  "VALUES(%s, %s, %s)")
+    INSERT_RANGE_SPECIFICATION = ("INSERT INTO shard_ranges"
+                                  "(lower_bound, shard_id) VALUES(%s, %s)")
 
     #Delete a given RANGE specification instance.
     DELETE_RANGE_SPECIFICATION = ("DELETE FROM shard_ranges "
@@ -742,37 +740,48 @@ class RangeShardingSpecification(_persistence.Persistable):
 
     #Given a Shard ID select the RANGE Scheme that it defines.
     SELECT_RANGE_SPECIFICATION = ("SELECT lower_bound, "
-                                  "upper_bound, "
                                   "shard_id "
                                   "FROM shard_ranges "
                                   "WHERE shard_id = %s")
 
     #Select the server corresponding to the RANGE to which a given key
-    #belongs. The range is open on the lower_bound and closed on the
-    #upper bound.
-    LOOKUP_KEY = ("SELECT sr.lower_bound, sr.upper_bound, s.shard_id "
-                  "FROM shard_ranges AS sr, shards AS s "
-                  "WHERE %s > sr.lower_bound "
-                  "AND %s <= sr.upper_bound "
-                  "AND s.shard_mapping_id = %s "
-                  "AND s.shard_id = sr.shard_id")
+    #belongs. The query either selects the least lower_bound that is larger
+    #than a given key or selects the largest lower_bound and insert the key
+    #in that shard.
+    LOOKUP_KEY = (
+                "SELECT sr.lower_bound AS lower_bound, s.shard_id "
+                "FROM shard_ranges AS sr, shards AS s "
+                "WHERE %s >= sr.lower_bound "
+                "AND s.shard_mapping_id = %s "
+                "AND s.shard_id = sr.shard_id "
+                "ORDER BY sr.lower_bound DESC "
+                "LIMIT 1"
+                )
+
+    #Select the UPPER BOUND for a given LOWER BOUND value.
+    SELECT_UPPER_BOUND = (
+        "SELECT lower_bound FROM "
+        "shard_ranges JOIN shards USING (shard_id) "
+        "WHERE lower_bound > %s AND shard_mapping_id = %s "
+        "ORDER BY lower_bound ASC LIMIT 1"
+    )
 
     #Update the Range for a particular shard. The updation needs to happen
     #for the upper bound and the lower bound simultaneously.
-    UPDATE_RANGE = ("UPDATE shard_ranges SET lower_bound = %s "
-                        ", upper_bound = %s WHERE shard_id = %s")
+    UPDATE_RANGE = (
+        "UPDATE shard_ranges SET lower_bound = %s "
+        " WHERE shard_id = %s"
+    )
 
-    def __init__(self, lower_bound, upper_bound, shard_id):
+    def __init__(self, lower_bound, shard_id):
         """Initialize a given RANGE sharding mapping specification.
 
         :param lower_bound: The lower bound of the given RANGE sharding defn
-        :param upper_bound: The upper bound of the given RANGE sharding defn
         :param shard_id: An unique identification, a logical representation
                         for a shard of a particular table.
         """
         super(RangeShardingSpecification, self).__init__()
         self.__lower_bound = lower_bound
-        self.__upper_bound = upper_bound
         self.__shard_id = shard_id
 
     @property
@@ -780,12 +789,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         """Return the lower bound of this RANGE specification.
         """
         return self.__lower_bound
-
-    @property
-    def upper_bound(self):
-        """Return the upper bound of this RANGE specification.
-        """
-        return self.__upper_bound
 
     @property
     def shard_id(self):
@@ -805,12 +808,11 @@ class RangeShardingSpecification(_persistence.Persistable):
             {"params":(self.__shard_id,)})
 
     @staticmethod
-    def add(lower_bound, upper_bound, shard_id, persister=None):
+    def add(lower_bound, shard_id, persister=None):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
         :param lower_bound: The lower bound of the given RANGE sharding defn
-        :param upper_bound: The upper bound of the given RANGE sharding defn
         :param shard_id: An unique identification, a logical representation
                         for a shard of a particular table.
 
@@ -819,12 +821,10 @@ class RangeShardingSpecification(_persistence.Persistable):
                 None if the insert into the state store failed
         """
         persister.exec_stmt(
-                  RangeShardingSpecification.INSERT_RANGE_SPECIFICATION,
-                                     {"params":(lower_bound,
-                                                           upper_bound,
-                                                           shard_id
-                                                           )})
-        return RangeShardingSpecification(lower_bound, upper_bound, shard_id)
+            RangeShardingSpecification.INSERT_RANGE_SPECIFICATION,
+            {"params":(lower_bound, shard_id)}
+        )
+        return RangeShardingSpecification(lower_bound, shard_id)
 
     @staticmethod
     def create(persister=None):
@@ -887,20 +887,20 @@ class RangeShardingSpecification(_persistence.Persistable):
         row = cur.fetchone()
         if row is None:
             return None
-        return RangeShardingSpecification(row[0], row[1], row[2])
+        return RangeShardingSpecification(row[0], row[1])
 
     @staticmethod
-    def update_shard(shard_id, lb, ub, persister=None):
+    def update_shard(shard_id, lb, persister=None):
         """Update the range for a given shard_id.
 
         :param shard_id: The ID of the shard whose range needs to be updated.
         :param lb: The new lower bound for the shard.
-        :param ub: The new upper bound for the shard.
         :param persister: A valid handle to the state store.
         """
         cur = persister.exec_stmt(
-                    RangeShardingSpecification.UPDATE_RANGE,
-                        {"params" : (lb, ub, shard_id)})        
+            RangeShardingSpecification.UPDATE_RANGE,
+            {"params" : (lb, shard_id)}
+        )
     
 #TODO: Should a lookup fail if a shard is DISABLED ?
     @staticmethod
@@ -920,13 +920,44 @@ class RangeShardingSpecification(_persistence.Persistable):
                         RangeShardingSpecification.LOOKUP_KEY,
                         {"raw" : False,
                         "fetch" : False,
-                        "params" : (key, key, shard_mapping_id)})
+                        "params" : (key, shard_mapping_id)})
 
         row = cur.fetchone()
 
         if row is None:
             return None
-        return RangeShardingSpecification(row[0], row[1], row[2])
+        return RangeShardingSpecification(row[0], row[1])
+
+    @staticmethod
+    def get_upper_bound(lower_bound, shard_mapping_id, persister=None):
+        """Return the next value in range for a given lower_bound value.
+        This basically helps to form a (lower_bound, upper_bound) pair
+        that can be used during a prune.
+
+        :param lower_bound: The lower_bound value whose next range needs to
+                            be retrieved.
+        :param shard_mapping_id: The shard_mapping_id whose shards should be
+                                searched for the given lower_bound.
+        :param persister: A valid handle to the state store.
+
+        :return: The next value in the range for the given lower_bound.
+        """
+        #TODO: Even though a function like this seems practical, it encourages a bad
+        #TODO: usage since there really are no upper bounds any more, just lower bounds.
+        #TODO: It would probably be better to re-write the prune method to be based on
+        #TODO: just lower bounds.
+        cur = persister.exec_stmt(
+                        RangeShardingSpecification.SELECT_UPPER_BOUND,
+                        {"raw" : False,
+                        "fetch" : False,
+                        "params" : (lower_bound, shard_mapping_id)})
+
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return row[0]
 
     @staticmethod
     def delete_from_shard_db(table_name):
@@ -970,18 +1001,32 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         shard = Shards.fetch(shard_id)
 
+        upper_bound = RangeShardingSpecification.get_upper_bound(
+                                            range_sharding_spec.lower_bound,
+                                            shard.shard_mapping_id)
+
         shard_mapping = ShardMapping.fetch_by_id(shard.shard_mapping_id)
         if shard_mapping is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
         table_name = shard_mapping.table_name
 
-        delete_query = \
-            ("DELETE FROM %s WHERE %s NOT BETWEEN %s and %s")% \
-                                            (table_name,
-                                            shard_mapping.column_name,
-                                            range_sharding_spec.lower_bound,
-                                            range_sharding_spec.upper_bound)
+        if upper_bound is not None:
+            #TODO: OR is notoriously bad for the optimizer. Better to turn it into
+            #TODO: two separate queries handling all below and all above respectively.
+            delete_query = ("DELETE FROM %s WHERE %s < %s OR %s >= %s") % (
+                table_name,
+                shard_mapping.column_name,
+                range_sharding_spec.lower_bound,
+                shard_mapping.column_name,
+                upper_bound
+            )
+        else:
+            delete_query = ("DELETE FROM %s WHERE %s < %s") % (
+                table_name,
+                shard_mapping.column_name,
+                range_sharding_spec.lower_bound
+            )
 
         shard = Shards.fetch(range_sharding_spec.shard_id)
         if shard is None:

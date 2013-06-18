@@ -124,14 +124,14 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, 0, 1000, "GROUPID2",
+        status = self.proxy.sharding.add_shard(1, 0, "GROUPID2",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard).")
 
-        status = self.proxy.sharding.add_shard(1, 1001, 2000, "GROUPID3",
+        status = self.proxy.sharding.add_shard(1, 1001, "GROUPID3",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -158,7 +158,7 @@ class TestShardingServices(unittest.TestCase):
 
     def test_add_shard_invalid_group_exception(self):
         #Use an invalid group ID (WRONG_GROUP)
-        status = self.proxy.sharding.add_shard(4, 8001, 9000, "WRONG_GROUP",
+        status = self.proxy.sharding.add_shard(4, 8001, "WRONG_GROUP",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -167,7 +167,7 @@ class TestShardingServices(unittest.TestCase):
 
     def test_add_shard_invalid_state_exception(self):
         #WRONG_STATE is an invalid description of the shard state.
-        status = self.proxy.sharding.add_shard(4, 8001, 9000, "GROUP4",
+        status = self.proxy.sharding.add_shard(4, 8001, "GROUP4",
                                                "WRONG_STATE")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -176,7 +176,7 @@ class TestShardingServices(unittest.TestCase):
 
     def test_add_shard_invalid_range_exception(self):
         #Notice LB > UB in the case below.
-        status = self.proxy.sharding.add_shard(4, 9000, 5000, "GROUP4",
+        status = self.proxy.sharding.add_shard(4, 9000, "GROUP4",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -185,7 +185,7 @@ class TestShardingServices(unittest.TestCase):
 
 
     def test_add_shard_invalid_shard_mapping(self):
-        status = self.proxy.sharding.add_shard(25000, 8001, 9000, "GROUPID4",
+        status = self.proxy.sharding.add_shard(25000, 8001, "GROUPID4",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -230,6 +230,14 @@ class TestShardingServices(unittest.TestCase):
                          "Tried to execute action (_remove_shard_mapping).")
 
     def test_remove_sharding_specification(self):
+        expected_server_list = [
+                        [str(self.__server_5.uuid),
+                         MySQLInstances().get_address(4),
+                         True],
+                        [str(self.__server_6.uuid),
+                         MySQLInstances().get_address(5),
+                         False]
+                        ]
         status = self.proxy.sharding.disable_shard(1)
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -331,6 +339,90 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
         self.assertEqual(set(expected_address_list), set(obtained_address_list))
 
+    def test_lookup_first_key(self):
+        expected_server_list = [
+                        [str(self.__server_3.uuid),
+                         MySQLInstances().get_address(2),
+                         True],
+                        [str(self.__server_4.uuid),
+                         MySQLInstances().get_address(3),
+                         False]
+                        ]
+        status = self.proxy.sharding.lookup_servers("db1.t1", 1, "LOCAL")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_lookup).")
+        obtained_server_list = status[2]
+        expected_uuid_list = [expected_server_list[0][0],
+                              expected_server_list[1][0]]
+        obtained_uuid_list = [obtained_server_list[0][0],
+                              obtained_server_list[1][0]]
+
+        expected_address_list = [expected_server_list[0][1],
+                                expected_server_list[1][1]]
+        obtained_address_list = [obtained_server_list[0][1],
+                                obtained_server_list[1][1]]
+
+        self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
+        self.assertEqual(set(expected_address_list), set(obtained_address_list))
+
+    def test_lookup_last_key(self):
+        expected_server_list = [
+                        [str(self.__server_3.uuid),
+                         MySQLInstances().get_address(2),
+                         True],
+                        [str(self.__server_4.uuid),
+                         MySQLInstances().get_address(3),
+                         False]
+                        ]
+        status = self.proxy.sharding.lookup_servers("db1.t1", 1000, "LOCAL")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_lookup).")
+        obtained_server_list = status[2]
+        expected_uuid_list = [expected_server_list[0][0],
+                              expected_server_list[1][0]]
+        obtained_uuid_list = [obtained_server_list[0][0],
+                              obtained_server_list[1][0]]
+
+        expected_address_list = [expected_server_list[0][1],
+                                expected_server_list[1][1]]
+        obtained_address_list = [obtained_server_list[0][1],
+                                obtained_server_list[1][1]]
+
+        self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
+        self.assertEqual(set(expected_address_list), set(obtained_address_list))
+
+    def test_lookup_first_in_next_key(self):
+        expected_server_list = [
+                        [str(self.__server_5.uuid),
+                         MySQLInstances().get_address(4),
+                         True],
+                        [str(self.__server_6.uuid),
+                         MySQLInstances().get_address(5),
+                         False]
+                        ]
+        status = self.proxy.sharding.lookup_servers("db1.t1", 1001, "LOCAL")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_lookup).")
+        obtained_server_list = status[2]
+        expected_uuid_list = [expected_server_list[0][0],
+                              expected_server_list[1][0]]
+        obtained_uuid_list = [obtained_server_list[0][0],
+                              obtained_server_list[1][0]]
+
+        expected_address_list = [expected_server_list[0][1],
+                                expected_server_list[1][1]]
+        obtained_address_list = [obtained_server_list[0][1],
+                                obtained_server_list[1][1]]
+
+        self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
+        self.assertEqual(set(expected_address_list), set(obtained_address_list))
+
     def test_lookup_disabled_exception(self):
         self.proxy.sharding.disable_shard(1)
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")
@@ -348,11 +440,32 @@ class TestShardingServices(unittest.TestCase):
                          "Tried to execute action (_lookup).")
 
     def test_lookup_wrong_key_exception(self):
+        expected_server_list = [
+                        [str(self.__server_5.uuid),
+                         MySQLInstances().get_address(4),
+                         True],
+                        [str(self.__server_6.uuid),
+                         MySQLInstances().get_address(5),
+                         False]
+                        ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 55500, "LOCAL")
-        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_lookup).")
+                         "Executed action (_lookup).")
+        obtained_server_list = status[2]
+        expected_uuid_list = [expected_server_list[0][0],
+                              expected_server_list[1][0]]
+        obtained_uuid_list = [obtained_server_list[0][0],
+                              obtained_server_list[1][0]]
+
+        expected_address_list = [expected_server_list[0][1],
+                                expected_server_list[1][1]]
+        obtained_address_list = [obtained_server_list[0][1],
+                                obtained_server_list[1][1]]
+
+        self.assertEqual(set(expected_uuid_list), set(obtained_uuid_list))
+        self.assertEqual(set(expected_address_list), set(obtained_address_list))
 
     def test_list_shard_mappings(self):
         expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID1"]
