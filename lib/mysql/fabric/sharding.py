@@ -692,7 +692,7 @@ class RangeShardingSpecification(_persistence.Persistable):
     A typical RANGE sharding representation looks like the following,
 
         +---------+-----------+
-       |   LB    |  shard_id |
+        |   LB    |  shard_id |
         +=========+===========+
         |10000    |1          |
         +---------+-----------+
