@@ -2,6 +2,8 @@
 """
 import os
 import sys
+import inspect
+import ctypes
 
 class SingletonMeta(type):
     """Define a Singleton.
@@ -60,3 +62,24 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     os.dup2(sin.fileno(), sys.stdin.fileno())
     os.dup2(sout.fileno(), sys.stdout.fileno())
     os.dup2(serr.fileno(), sys.stdin.fileno())
+
+
+def async_raise(tid, exctype):
+    """Raise an exception within the context of a thread.
+
+    :param tid: Thread Id.
+    :param exctype: Exception class.
+    :raises: exctype.
+    """
+    if not inspect.isclass(exctype):
+        raise TypeError("Only types can be raised (not instances).")
+
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_long(tid), ctypes.py_object(exctype)
+        )
+
+    if res == 0:
+        raise ValueError("Invalid thread id.")
+    elif res != 1:
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
+        raise SystemError("Failed to throw an exception.")

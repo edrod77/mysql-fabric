@@ -450,3 +450,22 @@ class Checkpoint(_persistence.Persistable):
         """A Checkpoint is hashable through its proc_uuid and job_uuid.
         """
         return hash(self.__proc_uuid) ^ hash(self.__job_uuid)
+
+def register(jobs, transaction):
+    """Atomically register jobs.
+
+    :param jobs: List of jobs to be scheduled.
+    :param transaction: Whether there is transaction context or not.
+    """
+    assert(isinstance(jobs, list))
+
+    persister = _persistence.PersistentMeta.thread_local.persister
+    if not transaction:
+        persister.begin()
+
+    for job in jobs:
+        if job.is_recoverable:
+            job.checkpoint.schedule()
+
+    if not transaction:
+        persister.commit()

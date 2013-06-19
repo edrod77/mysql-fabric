@@ -99,6 +99,12 @@ class ProcedureError(ServiceError):
 
 class ShardingError(Error):
     """Exception raised when an invalid operation is attempted on the
-    sharding system
+    sharding system.
+    """
+    pass
+
+class LockManagerError(Error):
+    """Exception raised when an invalid operation is attempted on the
+    lock manager.
     """
     pass

@@ -9,11 +9,10 @@ from weakref import WeakValueDictionary
 
 import mysql.fabric.persistence as _persistence
 import mysql.fabric.errors as _errors
+import mysql.fabric.scheduler as _scheduler
+import mysql.fabric.checkpoint as _checkpoint
 
 from mysql.fabric.utils import Singleton
-from mysql.fabric.checkpoint import (
-    Checkpoint,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +50,46 @@ class Procedure(object):
             self.__uuid, time.time()
         )
 
-    def job_scheduled(self, job):
+    def get_lock_objects(self):
+        """Return the objects that need to be locked before this procedure
+        starts being executed.
+
+        :return: List of objects to be locked.
+        :rtype: List
+        """
+        # TODO: Create a routine to automatically determine the set of objects
+        #       to be locked.
+        return set(["lock"])
+
+    def get_priority(self):
+        """Return whether this procedure should have higher priority over
+        other procedures that require access to a common subset of objects.
+
+        :return: Whether the procedure has high priority or not.
+        :rtype: Boolean
+        """
+        return False
+
+    def is_complete(self):
+        """Return whether the procedure has finished or not.
+
+        :return: Whether the procedure has finished or not.
+        :rtype: Boolean
+        """
+        with self.__lock:
+            return self.__complete
+
+    def get_scheduled_jobs(self):
+        """Return the set of jobs has been scheduled on behalf of the
+        procedure.
+
+        :return: List of scheduled jobs.
+        :rtype: List
+        """
+        with self.__lock:
+            return list(self.__scheduled_jobs)
+
+    def add_scheduled_job(self, job):
         """Register that a job has been scheduled on behalf of the
         procedeure.
 
@@ -87,7 +125,7 @@ class Procedure(object):
             if not self.__scheduled_jobs:
                 self.__complete = True
                 self.__lock.notify_all()
-                Checkpoint.remove(job.checkpoint)
+                _checkpoint.Checkpoint.remove(job.checkpoint)
                 _LOGGER.debug("Complete procedure (%s, %s).",
                     self.__uuid, time.time()
                 )
@@ -150,7 +188,7 @@ class Job(object):
         """
         if not callable(action):
             raise _errors.NotCallableError("Callable expected")
-        elif not Checkpoint.is_recoverable(action):
+        elif not _checkpoint.Checkpoint.is_recoverable(action):
             # Currently we only print out a warning message. In the future,
             # we may decide to change this and raise an error.
             _LOGGER.warning(
@@ -168,16 +206,16 @@ class Job(object):
         self.__result = None
         self.__complete = False
         self.__procedure = procedure
-        self.__is_recoverable = Checkpoint.is_recoverable(action)
+        self.__is_recoverable = _checkpoint.Checkpoint.is_recoverable(action)
         self.__jobs = []
         self.__action_fqn = action.__module__ + "." + action.__name__
 
-        self.__checkpoint = Checkpoint(
+        self.__checkpoint = _checkpoint.Checkpoint(
             self.__procedure.uuid, self.__uuid, self.__action_fqn, args, kwargs
         )
 
         self._add_status(Job.SUCCESS, Job.ENQUEUED, description)
-        self.__procedure.job_scheduled(self)
+        self.__procedure.add_scheduled_job(self)
 
     @property
     def uuid(self):
@@ -260,7 +298,7 @@ class Job(object):
             Job.EVENT_OUTCOME_DESCRIPTION[success]
         )
 
-    def execute(self, persister, queue):
+    def execute(self, persister, scheduler, queue):
         """Execute the job.
         """
         try:
@@ -298,7 +336,7 @@ class Job(object):
             try:
                 # Register information jobs created within the context of the
                 # current job.
-                queue.persist(self.__jobs, True)
+                _checkpoint.register(self.__jobs, True)
 
                 # Register that the job has finished the execution.
                 if self.__is_recoverable:
@@ -309,7 +347,16 @@ class Job(object):
 
                 # Schedule jobs created within the context of the current
                 # job.
-                queue.schedule(self.__jobs)
+                procedures = set()
+                jobs = set()
+                for job in self.__jobs:
+                    if job.procedure != self.__procedure:
+                        procedures.add(job.procedure)
+                    else:
+                        jobs.add(job)
+                for procedure in procedures:
+                    scheduler.enqueue_procedure(procedure)
+                queue.schedule(list(jobs))
             except _errors.DatabaseError as db_error:
                 _LOGGER.exception(db_error)
 
@@ -347,20 +394,21 @@ class Job(object):
 class ExecutorThread(threading.Thread):
     """Class representing an executor thread for executing jobs.
 
-    The thread will repeatedly read from the executor queue and
-    execute a job. Note that the job queue is shared between all
-    thread instances.
+    The thread will repeatedly read from the scheduler and execute a
+    job. Note that the scheduler is shared between all thread instances.
 
     Each thread will create a persister and register it with the
     persistance system so that objects manipulated as part of the job
     execution can be persisted to the persistent store.
 
-    :param Queue.Queue queue: Queue to read jobs from.
+    :param scheduler: Scheduler which is responsible for scheduling procedures
+    and jobs.
     """
-    def __init__(self, queue):
+    def __init__(self, scheduler):
         "Constructor for ExecutorThread."
         super(ExecutorThread, self).__init__(name="Executor")
-        self.__queue = queue
+        self.__scheduler = scheduler
+        self.__queue = ExecutorQueue()
         self.__persister = None
         self.__job = None
         self.__current_thread = None
@@ -381,7 +429,7 @@ class ExecutorThread(threading.Thread):
     def run(self):
         """Run the executor thread.
 
-        This function will repeatedly read jobs from the queue and
+        This function will repeatedly read jobs from the scheduler and
         execute them.
         """
         _LOGGER.debug("Initializing Executor thread %s", self.name)
@@ -392,16 +440,31 @@ class ExecutorThread(threading.Thread):
 
         self.__current_thread = threading.current_thread()
 
+        procedure = None
         while True:
+            if procedure is None or procedure.is_complete():
+                procedure = self._next_procedure(procedure)
+                _LOGGER.debug("Reading procedure from queue, found %s.",
+                              procedure)
+
             self.__job = self.__queue.get()
-            _LOGGER.debug("Reading next job from queue, found %s.", self.__job)
+            _LOGGER.debug("Reading next job from queue, found %s.",
+                          self.__job)
 
             if self.__job is None:
-                self.__queue.task_done()
+                self.__queue.done()
                 break
 
-            self.__job.execute(self.__persister, self.__queue)
-            self.__queue.task_done()
+            self.__job.execute(self.__persister, self.__scheduler,
+                               self.__queue)
+            self.__queue.done()
+
+    def _next_procedure(self, prv_procedure):
+        self.__scheduler.done(prv_procedure)
+        procedure = self.__scheduler.next_procedure()
+        jobs = procedure.get_scheduled_jobs() if procedure else [None]
+        self.__queue.schedule(jobs)
+        return procedure
 
 
 class ExecutorQueue(object):
@@ -428,27 +491,6 @@ class ExecutorQueue(object):
                 except Queue.Empty:
                     self.__lock.wait()
 
-    def persist(self, jobs, within_job):
-        """Attomically register jobs.
-
-        :param jobs: List of jobs to be scheduled.
-        :within_job: Whether the scheduled jobs were created
-                     within the context of another job.
-        """
-        assert(isinstance(jobs, list))
-
-        persister = _persistence.PersistentMeta.thread_local.persister
-        with self.__lock:
-            if not within_job:
-                persister.begin()
-
-            for job in jobs:
-                if job.is_recoverable:
-                    job.checkpoint.schedule()
-
-            if not within_job:
-                persister.commit()
-
     def schedule(self, jobs):
         """Atomically put a set of jobs in the queue.
 
@@ -465,19 +507,18 @@ class ExecutorQueue(object):
                     except Queue.Full:
                         self.__lock.wait()
 
-
-    def task_done(self):
+    def done(self):
          self.__queue.task_done()
 
 class Executor(Singleton):
     """Class responsible for dispatching execution of procedures.
 
-    Procedures to be executed are queued to the executor, which then
-    will execute them in order.
+    Procedures to be executed are queued into the scheduler and
+    sequentially executed.
     """
     def __init__(self):
         super(Executor, self).__init__()
-        self.__queue = ExecutorQueue()
+        self.__scheduler = _scheduler.Scheduler()
         self.__procedures_lock = threading.RLock()
         self.__procedures = WeakValueDictionary()
         self.__thread_lock = threading.RLock()
@@ -495,7 +536,7 @@ class Executor(Singleton):
         with self.__thread_lock:
             _LOGGER.info("Starting Executor")
             if not self.__thread:
-                self.__thread = ExecutorThread(self.__queue)
+                self.__thread = ExecutorThread(self.__scheduler)
                 self.__thread.start()
                 _LOGGER.info("Executor started")
             else:
@@ -508,7 +549,7 @@ class Executor(Singleton):
         thread = None
         with self.__thread_lock:
             if self.__thread and self.__thread.is_alive():
-                self.__queue.schedule([None])
+                self.__scheduler.enqueue_procedure(None)
                 thread = self.__thread
             self.__thread = None
         if thread:
@@ -624,8 +665,10 @@ class Executor(Singleton):
         if thread.is_current_thread() and isinstance(within_procedure, bool):
             thread.current_job.append_jobs(jobs)
         else:
-            self.__queue.persist(jobs, False)
-            self.__queue.schedule(jobs)
+            _checkpoint.register(jobs, False)
+            assert(len(set(procedures)) == len(procedures))
+            for procedure in procedures:
+                self.__scheduler.enqueue_procedure(procedure)
         return procedures
 
     def reschedule_procedure(self, proc_uuid, actions):
@@ -649,7 +692,7 @@ class Executor(Singleton):
                 actions[number]["job"]
                 )
             jobs.append(job)
-        self.__queue.schedule(jobs)
+        self.__scheduler.enqueue_procedure(procedures[0])
         return procedures[0]
 
     def get_procedure(self, proc_uuid):
