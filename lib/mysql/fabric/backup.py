@@ -6,7 +6,6 @@ mysqldump.
 
 from abc import ABCMeta, abstractmethod
 
-import os
 import shlex
 import subprocess
 
@@ -115,7 +114,7 @@ class BackupMethod(object):
     """
     __metaclass__ = ABCMeta
 
-    @abstractmethod
+    @staticmethod
     def backup(server):
         """Perform the backup.
 
@@ -123,7 +122,7 @@ class BackupMethod(object):
         """
         pass
 
-    @abstractmethod
+    @staticmethod
     def restore(server,  image):
         """Restore the backup from the image to the server.
 
@@ -132,7 +131,7 @@ class BackupMethod(object):
         """
         pass
 
-    @abstractmethod
+    @staticmethod
     def copyBackup(image):
         """Will be used in cases when the backup needs to be taken on a source
         and will be copied to the destination machine.

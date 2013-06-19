@@ -988,7 +988,7 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
                                            (source_shard.shard_mapping_id)
     if shard_mapping_defn is None:
         raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
-                            (range_sharding_spec.shard_mapping_id, ))
+                            (source_shard.shard_mapping_id, ))
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
             (shard_mapping_defn[2],  destination_group_id)
