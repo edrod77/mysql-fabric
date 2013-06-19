@@ -13,12 +13,15 @@ from mysql.fabric import (
     events as _events,
     group_replication as _group_replication,
     replication as _replication,
-    sharding as _sharding,
     backup as _backup,
 )
 
 from mysql.fabric.server import Group,  MySQLServer
-from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
+from mysql.fabric.sharding import (
+    ShardMapping,
+    RangeShardingSpecification,
+    Shards
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +33,8 @@ CANNOT_REMOVE_SHARD_MAPPING = "Cannot remove mapping, while, " \
 INVALID_SHARD_STATE = "Invalid Shard State %s"
 INVALID_SHARDING_RANGE = "Invalid sharding range"
 SHARD_MAPPING_NOT_FOUND = "Shard Mapping with shard_mapping_id %s not found"
-SHARD_MAPPING_DEFN_NOT_FOUND = "Shard Mapping Definition with shard_mapping_id %s not found"
+SHARD_MAPPING_DEFN_NOT_FOUND = "Shard Mapping Definition with "\
+    "shard_mapping_id %s not found"
 SHARD_NOT_DISABLED = "Shard not disabled"
 SHARD_NOT_ENABLED = "Shard not enabled"
 INVALID_SHARDING_KEY = "Invalid Key %s"
@@ -39,7 +43,8 @@ SHARD_LOCATION_NOT_FOUND = "Shard location not found"
 INVALID_SHARDING_HINT = "Unknown lookup hint"
 SHARD_GROUP_NOT_FOUND = "Shard group not found"
 SHARD_GROUP_MASTER_NOT_FOUND = "Shard group master not found"
-SHARD_MOVE_DESTINATION_NOT_EMPTY = "Shard move destination already hosts a shard"
+SHARD_MOVE_DESTINATION_NOT_EMPTY = "Shard move destination already "\
+    "hosts a shard"
 INVALID_SHARD_SPLIT_VALUE = "The chosen split value must be between the " \
                             "lower bound and upper bound of the shard"
 CONFIG_NOT_FOUND = "Configuration option not found %s . %s"
@@ -302,6 +307,14 @@ class MoveShardServer(ProcedureCommand):
     group_name = "sharding"
     command_name = "move"
     def execute(self,  shard_id,  destn_group_id,  synchronous=True):
+        """Move the shard represented by the shard_id to the destination group.
+
+        :param shard_id: The ID of the shard that needs to be moved.
+        :param destn_group_id: The ID of the group to which the shard needs to
+                                be moved.
+        :param synchronous: Whether one should wait until the execution finishes
+                        or not.
+        """
         #TODO: Add a configurable timeout option. The option will allow the
         #TODO: code to wait until timeout without taking a lock and after timeout
         #TODO: will take a read lock on the master.
@@ -328,12 +341,22 @@ class MoveShardServer(ProcedureCommand):
         return self.wait_for_procedures(procedures, synchronous)
 
 class SplitShardServer(ProcedureCommand):
-    """Move the shard represented by the shard_id to the destination group.
+    """Split the shard represented by the shard_id into the destination group.
     """
     group_name = "sharding"
     command_name = "split"
     def execute(self,  shard_id,  destn_group_id,  split_value,
                           synchronous=True):
+        """Split the shard represented by the shard_id into the destination
+        group.
+
+        :param shard_id: The shard_id of the shard that needs to be split.
+        :param destn_group_id: The ID of the group into which the split data
+                                needs to be moved.
+        :param split_value: The value at which the range needs to be split.
+        :param synchronous: Whether one should wait until the execution
+                            finishes
+        """
         #TODO: Add a configurable timeout option. The option will allow the
         #TODO: code to wait until timeout without taking a lock and after timeout
         #TODO: will take a read lock on the master.
@@ -419,7 +442,8 @@ def _remove_shard_mapping(table_name):
             raise _errors.ShardingError(CANNOT_REMOVE_SHARD_MAPPING)
     else:
         #This can happen only if there is a state store anomaly.
-         raise _errors.ShardingError(INVALID_SHARDING_TYPE % (shard_mapping.type_name, ))
+        raise _errors.ShardingError(INVALID_SHARDING_TYPE %
+                                     (shard_mapping.type_name, ))
 
 @_events.on_event(LOOKUP_SHARD_MAPPING)
 def _lookup_shard_mapping(table_name):
@@ -439,9 +463,10 @@ def _lookup_shard_mapping(table_name):
                 "type_name":shard_mapping.type_name,
                 "global_group":shard_mapping.global_group}
     else:
-        #We return an empty shard mapping because if an Error is thrown it would
-        #cause the executor to rollback which is an unnecessary action. It is enough
-        #if we inform the user that the lookup returned nothing.
+        #We return an empty shard mapping because if an Error is thrown
+        #it would cause the executor to rollback which is an unnecessary
+        #action. It is enough if we inform the user that the lookup returned
+        #nothing.
         return {"shard_mapping_id":"",
                 "table_name":"",
                 "column_name":"",
@@ -525,10 +550,15 @@ def _add_shard(shard_mapping_id, lower_bound, group_id, state):
     schema_type = shard_mapping[1]
     if schema_type == "RANGE":
         range_sharding_specification = RangeShardingSpecification.add(
-                                       shard_mapping_id, lower_bound, shard_id)
-        _LOGGER.debug("Added Shard (shard mapping id = %s, "
-                      "lower bound = %s, shard i = %s).",
-                      shard_mapping_id, lower_bound, shard_id)
+                                            shard_mapping_id,
+                                            lower_bound,
+                                            shard_id
+                                        )
+        _LOGGER.debug("Added Shard (lower bound = %s, shard i = %s).",
+                        range_sharding_specification.shard_mapping_id,
+                        range_sharding_specification.lower_bound,
+                        range_sharding_specification.shard_id
+                    )
     else:
         raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type,  ))
 
@@ -639,7 +669,7 @@ def _enable_shard(shard_id):
     :return: True Placeholder return value
     :raises: ShardingError if the shard_id is not found.
     """
-    range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
+    _, shard = _verify_and_fetch_shard(shard_id)
     #When you enable a shard, setup replication with the global server
     #of the shard mapping associated with this shard.
     _setup_shard_group_replication(shard_id)
@@ -704,14 +734,7 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     #We will need to change this once we start supporting heterogenous
     #sharding schemes. It cannot checks RANGES alone.
     if cmd == "SPLIT":
-        range_sharding_spec,  shard = _verify_and_fetch_shard(shard_id)
-
-    #TODO: Enable comparison / check in database. This is not the
-    #TODO: right way to check for a correct split value. What if the
-    #TODO: range is a string ?
-#    if split_value < range_sharding_spec.lower_bound or \
-#       split_value > range_sharding_spec.upper_bound:
-#           raise _errors.ShardingError(INVALID_SHARD_SPLIT_VALUE)
+        _verify_and_fetch_shard(shard_id)
 
     #Ensure that the group does not already contain a shard.
     if (Shards.lookup_shard_id(destn_group_id) is not None):
@@ -759,7 +782,10 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     #TODO: backups.
 
     #Do the backup of the group hosting the source shard.
-    backup_image = _backup.MySQLDump.backup(move_source_server, mysqldump_binary)
+    backup_image = _backup.MySQLDump.backup(
+                        move_source_server,
+                        mysqldump_binary
+                    )
 
 #TODO: the backup image path should be handled in a more generic manner.
 #TODO: it is not right to just pass the path. This may work for MySQLDump
@@ -780,8 +806,8 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
 
 @_events.on_event(RESTORE_SHARD_BACKUP)
 def _restore_shard_backup(shard_id,  source_group_id, destn_group_id,
-                                                mysqlclient_binary, backup_image,
-                                                split_value, cmd):
+                            mysqlclient_binary, backup_image,
+                            split_value, cmd):
     """Restore the backup on the destination Group.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
@@ -806,7 +832,11 @@ def _restore_shard_backup(shard_id,  source_group_id, destn_group_id,
 #TODO: convert to start one thread for each restore later.
     for destn_group_server in destn_group.servers():
         destn_group_server.connect()
-        _backup.MySQLDump.restore(destn_group_server, bk_img, mysqlclient_binary)
+        _backup.MySQLDump.restore(
+            destn_group_server,
+            bk_img,
+            mysqlclient_binary
+        )
 
     #Setup sync between the source and the destination groups.
     _events.trigger_within_procedure(
@@ -881,12 +911,24 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
 
 @_events.on_event(SETUP_RESHARDING_SWITCH)
 def _setup_resharding_switch(shard_id,  source_group_id,  destination_group_id,
-                                                       split_value, cmd):
+                                split_value, cmd):
+    """Setup the shard move or shard split workflow based on the command
+    argument.
+
+    :param shard_id: The ID of the shard that needs to be re-sharded.
+    :param source_group_id: The ID of the source group.
+    :param destination_group_id: The ID of the destination group.
+    :param split_value: The value at which the shard needs to be split
+                        (in the case of a shard split operation).
+    :param cmd: whether the operation that needs to be split is a
+                MOVE or a SPLIT operation.
+    """
     if cmd == "MOVE":
-        _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id)
+        _setup_shard_switch_move(shard_id,  source_group_id,
+                                 destination_group_id)
     elif cmd == "SPLIT":
-         _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
-                                                       split_value, cmd)
+        _setup_shard_switch_split(shard_id,  source_group_id,
+                                  destination_group_id, split_value, cmd)
 
 def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
                                                        split_value, cmd):
@@ -923,12 +965,11 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     new_shard = Shards.add(destination_group_id, "ENABLED")
 
     #Add the new split range (split_value, upper_bound)
-    new_range_sharding_spec = \
-        RangeShardingSpecification.add(
-            range_sharding_spec.shard_mapping_id, 
-            split_value,
-            new_shard.shard_id
-        )
+    RangeShardingSpecification.add(
+        range_sharding_spec.shard_mapping_id, 
+        split_value,
+        new_shard.shard_id
+    )
 
     #Disable the old shard id
     source_shard.disable()
@@ -962,9 +1003,9 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     :param shard_id_1: The first shard id after the split.
     :param shard_id_2: The second shard id after the split.
     """
-    #TODO:
-    #Start the threads that do the delete. For now the deletes are done as
-    #part of the same thread. These will be started as separate threads later.
+    #TODO: Start the threads that do the delete. For now the deletes are
+    #TODO: done as part of the same thread. These will be started as
+    #TODO: separate threads later.
     RangeShardingSpecification.prune_shard_id(shard_id_1)
     RangeShardingSpecification.prune_shard_id(shard_id_2)
     
@@ -988,10 +1029,11 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     #Fetch the shard mapping definition for the given range specification.
     #The shard mapping contains the information about the global group.
     shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn(
-                                                range_sharding_spec.shard_mapping_id)
+                            range_sharding_spec.shard_mapping_id
+                         )
     if shard_mapping_defn is None:
         raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
-                            (source_shard.shard_mapping_id, ))
+                            (range_sharding_spec.shard_mapping_id, ))
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
             (shard_mapping_defn[2],  destination_group_id)
@@ -1054,7 +1096,8 @@ def _setup_shard_group_replication(shard_id):
     #Fetch the shard mapping definition for the given range specification.
     #The shard mapping contains the information about the global group.
     shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn(
-                                            range_sharding_spec.shard_mapping_id)
+                            range_sharding_spec.shard_mapping_id
+                         )
     if shard_mapping_defn is None:
         raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
                             (range_sharding_spec.shard_mapping_id, ))
@@ -1085,8 +1128,8 @@ def _stop_shard_group_replication(shard_id,  clear_ref):
             range_sharding_spec.shard_mapping_id,
         ))
     #Stop the replication between the shard group and the global group. Also
-    #based on the clear_ref flag decide if you want to clear the references associated
-    #with the group.
+    #based on the clear_ref flag decide if you want to clear the references
+    #associated with the group.
     _group_replication.stop_group_slave(shard_mapping_defn[2],  shard.group_id,
                                                                 clear_ref)
 

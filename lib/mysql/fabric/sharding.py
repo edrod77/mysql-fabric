@@ -924,19 +924,18 @@ class RangeShardingSpecification(_persistence.Persistable):
         return RangeShardingSpecification(row[0], row[1],  row[2])
 
     @staticmethod
-    def update_shard(shard_id, lb, persister=None):
+    def update_shard(shard_id, lower_bound, persister=None):
         """Update the range for a given shard_id.
 
         :param shard_id: The ID of the shard whose range needs to be updated.
-        :param lb: The new lower bound for the shard.
+        :param lower_bound: The new lower bound for the shard.
         :param persister: A valid handle to the state store.
         """
-        cur = persister.exec_stmt(
+        persister.exec_stmt(
             RangeShardingSpecification.UPDATE_RANGE,
-            {"params" : (lb, shard_id)}
+            {"params" : (lower_bound, shard_id)}
         )
     
-#TODO: Should a lookup fail if a shard is DISABLED ?
     @staticmethod
     def lookup(key, shard_mapping_id, persister=None):
         """Return the Range sharding specification in whose key range the input
@@ -976,9 +975,10 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         :return: The next value in the range for the given lower_bound.
         """
-        #TODO: Even though a function like this seems practical, it encourages a bad
-        #TODO: usage since there really are no upper bounds any more, just lower bounds.
-        #TODO: It would probably be better to re-write the prune method to be based on
+        #TODO: Even though a function like this seems practical, it
+        #TODO: encourages a bad usage since there really are no upper
+        #TODO: bounds any more, just lower bounds. It would probably
+        #TODO: be better to re-write the prune method to be based on
         #TODO: just lower bounds.
         cur = persister.exec_stmt(
                         RangeShardingSpecification.SELECT_UPPER_BOUND,
@@ -1028,6 +1028,11 @@ class RangeShardingSpecification(_persistence.Persistable):
     #TODO: Narayanan: layer.
     @staticmethod
     def prune_shard_id(shard_id):
+        """Remove the rows in the shard that do not match the metadata
+        in the shard_range tables.
+
+        :param shard_id: The ID of the shard that needs to be pruned.
+        """
         range_sharding_spec = RangeShardingSpecification.fetch(shard_id)
         if range_sharding_spec is None:
             raise _errors.ShardingError("No shards associated with this"
@@ -1036,8 +1041,9 @@ class RangeShardingSpecification(_persistence.Persistable):
         shard = Shards.fetch(shard_id)
 
         upper_bound = RangeShardingSpecification.get_upper_bound(
-                                            range_sharding_spec.lower_bound,
-                                            range_sharding_spec.shard_mapping_id)
+                            range_sharding_spec.lower_bound,
+                            range_sharding_spec.shard_mapping_id
+                        )
 
         shard_mapping = ShardMapping.fetch_by_id(range_sharding_spec.shard_mapping_id)
         if shard_mapping is None:
@@ -1064,15 +1070,24 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         shard = Shards.fetch(range_sharding_spec.shard_id)
         if shard is None:
-            raise _errors.ShardingError("Shard not found (%s)" % (range_sharding_spec.shard_id, ))
+            raise _errors.ShardingError(
+                "Shard not found (%s)" %
+                (range_sharding_spec.shard_id, )
+            )
 
         group = Group.fetch(shard.group_id)
         if group is None:
-            raise _errors.ShardingError("Group not found (%s)" % (shard.group_id, ))
+            raise _errors.ShardingError(
+                "Group not found (%s)" %
+                (shard.group_id, )
+            )
 
         master = MySQLServer.fetch(group.master)
         if master is None:
-            raise _errors.ShardingError("Group Master not found (%s)" % (str(group.master)))
+            raise _errors.ShardingError(
+                "Group Master not found (%s)" %
+                (str(group.master))
+            )
 
         master.connect()
 

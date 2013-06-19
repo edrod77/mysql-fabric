@@ -164,11 +164,12 @@ class MySQLDump(BackupMethod):
 
         #Extract the host and the port from the server address.
         host = None
-        port= None
+        port = None
         if server.address is not None:
             host, port = _server_utils.split_host_port(
-                                                       server.address,
-                                                       MySQLDump.MYSQL_DEFAULT_PORT)
+                            server.address,
+                            MySQLDump.MYSQL_DEFAULT_PORT
+                         )
 
         #Form the name of the destination .sql file from the name of the
         #server host and the port number that is being backed up.
@@ -195,17 +196,21 @@ class MySQLDump(BackupMethod):
         #Run the backup command
         try:
             with open(destination,"w") as f:
-                     subprocess.check_call(
-                                           mysqldump_command,
-                                           stdout=f,
-                                           shell=False
-                                           )
+                subprocess.check_call(
+                    mysqldump_command,
+                    stdout=f,
+                    shell=False
+                )
         except subprocess.CalledProcessError as error:
-            raise _errors.ShardingError("Error while doing backup {ERROR}"
-                                                            .format(ERROR=str(error)))
+            raise _errors.ShardingError(
+                "Error while doing backup {ERROR}"
+                .format(ERROR=str(error))
+            )
         except OSError as error:
-            raise _errors.ShardingError("Error while doing backup {ERROR}"
-                                                            .format(ERROR=str(error)))
+            raise _errors.ShardingError(
+                "Error while doing backup {ERROR}"
+                .format(ERROR=str(error))
+            )
 
         #Return the backup image containing the location of the .sql file.
         return BackupImage(destination)
@@ -228,7 +233,7 @@ class MySQLDump(BackupMethod):
 
         #Extract the host and the port from the server address.
         host = None
-        port= None
+        port = None
         if server.address is not None:
             host, port = _server_utils.split_host_port(
                                                 server.address,
@@ -255,11 +260,15 @@ class MySQLDump(BackupMethod):
                                                      stdin=f,
                                                      shell=False)
         except subprocess.CalledProcessError as error:
-            raise _errors.ShardingError("Error while doing backup {ERROR}"
-                                                            .format(ERROR=str(error)))
+            raise _errors.ShardingError(
+                "Error while doing backup {ERROR}"
+                .format(ERROR=str(error))
+            )
         except OSError as error:
-            raise _errors.ShardingError("Error while doing backup {ERROR}"
-                                                            .format(ERROR=str(error)))
+            raise _errors.ShardingError(
+                "Error while doing backup {ERROR}"
+                .format(ERROR=str(error))
+            )
 
         @abstractmethod
         def copyBackup(image):
