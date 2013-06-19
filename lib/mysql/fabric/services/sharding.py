@@ -525,8 +525,9 @@ def _add_shard(shard_mapping_id, lower_bound, group_id, state):
     schema_type = shard_mapping[1]
     if schema_type == "RANGE":
         range_sharding_specification = RangeShardingSpecification.add(
-                                            shard_mapping_id, lower_bound, shard_id)
-        _LOGGER.debug("Added Shard (lower bound = %s, shard i = %s).",
+                                       shard_mapping_id, lower_bound, shard_id)
+        _LOGGER.debug("Added Shard (shard mapping id = %s, "
+                      "lower bound = %s, shard i = %s).",
                       shard_mapping_id, lower_bound, shard_id)
     else:
         raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type,  ))
