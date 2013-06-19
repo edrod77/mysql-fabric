@@ -16,7 +16,7 @@ from mysql.fabric import (
     utils as _utils,
     )
 
-from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
+from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,30 +150,12 @@ class ShardingUtils(object):
         return \
             isinstance(range_specification_1, RangeShardingSpecification) and \
             isinstance(range_specification_2, RangeShardingSpecification) and \
+                range_specification_1.shard_mapping_id == \
+                    range_specification_2.shard_mapping_id and \
                 range_specification_1.lower_bound == \
-                        range_specification_2.lower_bound and \
-                range_specification_1.upper_bound == \
-                        range_specification_2.upper_bound and \
-                range_specification_1.shard_id == range_specification_2.shard_id and \
-                range_specification_1.state == range_specification_2.state
-
-    @staticmethod
-    def compare_shards(shard_1, shard_2):
-        """Compare two shards.
-
-        :param shard_1: Shards object.
-        :param shard_2: Shards object.
-
-        :return: If the Shards are equal, it returns True.
-                 False if the Shards are not equal
-        """
-        return \
-            isinstance(shard_1, Shards) and \
-            isinstance(shard_2, Shards) and \
-            shard_1.shard_id == shard_2.shard_id and \
-            shard_1.shard_mapping_id == shard_2.shard_mapping_id and \
-            shard_1.group_id == shard_2.group_id and \
-            shard_1.state == shard_2.state
+                    range_specification_2.lower_bound and \
+                range_specification_1.shard_id == \
+                    range_specification_2.shard_id
 
 def cleanup_environment():
     #Clean up information on instances.

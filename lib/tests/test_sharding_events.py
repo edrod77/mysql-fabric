@@ -148,6 +148,18 @@ class TestShardingServices(unittest.TestCase):
         _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
+    def test_fail_duplicate_add_shard(self):
+        """Tests that addition of an existing lower_bound to a
+        shard mapping fails.
+        """
+        status = self.proxy.sharding.add_shard(1, 0, "GROUPID2", "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(
+            status[1][-1]["description"],
+            "Tried to execute action (_add_shard)."
+        )
+
     def test_define_shard_mapping_wrong_sharding_type(self):
         #Use an invalid sharding type (WRONG)
         status = self.proxy.sharding.define("WRONG", "GROUPID4")
