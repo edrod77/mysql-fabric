@@ -554,13 +554,14 @@ def _add_shard(shard_mapping_id, lower_bound, group_id, state):
                                             lower_bound,
                                             shard_id
                                         )
-        _LOGGER.debug("Added Shard (lower bound = %s, shard i = %s).",
-                        range_sharding_specification.shard_mapping_id,
-                        range_sharding_specification.lower_bound,
-                        range_sharding_specification.shard_id
-                    )
+        _LOGGER.debug(
+            "Added Shard (map id = %s, lower bound = %s, id = %s).",
+            range_sharding_specification.shard_mapping_id,
+            range_sharding_specification.lower_bound,
+            range_sharding_specification.shard_id
+        )
     else:
-        raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type,  ))
+        raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type, ))
 
     #If the shard is added in a DISABLED state  do not setup replication
     #with the primary of the global group. Basically setup replication only
