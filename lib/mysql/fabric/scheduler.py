@@ -132,7 +132,7 @@ class LockManager(object):
 
             [proc_1]
 
-        :return; A list with all procedures that can proceed with their
+        :return: A list with all procedures that can proceed with their
                  execution.
         :rtype: List
         """

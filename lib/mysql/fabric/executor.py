@@ -402,7 +402,7 @@ class ExecutorThread(threading.Thread):
     execution can be persisted to the persistent store.
 
     :param scheduler: Scheduler which is responsible for scheduling procedures
-    and jobs.
+                      and jobs.
     """
     def __init__(self, scheduler):
         "Constructor for ExecutorThread."
