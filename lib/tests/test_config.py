@@ -5,9 +5,11 @@ import os.path
 import unittest
 import urlparse
 
+import tests
 import mysql.fabric.config as _config
 
 from mysql.fabric.options import OptionParser
+
 
 def _resolve_config(config_file):
     return os.path.abspath(
@@ -16,7 +18,6 @@ def _resolve_config(config_file):
 class TestConfig(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
-
     def test_basic(self):
         "Test reading config file and default values"
         config = _config.Config(_resolve_config('main-1.cfg'), None)

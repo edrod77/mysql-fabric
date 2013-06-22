@@ -13,16 +13,8 @@ from tests.utils import ShardingUtils, MySQLInstances
 class TestSharding(unittest.TestCase):
 
     def setUp(self):
-        from __main__ import options
-        persistence.init(host=options.host, port=options.port,
-                         user=options.user, password=options.password)
-        persistence.setup()
-        persistence.init_thread()
-
-        """Clean up the existing environment
+        """Configure the existing environment
         """
-        tests.utils.cleanup_environment()
-
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_1.mysql.com:3060",
@@ -161,7 +153,7 @@ class TestSharding(unittest.TestCase):
             self.__shard_id_1.shard_id
         )
         self.__range_sharding_specification_2 = RangeShardingSpecification.add(
-            self.__shard_mapping_1.shard_mapping_id,                           
+            self.__shard_mapping_1.shard_mapping_id,
             1001,
             self.__shard_id_2.shard_id
         )
@@ -212,15 +204,13 @@ class TestSharding(unittest.TestCase):
             self.__shard_mapping_5.shard_mapping_id,
             201,
             self.__shard_id_11.shard_id)
-                                                
+
     def tearDown(self):
-        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
-        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
         """Clean up the existing environment
         """
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
         tests.utils.cleanup_environment()
-        persistence.deinit_thread()
-        persistence.teardown()
 
     def test_fetch_shard_mapping(self):
         shard_mapping_1 = ShardMapping.fetch("db1.t1")

@@ -3,21 +3,64 @@
 import xmlrpclib
 import socket
 import sys
+import threading
+import Queue
+import logging
 
 from SimpleXMLRPCServer import (
     SimpleXMLRPCServer,
-    )
+)
+from SocketServer import (
+    ThreadingMixIn,
+)
 
-class MyServer(SimpleXMLRPCServer):
+import mysql.fabric.persistence as _persistence
+
+_LOGGER = logging.getLogger(__name__)
+
+
+class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
     """Simple XML-RPC server.
     """
-
-    def __init__(self, host, port):
+    def __init__(self, host, port, number_threads):
         """Create a MyServer object.
         """
         SimpleXMLRPCServer.__init__(self, (host, port), logRequests=False)
-        self.__running = False
+        threading.Thread.__init__(self, name="XML-RPC-Server")
         self.register_introspection_functions()
+        self.__number_threads = number_threads
+        self.__requests = None
+        self.__threads = []
+        self.__is_running = False
+        self.daemon = True
+        self.__lock = threading.Lock()
+        _LOGGER.debug("Setting %s XML-RPC dispatchers.", self.__number_threads)
+
+    def run(self):
+        """Call the main routine.
+        """
+        self.serve_forever()
+
+    def shutdown(self):
+        """Stop the server.
+        """
+        # Avoid possible errors if different threads try to
+        # stop the server.
+        with self.__lock:
+            if not self.__is_running:
+                return
+
+        self.__is_running = False
+        for thread in self.__threads:
+            assert(self.__requests is not None)
+            self.__requests.put(None)
+
+    def register_command(self, command):
+        """Register a command with the server.
+        """
+        self.register_function(
+            command.execute, command.group_name + "." + command.command_name
+            )
 
     def server_bind(self):
         """Manipulate the option reuse address and bind the socket to
@@ -26,23 +69,49 @@ class MyServer(SimpleXMLRPCServer):
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         SimpleXMLRPCServer.server_bind(self)
 
-    def shutdown(self):
-        """Shutdown the server.
+    def process_request_thread(self):
+        """Obtain request from queue instead of directly from server socket.
         """
-        self.__running = False
+        _persistence.init_thread()
+        while True:
+            assert(self.__requests is not None)
+            request = self.__requests.get()
+            if request is None:
+                break
+            ThreadingMixIn.process_request_thread(self, *request)
+        _persistence.deinit_thread()
 
-    def register_command(self, command):
-        "Register a command with the server."
-        self.register_function(
-            command.execute, command.group_name + "." + command.command_name
+    def handle_request(self):
+        """Put requests into a queue for the dispatchers.
+        """
+        try:
+            request, client_address = self.get_request()
+        except socket.error:
+            return
+        if self.verify_request(request, client_address):
+            assert(self.__requests is not None)
+            self.__requests.put((request, client_address))
+
+    def serve_forever(self):
+        """Main routine which handles one request at a time.
+        """
+        # TODO: Define a lower and upper bound.
+        self.__requests = Queue.Queue(self.__number_threads)
+        self.__threads = []
+        self.__is_running = True
+
+        for nt in range(0, self.__number_threads):
+            thread = threading.Thread(
+                target = self.process_request_thread,
+                name="XML-RPC-Session-%s" % (nt, )
             )
+            thread.daemon = True
+            thread.start()
+            self.__threads.append(thread)
 
-    def serve_forever(self, poll_interval=0.5):
-        """Define the server's main loop.
-        """
-        self.__running = True
-        while self.__running:
+        while True:
             self.handle_request()
+        self.server_close()
 
 
 class MyClient(xmlrpclib.ServerProxy):

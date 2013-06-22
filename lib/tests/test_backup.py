@@ -20,13 +20,10 @@ class TestBackupMySQLDump(unittest.TestCase):
     the source shard and setup the destination shard.
     """
     def setUp(self):
+        """Configure the existing environment
+        """
         from __main__ import mysqldump_path, mysqlclient_path
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
-
-        """Clean up the existing environment
-        """
-        tests.utils.cleanup_environment()
 
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -53,7 +50,7 @@ class TestBackupMySQLDump(unittest.TestCase):
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)
         self.__server_2.connect()
- 
+
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS backup_db")
         self.__server_1.exec_stmt("CREATE DATABASE backup_db")
         self.__server_1.exec_stmt("CREATE TABLE backup_db.backup_table"
@@ -79,14 +76,12 @@ class TestBackupMySQLDump(unittest.TestCase):
         self.assertEqual(rows[1][0], 'TEST 2')
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
         self.__server_1.exec_stmt("DROP DATABASE backup_db")
         self.__server_2.exec_stmt("DROP DATABASE backup_db")
 
-        """Clean up the existing environment
-        """
         tests.utils.cleanup_environment()
-
-        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
 if __name__ == "__main__":

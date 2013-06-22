@@ -31,11 +31,6 @@ class TestShardSplit(unittest.TestCase):
         GROUPID3 - localhost:13005, localhost:13006 - shard 2
         """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
-
-        """Clean up the existing environment
-        """
-        tests.utils.cleanup_environment()
 
         status = self.proxy.group.create("GROUPID1", "First description.")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -271,7 +266,7 @@ class TestShardSplit(unittest.TestCase):
                 self.assertEqual(rows[3][0], 'TEST 4')
                 self.assertEqual(rows[4][0], 'TEST 5')
                 self.assertEqual(rows[5][0], 'TEST 6')
- 
+
     def tearDown(self):
         self.proxy.sharding.enable_shard("1")
 
@@ -371,9 +366,5 @@ class TestShardSplit(unittest.TestCase):
             self.assertEqual(status[1][-1]["description"],
                              "Executed action (_destroy_group).")
 
-        """Clean up the existing environment
-        """
         tests.utils.cleanup_environment()
-
-        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)

@@ -23,22 +23,19 @@ class TestMySQLServer(unittest.TestCase):
     """Unit test for testing MySQLServer.
     """
     def setUp(self):
-        from __main__ import options
-        persistence.init(host=options.host, port=options.port,
-                          user=options.user, password=options.password)
-        persistence.setup()
-        persistence.init_thread()
-
+        """Configure the existing environment
+        """
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
         self.server = MySQLServer(**OPTIONS)
         MySQLServer.add(self.server)
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         self.server.disconnect()
         MySQLServer.remove(self.server)
-        persistence.deinit_thread()
-        persistence.teardown()
 
     def test_wrong_uuid(self):
         # Check wrong uuid.
@@ -117,11 +114,9 @@ class TestMySQLServer(unittest.TestCase):
         server = self.server
         server.connect()
 
-        # Executed gtids cannot be compared because we may have executed
-        # some statements in other tests.
         for record in server.get_gtid_status():
             executed = record.GTID_EXECUTED.lower()
-            self.assertTrue(executed.find(str(server.uuid)) != -1)
+            self.assertEqual(record.GTID_EXECUTED, "")
             self.assertEqual(record.GTID_PURGED, "")
             self.assertEqual(record.GTID_OWNED, "")
         #TODO: Test with gtids disabled.
@@ -309,15 +304,14 @@ class TestMySQLServer(unittest.TestCase):
 
 class TestConnectionPool(unittest.TestCase):
     def setUp(self):
-        from __main__ import options
-        persistence.init(host=options.host, port=options.port,
-                         user=options.user, password=options.password)
-        persistence.setup()
-        persistence.init_thread()
+        """Configure the existing environment
+        """
+        pass
 
     def tearDown(self):
-        persistence.deinit_thread()
-        persistence.teardown()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
 
     def test_connection_pool(self):
         # Configuration
@@ -357,15 +351,14 @@ class TestConnectionPool(unittest.TestCase):
 
 class TestGroup(unittest.TestCase):
     def setUp(self):
-        from __main__ import options
-        persistence.init(host=options.host, port=options.port,
-                         user=options.user, password=options.password)
-        persistence.setup()
-        persistence.init_thread()
+        """Configure the existing environment
+        """
+        pass
 
     def tearDown(self):
-        persistence.deinit_thread()
-        persistence.teardown()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
 
     def test_properties(self):
         group_1 = Group("mysql.com")

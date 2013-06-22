@@ -2,6 +2,7 @@ import getpass
 import logging
 import os.path
 import sys
+import xmlrpclib
 
 from distutils.util import get_platform
 
@@ -102,7 +103,7 @@ def check_connector():
         return False
     return True
 
-def run_tests(pkg, options, args):
+def run_tests(pkg, options, args, env_options):
     # Set up path correctly. We need the build directory in the path
     # and the directory with the tests (which are in 'lib/tests').  We
     # put this first in the path since there can be modules installed
@@ -128,16 +129,86 @@ def run_tests(pkg, options, args):
 
     # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
-    return TextTestRunner(verbosity=options.verbosity).run(suite)
+    proxy = setup_xmlrpc(options, env_options)
+    ret = TextTestRunner(verbosity=options.verbosity).run(suite)
+    teardown_xmlrpc(proxy)
+    return ret
+
+def setup_xmlrpc(options, env_options):
+    from mysql.fabric import (
+        config as _config,
+        persistence as _persistence,
+    )
+
+    # Configure parameters.
+    params = {
+        'protocol.xmlrpc': {
+            'address': 'localhost:%d' % (env_options["xmlrpc_next_port"], ),
+            'threads': '5',
+            },
+        'executor': {
+            'executors': '5',
+            },
+        'storage': {
+            'address': options.host + ":" + str(options.port),
+            'user': options.user,
+            'password': options.password,
+            'database': 'fabric',
+            'connection_timeout': 'None',
+            },
+            'sharding': {
+                'mysqldump_program': env_options["mysqldump_path"],
+                'mysqlclient_program': env_options["mysqlclient_path"],
+            },
+        }
+    config = _config.Config(None, params)
+
+    # Set up the manager.
+    from mysql.fabric.services.manage import (
+        _start,
+        _configure_connections,
+    )
+
+    _configure_connections(config)
+    _persistence.setup()
+    _persistence.init_thread()
+    _start(options, config)
+
+    # Set up the client.
+    url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
+    proxy = xmlrpclib.ServerProxy(url)
+
+    while True:
+        try:
+            proxy.manage.ping()
+            break
+        except Exception:
+            pass
+
+    return proxy
+
+def teardown_xmlrpc(proxy):
+    from mysql.fabric import (
+        persistence as _persistence,
+    )
+
+    proxy.manage.stop()
+    _persistence.deinit_thread()
+    _persistence.teardown()
 
 if __name__ == '__main__':
-    # Note: do not change the names of "options" and "args". They are
-    # used in the test modules to pull in user options.
+    # Note: do not change the names of the set of variables found below, e.g
+    # "options" and "args". They are used in the test modules to pull in user
+    # options.
     options, args = get_options()
     xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
-    mysqld_next_port = 13000
     mysqldump_path = os.getenv("MYSQLDUMP", "")
     mysqlclient_path = os.getenv("MYSQLCLIENT", "")
+    env_options = {
+        "xmlrpc_next_port" : xmlrpc_next_port,
+        "mysqldump_path" : mysqldump_path,
+        "mysqlclient_path" : mysqlclient_path,
+    }
 
     handler = None
     formatter = logging.Formatter(
@@ -168,7 +239,7 @@ if __name__ == '__main__':
         "INFO" : logging.INFO,
         "DEBUG" : logging.DEBUG
     }
- 
+
     # Get Logging level.
     if options.log_level:
         level = options.log_level.upper()
@@ -191,5 +262,5 @@ if __name__ == '__main__':
         logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
 
-    result = run_tests('tests', options, args)
+    result = run_tests('tests', options, args, env_options)
     sys.exit(result is None or not result.wasSuccessful())

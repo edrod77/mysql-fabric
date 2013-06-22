@@ -19,12 +19,9 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
     def setUp(self):
-        self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
-
-        """Clean up the existing environment
+        """Configure the existing environment
         """
-        tests.utils.cleanup_environment()
+        self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -145,7 +142,6 @@ class TestShardingServices(unittest.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_fail_duplicate_add_shard(self):

@@ -37,12 +37,8 @@ class TestMySQLMaster(unittest.TestCase):
     """Unit test for the configuration file handling.
     """
     def setUp(self):
-        from __main__ import options
-        persistence.init(host=options.host, port=options.port,
-                          user=options.user, password=options.password)
-        persistence.setup()
-        persistence.init_thread()
-
+        """Configure the existing environment
+        """
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         # TODO: Change the initialization style.
@@ -53,9 +49,10 @@ class TestMySQLMaster(unittest.TestCase):
         self.master.read_only = False
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         self.master.disconnect()
-        persistence.deinit_thread()
-        persistence.teardown()
 
     def test_master_binary_log(self):
         master = self.master
@@ -95,12 +92,8 @@ class TestMySQLSlave(unittest.TestCase):
     """
 
     def setUp(self):
-        from __main__ import options
-        persistence.init(host=options.host, port=options.port,
-                          user=options.user, password=options.password)
-        persistence.setup()
-        persistence.init_thread()
-
+        """Configure the existing environment
+        """
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         self.master = MySQLServer(**OPTIONS_MASTER)
@@ -116,11 +109,12 @@ class TestMySQLSlave(unittest.TestCase):
         reset_slave(self.slave, clean=True)
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         stop_slave(self.slave, wait=True)
         self.slave.disconnect()
         self.master.disconnect()
-        persistence.deinit_thread()
-        persistence.teardown()
 
     def test_switch_master(self):
         # TODO: Test it also without gtis so we can define binary
@@ -140,7 +134,7 @@ class TestMySQLSlave(unittest.TestCase):
         switch_master(slave, master, "root", "")
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
-        # The IO_THREAD status and the UUID are not atomically updated. 
+        # The IO_THREAD status and the UUID are not atomically updated.
         master_uuid = slave_has_master(slave)
         self.assertTrue(
             master_uuid == None or master_uuid == str(master.uuid)
@@ -371,8 +365,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertEqual(master_gtid_status[0].GTID_EXECUTED, "")
 
         # Check what happens if there are different sets of transactions.
-        master.exec_stmt("USE test")
-        master.exec_stmt("DROP TABLE IF EXISTS test")
+        master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
         master_gtid_status = master.get_gtid_status()
         slave_gtid_status = slave.get_gtid_status()
         ret = get_slave_num_gtid_behind(slave, master_gtid_status)

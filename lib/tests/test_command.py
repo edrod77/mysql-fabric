@@ -89,6 +89,8 @@ class TestCommand(unittest.TestCase):
     "Test command interface."
 
     def setUp(self):
+        """Configure the existing environment
+        """
         _command.register_command(
             "test", "procedure_command_0", ClassCommand_0
             )
@@ -96,11 +98,13 @@ class TestCommand(unittest.TestCase):
             "test", "procedure_command_1", ClassCommand_1
             )
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
 
     def tearDown(self):
-        _persistence.deinit_thread()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
+
         _command.unregister_command("test", "procedure_command_0")
         _command.unregister_command("test", "procedure_command_1")
 
@@ -176,54 +180,54 @@ class TestCommand(unittest.TestCase):
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = default).
         status = self.proxy.test.procedure_command_0("test")
-        self.assertNotEqual(check.match(status[0]), None) 
+        self.assertNotEqual(check.match(status[0]), None)
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[2], True)
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = "True").
         status = self.proxy.test.procedure_command_0("test", True)
-        self.assertNotEqual(check.match(status[0]), None) 
+        self.assertNotEqual(check.match(status[0]), None)
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[2], True)
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = "TrUe").
         status = self.proxy.test.procedure_command_0("test", "TrUe")
-        self.assertNotEqual(check.match(status[0]), None) 
+        self.assertNotEqual(check.match(status[0]), None)
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[2], True)
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = 1).
         status = self.proxy.test.procedure_command_0("test", 1)
-        self.assertNotEqual(check.match(status[0]), None) 
+        self.assertNotEqual(check.match(status[0]), None)
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[2], True)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = False).
         status = self.proxy.test.procedure_command_0("test", False)
-        self.assertNotEqual(check.match(status), None) 
+        self.assertNotEqual(check.match(status), None)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = 0).
         status = self.proxy.test.procedure_command_0("test", 0)
-        self.assertNotEqual(check.match(status), None) 
+        self.assertNotEqual(check.match(status), None)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = "False").
         status = self.proxy.test.procedure_command_0("test", "False")
-        self.assertNotEqual(check.match(status), None) 
+        self.assertNotEqual(check.match(status), None)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = "abc").
         status = self.proxy.test.procedure_command_0("test", "abc")
-        self.assertNotEqual(check.match(status), None) 
+        self.assertNotEqual(check.match(status), None)
 
         # Procedure is synchronously executed but throws an error.
         status = self.proxy.test.procedure_command_1("test", True)
-        self.assertNotEqual(check.match(status[0]), None) 
+        self.assertNotEqual(check.match(status[0]), None)
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[2], False)
 

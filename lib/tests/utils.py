@@ -161,13 +161,38 @@ def cleanup_environment():
     #Clean up information on instances.
     MySQLInstances().__instances = {}
 
+    #Clean up information in the state store.
+    from __main__ import options
+    __options = {
+        "uuid" :  None,
+        "address"  : options.host + ":" + str(options.port),
+        "user" : options.user,
+        "passwd" : options.password,
+    }
+
+    __uuid_server = _server.MySQLServer.discover_uuid(**__options )
+
+    __options ["uuid"] = _uuid.UUID(__uuid_server)
+    __server = _server.MySQLServer(**__options )
+    __server.connect()
+
+    __server.set_foreign_key_checks(False)
+    tables = __server.exec_stmt(
+        "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE "
+        "TABLE_SCHEMA = 'fabric'"
+    )
+    for table in tables:
+        __server.exec_stmt("TRUNCATE fabric.%s" % (table[0], ))
+    __server.set_foreign_key_checks(True)
+
     #Remove all the databases from the running MySQL instances
     #other than the standard ones
     STANDARD_DB_LIST = ("information_schema", "mtr", "mysql", "performance_schema")
     server_count = MySQLInstances().get_number_addresses()
+
     for i in range(0, server_count):
         __options = {
-            "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uuid" :  None,
             "address"  : MySQLInstances().get_address(i),
             "user" : "root"
         }
@@ -192,54 +217,12 @@ def cleanup_environment():
         os.remove(__file)
 
 def setup_xmlrpc():
-    # TODO: Check the xmlrpc_next_port...
-    from __main__ import options, xmlrpc_next_port, mysqldump_path, mysqlclient_path
-    params = {
-        'protocol.xmlrpc': {
-            'address': 'localhost:%d' % (xmlrpc_next_port, ),
-            },
-        'storage': {
-            'address': options.host + ":" + str(options.port),
-            'user': options.user,
-            'password': options.password,
-            'database': 'fabric',
-            'connection_timeout': 'None',
-            },
-            'sharding': {
-                'mysqldump_program': mysqldump_path,
-                'mysqlclient_program': mysqlclient_path,
-            },
-        }
-    config = _config.Config(None, params)
-
-    # Set up the manager
-    from mysql.fabric.services.manage import (
-        _start,
-        _configure_connections,
-        )
-
-    _configure_connections(config)
-    _persistence.setup()
-    manager_thread = threading.Thread(
-        target=_start, name="Services", args=(options, config)
-        )
-    manager_thread.daemon = True
-    manager_thread.start()
+    from __main__ import xmlrpc_next_port
 
     # Set up the client
-    url = "http://%s" % (config.get("protocol.xmlrpc", "address"),)
-    proxy = xmlrpclib.ServerProxy(url)
+    proxy = xmlrpclib.ServerProxy("http://localhost:%d" % (xmlrpc_next_port, ))
 
-    while True:
-        try:
-            proxy.manage.ping()
-            break
-        except Exception:
-            time.sleep(1)
-
-    return (manager_thread, proxy)
+    return (None, proxy)
 
 def teardown_xmlrpc(manager, proxy):
-    proxy.manage.stop()
-    manager.join()
-    _persistence.teardown()
+    pass

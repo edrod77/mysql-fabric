@@ -13,6 +13,7 @@ from mysql.fabric import (
     config as _config,
     errors as _errors,
     events as _events,
+    executor as _executor,
     failure_detector as _detector,
     persistence as _persistence,
     recovery as _recovery,
@@ -37,6 +38,12 @@ _LOGGING_LEVELS = {
     "INFO" : logging.INFO,
     "DEBUG" : logging.DEBUG
 }
+
+# Number of concurrent threads that are created to handle requests.
+DEFAULT_N_THREADS = 1
+
+# Number of concurrent executors that are created to handle jobs.
+DEFAULT_N_EXECUTORS = 1
 
 class Logging(Command):
     """Set logging level.
@@ -182,6 +189,7 @@ class Start(Command):
         # Start Fabric server.
         _LOGGER.info("Fabric node starting.")
         _start(self.options, self.config)
+        _events.Handler().wait()
         _LOGGER.info("Fabric node stopped.")
 
 
@@ -294,7 +302,7 @@ def _configure_logging(config, daemon):
 
     formatter = logging.Formatter(
         "[%(levelname)s] %(asctime)s - %(threadName)s"
-        " %(thread)d - %(message)s")
+        " - %(message)s")
     handler.setFormatter(formatter)
     try:
         level = config.get("logging", "level")
@@ -308,11 +316,27 @@ def _configure_connections(config):
     """Configure information on database connection and remote
     servers.
     """
+
+    # Configure the number of concurrent executors.
+    try:
+        number_executors = config.get('executor', "executors")
+        number_executors = int(number_executors)
+    except (_config.NoOptionError, ValueError):
+        number_executors = DEFAULT_N_EXECUTORS
+    _executor.Executor(number_executors)
+
     # Fetch options to configure the XML-RPC.
     address = config.get('protocol.xmlrpc', "address")
 
+    # Configure the number of concurrent threads.
+    try:
+        number_threads = config.get('protocol.xmlrpc', "threads")
+        number_threads = int(number_threads)
+    except (_config.NoOptionError, ValueError):
+        number_threads = DEFAULT_N_THREADS
+
     # Define XML-RPC configuration.
-    _services.ServiceManager(address)
+    _services.ServiceManager(address, number_threads)
 
     # Fetch options to configure the state store.
     address = config.get('storage', 'address')
@@ -365,7 +389,8 @@ class Stop(Command):
     def execute(self):
         """Stop the Fabric server.
         """
-        return _shutdown()
+        _shutdown()
+        return True
 
 
 def _shutdown():
@@ -374,7 +399,7 @@ def _shutdown():
     _detector.FailureDetector.unregister_groups()
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
-    return True
+    _events.Handler().wait()
 
 
 class FabricLookups(Command):

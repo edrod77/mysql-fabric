@@ -27,6 +27,14 @@ class Scheduler(object):
         """
         return self.__lock_manager
 
+    def enqueue_procedures(self, procedures):
+        """Enqueue a list of procedures.
+
+        :param procedures: Reference to a list of procedures.
+        """
+        for procedure in procedures:
+            self.enqueue_procedure(procedure)
+
     def enqueue_procedure(self, procedure):
         """Enqueue a procedure.
 

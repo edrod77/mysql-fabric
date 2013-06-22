@@ -32,11 +32,6 @@ class TestShardingPrune(unittest.TestCase):
         GROUPID3 - localhost:13005, localhost:13006 - shard 2
         """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
-
-        """Clean up the existing environment
-        """
-        tests.utils.cleanup_environment()
 
         status = self.proxy.group.create("GROUPID1", "First description.")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -264,9 +259,5 @@ class TestShardingPrune(unittest.TestCase):
             self.assertEqual(status[1][-1]["description"],
                              "Executed action (_destroy_group).")
 
-        """Clean up the existing environment
-        """
         tests.utils.cleanup_environment()
-
-        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)

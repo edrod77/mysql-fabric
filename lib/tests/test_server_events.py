@@ -20,10 +20,9 @@ class TestServerServices(unittest.TestCase):
 
     def setUp(self):
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
 
     def tearDown(self):
-        _persistence.deinit_thread()
+        tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_create_group_events(self):
@@ -463,7 +462,7 @@ class TestServerServices(unittest.TestCase):
         server =  self.proxy.group.lookup_servers("group")
         self.assertEqual(len(server[-1]), 3)
 
-        # TODO: HOW TO FIX THIS (HAM-132)? 
+        # TODO: HOW TO FIX THIS (HAM-132)?
         # The return is temporarily placed here while
         # HAM-132 is not fixed.
         return

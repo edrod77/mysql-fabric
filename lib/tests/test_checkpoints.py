@@ -90,12 +90,16 @@ class TestPropertiesCheckpoint(unittest.TestCase):
 
     """
     def setUp(self):
-        self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
+        """Configure the existing environment
+        """
+        pass
 
     def tearDown(self):
-        _persistence.deinit_thread()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
+        """Clean up the existing environment
+        """
+        _executor.Executor().shutdown()
+        tests.utils.cleanup_environment()
+        _executor.Executor().start()
 
     def test_properties_1(self):
         """1 - Through a service or regular function, triggering an
@@ -285,13 +289,17 @@ class TestRecoveryCheckpoint(unittest.TestCase):
 
     """
     def setUp(self):
-        self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        self.persister = _persistence.MySQLPersister()
-        _persistence.PersistentMeta.init_thread(self.persister)
+        """Configure the existing environment
+        """
+        self.persister = _persistence.PersistentMeta.thread_local.persister
+        assert(self.persister is not None)
 
     def tearDown(self):
-        _persistence.PersistentMeta.deinit_thread()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
+        """Clean up the existing environment
+        """
+        _executor.Executor().shutdown()
+        tests.utils.cleanup_environment()
+        _executor.Executor().start()
 
     def test_recovery_single_job(self):
         """Check checkpoint and recovery with a single job.
@@ -299,8 +307,8 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         global COUNT_1, COUNT_2
         count_1 = 10
         count_2 = 30
-        proc_uuid = _uuid.UUID("01da10ed-514e-43a4-8388-ab05c04d67e1")
-        job_uuid = _uuid.UUID("e4e1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        proc_uuid = _uuid.UUID("9f994e3a-a732-43ba-8aab-f1051f553437")
+        job_uuid = _uuid.UUID("64835080-2114-46de-8fbf-8caba8e8cd90")
         do_action = check_do_action
         do_action_fqn = do_action.__module__ + "." + do_action.__name__
         args = (count_1, count_2)
@@ -334,6 +342,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
+        executor.remove_procedure(proc_uuid)
 
         # BEGIN (FAILURE) DO FINISH
         COUNT_1 = 0
@@ -344,7 +353,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         checkpoint.schedule()
         checkpoint.begin()
         self.persister.begin()
-        ### empty ###
+        ####### empty #######
         self.persister.rollback()
 
         self.assertEqual(COUNT_1, 0)
@@ -366,6 +375,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
+        executor.remove_procedure(proc_uuid)
 
         # BEGIN DO (FAILURE) FINISH
         COUNT_1 = 0
@@ -399,6 +409,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
+        executor.remove_procedure(proc_uuid)
 
         # BEGIN DO FINISH (FAILURE)
         COUNT_1 = 0
@@ -430,6 +441,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
+        executor.remove_procedure(proc_uuid)
 
     def test_recovery_chain_jobs(self):
         """Check checkpoint and recovery when a job triggers another
@@ -492,25 +504,26 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
+        executor.remove_procedure(proc_uuid)
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_1)
 def check_properties_1(param_01, param_02):
     executor = _executor.Executor()
-    job = executor.thread.current_job
+    job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_2)
 def check_properties_2_proc_1(param_01, param_02):
     executor = _executor.Executor()
-    job = executor.thread.current_job
+    job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_2)
 def check_properties_2_proc_2(param_01, param_02):
     executor = _executor.Executor()
-    job = executor.thread.current_job
+    job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
@@ -521,7 +534,7 @@ def check_properties_3(param_01, param_02):
         )
 
     executor = _executor.Executor()
-    job = executor.thread.current_job
+    job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
@@ -538,7 +551,7 @@ def check_properties_5(param_01, param_02):
         )
 
     executor = _executor.Executor()
-    job = executor.thread.current_job
+    job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 

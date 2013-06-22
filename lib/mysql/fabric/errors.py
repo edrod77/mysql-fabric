@@ -30,8 +30,8 @@ class UnknownEventError(Error):
     pass
 
 class ExecutorError(Error):
-    """Exception raised when the one tries to access the executor that is
-    not properly configured.
+    """Exception raised when the one tries to access the executor that
+    is not properly configured.
     """
 
 class InvalidGtidError(Error):

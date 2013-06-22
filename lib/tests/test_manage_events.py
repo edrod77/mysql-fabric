@@ -115,6 +115,8 @@ class TestManageServices(unittest.TestCase):
     """Test manage services.
     """
     def setUp(self):
+        """Configure the existing environment
+        """
         self.old_stderr = sys.stderr
         sys.stderr = StringIO()
         _command.register_command(
@@ -139,12 +141,14 @@ class TestManageServices(unittest.TestCase):
             "test", "remote_command_2", NewRemoteCommandWithArgs
             )
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
         sys.stderr = self.old_stderr
-        _persistence.deinit_thread()
+        tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
+
         _command.unregister_command("test", "non_doc_command_1")
         _command.unregister_command("test", "non_dot_command_1")
         _command.unregister_command("test", "dot_command_1")

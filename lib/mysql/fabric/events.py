@@ -15,9 +15,9 @@ the event.
      Source -> Handler [ label = "trigger(event)" ]
      Handler -> Handler [ label = "lookup(event)" ]
      Handler <-- Handler [ label = "blocks" ]
-     Handler -> Executor [ label = "enqueue_procedure(block)",
+     Handler -> Executor [ label = "enqueue_procedures(block)",
                            note = "for block in blocks: \ \n
-                           executor.enqueue_procedure(block)" ]
+                           executor.enqueue_procedures(block)" ]
      Handler <-- Executor [ label = "procedure",
                             note = "procedures.append(procedure)" ]
      Source <-- Handler [ label = "procedure" ]
@@ -126,14 +126,19 @@ class Handler(Singleton):
         self.__blocks_for = {}
 
     def start(self):
-        """Start the executor which is responsible for scheduling events.
+        """Start the executor.
         """
         self.__executor.start()
 
     def shutdown(self):
-        """Shutdown the executor which is responsible for scheduling events.
+        """Shut down the executor.
         """
         self.__executor.shutdown()
+
+    def wait(self):
+        """Wait until the executor stops.
+        """
+        self.__executor.wait()
 
     def register(self, event, blocks):
         """Register code blocks with an event in the event handler.
@@ -279,7 +284,7 @@ class Handler(Singleton):
                   event.
         :rtype: Procedures that were scheduled.
 
-        See :meth:`mysql.fabric.executor.Executor.enqueue_procedure()`.
+        See :meth:`mysql.fabric.executor.Executor.enqueue_procedures()`.
         """
         _LOGGER.debug("Triggering event %s", event)
 
@@ -289,11 +294,14 @@ class Handler(Singleton):
             else:
                 event = None
 
-        # Enqueue the procedures and return a list of the procedures scheduled
+        # Enqueue the procedures and return a list with the procedures
+        # scheduled.
         actions = [
-            (block, "Triggered by %s." % (event, ), args, kwargs)
+            {"action" : (block, "Triggered by %s." % (event, ), args, kwargs),
+             "job" : None
+            }
             for block in self.__blocks_for.get(event, [])
-            ]
+        ]
         return self.__executor.enqueue_procedures(within_procedure, actions)
 
 def trigger(event, *args, **kwargs):

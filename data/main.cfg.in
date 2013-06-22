@@ -7,6 +7,10 @@ connection_timeout = 6
 
 [protocol.xmlrpc]
 address = localhost:8080
+threads = 5
+
+[executor]
+executors = 5
 
 [logging]
 level = INFO

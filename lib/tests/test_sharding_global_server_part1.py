@@ -31,11 +31,6 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
         GROUPID3 - localhost:13005, localhost:13006 - shard 2
         """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
-
-        """Clean up the existing environment
-        """
-        tests.utils.cleanup_environment()
 
         status = self.proxy.group.create("GROUPID1", "First description.")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -197,7 +192,7 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
         except _errors.DatabaseError:
             #The table should not have been created.
             pass
-                         
+
     def test_shard_server_added_later(self):
         self.proxy.sharding.disable_shard("1")
         self.proxy.sharding.remove_shard("1")
@@ -300,7 +295,7 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
                 self.assertEqual(rows[4][0], 'TEST 5')
                 self.assertEqual(rows[5][0], 'TEST 6')
                 self.assertEqual(rows[6][0], 'TEST 7')
-                
+
     def tearDown(self):
         self.proxy.sharding.enable_shard("2")
         self.proxy.sharding.enable_shard("3")
@@ -401,9 +396,5 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
             self.assertEqual(status[1][-1]["description"],
                              "Executed action (_destroy_group).")
 
-        """Clean up the existing environment
-        """
         tests.utils.cleanup_environment()
-
-        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)

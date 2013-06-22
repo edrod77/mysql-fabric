@@ -30,20 +30,15 @@ class Callable(object):
 class TestHandler(unittest.TestCase):
     """Test event handler.
     """
-
     def setUp(self):
-        from __main__ import options
-        _persistence.init(host=options.host, port=options.port,
-                          user=options.user, password=options.password)
-        _persistence.setup()
-        _persistence.init_thread()
+        """Configure the existing environment
+        """
         self.handler = _events.Handler()
-        self.handler.start()
 
     def tearDown(self):
-        self.handler.shutdown()
-        _persistence.teardown()
-        _persistence.deinit_thread()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
 
     def test_events(self):
         "Test creating events."
@@ -174,17 +169,14 @@ class TestDecorator(unittest.TestCase):
     handler = _events.Handler()
 
     def setUp(self):
-        from __main__ import options
-        _persistence.init(host=options.host, port=options.port,
-                          user=options.user, password=options.password)
-        _persistence.setup()
-        _persistence.init_thread()
-        self.handler.start()
+        """Configure the existing environment
+        """
+        pass
 
     def tearDown(self):
-        self.handler.shutdown()
-        _persistence.teardown()
-        _persistence.deinit_thread()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
 
     def test_decorator(self):
         global _PROMOTED, _DEMOTED
@@ -228,11 +220,14 @@ class TestService(unittest.TestCase):
     "Test the service interface"
 
     def setUp(self):
+        """Configure the existing environment
+        """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
 
     def tearDown(self):
-        _persistence.deinit_thread()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_trigger(self):

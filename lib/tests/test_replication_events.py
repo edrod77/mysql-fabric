@@ -19,14 +19,11 @@ class TestReplicationServices(unittest.TestCase):
         """Configure the existing environment
         """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
-        tests.utils.cleanup_environment()
 
     def tearDown(self):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        _persistence.deinit_thread()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def assertStatus(self, status, expect):

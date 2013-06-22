@@ -80,8 +80,7 @@ class Procedure(object):
             return self.__complete
 
     def get_scheduled_jobs(self):
-        """Return the set of jobs has been scheduled on behalf of the
-        procedure.
+        """Return the set of jobs scheduled on behalf of this procedure.
 
         :return: List of scheduled jobs.
         :rtype: List
@@ -89,9 +88,15 @@ class Procedure(object):
         with self.__lock:
             return list(self.__scheduled_jobs)
 
+    def get_executed_jobs(self):
+        """Return the set of jobs executed on behalf of this procedure.
+        """
+        with self.__lock:
+            return list(self.__executed_jobs)
+
     def add_scheduled_job(self, job):
         """Register that a job has been scheduled on behalf of the
-        procedeure.
+        procedure.
 
         :param job: Scheduled job.
         """
@@ -157,15 +162,35 @@ class Procedure(object):
     def wait(self):
         """Wait until the procedure finishes its execution.
         """
-        self.__lock.acquire()
-        while not self.__complete:
-            self.__lock.wait()
-        self.__lock.release()
+        with self.__lock:
+            while not self.__complete:
+                self.__lock.wait()
+
+    def __eq__(self,  other):
+        """Two procedures are equal if they have the same uuid.
+        """
+        return isinstance(other, Procedure) and self.__uuid == other.uuid
+
+    def __hash__(self):
+        """A procedure is hashable through its uuid.
+        """
+        return hash(self.__uuid)
+
+    def __str__(self):
+        """Return a description on the procedure: <Procedure object: uuid=...,
+        complete=..., exec_jobs=..., sche_jobs=...>.
+        """
+        with self.__lock:
+            ret = "<Procedure object: uuid=%s, complete=%s, exec_jobs=%s, " \
+                "sche_jobs=%s>" % (self.__uuid, self.__complete,
+                [str(job.uuid) for job in self.__executed_jobs],
+                [str(job.uuid) for job in self.__scheduled_jobs])
+            return ret
 
 
 class Job(object):
-    """Encapuslate a code block and is scheduled through the executor within
-    the context of a procedure.
+    """Encapsulate a code block and is scheduled through the
+    executor within the context of a procedure.
     """
     ERROR, SUCCESS = range(1, 3)
     EVENT_OUTCOME = [ERROR, SUCCESS]
@@ -208,6 +233,7 @@ class Job(object):
         self.__procedure = procedure
         self.__is_recoverable = _checkpoint.Checkpoint.is_recoverable(action)
         self.__jobs = []
+        self.__procedures = []
         self.__action_fqn = action.__module__ + "." + action.__name__
 
         self.__checkpoint = _checkpoint.Checkpoint(
@@ -277,6 +303,15 @@ class Job(object):
         assert(isinstance(jobs, list))
         self.__jobs.extend(jobs)
 
+    def append_procedures(self, procedures):
+        """Gather procedures that shall be scheduled after the current
+        job is executed.
+
+        :param procedures: List of procedures.
+        """
+        assert(isinstance(procedures, list))
+        self.__procedures.extend(procedures)
+
     def _add_status(self, success, state, description, diagnosis=False):
         """Add a new status to this job.
         """
@@ -300,6 +335,9 @@ class Job(object):
 
     def execute(self, persister, scheduler, queue):
         """Execute the job.
+
+        :param executor_queue: Reference to the executor's queue.
+        :param scheduler_queue: Reference to the scheduler's queue.
         """
         try:
             # Update the job status.
@@ -323,8 +361,9 @@ class Job(object):
             try:
                 # Rollback the job transactional context.
                 persister.rollback()
-            except _errors.DatabaseError as db_error:
-                _LOGGER.exception(db_error)
+            except (_errors.DatabaseError, _errors.WorkerError) as \
+                executor_error:
+                _LOGGER.exception(executor_error)
 
             # Update the job status.
             self.__result = False
@@ -334,9 +373,13 @@ class Job(object):
 
         else:
             try:
-                # Register information jobs created within the context of the
+                # Register information on jobs created within the context of the
                 # current job.
                 _checkpoint.register(self.__jobs, True)
+                # TODO: Check if this is the best choice.
+                for procedure in self.__procedures:
+                    assert(len(procedure.get_executed_jobs()) == 0)
+                    _checkpoint.register(procedure.get_scheduled_jobs(), True)
 
                 # Register that the job has finished the execution.
                 if self.__is_recoverable:
@@ -345,18 +388,10 @@ class Job(object):
                 # Commit the job transactional context.
                 persister.commit()
 
-                # Schedule jobs created within the context of the current
-                # job.
-                procedures = set()
-                jobs = set()
-                for job in self.__jobs:
-                    if job.procedure != self.__procedure:
-                        procedures.add(job.procedure)
-                    else:
-                        jobs.add(job)
-                for procedure in procedures:
-                    scheduler.enqueue_procedure(procedure)
-                queue.schedule(list(jobs))
+                # Schedule jobs and procedures created within the context of
+                # the current job.
+                queue.schedule(self.__jobs)
+                scheduler.enqueue_procedures(self.__procedures)
             except _errors.DatabaseError as db_error:
                 _LOGGER.exception(db_error)
 
@@ -384,46 +419,44 @@ class Job(object):
     def __str__(self):
         """Return a description on the job: <Job object: uuid=..., status=...>.
         """
-        ret = "<Job object: " + \
-               "uuid=" + str(self.__uuid) + ", " + \
-               "status=" + str(self.__status) + \
-               ">"
+        ret = "<Job object: uuid=%s, status=%s>" % \
+            (self.__uuid, self.__status)
         return ret
 
 
 class ExecutorThread(threading.Thread):
-    """Class representing an executor thread for executing jobs.
-
-    The thread will repeatedly read from the scheduler and execute a
-    job. Note that the scheduler is shared between all thread instances.
-
-    Each thread will create a persister and register it with the
-    persistance system so that objects manipulated as part of the job
-    execution can be persisted to the persistent store.
-
-    :param scheduler: Scheduler which is responsible for scheduling procedures
-                      and jobs.
+    """Class representing a executor thread which is responsible for
+    executing jobs.
     """
-    def __init__(self, scheduler):
-        "Constructor for ExecutorThread."
-        super(ExecutorThread, self).__init__(name="Executor")
+    local_thread = threading.local()
+
+    def __init__(self, scheduler, name):
+        """Constructor for ExecutorThread.
+        """
+        super(ExecutorThread, self).__init__(name=name)
         self.__scheduler = scheduler
         self.__queue = ExecutorQueue()
         self.__persister = None
         self.__job = None
-        self.__current_thread = None
         self.daemon = True
 
-    def is_current_thread(self):
-        """Check if the current thread is the same as the executor's thread.
+    @staticmethod
+    def executor_object():
+        """This method returns a reference to the ExecutorThread object
+        if the current thread is associated to one. Otherwise, it returns
+        None.
         """
-        return self.__current_thread == threading.current_thread()
+        try:
+            return ExecutorThread.local_thread.executor_object
+        except AttributeError:
+            pass
+        return None
 
     @property
     def current_job(self):
         """Return a reference to the current job.
         """
-        assert(self.__current_thread == threading.current_thread())
+        assert(ExecutorThread.executor_object is not None)
         return self.__job
 
     def run(self):
@@ -432,40 +465,38 @@ class ExecutorThread(threading.Thread):
         This function will repeatedly read jobs from the scheduler and
         execute them.
         """
-        _LOGGER.debug("Initializing Executor thread %s", self.name)
+        _LOGGER.debug("Initializing Executor thread %s.", self.name)
+
+        ExecutorThread.local_thread.executor_object = self
         self.__persister = _persistence.MySQLPersister()
         _persistence.PersistentMeta.init_thread(self.__persister)
-        # TODO: When is the persister closed? Apparently, this is
-        # not automatically done and we need to fix that.
-
-        self.__current_thread = threading.current_thread()
 
         procedure = None
         while True:
             if procedure is None or procedure.is_complete():
                 procedure = self._next_procedure(procedure)
-                _LOGGER.debug("Reading procedure from queue, found %s.",
+                _LOGGER.debug("Reading procedure from scheduler, found %s.",
                               procedure)
+                if procedure is None:
+                    break
 
             self.__job = self.__queue.get()
             _LOGGER.debug("Reading next job from queue, found %s.",
                           self.__job)
-
-            if self.__job is None:
-                self.__queue.done()
-                break
-
-            self.__job.execute(self.__persister, self.__scheduler,
-                               self.__queue)
+            self.__job.execute(self.__persister, self.__scheduler, self.__queue)
             self.__queue.done()
 
+        _persistence.PersistentMeta.deinit_thread()
+
     def _next_procedure(self, prv_procedure):
+        assert(prv_procedure is None or prv_procedure.is_complete())
         self.__scheduler.done(prv_procedure)
         procedure = self.__scheduler.next_procedure()
-        jobs = procedure.get_scheduled_jobs() if procedure else [None]
-        self.__queue.schedule(jobs)
+        if procedure is not None:
+            assert(not procedure.is_complete())
+            assert(len(procedure.get_executed_jobs()) == 0)
+            self.__queue.schedule(procedure.get_scheduled_jobs())
         return procedure
-
 
 class ExecutorQueue(object):
     """Queue where scheduled jobs are put.
@@ -516,113 +547,65 @@ class Executor(Singleton):
     Procedures to be executed are queued into the scheduler and
     sequentially executed.
     """
-    def __init__(self):
+    def __init__(self, number_executors=1):
+        """Constructor for the Executor.
+        """
         super(Executor, self).__init__()
         self.__scheduler = _scheduler.Scheduler()
         self.__procedures_lock = threading.RLock()
         self.__procedures = WeakValueDictionary()
-        self.__thread_lock = threading.RLock()
-        self.__thread = None
-
-    @property
-    def thread(self):
-        """Return a reference to the ExecutorThread.
-        """
-        return self.__thread
+        self.__threads_lock = threading.RLock()
+        self.__executors = []
+        self.__number_executors = number_executors
 
     def start(self):
         """Start the executor.
         """
-        with self.__thread_lock:
-            _LOGGER.info("Starting Executor")
-            if not self.__thread:
-                self.__thread = ExecutorThread(self.__scheduler)
-                self.__thread.start()
-                _LOGGER.info("Executor started")
-            else:
-                raise _errors.ExecutorError("Executor is already running.")
+        with self.__threads_lock:
+            self._assert_not_running()
+
+            _LOGGER.info("Starting Executor.")
+
+            for nw in range(0, self.__number_executors):
+                executor = ExecutorThread(
+                    self.__scheduler, "Executor-{0}".format(nw)
+                )
+                executor.start()
+                self.__executors.append(executor)
+
+            _LOGGER.info("Executor started.")
 
     def shutdown(self):
         """Shut down the executor.
         """
         _LOGGER.info("Shutting down Executor.")
-        thread = None
-        with self.__thread_lock:
-            if self.__thread and self.__thread.is_alive():
-                self.__scheduler.enqueue_procedure(None)
-                thread = self.__thread
-            self.__thread = None
-        if thread:
-            _LOGGER.debug("Waiting until the Executor stops.")
-            thread.join()
-        _LOGGER.info("Executor has stopped")
 
-    # TODO: MERGE AND REORGANIZE FUNCTIONS: enqueue_* and create_procedures.
-    # TODO: FIX THIS BEFORE RELEASE 0.2.2.
-    def create_procedures(self, within_procedure, nactions):
-        """Schedule a job on behalf of a procedured.
+        executors = None
+        with self.__threads_lock:
+            self._assert_running()
+            executors = self.__executors
+            self.__executors = []
+        assert(executors is not None)
 
-        :within_procedure: Define if a new procedure will be created or not.
-        :nactions: Number of procedures that shall be created.
-        :return: Return a set of procedure objects.
+        for executor in executors:
+            self.__scheduler.enqueue_procedure(None)
 
-        If the within_procedure parameter is not set, a new procedure is
-        created. Otherwise, the job is associated to a previously defined
-        procedure. When the within_procedure parameter uses a boolean type,
-        the current job's procedure is associated to it and when it uses a
-        UUID type, the new procedure takes its id upon the within_parameter.
+        for executor in executors:
+            executor.join()
 
-        It is only possible to schedule jobs within the context of the current
-        job's procedure if the request comes from the job's code block. If
-        this does not happen, the :class:`mysql.fabric.errors.ProgrammingError`
-        exception is raised.
+        _LOGGER.info("Executor has stopped.")
+
+    def wait(self):
+        """Wait until the executor shuts down.
         """
-        procedures = None
-        thread = None
+        scheduler = None
+        executors = None
+        with self.__threads_lock:
+            executors = self.__executors
 
-        with self.__thread_lock:
-            if self.__thread and self.__thread.is_alive():
-                thread = self.__thread
-            else:
-                raise _errors.ExecutorError("Executor is not running.")
-        assert(thread is not None)
-
-        assert(isinstance(within_procedure, bool) or \
-               isinstance(within_procedure, _uuid.UUID))
-        if within_procedure and isinstance(within_procedure, bool) and \
-            not thread.is_current_thread():
-            raise _errors.ProgrammingError(
-                "One can only create a job within the context "
-                "of the current procedure from a job that belongs "
-                "to this procedure."
-                )
-        elif within_procedure and isinstance(within_procedure, _uuid.UUID) \
-            and thread.is_current_thread():
-            raise _errors.ProgrammingError(
-                "One can only create a job within the context "
-                "of an specific procedure while recovering."
-                )
-        elif within_procedure and isinstance(within_procedure, bool):
-            procedures = []
-            for number in range(0, nactions):
-                procedures.append(thread.current_job.procedure)
-        elif within_procedure and isinstance(within_procedure, _uuid.UUID):
-            procedures = []
-            for number in range(0, nactions):
-                procedure = Procedure(within_procedure)
-                procedures.append(procedure)
-                with self.__procedures_lock:
-                    self.__procedures[procedure.uuid] = procedure
-        else:
-            procedures = []
-            for number in range(0, nactions):
-                procedure = Procedure()
-                procedures.append(procedure)
-                with self.__procedures_lock:
-                    self.__procedures[procedure.uuid] = procedure
-        assert(procedures is not None)
-
-        return procedures
+        if executors:
+            for executor in executors:
+                executor.join()
 
     def enqueue_procedure(self, within_procedure, do_action, description,
                           *args, **kwargs):
@@ -636,75 +619,124 @@ class Executor(Singleton):
         :return: Reference to the procedure.
         :rtype: Procedure
         """
-        procedures = self.enqueue_procedures(
-            within_procedure, [(do_action, description, args, kwargs)]
-            )
+        procedures = self.enqueue_procedures(within_procedure,
+            [{"action" : (do_action, description, args, kwargs),
+              "job" : None
+            }]
+        )
         return procedures[0]
 
     def enqueue_procedures(self, within_procedure, actions):
         """Schedule a set of procedures.
 
-        :param within_procedure: Whether a new procedure will be created or
-                                 not for each action.
         :param actions: Set of actions to be scheduled and each action
                         corresponds to a procedure.
         :type actions: Dictionary [{"job" : Job uuid, "action" :
                        (action, description, non-keyword arguments,
                        keyword arguments)}, ...]
+        :within_procedure: Define if a new procedure will be created or not.
         :return: Return a set of procedure objects.
         """
-        jobs = []
-        nactions = len(actions)
-        procedures = self.create_procedures(within_procedure, nactions)
-        for number in range(0, nactions):
-            do_action, description, args, kwargs = actions[number]
-            job = Job(procedures[number], do_action, description, args, kwargs)
-            jobs.append(job)
+        if not len(actions):
+            return []
 
-        thread = self.__thread
-        if thread.is_current_thread() and isinstance(within_procedure, bool):
-            thread.current_job.append_jobs(jobs)
-        else:
+        with self.__threads_lock:
+            self._assert_running()
+
+        # TODO: ENQUEUE WITH LOCK SO THAT THE THREADS ARE NOT KILLED.
+        return self._do_enqueue_procedures(within_procedure, actions)
+
+    def _do_enqueue_procedures(self, within_procedure, actions):
+        """Schedule a set of procedures.
+        """
+        procedures = None
+        executor = ExecutorThread.executor_object()
+        if not executor:
+            if within_procedure:
+                raise _errors.ProgrammingError(
+                    "One can only create a new job from a job."
+                )
+            procedures, jobs = self._create_jobs(actions)
+            assert(len(set(procedures)) == len(set(jobs)))
             _checkpoint.register(jobs, False)
-            assert(len(set(procedures)) == len(procedures))
-            for procedure in procedures:
-                self.__scheduler.enqueue_procedure(procedure)
+            self.__scheduler.enqueue_procedures(procedures)
+        else:
+            current_job = executor.current_job
+            current_procedure = current_job.procedure
+            if within_procedure:
+                procedures, jobs = self._create_jobs(
+                    actions, current_procedure.uuid
+                )
+                assert(set([job.procedure for job in jobs]) ==
+                       set(procedures) == set([current_procedure])
+                )
+                current_job.append_jobs(jobs)
+            else:
+                procedures, jobs = self._create_jobs(actions)
+                assert(len(set(procedures)) == len(set(jobs)))
+                current_job.append_procedures(procedures)
+        assert(procedures is not None)
         return procedures
 
-    def reschedule_procedure(self, proc_uuid, actions):
+    def reschedule_procedure(self, actions, proc_uuid):
         """Recovers a procedure after a failure by rescheduling it.
 
-        :param proc_uuid: Procedure uuid.
         :param actions: Set of actions to be scheduled on behalf of
                         the procedure.
+        :param proc_uuid: Procedure uuid.
         :type actions: Dictionary [{"job" : Job uuid, "action" :
                        (action, description, non-keyword arguments,
                        keyword arguments)}, ...]
         :return: Return a procedure object.
         """
-        jobs = []
-        nactions = len(actions)
-        procedures = self.create_procedures(proc_uuid, 1)
-        for number in range(0, nactions):
-            do_action, description, args, kwargs = actions[number]["action"]
-            job = Job(
-                procedures[0], do_action, description, args, kwargs,
-                actions[number]["job"]
+        if not len(actions):
+            return []
+
+        with self.__threads_lock:
+            self._assert_running()
+
+        # TODO: ENQUEUE WITH LOCK SO THAT THE THREADS ARE NOT KILLED.
+        return self._do_reschedule_procedure(actions, proc_uuid)
+
+    def _do_reschedule_procedure(self, actions, proc_uuid):
+        """Recovers a procedure after a failure by rescheduling it.
+        """
+        if ExecutorThread.executor_object():
+            raise _errors.ProgrammingError(
+                "One cannot reschedule a procedure from a job."
                 )
-            jobs.append(job)
-        self.__scheduler.enqueue_procedure(procedures[0])
-        return procedures[0]
+
+        procedures, jobs = self._create_jobs(actions, proc_uuid)
+        self.__scheduler.enqueue_procedures(procedures)
+        assert(set([job.procedure for job in jobs]) == set(procedures))
+        assert(set([job.procedure.uuid for job in jobs]) ==
+               set([procedure.uuid for procedure in procedures])
+        )
+        assert(procedures is not None)
+        return procedures
+
+    def remove_procedure(self, proc_uuid):
+        """Although references are store into a WeakValueDictionary, this
+        method forces its removal.
+        """
+        try:
+            assert(isinstance(proc_uuid, _uuid.UUID))
+            with self.__procedures_lock:
+                procedure = self.__procedures[proc_uuid]
+                assert(procedure.is_complete())
+                del self.__procedures[proc_uuid]
+        except (KeyError, ValueError) as error:
+            pass
 
     def get_procedure(self, proc_uuid):
         """Retrieve a reference to a procedure.
         """
-        assert(isinstance(proc_uuid, _uuid.UUID))
         _LOGGER.debug("Checking procedure (%s).", proc_uuid)
         try:
+            assert(isinstance(proc_uuid, _uuid.UUID))
             with self.__procedures_lock:
                 procedure = self.__procedures[proc_uuid]
         except (KeyError, ValueError) as error:
-            _LOGGER.exception(error)
             procedure = None
 
         return procedure
@@ -713,17 +745,50 @@ class Executor(Singleton):
         """Wait until the procedure finishes the execution of all
         its jobs.
         """
-        thread = None
-        with self.__thread_lock:
-            if self.__thread and self.__thread.is_alive():
-                thread = self.__thread
-            else:
-                raise _errors.ExecutorError("Executor is not running.")
-
-        if thread.is_current_thread():
+        if ExecutorThread.executor_object():
             raise _errors.ProgrammingError(
                 "One cannot wait for the execution of a procedure from "
                 "a job."
                 )
 
         procedure.wait()
+
+    def _assert_running(self):
+        """Verify that the executor and by consequence the executors are
+        running.
+        """
+        if not self.__executors:
+            raise _errors.ExecutorError("Executor is not running.")
+
+    def _assert_not_running(self):
+        """Verify that the executor and by consequence the executors are
+        not running.
+        """
+        if self.__executors:
+             raise _errors.ExecutorError("Executor is already running.")
+
+    def _create_jobs(self, actions, proc_uuid=None):
+        """Create a set of jobs.
+        """
+        procedures = set()
+        jobs = []
+        for number in range(0, len(actions)):
+            job = self._create_job(actions[number], proc_uuid)
+            jobs.append(job)
+            procedures.add(job.procedure)
+        return list(procedures), jobs
+
+    def _create_job(self, action, proc_uuid=None):
+        """Create a job.
+        """
+        procedure = None
+        with self.__procedures_lock:
+            procedure = self.__procedures.get(proc_uuid, None)
+            if procedure is None:
+                procedure = Procedure(proc_uuid)
+                self.__procedures[procedure.uuid] = procedure
+
+        assert(procedure is not None)
+        do_action, description, args, kwargs = action["action"]
+        job_uuid = action["job"]
+        return Job(procedure, do_action, description, args, kwargs, job_uuid)

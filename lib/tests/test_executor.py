@@ -4,6 +4,8 @@ import unittest
 import logging
 import uuid
 
+import tests
+
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
@@ -38,29 +40,23 @@ class Action(object):
         test_case.assertEqual(self.result, self.expect)
 
 class TestExecutor(unittest.TestCase):
-    """Test executor.
+    """Test Executor.
     """
-
     def setUp(self):
-        from __main__ import options
-        _persistence.init(host=options.host, port=options.port,
-                          user=options.user, password=options.password)
-        _persistence.setup()
-        _persistence.init_thread()
+        """Configure the existing environment
+        """
+        tests.utils.cleanup_environment()
         self.executor = _executor.Executor()
 
     def tearDown(self):
-        _persistence.deinit_thread()
-        _persistence.teardown()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
 
     def test_start_executor(self):
-        self.executor.start()
         self.assertRaises(_errors.ExecutorError, self.executor.start)
-        self.executor.shutdown()
 
     def test_basic(self):
-        self.executor.start()
-
         # Scheduling actions to be executed.
         proc_1 = self.executor.enqueue_procedure(
             False, test1, "Enqueuing action test1()"
@@ -95,6 +91,9 @@ class TestExecutor(unittest.TestCase):
             self.assertTrue(cnt in count)
         self.assertEqual(other, 47)
 
+        # Start the executor and wait until its main thread returns.
+        self.executor.start()
+
     def test_job_hashable(self):
         def action():
             pass
@@ -114,6 +113,7 @@ class TestExecutor(unittest.TestCase):
     def test_bad_cases(self):
         "Test that error cases are caught."
         # Check what happens when the Executor is not running.
+        self.executor.shutdown()
         self.assertRaises(_errors.ExecutorError,
                           self.executor.enqueue_procedure,
                           False, 3, "Enqueue integer")
@@ -123,20 +123,16 @@ class TestExecutor(unittest.TestCase):
         self.assertRaises(_errors.NotCallableError,
                           self.executor.enqueue_procedure,
                           False, 3, "Enqueue integer")
-        self.executor.shutdown()
 
         # Check unknown job.
         proc = self.executor.get_procedure(
             uuid.UUID('{ab75a12a-98d1-414c-96af-9e9d4b179678}'))
         self.assertEqual(proc, None)
 
-
     def test_multi_dispatch(self):
         """Test that we can dispatch multiple events without waiting
         for them and then reap them afterwards.
         """
-        self.executor.start()
-
         # Enqueue several jobs at the same time.
         procs = []
         actions = []
@@ -153,8 +149,6 @@ class TestExecutor(unittest.TestCase):
             proc.wait()
         for action in actions:
             action.verify(self)
-
-        self.executor.shutdown()
 
 
 if __name__ == "__main__":

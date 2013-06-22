@@ -10,11 +10,14 @@ class TestLoggingServices(unittest.TestCase):
     "Test replication service interface."
 
     def setUp(self):
+        """Configure the existing environment
+        """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
-        _persistence.init_thread()
 
     def tearDown(self):
-        _persistence.deinit_thread()
+        """Clean up the existing environment
+        """
+        tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_set_logging(self):
