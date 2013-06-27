@@ -34,7 +34,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         self.__is_running = False
         self.daemon = True
         self.__lock = threading.Lock()
-        _LOGGER.debug("Setting %s XML-RPC dispatchers.", self.__number_threads)
+        _LOGGER.info("Setting %s XML-RPC session(s).", self.__number_threads)
 
     def run(self):
         """Call the main routine.
@@ -108,6 +108,8 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             thread.daemon = True
             thread.start()
             self.__threads.append(thread)
+
+        _LOGGER.info("XML-RPC protocol server started.")
 
         while True:
             self.handle_request()
