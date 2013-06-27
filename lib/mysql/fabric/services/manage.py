@@ -321,7 +321,7 @@ def _configure_connections(config):
     try:
         number_executors = config.get('executor', "executors")
         number_executors = int(number_executors)
-    except (_config.NoOptionError, ValueError):
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
         number_executors = DEFAULT_N_EXECUTORS
     _executor.Executor(number_executors)
 
@@ -355,7 +355,7 @@ def _configure_connections(config):
     try:
         timeout = config.get("storage", "connect_timeout")
         timeout = float(timeout)
-    except (_config.NoOptionError, ValueError):
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
         timeout = None
 
     # Define state store configuration.

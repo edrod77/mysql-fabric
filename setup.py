@@ -247,6 +247,7 @@ class install_data(_install_data):
         data_files = [
             (d, [ f[1] for f in fs ]) for d, fs in groupby(data_files, key=lambda x: x[0])
             ]
+        self.data_files = data_files
         _install_data.run(self)
 
 META_INFO = {
