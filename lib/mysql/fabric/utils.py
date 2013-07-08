@@ -83,3 +83,17 @@ def async_raise(tid, exctype):
     elif res != 1:
         ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
         raise SystemError("Failed to throw an exception.")
+
+def toInt(value, e):
+    """Convert the value to an integer, if there is an error during the
+    conversion raise the error e.
+
+    :param value: The value that needs to be converted to an integer.
+    :param e: The error that needs to be thrown if the conversion fails.
+
+    :raises: error e, if the conversion fails.
+    """
+    try:
+        return int(value)
+    except ValueError:
+        raise e

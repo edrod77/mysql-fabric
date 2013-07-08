@@ -666,7 +666,7 @@ class RangeShardingSpecification(_persistence.Persistable):
                                 "shard_ranges "
                                 "(shard_mapping_id INT NOT NULL, "
                                 "INDEX(shard_mapping_id), "
-                                "lower_bound INT NOT NULL, "
+                                "lower_bound VARBINARY(16) NOT NULL, "
                                 "INDEX(lower_bound), "
                                 "UNIQUE(shard_mapping_id, lower_bound), "
                                 "shard_id INT NOT NULL)")

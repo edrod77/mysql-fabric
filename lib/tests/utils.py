@@ -152,8 +152,8 @@ class ShardingUtils(object):
             isinstance(range_specification_2, RangeShardingSpecification) and \
                 range_specification_1.shard_mapping_id == \
                     range_specification_2.shard_mapping_id and \
-                range_specification_1.lower_bound == \
-                    range_specification_2.lower_bound and \
+                int(range_specification_1.lower_bound) == \
+                    int(range_specification_2.lower_bound) and \
                 range_specification_1.shard_id == \
                     range_specification_2.shard_id
 

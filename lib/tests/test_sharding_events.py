@@ -128,7 +128,18 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard).")
 
-        status = self.proxy.sharding.add_shard(1, 1001, "GROUPID3",
+        #Ensure that adding a invalid lower bound for RANGE sharding fails.
+        status = self.proxy.sharding.add_shard(1, "ABCDEFGH", "GROUPID3",
+                                               "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(
+            status[1][-1]["description"],
+            "Tried to execute action (_add_shard)."
+        )
+
+        #Ensure that adding a string, but valid lower_bound passes.
+        status = self.proxy.sharding.add_shard(1, "1001", "GROUPID3",
                                                "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -146,7 +157,8 @@ class TestShardingServices(unittest.TestCase):
 
     def test_fail_duplicate_add_shard(self):
         """Tests that addition of an existing lower_bound to a
-        shard mapping fails.
+        shard mapping fails. Also test adding lower_bounds with
+        a 0 pre-pended the value being inserted.
         """
         status = self.proxy.sharding.add_shard(1, 0, "GROUPID2", "ENABLED")
         self.assertStatus(status, _executor.Job.ERROR)
@@ -155,6 +167,36 @@ class TestShardingServices(unittest.TestCase):
             status[1][-1]["description"],
             "Tried to execute action (_add_shard)."
         )
+
+        #Since the lower_bound datatype is a VARBINARY, ensure that
+        #pre-pending a 00 to the lower bound does not result in adding
+        #the same values in the data store. This basically shows that
+        #comparisons of integers are not impacted with a 00 pre-pended
+        #to the values.
+        status = self.proxy.sharding.add_shard(1, 001001, "GROUPID3",
+                                               "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(
+            status[1][-1]["description"],
+            "Tried to execute action (_add_shard)."
+        )
+
+        #Since the lower_bound datatype is a VARBINARY, ensure that
+        #pre-pending a 0000 to the lower bound does not result in adding
+        #the same values in the data store. This basically shows that
+        #comparisons of integers are not impacted with a 00 pre-pended
+        #to the values.
+        status = self.proxy.sharding.add_shard(1, 00001001, "GROUPID3",
+                                               "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(
+            status[1][-1]["description"],
+            "Tried to execute action (_add_shard)."
+        )
+
+    
 
     def test_define_shard_mapping_wrong_sharding_type(self):
         #Use an invalid sharding type (WRONG)

@@ -14,6 +14,7 @@ from mysql.fabric import (
     group_replication as _group_replication,
     replication as _replication,
     backup as _backup,
+    utils as _utils,
 )
 
 from mysql.fabric.server import Group,  MySQLServer
@@ -48,6 +49,7 @@ SHARD_MOVE_DESTINATION_NOT_EMPTY = "Shard move destination already "\
 INVALID_SHARD_SPLIT_VALUE = "The chosen split value must be between the " \
                             "lower bound and upper bound of the shard"
 CONFIG_NOT_FOUND = "Configuration option not found %s . %s"
+INVALID_LOWER_BOUND = "Invalid lower_bound value for RANGE sharding specification"
 
 DEFINE_SHARD_MAPPING = _events.Event("DEFINE_SHARD_MAPPING")
 class DefineShardMapping(ProcedureCommand):
@@ -543,11 +545,16 @@ def _add_shard(shard_mapping_id, lower_bound, group_id, state):
         raise _errors.ShardingError(SHARD_MAPPING_NOT_FOUND % \
                                                     (shard_mapping_id,  ))
 
+    schema_type = shard_mapping[1]
+    #TODO: Currently the RANGE sharding type supports only integer bounds.
+    if schema_type == "RANGE":
+            e = _errors.ShardingError(INVALID_LOWER_BOUND)
+            split_value = _utils.toInt(lower_bound, e)
+
     shard = Shards.add(group_id, state)
 
     shard_id = shard.shard_id
 
-    schema_type = shard_mapping[1]
     if schema_type == "RANGE":
         range_sharding_specification = RangeShardingSpecification.add(
                                             shard_mapping_id,
@@ -735,7 +742,20 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     #We will need to change this once we start supporting heterogenous
     #sharding schemes. It cannot checks RANGES alone.
     if cmd == "SPLIT":
-        _verify_and_fetch_shard(shard_id)
+        range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
+        shard_mapping = ShardMapping.fetch_shard_mapping_defn(
+                            range_sharding_spec.shard_mapping_id
+                        )
+        if shard_mapping is None:
+            raise _errors.ShardingError(SHARD_MAPPING_NOT_FOUND % \
+                                                        (shard_mapping_id,  ))
+
+        schema_type = shard_mapping[1]
+        #TODO: Currently the RANGE sharding type supports only integer bounds.
+        if schema_type == "RANGE":
+            e = _errors.ShardingError(INVALID_LOWER_BOUND)
+            split_value = _utils.toInt(split_value, e)
+        
 
     #Ensure that the group does not already contain a shard.
     if (Shards.lookup_shard_id(destn_group_id) is not None):
