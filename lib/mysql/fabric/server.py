@@ -1307,7 +1307,7 @@ class MySQLServer(_persistence.Persistable):
 
         persister_uuid = persister.uuid
         if persister_uuid is not None and persister_uuid == server.uuid:
-            raise _errors.ServerError("The MySQLPersister cannot be managed.")
+            raise _errors.ServerError("Fabric's state store cannot be managed.")
 
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
             {"params":(str(server.uuid), server.address, server.user,

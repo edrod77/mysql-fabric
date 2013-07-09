@@ -189,7 +189,7 @@ class Start(Command):
         # Start Fabric server.
         _LOGGER.info("Fabric node starting.")
         _start(self.options, self.config)
-        _events.Handler().wait()
+        _services.ServiceManager().wait()
         _LOGGER.info("Fabric node stopped.")
 
 

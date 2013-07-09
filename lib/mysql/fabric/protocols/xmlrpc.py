@@ -31,9 +31,9 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         self.__number_threads = number_threads
         self.__requests = None
         self.__threads = []
-        self.__is_running = False
+        self.__is_running = True
         self.daemon = True
-        self.__lock = threading.Lock()
+        self.__lock = threading.Condition()
         _LOGGER.info("Setting %s XML-RPC session(s).", self.__number_threads)
 
     def run(self):
@@ -49,11 +49,22 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         with self.__lock:
             if not self.__is_running:
                 return
+            self.__is_running = False
+            self.__lock.notify_all()
 
-        self.__is_running = False
         for thread in self.__threads:
             assert(self.__requests is not None)
             self.__requests.put(None)
+
+    def wait(self):
+        """Wait until the server shuts down.
+        """
+        with self.__lock:
+            while self.__is_running:
+                self.__lock.wait()
+
+        for thread in self.__threads:
+            thread.join()
 
     def register_command(self, command):
         """Register a command with the server.
@@ -97,8 +108,6 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         """
         # TODO: Define a lower and upper bound.
         self.__requests = Queue.Queue(self.__number_threads)
-        self.__threads = []
-        self.__is_running = True
 
         for nt in range(0, self.__number_threads):
             thread = threading.Thread(
@@ -108,10 +117,9 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             thread.daemon = True
             thread.start()
             self.__threads.append(thread)
-
         _LOGGER.info("XML-RPC protocol server started.")
 
-        while True:
+        while self.__is_running:
             self.handle_request()
         self.server_close()
 

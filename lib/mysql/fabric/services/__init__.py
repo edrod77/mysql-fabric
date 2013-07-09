@@ -83,7 +83,7 @@ class ServiceManager(Singleton):
     def wait(self):
         """Wait until all the sevices are properly finished.
         """
-        pass
+        self.__rpc_server.wait()
 
     def load_services(self, options, config):
         """Load services into each protocol server.
