@@ -62,7 +62,7 @@ class ShardMapping(_persistence.Persistable):
     CREATE_SHARD_MAPPING_DEFN = ("CREATE TABLE shard_maps"
                                  "(shard_mapping_id INT AUTO_INCREMENT "
                                  "NOT NULL PRIMARY KEY, "
-                                 "type_name ENUM('RANGE') NOT NULL, "
+                                 "type_name ENUM('RANGE', 'HASH') NOT NULL, "
                                  "global_group VARCHAR(64))")
 
     #Drop the schema for the tables used to store the shard specification
@@ -429,7 +429,7 @@ class Shards(_persistence.Persistable):
     """
 
     #Tuple stores the list of valid shard mapping types.
-    VALID_SHARDING_TYPES = ('RANGE', )
+    VALID_SHARDING_TYPES = ('RANGE', 'HASH')
 
     #Valid states of the shards
     VALID_SHARD_STATES = ("ENABLED", "DISABLED")
@@ -1092,3 +1092,152 @@ class RangeShardingSpecification(_persistence.Persistable):
         master.connect()
 
         master.exec_stmt(delete_query)
+
+class HashShardingSpecification(RangeShardingSpecification):
+    #Insert a HASH of keys and the server to which they belong.
+    INSERT_HASH_SPECIFICATION = ("INSERT INTO shard_ranges"
+        "(shard_mapping_id, lower_bound, shard_id) VALUES(%s, UNHEX(MD5(%s)), %s)")
+
+    #Fetch the shard ID corresponding to the input key.
+    LOOKUP_KEY = (
+                "("
+                "SELECT "
+                "sr.shard_mapping_id, "
+                "sr.lower_bound AS lower_bound, "
+                "s.shard_id "
+                "FROM shard_ranges AS sr, shards AS s "
+                "WHERE UNHEX(MD5(%s)) >= sr.lower_bound "
+                "AND sr.shard_mapping_id = %s "
+                "AND s.shard_id = sr.shard_id "
+                "ORDER BY sr.lower_bound DESC "
+                "LIMIT 1"
+                ") "
+                "UNION ALL "
+                "("
+                "SELECT "
+                "sr.shard_mapping_id, "
+                "sr.lower_bound AS lower_bound, "
+                "sr.shard_id "
+                "FROM shard_ranges AS sr, shards AS s "
+                "WHERE sr.shard_mapping_id = %s "
+                "AND s.shard_id = sr.shard_id "
+                "ORDER BY sr.lower_bound DESC "
+                "LIMIT 1"
+                ") "
+                "ORDER BY lower_bound ASC "
+                "LIMIT 1"
+                )
+
+    def __init__(self, shard_mapping_id, lower_bound, shard_id):
+        """Initialize a given HASH sharding mapping specification.
+
+        :param shard_mapping_id: The unique identification for a shard mapping.
+        :param lower_bound: The lower bound of the given HASH sharding
+                            definition.
+        :param shard_id: An unique identification, a logical representation
+                        for a shard of a particular table.
+        """
+        super(HashShardingSpecification, self).__init__(
+            shard_mapping_id,
+            lower_bound,
+            shard_id
+        )
+
+    @staticmethod
+    def add(shard_mapping_id, shard_id, persister=None):
+        """Add the HASH shard specification. This represents a single instance
+        of a shard specification that maps a key HASH to a server.
+
+        :param shard_mapping_id: The unique identification for a shard mapping.
+        :param shard_id: An unique identification, a logical representation
+                        for a shard of a particular table.
+
+        :return: A RangeShardSpecification object representing the current
+                Range specification.
+                None if the insert into the state store failed
+        """
+        shard = Shards.fetch(shard_id)
+        persister.exec_stmt(
+            HashShardingSpecification.INSERT_HASH_SPECIFICATION, {
+                "params":(
+                    shard_mapping_id,
+                    shard.group_id,
+                    shard_id
+                )
+            }
+        )
+        #TODO: Note that we do not return a HashShardingSpecification instance.
+        #TODO: This behaviour is different from the RangeShardingSpecification.
+        #TODO: What should be done in this case ?
+
+    @staticmethod
+    def lookup(key, shard_mapping_id, persister=None):
+        """Return the Hash sharding specification in whose hashed key range
+        the input key falls.
+
+        :param key: The key which needs to be checked to see which range it
+                    falls into
+        :param shard_mapping_id: The unique identification for a shard mapping.
+        :param persister: A valid handle to the state store.
+
+        :return: The Hash Sharding Specification that contains the range in
+                which the key belongs.
+        """
+        cur = persister.exec_stmt(
+                    HashShardingSpecification.LOOKUP_KEY, {
+                        "raw" : False,
+                        "fetch" : False,
+                        "params" : (
+                            key,
+                            shard_mapping_id,
+                            shard_mapping_id
+                        )
+                    }
+                )
+
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return RangeShardingSpecification(row[0], row[1],  row[2])
+
+    @staticmethod
+    def create(persister=None):
+        """We use the relations used to store the RANGE sharding data. Hence
+        this method is a dummy here. We need a dummy implementation since
+        the framework invokes this method to create the schemas necessary for
+        storing relevant data, and we have no schemas.
+
+        :param persister: A valid handle to the state store.
+        """
+        pass
+
+    @staticmethod
+    def drop(persister=None):
+        """Drop the Range shard specification schema. We use the relations used
+        to store the RANGE sharding data. Hence this method is a dummy here.
+        We need a dummy implementation since the framework invokes this method
+        to drop the schemas.
+
+        :param persister: A valid handle to the state store.
+        """
+        pass
+
+    @staticmethod
+    def add_constraints(persister=None):
+        """Add the constraints on the sharding tables. We use a dummy implementation
+        here.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        pass
+
+    @staticmethod
+    def drop_constraints(persister=None):
+        """Drop the constraints on the sharding tables. We use a dummy
+        implementation here.
+
+        :param persister: The DB server that can be used to access the
+                  state store.
+        """
+        pass

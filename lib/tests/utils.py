@@ -16,7 +16,7 @@ from mysql.fabric import (
     utils as _utils,
     )
 
-from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification
+from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification,  HashShardingSpecification
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -156,6 +156,29 @@ class ShardingUtils(object):
                     int(range_specification_2.lower_bound) and \
                 range_specification_1.shard_id == \
                     range_specification_2.shard_id
+
+    @staticmethod
+    def compare_hash_specifications(hash_specification_1,
+                                     hash_specification_2):
+        """Compare two HASH specification definitions. They are equal if they
+        belong to the same shard mapping, define the same upper and lower
+        bound, map to the same shard, and are in the same state.
+
+        :param hash_specification_1: Hash Sharding Specification
+        :param hash_specification_2: Hash Sharding Specification
+
+        :return: If Hash Sharding Specifications are equal, it returns True.
+                 False if Hash Sharding Specifications are not equal
+        """
+        return \
+            isinstance(hash_specification_1, RangeShardingSpecification) and \
+            isinstance(hash_specification_2, RangeShardingSpecification) and \
+                hash_specification_1.shard_mapping_id == \
+                    hash_specification_2.shard_mapping_id and \
+                hash_specification_1.lower_bound == \
+                    hash_specification_2.lower_bound and \
+                hash_specification_1.shard_id == \
+                    hash_specification_2.shard_id
 
 def cleanup_environment():
     #Clean up information on instances.

@@ -548,8 +548,10 @@ def _add_shard(shard_mapping_id, lower_bound, group_id, state):
     schema_type = shard_mapping[1]
     #TODO: Currently the RANGE sharding type supports only integer bounds.
     if schema_type == "RANGE":
-            e = _errors.ShardingError(INVALID_LOWER_BOUND)
-            split_value = _utils.toInt(lower_bound, e)
+        try:
+            split_value = int(lower_bound)
+        except ValueError:
+            raise _errors.ShardingError(INVALID_LOWER_BOUND)
 
     shard = Shards.add(group_id, state)
 
@@ -753,9 +755,10 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
         schema_type = shard_mapping[1]
         #TODO: Currently the RANGE sharding type supports only integer bounds.
         if schema_type == "RANGE":
-            e = _errors.ShardingError(INVALID_LOWER_BOUND)
-            split_value = _utils.toInt(split_value, e)
-        
+            try:
+                split_value = int(split_value)
+            except ValueError:
+                raise _errors.ShardingError(INVALID_LOWER_BOUND)
 
     #Ensure that the group does not already contain a shard.
     if (Shards.lookup_shard_id(destn_group_id) is not None):
