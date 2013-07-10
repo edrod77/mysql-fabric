@@ -121,16 +121,15 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, 0, "GROUPID2",
-                                               "ENABLED")
+        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED", 0)
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard).")
 
         #Ensure that adding a invalid lower bound for RANGE sharding fails.
-        status = self.proxy.sharding.add_shard(1, "ABCDEFGH", "GROUPID3",
-                                               "ENABLED")
+        status = self.proxy.sharding.add_shard(1, "GROUPID3",
+                                               "ENABLED", "ABCDEFGH")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(
@@ -139,8 +138,8 @@ class TestShardingServices(unittest.TestCase):
         )
 
         #Ensure that adding a string, but valid lower_bound passes.
-        status = self.proxy.sharding.add_shard(1, "1001", "GROUPID3",
-                                               "ENABLED")
+        status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED",
+                        "1001")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -160,7 +159,7 @@ class TestShardingServices(unittest.TestCase):
         shard mapping fails. Also test adding lower_bounds with
         a 0 pre-pended the value being inserted.
         """
-        status = self.proxy.sharding.add_shard(1, 0, "GROUPID2", "ENABLED")
+        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED",  0)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(
@@ -208,8 +207,8 @@ class TestShardingServices(unittest.TestCase):
 
     def test_add_shard_invalid_group_exception(self):
         #Use an invalid group ID (WRONG_GROUP)
-        status = self.proxy.sharding.add_shard(4, 8001, "WRONG_GROUP",
-                                               "ENABLED")
+        status = self.proxy.sharding.add_shard(4, "WRONG_GROUP",
+                                               "ENABLED", 8001)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -217,8 +216,8 @@ class TestShardingServices(unittest.TestCase):
 
     def test_add_shard_invalid_state_exception(self):
         #WRONG_STATE is an invalid description of the shard state.
-        status = self.proxy.sharding.add_shard(4, 8001, "GROUP4",
-                                               "WRONG_STATE")
+        status = self.proxy.sharding.add_shard(4, "GROUP4",
+                                               "WRONG_STATE", 8001)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -226,8 +225,8 @@ class TestShardingServices(unittest.TestCase):
 
     def test_add_shard_invalid_range_exception(self):
         #Notice LB > UB in the case below.
-        status = self.proxy.sharding.add_shard(4, 9000, "GROUP4",
-                                               "ENABLED")
+        status = self.proxy.sharding.add_shard(4, "GROUP4",
+                                               "ENABLED", 9000)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -235,8 +234,8 @@ class TestShardingServices(unittest.TestCase):
 
 
     def test_add_shard_invalid_shard_mapping(self):
-        status = self.proxy.sharding.add_shard(25000, 8001, "GROUPID4",
-                                               "ENABLED")
+        status = self.proxy.sharding.add_shard(25000, "GROUPID4",
+                                               "ENABLED", 8001)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
