@@ -1095,15 +1095,52 @@ class RangeShardingSpecification(_persistence.Persistable):
 
 class HashShardingSpecification(RangeShardingSpecification):
     #Insert a HASH of keys and the server to which they belong.
-    INSERT_HASH_SPECIFICATION = ("INSERT INTO shard_ranges"
-        "(shard_mapping_id, lower_bound, shard_id) VALUES(%s, UNHEX(MD5(%s)), %s)")
+    INSERT_HASH_SPECIFICATION = (
+        "INSERT INTO shard_ranges("
+        "shard_mapping_id, "
+        "lower_bound, "
+        "shard_id) "
+        "VALUES(%s, UNHEX(MD5(%s)), %s)"
+    )
+
+    #Insert Split ranges.
+    #NOTE: The split lower_bound does not need the md5 algorithm.
+    #TODO: Try to use INSERT_HASH_SPECIFICATION.
+    INSERT_HASH_SPLIT_SPECIFICATION = (
+        "INSERT INTO shard_ranges("
+        "shard_mapping_id, "
+        "lower_bound, "
+        "shard_id) "
+        "VALUES(%s, UNHEX(%s), %s)"
+    )
+
+    #Given a Shard ID select the RANGE Scheme that it defines.
+    SELECT_RANGE_SPECIFICATION = (
+        "SELECT "
+        "shard_mapping_id, "
+        "HEX(lower_bound), "
+        "shard_id "
+        "FROM shard_ranges "
+        "WHERE shard_id = %s"
+    )
+
+    #Given a Shard Mapping ID select all the RANGE mappings that it
+    #defines.
+    LIST_RANGE_SPECIFICATION = (
+        "SELECT "
+        "shard_mapping_id, "
+        "HEX(lower_bound), "
+        "shard_id "
+        "FROM shard_ranges "
+        "WHERE shard_mapping_id = %s"
+    )
 
     #Fetch the shard ID corresponding to the input key.
     LOOKUP_KEY = (
                 "("
                 "SELECT "
                 "sr.shard_mapping_id, "
-                "sr.lower_bound AS lower_bound, "
+                "HEX(sr.lower_bound) AS lower_bound, "
                 "s.shard_id "
                 "FROM shard_ranges AS sr, shards AS s "
                 "WHERE UNHEX(MD5(%s)) >= sr.lower_bound "
@@ -1116,7 +1153,7 @@ class HashShardingSpecification(RangeShardingSpecification):
                 "("
                 "SELECT "
                 "sr.shard_mapping_id, "
-                "sr.lower_bound AS lower_bound, "
+                "HEX(sr.lower_bound) AS lower_bound, "
                 "sr.shard_id "
                 "FROM shard_ranges AS sr, shards AS s "
                 "WHERE sr.shard_mapping_id = %s "
@@ -1127,6 +1164,17 @@ class HashShardingSpecification(RangeShardingSpecification):
                 "ORDER BY lower_bound ASC "
                 "LIMIT 1"
                 )
+
+    #Select the UPPER BOUND for a given LOWER BOUND value.
+    SELECT_UPPER_BOUND = (
+        "SELECT HEX(lower_bound) FROM "
+        "shard_ranges "
+        "WHERE "
+        "HEX(lower_bound) > %s "
+        "AND "
+        "shard_mapping_id = %s "
+        "ORDER BY lower_bound ASC LIMIT 1"
+    )
 
     def __init__(self, shard_mapping_id, lower_bound, shard_id):
         """Initialize a given HASH sharding mapping specification.
@@ -1144,6 +1192,67 @@ class HashShardingSpecification(RangeShardingSpecification):
         )
 
     @staticmethod
+    def fetch_max_key(shard_id):
+        """Fetch the maximum value of the key in this shard. This will
+        be used for the shards in the boundary that do not have a upper_bound
+        to compare with.
+        """
+        #TODO: Move method to /services or remove the exceptions thrown.
+        hash_sharding_spec = HashShardingSpecification.fetch(shard_id)
+        if hash_sharding_spec is None:
+            raise _errors.ShardingError("No shards associated with this"
+                                                         " shard mapping ID.")
+
+        shard = Shards.fetch(shard_id)
+
+        shard_mapping = ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
+        if shard_mapping is None:
+            raise _errors.ShardingError("Shard Mapping not found.")
+
+        max_query = "SELECT HEX(MD5(MAX(%s))) FROM %s" % \
+                    (
+                    shard_mapping.column_name,
+                    shard_mapping.table_name
+                    )
+
+        shard = Shards.fetch(shard_id)
+        if shard is None:
+            raise _errors.ShardingError(
+                "Shard not found (%s)" %
+                (hash_sharding_spec.shard_id, )
+            )
+
+        group = Group.fetch(shard.group_id)
+        if group is None:
+            raise _errors.ShardingError(
+                "Group not found (%s)" %
+                (shard.group_id, )
+            )
+
+        master = MySQLServer.fetch(group.master)
+        if master is None:
+            raise _errors.ShardingError(
+                "Group Master not found (%s)" %
+                (str(group.master))
+            )
+
+        master.connect()
+
+        cur = master.exec_stmt(
+                        max_query,
+                        {"raw" : False,
+                        "fetch" : False,
+                        }
+                    )
+
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return row[0]
+
+    @staticmethod
     def add(shard_mapping_id, shard_id, persister=None):
         """Add the HASH shard specification. This represents a single instance
         of a shard specification that maps a key HASH to a server.
@@ -1151,14 +1260,33 @@ class HashShardingSpecification(RangeShardingSpecification):
         :param shard_mapping_id: The unique identification for a shard mapping.
         :param shard_id: An unique identification, a logical representation
                         for a shard of a particular table.
-
-        :return: A RangeShardSpecification object representing the current
-                Range specification.
-                None if the insert into the state store failed
         """
         shard = Shards.fetch(shard_id)
         persister.exec_stmt(
             HashShardingSpecification.INSERT_HASH_SPECIFICATION, {
+                "params":(
+                    shard_mapping_id,
+                    shard.group_id,
+                    shard_id
+                )
+            }
+        )
+        #TODO: Note that we do not return a HashShardingSpecification instance.
+        #TODO: This behaviour is different from the RangeShardingSpecification.
+        #TODO: What should be done in this case ?
+
+    @staticmethod
+    def add_hash_split(shard_mapping_id, shard_id, persister=None):
+        """Add the HASH shard specification after a split. This represents a single instance
+        of a shard specification that maps a key HASH to a server.
+
+        :param shard_mapping_id: The unique identification for a shard mapping.
+        :param shard_id: An unique identification, a logical representation
+                        for a shard of a particular table.
+        """
+        shard = Shards.fetch(shard_id)
+        persister.exec_stmt(
+            HashShardingSpecification.INSERT_HASH_SPLIT_SPECIFICATION, {
                 "params":(
                     shard_mapping_id,
                     shard.group_id,
@@ -1198,7 +1326,48 @@ class HashShardingSpecification(RangeShardingSpecification):
         row = cur.fetchone()
         if row is None:
             return None
-        return RangeShardingSpecification(row[0], row[1],  row[2])
+        return HashShardingSpecification(row[0], row[1],  row[2])
+
+    @staticmethod
+    def fetch(shard_id, persister=None):
+        """Return the HashShardingSpecification object corresponding to the
+        given sharding ID.
+
+        :param shard_id: The unique identification for a shard.
+        :param persister: A valid handle to the state store.
+
+        :return: The HashShardingSpecification object.
+                    An Empty list otherwise.
+        """
+        cur = persister.exec_stmt(
+                    HashShardingSpecification.SELECT_RANGE_SPECIFICATION,
+                        {"raw" : False,
+                        "fetch" : False,
+                        "params" : (shard_id,)})
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return HashShardingSpecification(row[0], row[1],  row[2])
+
+    @staticmethod
+    def list(shard_mapping_id, persister=None):
+        """Return the HashShardingSpecification objects corresponding to the
+        given sharding scheme.
+
+        :param shard_mapping_id: The unique identification for a shard mapping.
+        :param persister: A valid handle to the state store.
+
+        :return: A  list of HashShardingSpecification objects which belong to
+                to this shard mapping.
+                None if the shard mapping is not found
+        """
+        cur = persister.exec_stmt(
+                    HashShardingSpecification.LIST_RANGE_SPECIFICATION,
+                        {"raw" : False,
+                        "fetch" : False,
+                        "params" : (shard_mapping_id,)})
+        rows = cur.fetchall()
+        return [ HashShardingSpecification(*row[0:5]) for row in rows ]
 
     @staticmethod
     def create(persister=None):
@@ -1241,3 +1410,114 @@ class HashShardingSpecification(RangeShardingSpecification):
                   state store.
         """
         pass
+
+    @staticmethod
+    def get_upper_bound(lower_bound, shard_mapping_id, persister=None):
+        """Return the next value in range for a given lower_bound value.
+        This basically helps to form a (lower_bound, upper_bound) pair
+        that can be used during a prune.
+
+        :param lower_bound: The lower_bound value whose next range needs to
+                            be retrieved.
+        :param shard_mapping_id: The shard_mapping_id whose shards should be
+                                searched for the given lower_bound.
+        :param persister: A valid handle to the state store.
+
+        :return: The next value in the range for the given lower_bound.
+        """
+        #TODO: Even though a function like this seems practical, it
+        #TODO: encourages a bad usage since there really are no upper
+        #TODO: bounds any more, just lower bounds. It would probably
+        #TODO: be better to re-write the prune method to be based on
+        #TODO: just lower bounds.
+        cur = persister.exec_stmt(
+                        HashShardingSpecification.SELECT_UPPER_BOUND,
+                        {"raw" : False,
+                        "fetch" : False,
+                        "params" : (lower_bound, shard_mapping_id)})
+
+        row = cur.fetchone()
+
+        if row is None:
+            return None
+
+        return row[0]
+
+    #TODO: Explore if the errors below can be handled at the service
+    #TODO: layer. Also explore if the function can be moved into the
+    #TODO: Service layer.
+    @staticmethod
+    def prune_shard_id(shard_id):
+        """Remove the rows in the shard that do not match the metadata
+        in the shard_range tables.
+
+        :param shard_id: The ID of the shard that needs to be pruned.
+        """
+        hash_sharding_spec = HashShardingSpecification.fetch(shard_id)
+        if hash_sharding_spec is None:
+            raise _errors.ShardingError("No shards associated with this"
+                                                         " shard mapping ID.")
+
+        shard = Shards.fetch(shard_id)
+
+        upper_bound = HashShardingSpecification.get_upper_bound(
+                            hash_sharding_spec.lower_bound,
+                            hash_sharding_spec.shard_mapping_id
+                        )
+
+        shard_mapping = ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
+        if shard_mapping is None:
+            raise _errors.ShardingError("Shard Mapping not found.")
+
+        table_name = shard_mapping.table_name
+
+        if upper_bound is not None:
+            #TODO: OR is notoriously bad for the optimizer. Better to turn it into
+            #TODO: two separate queries handling all below and all above respectively.
+            delete_query = (
+                "DELETE FROM %s"
+                " WHERE "
+                "HEX(MD5(%s)) < '%s' "
+                "OR "
+                "HEX(MD5(%s)) >= '%s'"
+            ) % (
+                table_name,
+                shard_mapping.column_name,
+                hash_sharding_spec.lower_bound,
+                shard_mapping.column_name,
+                upper_bound
+            )
+        else:
+            delete_query = ("DELETE FROM %s "
+                "WHERE "
+                "HEX(MD5(%s)) < '%s'"
+            ) % (
+                table_name,
+                shard_mapping.column_name,
+                hash_sharding_spec.lower_bound
+            )
+
+        shard = Shards.fetch(hash_sharding_spec.shard_id)
+        if shard is None:
+            raise _errors.ShardingError(
+                "Shard not found (%s)" %
+                (hash_sharding_spec.shard_id, )
+            )
+
+        group = Group.fetch(shard.group_id)
+        if group is None:
+            raise _errors.ShardingError(
+                "Group not found (%s)" %
+                (shard.group_id, )
+            )
+
+        master = MySQLServer.fetch(group.master)
+        if master is None:
+            raise _errors.ShardingError(
+                "Group Master not found (%s)" %
+                (str(group.master))
+            )
+
+        master.connect()
+
+        master.exec_stmt(delete_query)

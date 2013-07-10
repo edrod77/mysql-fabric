@@ -12,11 +12,11 @@ from mysql.fabric import (
 from time import time, sleep
 
 from mysql.fabric.server import Group, MySQLServer
+from mysql.fabric.sharding import ShardMapping, HashShardingSpecification, Shards
 
 import tests.utils
 
 from tests.utils import MySQLInstances, ShardingUtils
-from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
 
 class TestShardSplit(unittest.TestCase):
 
@@ -97,7 +97,7 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID1")
+        status = self.proxy.sharding.define("HASH", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -111,7 +111,7 @@ class TestShardSplit(unittest.TestCase):
                          "Executed action (_add_shard_mapping).")
 
         status = self.proxy.sharding.add_shard(1, "GROUPID2",
-                                               "ENABLED", 0)
+                                               "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -132,150 +132,77 @@ class TestShardSplit(unittest.TestCase):
         shard_server.exec_stmt("CREATE DATABASE db1")
         shard_server.exec_stmt("CREATE TABLE db1.t1"
                                   "(userID INT, name VARCHAR(30))")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(101, 'TEST 1')")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(102, 'TEST 2')")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(103, 'TEST 3')")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(701, 'TEST 4')")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(702, 'TEST 5')")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(703, 'TEST 6')")
-        shard_server.exec_stmt("INSERT INTO db1.t1 "
-                                  "VALUES(704, 'TEST 7')")
+
+        for i in range(1,  100):
+            shard_server.exec_stmt("INSERT INTO db1.t1 "
+                                      "VALUES(%s, 'TEST %s')" % (i, i))
 
     def test_shard_split(self):
-        status = self.proxy.sharding.split("1", "GROUPID3", "600")
+        split_cnt_1 = 0
+        split_cnt_2 = 0
+        shard_server_1 = None
+        shard_server_2 = None
+        expected_address_list_1 = [MySQLInstances().get_address(2), MySQLInstances().get_address(3)]
+        expected_address_list_2 = [MySQLInstances().get_address(4), MySQLInstances().get_address(5)]
+        status = self.proxy.sharding.split("1", "GROUPID3")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_prune_shard_tables_after_split).")
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            server_uuid = obtained_server_list[idx][0]
-            shard_server = MySQLServer.fetch(server_uuid)
-            shard_server.connect()
-            rows = shard_server.exec_stmt(
-                                    "SELECT NAME FROM db1.t1",
-                                    {"fetch" : True})
-            self.assertEqual(len(rows), 3)
-            self.assertEqual(rows[0][0], 'TEST 1')
-            self.assertEqual(rows[1][0], 'TEST 2')
-            self.assertEqual(rows[2][0], 'TEST 3')
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 800,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            server_uuid = obtained_server_list[idx][0]
-            shard_server = MySQLServer.fetch(server_uuid)
-            shard_server.connect()
-            rows = shard_server.exec_stmt(
-                                    "SELECT NAME FROM db1.t1",
-                                    {"fetch" : True})
-            self.assertEqual(len(rows), 4)
-            self.assertEqual(rows[0][0], 'TEST 4')
-            self.assertEqual(rows[1][0], 'TEST 5')
-            self.assertEqual(rows[2][0], 'TEST 6')
-            self.assertEqual(rows[3][0], 'TEST 7')
+        for i in range(1,  100):
+            status = self.proxy.sharding.lookup_servers("db1.t1", i, "LOCAL")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_lookup).")
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                global_master_uuid = obtained_server_list[idx][0]
-                break
+            obtained_server_list = status[2]
+            obtained_uuid_list = [obtained_server_list[0][0],
+                                  obtained_server_list[1][0]]
+            obtained_address_list = [obtained_server_list[0][1],
+                                    obtained_server_list[1][1]]
+            try:
+                self.assertEqual(set(expected_address_list_1), set(obtained_address_list))
+                split_cnt_1 = split_cnt_1 + 1
+                if shard_server_1 is None:
+                    shard_server_1 = MySQLServer.fetch(obtained_uuid_list[0])
+            except AssertionError:
+                self.assertEqual(set(expected_address_list_2), set(obtained_address_list))
+                split_cnt_2 = split_cnt_2 + 1
+                if shard_server_2 is None:
+                    shard_server_2 = MySQLServer.fetch(obtained_uuid_list[0])
 
-        global_master = MySQLServer.fetch(global_master_uuid)
-        global_master.connect()
+        #Ensure that both the splits have been utilized.
+        self.assertTrue(split_cnt_1 > 0)
+        self.assertTrue(split_cnt_2 > 0)
 
-        global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
-        global_master.exec_stmt("CREATE DATABASE global_db")
-        global_master.exec_stmt("CREATE TABLE global_db.global_table"
-                                  "(userID INT, name VARCHAR(30))")
-        global_master.exec_stmt("INSERT INTO global_db.global_table "
-                                  "VALUES(101, 'TEST 1')")
-        global_master.exec_stmt("INSERT INTO global_db.global_table "
-                                  "VALUES(202, 'TEST 2')")
+        shard_server_1.connect()
+        shard_server_2.connect()
 
-        status = self.proxy.group.promote("GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        row_cnt_shard_1 = shard_server_1.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1",
+                    {"fetch" : True}
+                )
 
-        sleep(5)
+        row_cnt_shard_2 = shard_server_2.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1",
+                    {"fetch" : True}
+                )
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                global_master_uuid = obtained_server_list[idx][0]
-                break
-
-        global_master = MySQLServer.fetch(global_master_uuid)
-        global_master.connect()
-
-        global_master.exec_stmt("INSERT INTO global_db.global_table "
-                                  "VALUES(303, 'TEST 3')")
-        global_master.exec_stmt("INSERT INTO global_db.global_table "
-                                  "VALUES(404, 'TEST 4')")
-        global_master.exec_stmt("INSERT INTO global_db.global_table "
-                                  "VALUES(505, 'TEST 5')")
-        global_master.exec_stmt("INSERT INTO global_db.global_table "
-                                  "VALUES(606, 'TEST 6')")
-
-        sleep(5)
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                shard_uuid = obtained_server_list[idx][0]
-                shard_server = MySQLServer.fetch(shard_uuid)
-                shard_server.connect()
-                rows = shard_server.exec_stmt(
-                                        "SELECT NAME FROM global_db.global_table",
-                                        {"fetch" : True})
-                self.assertEqual(len(rows), 6)
-                self.assertEqual(rows[0][0], 'TEST 1')
-                self.assertEqual(rows[1][0], 'TEST 2')
-                self.assertEqual(rows[2][0], 'TEST 3')
-                self.assertEqual(rows[3][0], 'TEST 4')
-                self.assertEqual(rows[4][0], 'TEST 5')
-                self.assertEqual(rows[5][0], 'TEST 6')
+        #Ensure that the split has happened, the number of values in
+        #each shard should be less than the original.
+        self.assertTrue(int(row_cnt_shard_1[0][0]) < 100)
+        self.assertTrue(int(row_cnt_shard_2[0][0]) < 100)
 
         #Ensure tha two new shard_ids have been generated.
-        range_sharding_specifications = RangeShardingSpecification.list(1)
-        self.assertTrue(ShardingUtils.compare_range_specifications(
-            range_sharding_specifications[0],
-            RangeShardingSpecification.fetch(2)))
-        self.assertTrue(ShardingUtils.compare_range_specifications(
-            range_sharding_specifications[1],
-            RangeShardingSpecification.fetch(3)))
+        hash_sharding_specifications = HashShardingSpecification.list(1)
+        self.assertTrue(ShardingUtils.compare_hash_specifications(
+            hash_sharding_specifications[1],
+            HashShardingSpecification.fetch(2)))
+        self.assertTrue(ShardingUtils.compare_hash_specifications(
+            hash_sharding_specifications[0],
+            HashShardingSpecification.fetch(3)))
 
     def tearDown(self):
         self.proxy.sharding.enable_shard("2")

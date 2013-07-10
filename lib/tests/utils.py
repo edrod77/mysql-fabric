@@ -171,8 +171,8 @@ class ShardingUtils(object):
                  False if Hash Sharding Specifications are not equal
         """
         return \
-            isinstance(hash_specification_1, RangeShardingSpecification) and \
-            isinstance(hash_specification_2, RangeShardingSpecification) and \
+            isinstance(hash_specification_1, HashShardingSpecification) and \
+            isinstance(hash_specification_2, HashShardingSpecification) and \
                 hash_specification_1.shard_mapping_id == \
                     hash_specification_2.shard_mapping_id and \
                 hash_specification_1.lower_bound == \

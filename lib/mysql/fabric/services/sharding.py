@@ -353,7 +353,7 @@ class SplitShardServer(ProcedureCommand):
     """
     group_name = "sharding"
     command_name = "split"
-    def execute(self,  shard_id,  destn_group_id,  split_value,
+    def execute(self,  shard_id,  destn_group_id,  split_value = None,
                           synchronous=True):
         """Split the shard represented by the shard_id into the destination
         group.
@@ -437,7 +437,7 @@ def _remove_shard_mapping(table_name):
     shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is None:
         raise _errors.ShardingError(TABLE_NAME_NOT_FOUND % (table_name, ))
-    if shard_mapping.type_name == "RANGE":
+    if shard_mapping.type_name in Shards.VALID_SHARDING_TYPES:
         if not RangeShardingSpecification.list(shard_mapping.shard_mapping_id):
             shard_mapping.remove()
             _LOGGER.debug("Removed Shard Mapping (%s, %s, %s, %s, %s).",
@@ -606,7 +606,7 @@ def _remove_shard(shard_id):
     :raises: ShardingError if the shard id is not found,
         :       ShardingError if the shard is not disabled.
     """
-    range_sharding_specification, shard = _verify_and_fetch_shard(shard_id)
+    range_sharding_specification, shard, _, _ = _verify_and_fetch_shard(shard_id)
     if shard.state == "ENABLED":
         raise _errors.ShardingError(SHARD_NOT_DISABLED)
     #Stop the replication of the shard group with the global
@@ -701,7 +701,7 @@ def _enable_shard(shard_id):
     :return: True Placeholder return value
     :raises: ShardingError if the shard_id is not found.
     """
-    _, shard = _verify_and_fetch_shard(shard_id)
+    _, shard, _, _ = _verify_and_fetch_shard(shard_id)
     #When you enable a shard, setup replication with the global server
     #of the shard mapping associated with this shard.
     _setup_shard_group_replication(shard_id)
@@ -717,7 +717,7 @@ def _disable_shard(shard_id):
     :return: True Placeholder return value
     :raises: ShardingError if the shard_id is not found.
     """
-    range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
+    range_sharding_spec, shard, _, _ = _verify_and_fetch_shard(shard_id)
     #When you disable a shard, disable replication with the global server
     #of the shard mapping associated with the shard.
     _stop_shard_group_replication(shard_id,  False)
@@ -758,20 +758,36 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     """
     #If it is a split ensure that the range is correct.
 
-    #We will need to change this once we start supporting heterogenous
-    #sharding schemes. It cannot checks RANGES alone.
     if cmd == "SPLIT":
-        range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
-        shard_mapping = ShardMapping.fetch_shard_mapping_defn(
-                            range_sharding_spec.shard_mapping_id
-                        )
-        if shard_mapping is None:
-            raise _errors.ShardingError(SHARD_MAPPING_NOT_FOUND % \
-                                                        (shard_mapping_id,  ))
+        range_sharding_spec, shard,  shard_mapping,  shard_mapping_defn = \
+            _verify_and_fetch_shard(shard_id)
 
-        schema_type = shard_mapping[1]
+        #If the underlying sharding scheme is a HASH
+        if shard_mapping.type_name == "HASH":
+            #Calculate the split. The split indicates the point at which the
+            #given shard is separated into two.
+            lower_bound = int(range_sharding_spec.lower_bound,  16)
+            upper_bound = HashShardingSpecification.get_upper_bound(
+                                range_sharding_spec.lower_bound,
+                                range_sharding_spec.shard_mapping_id
+                          )
+            if  upper_bound is None:
+                #While splitting a range, retrieve the next upper bound and
+                #find the mid-point, in the case where the next upper_bound
+                #is unavailable pick the maximum value in the set of values in
+                #the shard.
+                upper_bound = HashShardingSpecification.fetch_max_key(shard_id)
+                upper_bound = int(upper_bound, 16)
+            split_value = lower_bound + (upper_bound - lower_bound) / 2
+        elif shard_mapping.type_name == "RANGE" and split_value is None:
+            #If the underlying sharding specification is a RANGE, and the
+            #split value is not given, then calculate it as the mid value
+            #between the current lower_bound and its next lower_bound.
+            lower_bound = int(range_sharding_spec.lower_bound)
+            upper_bound = int(RangeShardingSpecification.get_upper_bound)
+            split_value = lower_bound + (upper_bound - lower_bound) / 2
         #TODO: Currently the RANGE sharding type supports only integer bounds.
-        if schema_type == "RANGE":
+        elif shard_mapping.type_name == "RANGE" and split_value is not None:
             try:
                 split_value = int(split_value)
             except ValueError:
@@ -796,27 +812,7 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     #TODO: Alfranio: The code that choses a SPARE or a SLAVE needs to be
     #TODO: Alfranio: factored into the HA code.
 
-    #Get a slave server whose status is spare.
-    move_source_server = None
-    for server in source_group.servers():
-        if source_group.master != server.uuid and \
-            server.status == "SPARE":
-            move_source_server = server
-
-    #If there is no spare check if a running slave is available
-    if move_source_server is None:
-        for server in source_group.servers():
-            if source_group.master != server.uuid and \
-                server.status == "RUNNING":
-                move_source_server = server
-
-    #If there is no running slave just use the master
-    if move_source_server is None:
-        move_source_server = MySQLServer.fetch(source_group.master)
-
-    #If there is no master throw an exception
-    if move_source_server is None:
-        raise _errors.ShardingError(SHARD_GROUP_MASTER_NOT_FOUND)
+    move_source_server = _fetch_backup_server(source_group)
 
     #TODO: The backup method should generic based on the backup tool
     #TODO: used to do the backup. Change this code to support generic
@@ -828,10 +824,11 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
                         mysqldump_binary
                     )
 
-#TODO: the backup image path should be handled in a more generic manner.
-#TODO: it is not right to just pass the path. This may work for MySQLDump
-#TODO: but we will need to do better to handle it for heterogenous backup
-#TODO: mechanisms.
+    #TODO: the backup image path should be handled in a more generic manner.
+    #TODO: it is not right to just pass the path. This may work for MySQLDump
+    #TODO: but we will need to do better to handle it for heterogenous backup
+    #TODO: mechanisms.
+
     #Change the master for the server that is master of the group which hosts
     #the destination shard.
     _events.trigger_within_procedure(
@@ -986,37 +983,32 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     """
     #Setup replication for the new group from the global server
 
-    #Fetch the Range sharding specification. When we start implementing
-    #heterogenous sharding schemes, we need to find out the type of
-    #sharding scheme and we should use that to find out the sharding
-    #implementation.
-    range_sharding_spec, source_shard = _verify_and_fetch_shard(shard_id)
+    #Fetch the Range sharding specification. 
+    range_sharding_spec, source_shard, _, _ = _verify_and_fetch_shard(shard_id)
 
-    #TODO: Should it delete the old shard and add two new shards or should
-    #TODO: it retain the original shard as one of the splits?
-
-    #TODO: Currently it just updates the range for the old shard and creates
-    #TODO: a new split.
-
-    #TODO: Should I disable, update the range and enable or can I directly enable?
-    #TODO: Disable, disables lookups and stops the global replication, but is this
-    #TODO: required?
-
-    #Add the new shard
-    new_shard = Shards.add(destination_group_id, "ENABLED")
-
-    #Add the new split range (split_value, upper_bound)
-    RangeShardingSpecification.add(
-        range_sharding_spec.shard_mapping_id, 
-        split_value,
-        new_shard.shard_id
-    )
-
-    #Disable the old shard id
+    #Disable the old shard
     source_shard.disable()
 
-    #Enable the old shard id
-    source_shard.enable()
+    #Remove the old shard.
+    range_sharding_spec.remove()
+    source_shard.remove()
+
+    #Add the new shards
+    new_shard_1 = Shards.add(source_shard.group_id, "DISABLED")
+    new_shard_2 = Shards.add(destination_group_id, "DISABLED")
+
+    #Add the new split ranges (split_value, upper_bound)
+    RangeShardingSpecification.add(
+        range_sharding_spec.shard_mapping_id,
+        range_sharding_spec.lower_bound,
+        new_shard_1.shard_id
+    )
+
+    RangeShardingSpecification.add(
+        range_sharding_spec.shard_mapping_id,
+        split_value,
+        new_shard_2.shard_id
+    )
 
     #The source shard group master would have been marked as read only
     #during the sync. Remove the read_only flag.
@@ -1030,11 +1022,15 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     source_group_master.connect()
     source_group_master.read_only = False
 
+    #Enable the split shards
+    new_shard_1.enable()
+    new_shard_2.enable()
+
     #Trigger changing the mappings for the shard that was copied
     _events.trigger_within_procedure(
                                      PRUNE_SHARDS,
-                                     new_shard.shard_id,
-                                     shard_id
+                                     new_shard_1.shard_id,
+                                     new_shard_2.shard_id
                                      )
 
 @_events.on_event(PRUNE_SHARDS)
@@ -1047,9 +1043,22 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     #TODO: Start the threads that do the delete. For now the deletes are
     #TODO: done as part of the same thread. These will be started as
     #TODO: separate threads later.
-    RangeShardingSpecification.prune_shard_id(shard_id_1)
-    RangeShardingSpecification.prune_shard_id(shard_id_2)
-    
+
+    #Fetch the Range sharding specification. When we start implementing
+    #heterogenous sharding schemes, we need to find out the type of
+    #sharding scheme and we should use that to find out the sharding
+    #implementation.
+    range_sharding_spec, source_shard,  shard_mapping,  _ = \
+        _verify_and_fetch_shard(shard_id_1)
+
+    #TODO: Use a dictionary that maps the type to the prune method.
+    if shard_mapping.type_name == "RANGE":
+        RangeShardingSpecification.prune_shard_id(shard_id_1)
+        RangeShardingSpecification.prune_shard_id(shard_id_2)
+    elif  shard_mapping.type_name == "HASH":
+        HashShardingSpecification.prune_shard_id(shard_id_1)
+        HashShardingSpecification.prune_shard_id(shard_id_2)
+
 def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     """Setup the moved shard to map to the new group.
 
@@ -1066,15 +1075,9 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, source_shard = _verify_and_fetch_shard(shard_id)
-    #Fetch the shard mapping definition for the given range specification.
-    #The shard mapping contains the information about the global group.
-    shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn(
-                            range_sharding_spec.shard_mapping_id
-                         )
-    if shard_mapping_defn is None:
-        raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
-                            (range_sharding_spec.shard_mapping_id, ))
+    range_sharding_spec, source_shard,  shard_mapping,  shard_mapping_defn = \
+        _verify_and_fetch_shard(shard_id)
+
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
             (shard_mapping_defn[2],  destination_group_id)
@@ -1097,12 +1100,38 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     master.connect()
     master.read_only = False
 
+def _fetch_backup_server(source_group):
+    """Fetch a spare, slave or master from a group in that order of
+    availability.
+
+    :param source_group: The group from which the server needs to
+                        be fetched.
+    """
+    #Get a slave server whose status is spare.
+    backup_server = None
+    for server in source_group.servers():
+        if source_group.master != server.uuid and \
+            server.status == "SPARE":
+            backup_server = server
+
+    #If there is no spare check if a running slave is available
+    if backup_server is None:
+        for server in source_group.servers():
+            if source_group.master != server.uuid and \
+                server.status == "RUNNING":
+                backup_server = server
+
+    #If there is no running slave just use the master
+    if backup_server is None:
+        backup_server = MySQLServer.fetch(source_group.master)
+
+    #If there is no master throw an exception
+    if backup_server is None:
+        raise _errors.ShardingError(SHARD_GROUP_MASTER_NOT_FOUND)
+
+    return backup_server
+
 def _verify_and_fetch_shard(shard_id):
-#TODO: As we start supporting heterogenous sharding schemes, we need
-#TODO: support for mapping a shard_id to a particular sharding type.
-#TODO: Only if we know that a shard_id is RANGE can we actually
-#TODO: access the RangeShardingTables. This information WILL NOT be
-#TODO: supplied by the user. For now proceed assuming it is RANGE.
     """Find out if the shard_id exists and return the sharding specification for
     it. If it does not exist throw an exception.
 
@@ -1112,13 +1141,48 @@ def _verify_and_fetch_shard(shard_id):
 
     :raises: ShardingError if the shard ID is not found.
     """
+    #TODO: Change implementation to accept a flag that allows the method
+    #TODO: to fetch only what is required.
+
+    #Note:
+    #Here the underlying sharding specification might be a RANGE
+    #or a HASH. The type of sharding specification is obtained from the
+    #shard mapping.
     range_sharding_spec = RangeShardingSpecification.fetch(shard_id)
     if range_sharding_spec is None:
         raise _errors.ShardingError(SHARD_NOT_FOUND % (shard_id,  ))
+
+    #Fetch the shard mapping and use it to find the type of sharding
+    #scheme.
+    shard_mapping = ShardMapping.fetch_by_id(
+                        range_sharding_spec.shard_mapping_id
+                    )
+    if shard_mapping is None:
+        raise _errors.ShardingError(
+                    SHARD_MAPPING_NOT_FOUND % (
+                        range_sharding_spec.shard_mapping_id,
+                    )
+                )
+
+    #Fetch the shard mapping definition
+    shard_mapping_defn =  ShardMapping.fetch_shard_mapping_defn(
+                        range_sharding_spec.shard_mapping_id
+                    )
+    if shard_mapping_defn is None:
+        raise _errors.ShardingError(
+                    SHARD_MAPPING_DEFN_NOT_FOUND % (
+                        range_sharding_spec.shard_mapping_id,
+                    )
+                )
+
     shard = Shards.fetch(shard_id)
     if shard is None:
         raise _errors.ShardingError(SHARD_NOT_FOUND % (shard_id,  ))
-    return range_sharding_spec, shard
+    if shard_mapping.type_name == "HASH":
+        return HashShardingSpecification.fetch(shard_id),\
+            shard,  shard_mapping, shard_mapping_defn
+    else:
+        return range_sharding_spec, shard, shard_mapping, shard_mapping_defn
 
 def _setup_shard_group_replication(shard_id):
     """Setup the replication between the master group and the
@@ -1133,15 +1197,9 @@ def _setup_shard_group_replication(shard_id):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
-    #Fetch the shard mapping definition for the given range specification.
-    #The shard mapping contains the information about the global group.
-    shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn(
-                            range_sharding_spec.shard_mapping_id
-                         )
-    if shard_mapping_defn is None:
-        raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % \
-                            (range_sharding_spec.shard_mapping_id, ))
+    range_sharding_spec, shard, shard_mapping, shard_mapping_defn  = \
+        _verify_and_fetch_shard(shard_id)
+
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
             (shard_mapping_defn[2],  shard.group_id)
@@ -1158,16 +1216,9 @@ def _stop_shard_group_replication(shard_id,  clear_ref):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, shard = _verify_and_fetch_shard(shard_id)
-    #Fetch the shard mapping for the given range specification. From the
-    #shard mapping the details of the global group can be obtained.
-    shard_mapping_defn = ShardMapping.fetch_shard_mapping_defn(
-        range_sharding_spec.shard_mapping_id
-    )
-    if shard_mapping_defn is None:
-        raise _errors.ShardingError(SHARD_MAPPING_DEFN_NOT_FOUND % (
-            range_sharding_spec.shard_mapping_id,
-        ))
+    range_sharding_spec, shard, shard_mapping, shard_mapping_defn  = \
+        _verify_and_fetch_shard(shard_id)
+
     #Stop the replication between the shard group and the global group. Also
     #based on the clear_ref flag decide if you want to clear the references
     #associated with the group.
