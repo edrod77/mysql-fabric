@@ -482,40 +482,15 @@ def _add_server(group_id, address, user, passwd):
     _server.MySQLServer.add(server)
     server.connect()
 
-    if not server.check_version_compat((5, 6, 8)):
-        raise _errors.ServerError(
-            "Server (%s) has an outdated version (%s). 5.6.8 or greater "
-            "is required." % (uuid, server.version)
-            )
+    # Check if the server fulfils the necessary requirements to become
+    # a member.
+    _check_requirements(server)
 
-    if not server.has_root_privileges():
-        _LOGGER.warning(
-            "User (%s) needs root privileges on Server (%s, %s)."
-            % (user, address, uuid)
-            )
-        server.disconnect()
-
+    # Add server as a member in the group.
     group.add_server(server)
 
-    try:
-        server.connect()
-
-        # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-        #  . CHECK FILTERS COMPATIBILITY.
-        #  . CHECK PURGED GTIDS.
-        if not server.gtid_enabled or not server.binlog_enabled:
-            raise _errors.ServerError(
-                "Server (%s) does not have the binary log or gtid enabled."
-                % (uuid, )
-                )
-
-        if group.master:
-            master = _server.MySQLServer.fetch(group.master)
-            master.connect()
-            _utils.switch_master(server, master)
-
-    except _errors.DatabaseError as error:
-        _LOGGER.error(error)
+    # Configure the server as a slave if there is a master.
+    _configure_as_slave(group, server)
 
     _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
@@ -591,11 +566,19 @@ def _set_server_spare(server):
 def _set_server_running(server):
     """Put the server in running mode.
     """
+    forbidden_status = [_server.MySQLServer.RUNNING]
     server.connect()
 
-    if server.is_alive():
+    if server.is_alive() and server.status not in forbidden_status:
+        forbidden_status = [_server.MySQLServer.SPARE]
+
+        _check_requirements(server)
+        if server.status not in forbidden_status:
+            group = _server.Group.group_from_server(server.uuid)
+            _configure_as_slave(group, server)
         server.status = _server.MySQLServer.RUNNING
-    else:
+
+    elif server.status not in forbidden_status:
         raise _errors.ServerError(
             "Cannot connect to server (%s)." % (server.uuid, )
             )
@@ -619,3 +602,40 @@ def _do_remove_server(group, server):
     _server.MySQLServer.remove(server)
     _LOGGER.debug("Removed server (%s) from group (%s).", server,
                   group)
+
+def _check_requirements(server):
+    """Check if the server fulfils some requirements.
+    """
+    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
+    #  . CHECK FILTERS COMPATIBILITY.
+    #  . CHECK PURGED GTIDS.
+    if not server.check_version_compat((5, 6, 8)):
+        raise _errors.ServerError(
+            "Server (%s) has an outdated version (%s). 5.6.8 or greater "
+            "is required." % (server.uuid, server.version)
+            )
+
+    if not server.has_root_privileges():
+        _LOGGER.warning(
+            "User (%s) needs root privileges on Server (%s, %s)."
+            % (server.user, server.address, server.uuid)
+            )
+
+    if not server.gtid_enabled or not server.binlog_enabled:
+        raise _errors.ServerError(
+            "Server (%s) does not have the binary log or gtid enabled."
+            % (server.uuid, )
+            )
+
+def _configure_as_slave(group, server):
+    """Configure the server as a slave.
+    """
+    # TODO: Integrate this code with the highavailability.py.
+    try:
+        if group.master:
+            master = _server.MySQLServer.fetch(group.master)
+            master.connect()
+            _utils.switch_master(server, master)
+    except _errors.DatabaseError as error:
+        # TODO: Check this in the context of HAM-193
+        _LOGGER.error(error)
