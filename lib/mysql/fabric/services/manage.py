@@ -323,7 +323,8 @@ def _configure_connections(config):
         number_executors = int(number_executors)
     except (_config.NoOptionError, _config.NoSectionError, ValueError):
         number_executors = DEFAULT_N_EXECUTORS
-    _executor.Executor(number_executors)
+    executor = _executor.Executor()
+    executor.set_number_executors(number_executors)
 
     # Fetch options to configure the XML-RPC.
     address = config.get('protocol.xmlrpc', "address")

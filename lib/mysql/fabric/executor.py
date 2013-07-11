@@ -465,7 +465,7 @@ class ExecutorThread(threading.Thread):
         This function will repeatedly read jobs from the scheduler and
         execute them.
         """
-        _LOGGER.debug("Initializing Executor thread %s.", self.name)
+        _LOGGER.info("Started.")
 
         ExecutorThread.local_thread.executor_object = self
         self.__persister = _persistence.MySQLPersister()
@@ -547,7 +547,7 @@ class Executor(Singleton):
     Procedures to be executed are queued into the scheduler and
     sequentially executed.
     """
-    def __init__(self, number_executors=1):
+    def __init__(self):
         """Constructor for the Executor.
         """
         super(Executor, self).__init__()
@@ -556,7 +556,14 @@ class Executor(Singleton):
         self.__procedures = WeakValueDictionary()
         self.__threads_lock = threading.RLock()
         self.__executors = []
-        self.__number_executors = number_executors
+        self.__number_executors = 1
+
+    def set_number_executors(self, number_executors):
+        """Set number of concurrent executors.
+        """
+        with self.__threads_lock:
+            self._assert_not_running()
+            self.__number_executors = number_executors
 
     def start(self):
         """Start the executor.
@@ -566,6 +573,7 @@ class Executor(Singleton):
 
             _LOGGER.info("Starting Executor.")
 
+            _LOGGER.info("Setting %s executor(s).", self.__number_executors)
             for nw in range(0, self.__number_executors):
                 executor = ExecutorThread(
                     self.__scheduler, "Executor-{0}".format(nw)
