@@ -65,7 +65,9 @@ class ClassCommand_0(_command.ProcedureCommand):
     command_name = "procedure_command_0"
 
     def execute(self, param, synchronous=True):
-        procedures = _events.trigger(NEW_PROCEDURE_COMMAND_0, param)
+        procedures = _events.trigger(
+            NEW_PROCEDURE_COMMAND_0, set(["lock"]), param
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(NEW_PROCEDURE_COMMAND_0)
@@ -78,7 +80,9 @@ class ClassCommand_1(_command.ProcedureCommand):
     command_name = "procedure_command_1"
 
     def execute(self, param, synchronous=True):
-        procedures = _events.trigger(NEW_PROCEDURE_COMMAND_1, param)
+        procedures = _events.trigger(
+            NEW_PROCEDURE_COMMAND_1, set(["lock"]), param
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(NEW_PROCEDURE_COMMAND_1)

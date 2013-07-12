@@ -310,7 +310,7 @@ class MySQLPersister(object):
         """Execute statements against the server.
 
         See :meth:`mysql.fabric.server_utils.exec_stmt`.
-        
+
         """
 
         while True:
@@ -324,6 +324,11 @@ class MySQLPersister(object):
                 _server_utils.reestablish_mysql_connection(
                     self.__cnx, attempt=1, delay=0
                     )
+
+def current_persister():
+    """Return the persister for the current thread.
+    """
+    return PersistentMeta.thread_local.persister
 
 def init_thread():
     """Initialize the persistence system for the thread.

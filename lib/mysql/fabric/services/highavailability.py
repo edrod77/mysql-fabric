@@ -18,8 +18,8 @@ from  mysql.fabric import (
 )
 
 from mysql.fabric.command import (
-    ProcedureCommand,
-    )
+    ProcedureGroup,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ DISCOVER_TOPOLOGY = _events.Event()
 IMPORT_TOPOLOGY = _events.Event()
 
 # TODO: AVOID USING UUID STRING and use UUID OBJECT.
-class ImportTopology(ProcedureCommand):
+class ImportTopology(ProcedureGroup):
     """Try to figure out the replication topology and import it into the
     state store.
 
@@ -83,9 +83,9 @@ class ImportTopology(ProcedureCommand):
           }
         """
         procedures = _events.trigger(
-            DISCOVER_TOPOLOGY, pattern_group_id, group_description,
-            address, user, passwd
-            )
+            DISCOVER_TOPOLOGY, self.get_lockable_objects(),
+            pattern_group_id, group_description, address, user, passwd
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 # Find out which operation should be executed.
@@ -106,7 +106,7 @@ BLOCK_WRITE_SWITCH = _events.Event()
 WAIT_SLAVES_SWITCH = _events.Event()
 # Enable the new master by making slaves point to it.
 CHANGE_TO_CANDIDATE = _events.Event()
-class PromoteMaster(ProcedureCommand):
+class PromoteMaster(ProcedureGroup):
     """Promote a server into master.
 
     If the master within a group fails, a new master is either automatically
@@ -232,7 +232,9 @@ class PromoteMaster(ProcedureCommand):
             executor <- change_to_candidate;
           }
         """
-        procedures = _events.trigger(DEFINE_HA_OPERATION, group_id, slave_uuid)
+        procedures = _events.trigger(
+            DEFINE_HA_OPERATION, self.get_lockable_objects(), group_id, slave_uuid
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DEFINE_HA_OPERATION)
@@ -275,7 +277,7 @@ def _define_ha_operation(group_id, slave_uuid):
 BLOCK_WRITE_DEMOTE = _events.Event()
 # Wait until all slaves synchronize with the master.
 WAIT_SLAVES_DEMOTE = _events.Event()
-class DemoteMaster(ProcedureCommand):
+class DemoteMaster(ProcedureGroup):
     """Demote the current master if there is one.
 
     In this case, the group must have a valid and operational master. Any write
@@ -319,11 +321,13 @@ class DemoteMaster(ProcedureCommand):
             executor <- reset_candidates;
           }
         """
-        procedures = _events.trigger(BLOCK_WRITE_DEMOTE, group_id)
+        procedures = _events.trigger(
+            BLOCK_WRITE_DEMOTE, self.get_lockable_objects(), group_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 CHECK_GROUP_AVAILABILITY = _events.Event()
-class CheckHealth(ProcedureCommand):
+class CheckHealth(ProcedureGroup):
     """Check if any server within a group has failed and report health
     information.
     """
@@ -337,7 +341,9 @@ class CheckHealth(ProcedureCommand):
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         """
-        procedures = _events.trigger(CHECK_GROUP_AVAILABILITY, group_id)
+        procedures = _events.trigger(
+            CHECK_GROUP_AVAILABILITY, self.get_lockable_objects(), group_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DISCOVER_TOPOLOGY)
@@ -691,7 +697,9 @@ def _do_wait_slaves_catch(group_id, master, skip_servers=None):
                 _LOGGER.exception(error)
 
     # At the end, we notify that a server was demoted.
-    _events.trigger("SERVER_DEMOTED", group_id, str(master.uuid))
+    _events.trigger("SERVER_DEMOTED", set([group_id]),
+        group_id, str(master.uuid)
+    )
 
 @_events.on_event(CHANGE_TO_CANDIDATE)
 def _change_to_candidate(group_id, master_uuid):
@@ -715,7 +723,9 @@ def _change_to_candidate(group_id, master_uuid):
                 _LOGGER.exception(error)
 
     # At the end, we notify that a server was promoted.
-    _events.trigger("SERVER_PROMOTED", group_id, master_uuid)
+    _events.trigger("SERVER_PROMOTED", set([group_id]),
+        group_id, master_uuid
+    )
 
 @_events.on_event(FIND_CANDIDATE_FAIL)
 def _find_candidate_fail(group_id):

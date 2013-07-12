@@ -56,8 +56,6 @@ provided elsewhere.
 import logging
 import uuid as _uuid
 
-import mysql.fabric.services.utils as _utils
-
 from mysql.fabric import (
     events as _events,
     server as _server,
@@ -67,6 +65,7 @@ from mysql.fabric import (
 )
 
 from mysql.fabric.command import (
+    ProcedureGroup,
     ProcedureCommand,
 )
 
@@ -89,11 +88,13 @@ class GroupLookups(ProcedureCommand):
         :return: List with existing groups or detailed information on group.
         :rtype: [[group], ....] or {group_id : ..., description : ...}.
         """
-        procedures = _events.trigger(LOOKUP_GROUPS, group_id)
+        procedures = _events.trigger(
+            LOOKUP_GROUPS, self.get_lockable_objects(), group_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 CREATE_GROUP = _events.Event()
-class GroupCreate(ProcedureCommand):
+class GroupCreate(ProcedureGroup):
     """Create a group.
     """
     group_name = "group"
@@ -108,11 +109,13 @@ class GroupCreate(ProcedureCommand):
                             or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(CREATE_GROUP, group_id, description)
+        procedures = _events.trigger(
+            CREATE_GROUP, self.get_lockable_objects(), group_id, description
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 UPDATE_GROUP = _events.Event()
-class GroupDescription(ProcedureCommand):
+class GroupDescription(ProcedureGroup):
     """Update group's description.
     """
     group_name = "group"
@@ -127,11 +130,13 @@ class GroupDescription(ProcedureCommand):
                             or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(UPDATE_GROUP, group_id, description)
+        procedures = _events.trigger(
+            UPDATE_GROUP, self.get_lockable_objects(), group_id, description
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 DESTROY_GROUP = _events.Event()
-class DestroyGroup(ProcedureCommand):
+class DestroyGroup(ProcedureGroup):
     """Remove a group.
     """
     group_name = "group"
@@ -146,7 +151,9 @@ class DestroyGroup(ProcedureCommand):
                             or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(DESTROY_GROUP, group_id, force)
+        procedures = _events.trigger(
+            DESTROY_GROUP, self.get_lockable_objects(), group_id, force
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SERVERS = _events.Event()
@@ -176,7 +183,9 @@ class ServerLookups(ProcedureCommand):
 
           [[uuid, address, is_master, status], ...]
         """
-        procedures = _events.trigger(LOOKUP_SERVERS, group_id, uuid, status)
+        procedures = _events.trigger(
+            LOOKUP_SERVERS, self.get_lockable_objects(), group_id, uuid, status
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_UUID = _events.Event()
@@ -196,11 +205,13 @@ class ServerUuid(ProcedureCommand):
                             or not.
         :return: uuid.
         """
-        procedures = _events.trigger(LOOKUP_UUID, address, user, passwd)
+        procedures = _events.trigger(
+            LOOKUP_UUID, self.get_lockable_objects(), address, user, passwd
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 ADD_SERVER = _events.Event()
-class ServerAdd(ProcedureCommand):
+class ServerAdd(ProcedureGroup):
     """Add a server into group.
     """
     group_name = "group"
@@ -217,13 +228,13 @@ class ServerAdd(ProcedureCommand):
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(
-            ADD_SERVER, group_id, address, user, passwd
-            )
+        procedures = _events.trigger(ADD_SERVER, self.get_lockable_objects(),
+            group_id, address, user, passwd
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SERVER = _events.Event()
-class ServerRemove(ProcedureCommand):
+class ServerRemove(ProcedureGroup):
     """Remove a server from a group.
     """
     group_name = "group"
@@ -238,11 +249,13 @@ class ServerRemove(ProcedureCommand):
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(REMOVE_SERVER, group_id, uuid)
+        procedures = _events.trigger(REMOVE_SERVER, self.get_lockable_objects(),
+            group_id, uuid
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 ACTIVATE_GROUP = _events.Event()
-class ActivateGroup(ProcedureCommand):
+class ActivateGroup(ProcedureGroup):
     """Activate a group.
 
     This means that it will be monitored and faulty servers will be detected.
@@ -258,11 +271,13 @@ class ActivateGroup(ProcedureCommand):
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(ACTIVATE_GROUP, group_id)
+        procedures = _events.trigger(
+            ACTIVATE_GROUP, self.get_lockable_objects(), group_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 DEACTIVATE_GROUP = _events.Event()
-class DeactivateGroup(ProcedureCommand):
+class DeactivateGroup(ProcedureGroup):
     """Deactivate a group.
 
     This means that it will not be monitored and faulty servers will not be
@@ -279,11 +294,14 @@ class DeactivateGroup(ProcedureCommand):
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
-        procedures = _events.trigger(DEACTIVATE_GROUP, group_id)
+        procedures = _events.trigger(
+            DEACTIVATE_GROUP, self.get_lockable_objects(), group_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
+# TODO: This procedure should consider groups.
 SET_SERVER_STATUS = _events.Event()
-class SetServerStatus(ProcedureCommand):
+class SetServerStatus(ProcedureGroup):
     """Set a server's status.
 
     Any server added into a group has the RUNNING status which means that
@@ -308,7 +326,9 @@ class SetServerStatus(ProcedureCommand):
     def execute(self, uuid, status, synchronous=True):
         """Set a server's status.
         """
-        procedures = _events.trigger(SET_SERVER_STATUS, uuid, status)
+        procedures = _events.trigger(
+            SET_SERVER_STATUS, self.get_lockable_objects(), uuid, status
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(LOOKUP_GROUPS)

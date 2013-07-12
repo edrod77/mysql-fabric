@@ -416,7 +416,7 @@ class Shards(_persistence.Persistable):
     the following
 
 +--------------------+--------------------+--------------------+
-|     shard_id       |      group_id      |     state          | 
+|     shard_id       |      group_id      |     state          |
 +====================+====================+====================+
 |1                   |GroupID1            |ENABLED             |
 +--------------------+--------------------+--------------------+
@@ -935,7 +935,7 @@ class RangeShardingSpecification(_persistence.Persistable):
             RangeShardingSpecification.UPDATE_RANGE,
             {"params" : (lower_bound, shard_id)}
         )
-    
+
     @staticmethod
     def lookup(key, shard_mapping_id, persister=None):
         """Return the Range sharding specification in whose key range the input
@@ -1092,6 +1092,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         master.connect()
 
         master.exec_stmt(delete_query)
+
 
 class HashShardingSpecification(RangeShardingSpecification):
     #Insert a HASH of keys and the server to which they belong.
@@ -1521,3 +1522,88 @@ class HashShardingSpecification(RangeShardingSpecification):
         master.connect()
 
         master.exec_stmt(delete_query)
+
+
+class MappingShardsGroups(_persistence.Persistable):
+    """This class defines queries that are used to retrieve information
+    on groups through a given key which could be a shard identification,
+    a shard mapping identification or a table name.
+
+    The group is used by the lock control system to avoid concurrent
+    procedures simultaneously accessing the same group thus causing
+    problems such as setting up a slave of a wrong master while a
+    switch or fail over is going on.
+    """
+    # Return the local group associated with a shard_id.
+    SELECT_LOCAL_GROUP_BY_SHARD_ID = \
+        ("SELECT group_id FROM shards WHERE shard_id = %s")
+
+    # Return the global group associated with a shard_id.
+    SELECT_GLOBAL_GROUP_BY_SHARD_ID = \
+       ("SELECT global_group AS group_id FROM shard_maps WHERE "
+        "shard_mapping_id = (SELECT shard_mapping_id FROM shard_ranges WHERE "
+        "shard_id = %s LIMIT 1)"
+       )
+
+    # Return the local group(s) associated with a shard_mapping_id.
+    SELECT_LOCAL_GROUP_BY_SHARD_MAPPING_ID = \
+       ("SELECT DISTINCT shards.group_id AS group_id FROM shard_ranges, "
+        "shards WHERE shard_ranges.shard_id = shards.shard_id AND "
+        "shard_ranges.shard_mapping_id = %s"
+       )
+
+    # Return the global group associated with a shard_mapping_id.
+    SELECT_GLOBAL_GROUP_BY_SHARD_MAPPING_ID = \
+       ("SELECT global_group AS group_id FROM shard_maps WHERE "
+        "shard_mapping_id = %s"
+       )
+
+    # Return the local group(s) associated with a table_name.
+    SELECT_LOCAL_GROUP_BY_TABLE_NAME = \
+       ("SELECT DISTINCT shards.group_id AS group_id FROM shard_ranges, "
+        "shards WHERE shard_ranges.shard_id = shards.shard_id AND "
+        "shard_ranges.shard_mapping_id IN (SELECT shard_mapping_id FROM "
+        "shard_tables WHERE table_name = %s)"
+       )
+
+    # Return the global group(s) associated with a table_name.
+    SELECT_GLOBAL_GROUP_BY_TABLE_NAME = \
+       ("SELECT global_group AS group_id FROM shard_maps WHERE "
+        "shard_mapping_id = (SELECT shard_mapping_id FROM shard_tables "
+        "WHERE table_name = %s)"
+       )
+
+    # Index queries through a set of pre-defined information.
+    PARAM_QUERIES = {
+        "local" :
+        {
+          "shard_id" : SELECT_LOCAL_GROUP_BY_SHARD_ID,
+          "shard_mapping_id" : SELECT_LOCAL_GROUP_BY_SHARD_MAPPING_ID,
+          "table_name" : SELECT_LOCAL_GROUP_BY_TABLE_NAME,
+        },
+        "global" :
+        {
+          "shard_id" : SELECT_GLOBAL_GROUP_BY_SHARD_ID,
+          "shard_mapping_id" : SELECT_GLOBAL_GROUP_BY_SHARD_MAPPING_ID,
+          "table_name" : SELECT_GLOBAL_GROUP_BY_TABLE_NAME,
+        },
+    }
+
+    @staticmethod
+    def get_group(locality, criterion, value, persister=None):
+        """Return group based on a set of filters.
+
+        :param locality: Determine if the group to be returned is global or
+                         local.
+        :param criterion: The criterion to retrieve a simple group: shard_id,
+                          shard_mapping_id and table_name.
+        :param value: Value of the criterion that will be used.
+        :return: Rows with the objects requested.
+        """
+        assert(locality in ("local", "global"))
+        assert(criterion in ("shard_id", "shard_mapping_id", "table_name"))
+        rows = persister.exec_stmt(
+            MappingShardsGroups.PARAM_QUERIES[locality][criterion],
+            {"raw" : False, "fetch" : True, "params" : (value, )}
+        )
+        return rows

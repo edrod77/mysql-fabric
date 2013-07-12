@@ -125,7 +125,9 @@ class TestHandler(unittest.TestCase):
         # the jobs scheduled will be returned, so we iterate over the
         # list and wait until all jobs have been executed.
         _TEST1 = 0
-        jobs = self.handler.trigger(False, _events.SERVER_LOST, 3, "")
+        jobs = self.handler.trigger(
+            False, _events.SERVER_LOST, set(["lock"]), 3, ""
+        )
         self.assertEqual(len(jobs), 1)
         for job in jobs:
             job.wait()
@@ -133,7 +135,9 @@ class TestHandler(unittest.TestCase):
 
         # Check that triggering an event by name works.
         _TEST1 = 0
-        jobs = self.handler.trigger(False, "SERVER_LOST", 4, "")
+        jobs = self.handler.trigger(
+            False, "SERVER_LOST", set(["lock"]), 4, ""
+        )
         self.assertEqual(len(jobs), 1)
         for job in jobs:
             job.wait()
@@ -146,7 +150,9 @@ class TestHandler(unittest.TestCase):
         self.handler.register(my_event, callables)
 
         # Trigger the event and wait for all jobs to finish
-        jobs = self.handler.trigger(False, my_event, 3, "")
+        jobs = self.handler.trigger(
+            False, my_event, set(["lock"]), 3, ""
+        )
         for job in jobs:
             job.wait()
 
@@ -154,7 +160,9 @@ class TestHandler(unittest.TestCase):
             self.assertEqual(obj.result, idx + 3)
 
         # Try to trigger an unknown event.
-        self.assertEqual(self.handler.trigger(False, "UNKNOWN_EVENT"), [])
+        self.assertEqual(
+            self.handler.trigger(False, "UNKNOWN_EVENT", None), []
+        )
 
 #
 # Testing the decorator to see that it works
@@ -184,21 +192,25 @@ class TestDecorator(unittest.TestCase):
 
         # Test decorator
         _PROMOTED = None
-        jobs = self.handler.trigger(False, _events.SERVER_PROMOTED, "Testing", "")
+        jobs = self.handler.trigger(
+            False, _events.SERVER_PROMOTED, set(["lock"]), "Testing", ""
+        )
         for job in jobs:
             job.wait()
         self.assertEqual(_PROMOTED, "Testing")
 
         # Test undo action for decorator
         _DEMOTED = None
-        jobs = self.handler.trigger(False, _events.SERVER_DEMOTED, "Executing", "")
+        jobs = self.handler.trigger(
+            False, _events.SERVER_DEMOTED, set(["lock"]), "Executing", ""
+        )
         for job in jobs:
             job.wait()
         self.assertEqual(_DEMOTED, "Undone")
 
 # Testing that on_event decorator works as expected
 @_events.on_event(_events.SERVER_PROMOTED)
-def _my_event(param, ignored):
+def my_event(param, ignored):
     global _PROMOTED
     _PROMOTED = param
 
@@ -235,7 +247,8 @@ class TestService(unittest.TestCase):
         def _another_my_event(param, ignored):
             promoted[0] = param
         _events.Handler().register(_events.SERVER_PROMOTED, _another_my_event)
-        jobs = self.proxy.event.trigger("SERVER_PROMOTED", "my.example.com", "")
+        jobs = self.proxy.event.trigger("SERVER_PROMOTED", "lock_a, lock_b",
+                                        "my.example.com", "")
         try:
             self.proxy.event.wait_for_procedures(", ".join(jobs))
             self.assertEqual(promoted[0], "my.example.com")

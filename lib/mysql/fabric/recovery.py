@@ -28,9 +28,9 @@ def recovery():
 
         if checkpoint.undo_action:
             procedure = _executor.Executor().enqueue_procedure(
-                False,
-                checkpoint.undo_action,
+                False, checkpoint.undo_action,
                 "Recovering %s." % (checkpoint.undo_action, ),
+                checkpoint.lockable_objects,
                 *checkpoint.param_args, **checkpoint.param_kwargs
                 )
             procedure.wait()
@@ -52,7 +52,7 @@ def recovery():
         if procedure_uuid is not None and \
             procedure_uuid != checkpoint.proc_uuid:
             procedures = _executor.Executor().reschedule_procedure(
-                actions, procedure_uuid
+                procedure_uuid, actions, checkpoint.lockable_objects
             )
             procedure_uuid = None
             actions = []
@@ -61,7 +61,7 @@ def recovery():
 
     if procedure_uuid is not None:
         procedures = _executor.Executor().reschedule_procedure(
-            actions, procedure_uuid
+            procedure_uuid, actions, checkpoint.lockable_objects
         )
 
     return error

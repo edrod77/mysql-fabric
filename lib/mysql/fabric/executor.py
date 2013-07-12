@@ -33,8 +33,13 @@ class Procedure(object):
 
     This class is mainly used to keep track of requests and to provide the
     necessary means to build a synchronous execution.
+
+    :param uuid: Procedure uuid which can be None meaning that a new one
+                 will be generated.
+    :param lockable_objects: Set of objects to be locked by the concurrency
+                             control mechanism.
     """
-    def __init__(self, uuid=None):
+    def __init__(self, uuid=None, lockable_objects=None):
         """Create a Procedure object.
         """
         assert(uuid is None or isinstance(uuid, _uuid.UUID))
@@ -45,21 +50,22 @@ class Procedure(object):
         self.__scheduled_jobs = set()
         self.__executed_jobs = []
         self.__status = []
+        self.__lockable_objects = lockable_objects
 
         _LOGGER.debug("Created procedure (%s, %s).",
             self.__uuid, time.time()
         )
 
-    def get_lock_objects(self):
+    def get_lockable_objects(self):
         """Return the objects that need to be locked before this procedure
         starts being executed.
 
-        :return: List of objects to be locked.
-        :rtype: List
+        :return: Set of objects to be locked.
+        :rtype: set
         """
-        # TODO: Create a routine to automatically determine the set of objects
-        #       to be locked.
-        return set(["lock"])
+        if not self.__lockable_objects:
+            return set(["lock"])
+        return self.__lockable_objects
 
     def get_priority(self):
         """Return whether this procedure should have higher priority over
@@ -237,7 +243,8 @@ class Job(object):
         self.__action_fqn = action.__module__ + "." + action.__name__
 
         self.__checkpoint = _checkpoint.Checkpoint(
-            self.__procedure.uuid, self.__uuid, self.__action_fqn, args, kwargs
+            self.__procedure.uuid, self.__procedure.get_lockable_objects(),
+            self.__uuid, self.__action_fqn, args, kwargs
         )
 
         self._add_status(Job.SUCCESS, Job.ENQUEUED, description)
@@ -361,9 +368,8 @@ class Job(object):
             try:
                 # Rollback the job transactional context.
                 persister.rollback()
-            except (_errors.DatabaseError, _errors.WorkerError) as \
-                executor_error:
-                _LOGGER.exception(executor_error)
+            except _errors.DatabaseError as rollback_error:
+                _LOGGER.exception(rollback_error)
 
             # Update the job status.
             self.__result = False
@@ -392,8 +398,8 @@ class Job(object):
                 # the current job.
                 queue.schedule(self.__jobs)
                 scheduler.enqueue_procedures(self.__procedures)
-            except _errors.DatabaseError as db_error:
-                _LOGGER.exception(db_error)
+            except _errors.DatabaseError as commit_error:
+                _LOGGER.exception(commit_error)
 
             # Update the job status.
             message = "Executed action ({0}).".format(self.__action.__name__)
@@ -616,12 +622,14 @@ class Executor(Singleton):
                 executor.join()
 
     def enqueue_procedure(self, within_procedure, do_action, description,
-                          *args, **kwargs):
+                          lockable_objects=None, *args, **kwargs):
         """Schedule a procedure.
 
         :within_procedure: Define if a new procedure will be created or not.
         :param action: Callable to execute.
         :param description: Description of the job.
+        :param lockable_objects: Set of objects to be locked by the concurrency
+                                 control mechanism.
         :param args: Non-keyworded arguments to pass to the job.
         :param kwargs: Keyworded arguments to pass to the job.
         :return: Reference to the procedure.
@@ -630,19 +638,22 @@ class Executor(Singleton):
         procedures = self.enqueue_procedures(within_procedure,
             [{"action" : (do_action, description, args, kwargs),
               "job" : None
-            }]
+            }], lockable_objects
         )
         return procedures[0]
 
-    def enqueue_procedures(self, within_procedure, actions):
+    def enqueue_procedures(self, within_procedure, actions,
+                           lockable_objects=None):
         """Schedule a set of procedures.
 
+        :within_procedure: Define if a new procedure will be created or not.
         :param actions: Set of actions to be scheduled and each action
                         corresponds to a procedure.
         :type actions: Dictionary [{"job" : Job uuid, "action" :
                        (action, description, non-keyword arguments,
                        keyword arguments)}, ...]
-        :within_procedure: Define if a new procedure will be created or not.
+        :param lockable_objects: Set of objects to be locked by the concurrency
+                                 control mechanism.
         :return: Return a set of procedure objects.
         """
         if not len(actions):
@@ -652,9 +663,12 @@ class Executor(Singleton):
             self._assert_running()
 
         # TODO: ENQUEUE WITH LOCK SO THAT THE THREADS ARE NOT KILLED.
-        return self._do_enqueue_procedures(within_procedure, actions)
+        return self._do_enqueue_procedures(
+            within_procedure, actions, lockable_objects
+        )
 
-    def _do_enqueue_procedures(self, within_procedure, actions):
+    def _do_enqueue_procedures(self, within_procedure, actions,
+                               lockable_objects):
         """Schedule a set of procedures.
         """
         procedures = None
@@ -664,7 +678,7 @@ class Executor(Singleton):
                 raise _errors.ProgrammingError(
                     "One can only create a new job from a job."
                 )
-            procedures, jobs = self._create_jobs(actions)
+            procedures, jobs = self._create_jobs(actions, lockable_objects)
             assert(len(set(procedures)) == len(set(jobs)))
             _checkpoint.register(jobs, False)
             self.__scheduler.enqueue_procedures(procedures)
@@ -673,28 +687,30 @@ class Executor(Singleton):
             current_procedure = current_job.procedure
             if within_procedure:
                 procedures, jobs = self._create_jobs(
-                    actions, current_procedure.uuid
+                    actions, lockable_objects, current_procedure.uuid
                 )
                 assert(set([job.procedure for job in jobs]) ==
                        set(procedures) == set([current_procedure])
                 )
                 current_job.append_jobs(jobs)
             else:
-                procedures, jobs = self._create_jobs(actions)
+                procedures, jobs = self._create_jobs(actions, lockable_objects)
                 assert(len(set(procedures)) == len(set(jobs)))
                 current_job.append_procedures(procedures)
         assert(procedures is not None)
         return procedures
 
-    def reschedule_procedure(self, actions, proc_uuid):
+    def reschedule_procedure(self, proc_uuid, actions, lockable_objects=None):
         """Recovers a procedure after a failure by rescheduling it.
 
+        :param proc_uuid: Procedure uuid.
         :param actions: Set of actions to be scheduled on behalf of
                         the procedure.
-        :param proc_uuid: Procedure uuid.
         :type actions: Dictionary [{"job" : Job uuid, "action" :
                        (action, description, non-keyword arguments,
                        keyword arguments)}, ...]
+        :param lockable_objects: Set of objects to be locked by the concurrency
+                                 control mechanism.
         :return: Return a procedure object.
         """
         if not len(actions):
@@ -704,9 +720,11 @@ class Executor(Singleton):
             self._assert_running()
 
         # TODO: ENQUEUE WITH LOCK SO THAT THE THREADS ARE NOT KILLED.
-        return self._do_reschedule_procedure(actions, proc_uuid)
+        return self._do_reschedule_procedure(
+            proc_uuid, actions, lockable_objects
+        )
 
-    def _do_reschedule_procedure(self, actions, proc_uuid):
+    def _do_reschedule_procedure(self, proc_uuid, actions, lockable_objects):
         """Recovers a procedure after a failure by rescheduling it.
         """
         if ExecutorThread.executor_object():
@@ -714,7 +732,9 @@ class Executor(Singleton):
                 "One cannot reschedule a procedure from a job."
                 )
 
-        procedures, jobs = self._create_jobs(actions, proc_uuid)
+        procedures, jobs = self._create_jobs(
+            actions, lockable_objects, proc_uuid
+        )
         self.__scheduler.enqueue_procedures(procedures)
         assert(set([job.procedure for job in jobs]) == set(procedures))
         assert(set([job.procedure.uuid for job in jobs]) ==
@@ -775,25 +795,27 @@ class Executor(Singleton):
         if self.__executors:
              raise _errors.ExecutorError("Executor is already running.")
 
-    def _create_jobs(self, actions, proc_uuid=None):
+    def _create_jobs(self, actions, lockable_objects, proc_uuid=None):
         """Create a set of jobs.
         """
         procedures = set()
         jobs = []
         for number in range(0, len(actions)):
-            job = self._create_job(actions[number], proc_uuid)
+            job = self._create_job(
+                actions[number], lockable_objects, proc_uuid
+            )
             jobs.append(job)
             procedures.add(job.procedure)
         return list(procedures), jobs
 
-    def _create_job(self, action, proc_uuid=None):
+    def _create_job(self, action, lockable_objects, proc_uuid=None):
         """Create a job.
         """
         procedure = None
         with self.__procedures_lock:
             procedure = self.__procedures.get(proc_uuid, None)
             if procedure is None:
-                procedure = Procedure(proc_uuid)
+                procedure = Procedure(proc_uuid, lockable_objects)
                 self.__procedures[procedure.uuid] = procedure
 
         assert(procedure is not None)

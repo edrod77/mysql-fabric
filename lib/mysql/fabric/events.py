@@ -245,7 +245,8 @@ class Handler(Singleton):
         except KeyError:
             return False
 
-    def trigger(self, within_procedure, event, *args, **kwargs):
+    def trigger(self, within_procedure, event,
+                lockable_objects=None, *args, **kwargs):
         """Trigger an event.
 
         This function will trigger an event resulting in zero or more
@@ -271,13 +272,16 @@ class Handler(Singleton):
         that if you want to trigger an event and wait for them to
         finish executing, you can use the following code::
 
-           procedures = handler.trigger(False, SERVER_LOST, "my.example.com")
+           procedures = handler.trigger(False, SERVER_LOST, lockable_objects,
+                                        "my.example.com")
            for procedure in procedures:
               procedure.wait()
 
         :within_procedure: Define if a new procedure will be created or not.
         :param event: Event to trigger.
         :type event: Event name or event instance
+        :param lockable_objects: Set of objects to be locked by the concurrency
+                                 control mechanism.
         :param args: Non-keyworded arguments to pass to the event.
         :param kwargs: Keyworded arguments to pass to the event.
         :returns: Procedures that were created as a result of triggering the
@@ -302,19 +306,23 @@ class Handler(Singleton):
             }
             for block in self.__blocks_for.get(event, [])
         ]
-        return self.__executor.enqueue_procedures(within_procedure, actions)
+        return self.__executor.enqueue_procedures(
+            within_procedure, actions, lockable_objects
+        )
 
-def trigger(event, *args, **kwargs):
+def trigger(event, lockable_objects=None, *args, **kwargs):
     """Trigger an event by name or instance.
 
     :param event: The event to trigger.
     :type event: Event name or event instance.
+    :param lockable_objects: Set of objects to be locked by the concurrency
+                             control mechanism.
     :param args: Non-keyworded arguments to pass to the event.
     :param kwargs: Keyworded arguments to pass to the event.
     """
     handler = Handler()
     _LOGGER.debug("Triggering event %s in handler %s", event, handler)
-    return handler.trigger(False, event, *args, **kwargs)
+    return handler.trigger(False, event, lockable_objects, *args, **kwargs)
 
 def trigger_within_procedure(event, *args, **kwargs):
     """Trigger an event by name or instance. However, any job created
@@ -331,7 +339,7 @@ def trigger_within_procedure(event, *args, **kwargs):
     """
     handler = Handler()
     _LOGGER.debug("Triggering event %s in handler %s", event, handler)
-    return handler.trigger(True, event, *args, **kwargs)
+    return handler.trigger(True, event, None, *args, **kwargs)
 
 # Some pre-defined events. These are documented directly in the documentation
 # and not using autodoc.

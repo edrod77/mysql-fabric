@@ -132,11 +132,18 @@ class FailureDetector(object):
                             continue
                         _LOGGER.info("Server (%s) in group (%s) has "
                             "been lost.", server.uuid, self.__group_id)
-                        trigger("SERVER_LOST", self.__group_id, server.uuid)
                         if group.master == server.uuid:
                             _LOGGER.info("Master (%s) in group (%s) has "
                                 "been lost.", server.uuid, self.__group_id)
-                            trigger("FAIL_OVER", self.__group_id)
+                            trigger(
+                                "FAIL_OVER", set([self.__group_id]),
+                                self.__group_id
+                            )
+                        else:
+                            trigger(
+                                "SERVER_LOST", set([self.__group_id]),
+                                self.__group_id, server.uuid
+                            )
                         server.status = MySQLServer.FAULTY
             except (_errors.ExecutorError, _errors.DatabaseError):
                 pass

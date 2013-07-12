@@ -59,12 +59,12 @@ class TestExecutor(unittest.TestCase):
     def test_basic(self):
         # Scheduling actions to be executed.
         proc_1 = self.executor.enqueue_procedure(
-            False, test1, "Enqueuing action test1()"
+            False, test1, "Enqueuing action test1()", set(["lock"])
             )
         proc_1.wait()
         _LOGGER.debug("Procedure 1:"+ str(proc_1))
         proc_2 = self.executor.enqueue_procedure(
-            False, test2, "Enqueuing action test2()"
+            False, test2, "Enqueuing action test2()", set(["lock"])
             )
         proc_2.wait()
         _LOGGER.debug("Procedure 2:"+ str(proc_2))
@@ -116,13 +116,13 @@ class TestExecutor(unittest.TestCase):
         self.executor.shutdown()
         self.assertRaises(_errors.ExecutorError,
                           self.executor.enqueue_procedure,
-                          False, 3, "Enqueue integer")
+                          False, 3, "Enqueue integer", set(["lock"]))
 
         # Check if the action is callable.
         self.executor.start()
         self.assertRaises(_errors.NotCallableError,
                           self.executor.enqueue_procedure,
-                          False, 3, "Enqueue integer")
+                          False, 3, "Enqueue integer", set(["lock"]))
 
         # Check unknown job.
         proc = self.executor.get_procedure(
@@ -138,8 +138,10 @@ class TestExecutor(unittest.TestCase):
         actions = []
         for num in range(1, 10, 2):
             action = Action(num)
-            proc = self.executor.enqueue_procedure(False, action, action.descr,
-                                                   action.expect)
+            proc = self.executor.enqueue_procedure(
+                False, action, action.descr, set(["lock"]),
+                action.expect
+            )
             procs.append(proc)
             actions.append(action)
 

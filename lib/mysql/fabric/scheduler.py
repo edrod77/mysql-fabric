@@ -59,7 +59,7 @@ class Scheduler(object):
             _LOGGER.debug("Locking procedure %s.", procedure)
             self.__lock_manager.lock(
                 procedure,
-                procedure.get_lock_objects(),
+                procedure.get_lockable_objects(),
                 procedure.get_priority(),
                 condition
             )

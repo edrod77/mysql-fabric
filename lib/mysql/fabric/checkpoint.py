@@ -42,6 +42,8 @@ class Checkpoint(_persistence.Persistable):
       }
 
     :param proc_uuid: Procedure uuid.
+    :param lockable_objects: Set of objects to be locked by the concurrency
+                             control mechanism.
     :param job_uuid: Job uuid.
     :param action_fqn: Reference to the main function.
     :type action_fqn: String
@@ -60,10 +62,10 @@ class Checkpoint(_persistence.Persistable):
     # keep track of execution (i.e. jobs).
     CREATE_CHECKPOINTS = (
         "CREATE TABLE checkpoints (proc_uuid VARCHAR(40) NOT NULL, "
-        "job_uuid VARCHAR(40) NOT NULL, sequence INTEGER NOT NULL, "
-        "action_fqn TEXT NOT NULL, param_args BLOB NULL, "
-        "param_kwargs BLOB NULL, started DOUBLE(16, 6) NULL, "
-        "finished DOUBLE(16, 6) NULL, "
+        "lockable_objects BLOB NULL, job_uuid VARCHAR(40) NOT NULL, "
+        "sequence INTEGER NOT NULL, action_fqn TEXT NOT NULL, "
+        "param_args BLOB NULL, param_kwargs BLOB NULL, "
+        "started DOUBLE(16, 6) NULL, finished DOUBLE(16, 6) NULL, "
         "CONSTRAINT pk_checkpoint PRIMARY KEY (proc_uuid, job_uuid))"
         )
 
@@ -73,9 +75,9 @@ class Checkpoint(_persistence.Persistable):
 
     #SQL statement for inserting a new checkpoint into the table.
     INSERT_CHECKPOINT = (
-        "INSERT INTO checkpoints(proc_uuid, job_uuid, sequence, action_fqn, "
-        "param_args, param_kwargs) "
-        "SELECT %s, %s, coalesce(MAX(sequence), 0) + 1, %s, %s, %s FROM "
+        "INSERT INTO checkpoints(proc_uuid, lockable_objects, job_uuid, "
+        "sequence, action_fqn, param_args, param_kwargs) "
+        "SELECT %s, %s, %s, coalesce(MAX(sequence), 0) + 1, %s, %s, %s FROM "
         "checkpoints WHERE proc_uuid = %s"
         )
 
@@ -95,30 +97,32 @@ class Checkpoint(_persistence.Persistable):
 
     #SQL statement for retrieving the checkpoints stored on behalf of a
     #procedure.
-    QUERY_CHECKPOINTS = ("SELECT proc_uuid, job_uuid, sequence, action_fqn, "
-        "param_args, param_kwargs, started, finished FROM checkpoints WHERE "
-        "proc_uuid = %s"
+    QUERY_CHECKPOINTS = ("SELECT proc_uuid, lockable_objects, job_uuid, "
+        "sequence, action_fqn, param_args, param_kwargs, started, finished "
+        "FROM checkpoints WHERE proc_uuid = %s"
         )
 
     #SQL statement for retrieving all occurrences in the checkptoint which
     #is used for recovery.
     #TODO: Simplify this statement.
     QUERY_UNFINISHED_CHECKPOINTS = (
-        "SELECT chk_info.proc_uuid, chk_info.job_uuid, chk_info.sequence, "
-        "chk_info.action_fqn, chk_info.param_args, chk_info.param_kwargs, "
+        "SELECT chk_info.proc_uuid, chk_info.lockable_objects, "
+        "chk_info.job_uuid, chk_info.sequence, chk_info.action_fqn, "
+        "chk_info.param_args, chk_info.param_kwargs, "
         "chk_info.started, chk_info.finished FROM "
         "(SELECT proc_uuid, max(sequence) as sequence FROM checkpoints "
         "WHERE started is NOT NULL AND finished is NULL GROUP BY proc_uuid) "
         "AS chk_core INNER JOIN "
-        "(SELECT proc_uuid, job_uuid, sequence, action_fqn, param_args, "
-        "param_kwargs, started, finished FROM checkpoints) AS chk_info ON "
-        "chk_info.proc_uuid = chk_core.proc_uuid and "
+        "(SELECT proc_uuid, lockable_objects, job_uuid, sequence, action_fqn, "
+        "param_args, param_kwargs, started, finished FROM checkpoints) "
+        "AS chk_info ON chk_info.proc_uuid = chk_core.proc_uuid and "
         "chk_info.sequence = chk_core.sequence"
         )
 
     QUERY_SCHEDULED_CHECKPOINTS = (
-        "SELECT proc_uuid, job_uuid, sequence, action_fqn, param_args, "
-        "param_kwargs, started, finished FROM checkpoints WHERE finished "
+        "SELECT proc_uuid, lockable_objects, job_uuid, sequence, "
+        "action_fqn, param_args, param_kwargs, started, finished "
+        "FROM checkpoints WHERE finished "
         "is NULL ORDER BY proc_uuid, sequence"
         )
 
@@ -130,8 +134,9 @@ class Checkpoint(_persistence.Persistable):
         "WHERE chk_info.finished is NULL)"
         )
 
-    def __init__(self, proc_uuid, job_uuid, action_fqn, param_args,
-                 param_kwargs, started=None, finished=None, sequence=None):
+    def __init__(self, proc_uuid, lockable_objects, job_uuid,
+                 action_fqn, param_args, param_kwargs,
+                 started=None, finished=None, sequence=None):
         """Constructor for Checkpoint object.
         """
         super(Checkpoint, self).__init__()
@@ -150,6 +155,13 @@ class Checkpoint(_persistence.Persistable):
         self.__sequence = sequence
         self.__started = started
         self.__finished = finished
+        self.__lockable_objects = lockable_objects
+
+    @property
+    def lockable_objects(self):
+        """Return the set of lockable objects.
+        """
+        return self.__lockable_objects
 
     @property
     def proc_uuid(self):
@@ -208,11 +220,13 @@ class Checkpoint(_persistence.Persistable):
     def schedule(self, persister=None):
         """Register that an action has been scheduled.
         """
-        param_args, param_kwargs = \
-            Checkpoint.serialize(self.__param_args, self.__param_kwargs)
+        # TODO: Move lockable_objects to a different table.
+        param_args, param_kwargs, lockable_objects= \
+            Checkpoint.serialize(self.__param_args, self.__param_kwargs,
+                                 self.__lockable_objects)
         persister.exec_stmt(Checkpoint.INSERT_CHECKPOINT,
-            {"params":(str(self.__proc_uuid), str(self.__job_uuid),
-            self.__action_fqn, param_args, param_kwargs,
+            {"params":(str(self.__proc_uuid), lockable_objects,
+            str(self.__job_uuid), self.__action_fqn, param_args, param_kwargs,
             str(self.__proc_uuid))}
             )
 
@@ -248,13 +262,13 @@ class Checkpoint(_persistence.Persistable):
         :type row: Tuple.
         :return: Return a Checkpoint object.
         """
-        (proc_uuid, job_uuid, sequence, action_fqn, param_args, param_kwargs,
-        started, finished) = row
-        param_args, param_kwargs = \
-             Checkpoint.deserialize(param_args, param_kwargs)
+        (proc_uuid, lockable_objects, job_uuid, sequence, action_fqn,
+         param_args, param_kwargs, started, finished) = row
+        param_args, param_kwargs, lockable_objects= \
+             Checkpoint.deserialize(param_args, param_kwargs, lockable_objects)
         checkpoint = Checkpoint(
-            _uuid.UUID(proc_uuid), _uuid.UUID(job_uuid), action_fqn,
-            param_args, param_kwargs, started, finished, sequence
+            _uuid.UUID(proc_uuid), lockable_objects, _uuid.UUID(job_uuid),
+            action_fqn, param_args, param_kwargs, started, finished, sequence
             )
         return checkpoint
 
@@ -393,7 +407,7 @@ class Checkpoint(_persistence.Persistable):
             return None
 
     @staticmethod
-    def serialize(param_args, param_kwargs):
+    def serialize(param_args, param_kwargs, lockable_objects):
         """Serialize the non-keyworded and keyworded parameters using Pickle.
         It is worth noticing that it does not check the type of the objects
         that are being serialize and it is up to the user to do so.
@@ -402,27 +416,34 @@ class Checkpoint(_persistence.Persistable):
                            function(s).
         :param param_kwargs: Dictionary with neyworded arguments to the
                              function(s).
-        :return: Return a tuple with both parameters serialized.
-        :rtype: (serialized_args, serialized_kwargs).
+        :param lockable_objects: Set of objects to be locked by the concurrency
+                                 control mechanism.
+        :return: Return a tuple with the parameters serialized.
+        :rtype: (serialized_args, serialized_kwargs,
+                serialized_lockable_objects).
         """
         s_param_args = pickle.dumps(param_args)
         s_param_kwargs = pickle.dumps(param_kwargs)
-        return s_param_args, s_param_kwargs
+        s_lockable_objects = pickle.dumps(lockable_objects)
+        return s_param_args, s_param_kwargs, s_lockable_objects
 
     @staticmethod
-    def deserialize(param_args, param_kwargs):
+    def deserialize(param_args, param_kwargs, lockable_objects):
         """Deserialize the non-keyworded and keyworded parameters using Pickle.
 
         :param param_args: Serialized list with non-keyworded arguments to the
                            function(s).
         :param param_kwargs: Serialized dictionary with neyworded arguments to
                              the function(s).
-        :return: Return a tuple with both parameters deserialized.
-        :rtype: (args, kwargs).
+        :param lockable_objects: Set of objects to be locked by the concurrency
+                                 control mechanism.
+        :return: Return a tuple with the parameters deserialized.
+        :rtype: (args, kwargs, lockable_objects).
         """
         ds_param_args = pickle.loads(param_args)
         ds_param_kwargs = pickle.loads(param_kwargs)
-        return ds_param_args, ds_param_kwargs
+        ds_lockable_objects = pickle.loads(lockable_objects)
+        return ds_param_args, ds_param_kwargs, ds_lockable_objects
 
     @staticmethod
     def is_recoverable(action):
@@ -459,7 +480,7 @@ def register(jobs, transaction):
     """
     assert(isinstance(jobs, list))
 
-    persister = _persistence.PersistentMeta.thread_local.persister
+    persister = _persistence.current_persister()
     if not transaction:
         persister.begin()
 

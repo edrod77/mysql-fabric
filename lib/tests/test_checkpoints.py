@@ -106,7 +106,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         independent job.
         """
         procedures = _events.trigger(
-            EVENT_CHECK_PROPERTIES_1, "PARAM 01", "PARAM 02"
+            EVENT_CHECK_PROPERTIES_1, set(["lock"]), "PARAM 01", "PARAM 02"
             )
 
         # Get the result (Checkpoint object) from the procedure.
@@ -133,7 +133,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         of independent jobs.
         """
         procedures = _events.trigger(
-            EVENT_CHECK_PROPERTIES_2, "PARAM 01", "PARAM 02"
+            EVENT_CHECK_PROPERTIES_2, set(["lock"]), "PARAM 01", "PARAM 02"
             )
 
         # Get the result (Checkpoint object) from the procedure.
@@ -161,7 +161,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         """3 - Within a job, triggering a simple independent job.
         """
         procedures = _events.trigger(
-            EVENT_CHECK_PROPERTIES_3, "PARAM 01", "PARAM 02"
+            EVENT_CHECK_PROPERTIES_3, set(["lock"]), "PARAM 01", "PARAM 02"
             )
 
         # Get the result (Checkpoint object) from the procedure.
@@ -187,7 +187,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         """4 - Within a job, triggering a simple dependent job.
         """
         procedures = _events.trigger(
-            EVENT_CHECK_PROPERTIES_4, "PARAM 01", "PARAM 02"
+            EVENT_CHECK_PROPERTIES_4, set(["lock"]), "PARAM 01", "PARAM 02"
             )
 
         # Get the result (Checkpoint object) from the procedure.
@@ -219,7 +219,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         """5 - Within a job, triggering a set of independent jobs.
         """
         procedures = _events.trigger(
-            EVENT_CHECK_PROPERTIES_5, "PARAM 01", "PARAM 02"
+            EVENT_CHECK_PROPERTIES_5, set(["lock"]), "PARAM 01", "PARAM 02"
             )
 
         # Get the result (Checkpoint object) from the procedure.
@@ -245,7 +245,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         """6 - Within a job, triggering a set of dependent jobs.
         """
         procedures = _events.trigger(
-            EVENT_CHECK_PROPERTIES_6, "PARAM 01", "PARAM 02"
+            EVENT_CHECK_PROPERTIES_6, set(["lock"]), "PARAM 01", "PARAM 02"
             )
 
         # Get the result (Checkpoint object) from the procedure.
@@ -291,7 +291,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
     def setUp(self):
         """Configure the existing environment
         """
-        self.persister = _persistence.PersistentMeta.thread_local.persister
+        self.persister = _persistence.current_persister()
         assert(self.persister is not None)
 
     def tearDown(self):
@@ -308,6 +308,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         count_1 = 10
         count_2 = 30
         proc_uuid = _uuid.UUID("9f994e3a-a732-43ba-8aab-f1051f553437")
+        lockable_objects = set(["lock"])
         job_uuid = _uuid.UUID("64835080-2114-46de-8fbf-8caba8e8cd90")
         do_action = check_do_action
         do_action_fqn = do_action.__module__ + "." + do_action.__name__
@@ -318,7 +319,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
             )
         checkpoint.schedule()
 
@@ -348,7 +349,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
             )
         checkpoint.schedule()
         checkpoint.begin()
@@ -381,7 +382,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
             )
         checkpoint.schedule()
         checkpoint.begin()
@@ -415,7 +416,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
             )
         checkpoint.schedule()
         checkpoint.begin()
@@ -451,6 +452,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         count_1 = 10
         count_2 = 30
         proc_uuid = _uuid.UUID("01da10ed-514e-43a4-8388-ab05c04d67e1")
+        lockable_objects = set(["lock"])
         job_uuid = _uuid.UUID("e4e1ba17-ff1d-45e6-a83c-5655ea5bb646")
         job_uuid_scheduled_1 = _uuid.UUID("aaa1ba17-ff1d-45e6-a83c-5655ea5bb646")
         job_uuid_scheduled_2 = _uuid.UUID("bbb1ba17-ff1d-45e6-a83c-5655ea5bb646")
@@ -469,13 +471,15 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
             )
         scheduled_1 = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid_scheduled_1, do_action_scheduled_1_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid_scheduled_1,
+            do_action_scheduled_1_fqn, args, kwargs
             )
         scheduled_2 = _checkpoint.Checkpoint(
-            proc_uuid, job_uuid_scheduled_2, do_action_scheduled_1_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid_scheduled_2,
+            do_action_scheduled_1_fqn, args, kwargs
             )
         checkpoint.schedule()
         checkpoint.begin()
@@ -530,7 +534,7 @@ def check_properties_2_proc_2(param_01, param_02):
 @_events.on_event(EVENT_CHECK_PROPERTIES_3)
 def check_properties_3(param_01, param_02):
     _events.trigger(
-        EVENT_CHECK_PROPERTIES_1, "NEW 01", "NEW 02"
+        EVENT_CHECK_PROPERTIES_1, set(["lock"]), "NEW 01", "NEW 02"
         )
 
     executor = _executor.Executor()
@@ -547,7 +551,7 @@ def check_properties_4(param_01, param_02):
 @_events.on_event(EVENT_CHECK_PROPERTIES_5)
 def check_properties_5(param_01, param_02):
     _events.trigger(
-        EVENT_CHECK_PROPERTIES_2, "NEW 01", "NEW 02"
+        EVENT_CHECK_PROPERTIES_2, set(["lock"]), "NEW 01", "NEW 02"
         )
 
     executor = _executor.Executor()

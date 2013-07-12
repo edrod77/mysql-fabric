@@ -20,7 +20,7 @@ class Trigger(Command):
     group_name = "event"
     command_name = "trigger"
 
-    def execute(self, event, *args, **kwargs):
+    def execute(self, event, locks, *args, **kwargs):
         """Trigger the execution of an event.
 
         :param event: Event's identification.
@@ -29,8 +29,13 @@ class Trigger(Command):
         :param kwargs: Event's keyworded arguments.
         :return: List of the procedures' uuids that were created.
         """
+        lockable_objects = set()
+        for lock in locks.split(","):
+            lockable_objects.add(lock.strip())
         return [ str(proc.uuid) \
-                 for proc in _events.trigger(event, *args, **kwargs) ]
+                 for proc in _events.trigger(event, lockable_objects,
+                                             *args, **kwargs)
+               ]
 
 class WaitForProcedures(Command):
     """Wait until procedures, which are identified through their uuid in a

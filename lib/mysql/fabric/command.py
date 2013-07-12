@@ -20,7 +20,17 @@ listings, while the remaining text is the more elaborate description
 shown in command help message.
 """
 import re
+import inspect
+
 import mysql.fabric.executor as _executor
+
+from mysql.fabric.sharding import (
+    MappingShardsGroups,
+)
+
+from mysql.fabric import (
+    persistence as _persistence,
+)
 
 _COMMANDS_CLASS = {}
 
@@ -82,7 +92,7 @@ class CommandMeta(type):
             cls.group_name
         except AttributeError:
             cls.group_name = cdict["__module__"]
-               
+
         try:
             cls.command_name
         except AttributeError:
@@ -352,3 +362,123 @@ class ProcedureCommand(Command):
         return result % (
             proc_id, complete, success, returned, activities
             )
+
+    def get_lockable_objects(self, variable=None, function=None):
+        """Return the set of lockable objects by extracting information
+        on the parameter's value passed to the function.
+
+        There are derived classes which return specific information according
+        to the procedure that is being executed. This implementation returns
+        a set with with the string "lock".
+
+        :param variable: Paramater's name from which the value should be
+                         extracted.
+        :param function: Function where the parameter's value will be
+                         searched for.
+        """
+        return set(["lock"])
+
+
+class ProcedureGroup(ProcedureCommand):
+    def get_lockable_objects(self, variable=None, function=None):
+        """Return the set of lockable objects by extracting information
+        on the parameter's value passed to the function.
+
+        :param variable: Parameter's name from which the value should be
+                         extracted.
+        :param function: Function where the parameter's value will be
+                         searched for.
+        """
+        variable = variable or "group_id"
+        function = function or self.execute
+        lockable_objects = set()
+        # TODO: IS THERE A BETTER WAY TO GET THE FRAME?
+        frame = inspect.currentframe().f_back
+
+        args = _get_args_values((variable, ), function, frame)
+        for variable, value in args.iteritems():
+            lockable_objects.add(value)
+
+        if len(lockable_objects) == 0:
+            lockable_objects.add("lock")
+
+        return lockable_objects
+
+
+class ProcedureShard(ProcedureCommand):
+    def get_lockable_objects(self, variable=None, function=None):
+        """Return the set of lockable objects by extracting information
+        on the parameter's value passed to the function.
+
+        :param variable: Parameter's name from which the value should be
+                         extracted.
+        :param function: Function where the parameter's value will be
+                         searched for.
+        """
+        # TODO: AddShard(ProcedureShard): The current design blocks all
+        # groups associated with a shard_mapping_id while adding a shard.
+        variable = variable or \
+            ("group_id", "table_name", "shard_mapping_id", "shard_id")
+        function = function or self.execute
+        lockable_objects = set()
+        # TODO: IS THERE A BETTER WAY TO GET THE FRAME?
+        frame = inspect.currentframe().f_back
+
+        persister = _persistence.current_persister()
+        try:
+            persister.begin()
+
+            if not isinstance(variable, tuple):
+                variable = (variable, )
+            args = _get_args_values(variable, function, frame)
+            for variable, value in args.iteritems():
+                if variable == "group_id":
+                    lockable_objects.add(value)
+                    continue
+                rows = MappingShardsGroups.get_group("local", variable, value)
+                for row in rows:
+                    lockable_objects.add(row[0])
+                rows = MappingShardsGroups.get_group("global", variable, value)
+                for row in rows:
+                    lockable_objects.add(row[0])
+
+            if len(lockable_objects) == 0:
+                lockable_objects.add("lock")
+        except Exception as error:
+            # Report exception while fetching information on lockable objects.
+            _LOGGER.exception(error)
+
+            try:
+                # Rollback the transactional context.
+                persister.rollback()
+            except _errors.DatabaseError as rollback_error:
+                _LOGGER.exception(rollback_error)
+
+            raise
+        else:
+            try:
+                # Commit the transactional context.
+                persister.commit()
+            except _errors.DatabaseError as commit_error:
+                _LOGGER.exception(commit_error)
+
+        return lockable_objects
+
+
+def _get_args_values(variables, function, frame):
+    """Get the values for a set of variables, i.e. arguments.
+    """
+    args = {}
+    argsspec = inspect.getargspec(function)
+    if frame is None:
+        return args
+    # TODO: ADD ASSERTION THAT FRAME MUST MATCH FUNCTION.
+    try:
+        for variable in variables:
+            if variable in argsspec.args:
+                assert(args.get(variable, None) is None)
+                value = inspect.getargvalues(frame).locals[variable]
+                args[variable] = value
+    finally:
+        del frame
+    return args

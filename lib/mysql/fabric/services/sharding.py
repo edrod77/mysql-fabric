@@ -4,10 +4,6 @@ in FABRIC.
 
 import logging
 
-from mysql.fabric.command import (
-    ProcedureCommand,
-)
-
 from mysql.fabric import (
     errors as _errors,
     events as _events,
@@ -17,12 +13,21 @@ from mysql.fabric import (
     utils as _utils,
 )
 
-from mysql.fabric.server import Group,  MySQLServer
+from mysql.fabric.server import (
+    Group,
+    MySQLServer,
+)
+
 from mysql.fabric.sharding import (
     ShardMapping,
     RangeShardingSpecification,
     HashShardingSpecification,
     Shards
+)
+
+from mysql.fabric.command import (
+    ProcedureShard,
+    ProcedureCommand,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,32 +58,34 @@ CONFIG_NOT_FOUND = "Configuration option not found %s . %s"
 INVALID_LOWER_BOUND = "Invalid lower_bound value for RANGE sharding specification"
 
 DEFINE_SHARD_MAPPING = _events.Event("DEFINE_SHARD_MAPPING")
-class DefineShardMapping(ProcedureCommand):
+class DefineShardMapping(ProcedureShard):
     """Define a shard mapping.
     """
     group_name = "sharding"
     command_name = "define"
-    def execute(self, type_name, global_group_id, synchronous=True):
+    def execute(self, type_name, group_id, synchronous=True):
         """Define a shard mapping.
 
         :param type_name: The type of sharding scheme - RANGE, HASH, LIST etc
-        :param global_group: Every shard mapping is associated with a
-                            Global Group that stores the global updates
-                            and the schema changes for this shard mapping
-                            and dissipates these to the shards.
+        :param group_id: Every shard mapping is associated with a global group
+                         that stores the global updates and the schema changes
+                         for this shard mapping and dissipates these to the
+                         shards.
         """
-        procedures = _events.trigger(DEFINE_SHARD_MAPPING, type_name,
-                                        global_group_id)
+        procedures = _events.trigger(
+            DEFINE_SHARD_MAPPING, self.get_lockable_objects(),
+            type_name, group_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 ADD_SHARD_MAPPING = _events.Event("ADD_SHARD_MAPPING")
-class AddShardMapping(ProcedureCommand):
+class AddShardMapping(ProcedureShard):
     """Add a table to a shard mapping.
     """
     group_name = "sharding"
     command_name = "add_mapping"
     def execute(self, shard_mapping_id, table_name, column_name,
-                              synchronous=True):
+                synchronous=True):
         """Add a table to a shard mapping.
 
         :param shard_mapping_id: The shard mapping id to which the input
@@ -90,13 +97,14 @@ class AddShardMapping(ProcedureCommand):
                             or not.
         """
 
-        procedures = _events.trigger(ADD_SHARD_MAPPING, shard_mapping_id,
-                                     table_name,
-                                     column_name)
+        procedures = _events.trigger(
+            ADD_SHARD_MAPPING, self.get_lockable_objects(),
+            shard_mapping_id, table_name, column_name
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD_MAPPING = _events.Event("REMOVE_SHARD_MAPPING")
-class RemoveShardMapping(ProcedureCommand):
+class RemoveShardMapping(ProcedureShard):
     """Remove the shard mapping represented by the Shard Mapping object.
     """
     group_name = "sharding"
@@ -111,7 +119,9 @@ class RemoveShardMapping(ProcedureCommand):
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         """
-        procedures = _events.trigger(REMOVE_SHARD_MAPPING, table_name)
+        procedures = _events.trigger(
+            REMOVE_SHARD_MAPPING, self.get_lockable_objects(), table_name
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SHARD_MAPPING = _events.Event("LOOKUP_SHARD_MAPPING")
@@ -124,14 +134,16 @@ class LookupShardMapping(ProcedureCommand):
         """Fetch the shard specification mapping for the given table
 
         :param table_name: The name of the table for which the sharding
-                            specification is being queried.
+                           specification is being queried.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
         :return: The a dictionary that contains the shard mapping information for
-                    the given table.
+                 the given table.
         """
-        procedures = _events.trigger(LOOKUP_SHARD_MAPPING, table_name)
+        procedures = _events.trigger(
+            LOOKUP_SHARD_MAPPING, self.get_lockable_objects(), table_name
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 LIST_SHARD_MAPPINGS = _events.Event("LIST_SHARD_MAPPINGS")
@@ -158,7 +170,9 @@ class ListShardMappings(ProcedureCommand):
                      shard mapping definition is found
                      An error if the sharding type is invalid.
         """
-        procedures = _events.trigger(LIST_SHARD_MAPPINGS, sharding_type)
+        procedures = _events.trigger(
+            LIST_SHARD_MAPPINGS, self.get_lockable_objects(), sharding_type
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 LIST_SHARD_MAPPING_DEFINITIONS = _events.Event("LIST_SHARD_MAPPING_DEFINITIONS")
@@ -173,17 +187,19 @@ class ListShardMappingDefinitions(ProcedureCommand):
         :return: A list of shard mapping definitions
                     An Empty List if no shard mapping definition is found.
         """
-        procedures = _events.trigger(LIST_SHARD_MAPPING_DEFINITIONS)
+        procedures = _events.trigger(
+            LIST_SHARD_MAPPING_DEFINITIONS, self.get_lockable_objects()
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
-class AddShard(ProcedureCommand):
+class AddShard(ProcedureShard):
     """Add a shard.
     """
     group_name = "sharding"
     command_name = "add_shard"
-    def execute(self, shard_mapping_id, group_id, state="DISABLED", lower_bound="None",
-                synchronous=True):
+    def execute(self, shard_mapping_id, group_id, state="DISABLED",
+                lower_bound="None", synchronous=True):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
@@ -201,13 +217,14 @@ class AddShard(ProcedureCommand):
 
         :return: A dictionary representing the current Range specification.
         """
-        procedures = _events.trigger(ADD_SHARD, shard_mapping_id, lower_bound,
-                                     group_id, state)
+        procedures = _events.trigger(ADD_SHARD, self.get_lockable_objects(),
+            shard_mapping_id, lower_bound, group_id, state
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 REMOVE_SHARD = \
         _events.Event("REMOVE_SHARD")
-class RemoveShard(ProcedureCommand):
+class RemoveShard(ProcedureShard):
     """Remove a Shard.
     """
     group_name = "sharding"
@@ -221,12 +238,14 @@ class RemoveShard(ProcedureCommand):
                         or not.
         """
 
-        procedures = _events.trigger(REMOVE_SHARD, shard_id)
+        procedures = _events.trigger(
+            REMOVE_SHARD, self.get_lockable_objects(), shard_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 SHARD_ENABLE = \
         _events.Event("SHARD_ENABLE")
-class EnableShard(ProcedureCommand):
+class EnableShard(ProcedureShard):
     """Enable a shard.
     """
     group_name = "sharding"
@@ -238,12 +257,14 @@ class EnableShard(ProcedureCommand):
         :param synchronous: Whether one should wait until the execution finishes
                         or not.
         """
-        procedures = _events.trigger(SHARD_ENABLE, shard_id)
+        procedures = _events.trigger(
+            SHARD_ENABLE, self.get_lockable_objects(), shard_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 SHARD_DISABLE = \
         _events.Event("SHARD_DISABLE")
-class DisableShard(ProcedureCommand):
+class DisableShard(ProcedureShard):
     """Disable a shard.
     """
     group_name = "sharding"
@@ -253,10 +274,12 @@ class DisableShard(ProcedureCommand):
 
         :param shard_id: The shard ID of the shard that needs to be removed.
         :param synchronous: Whether one should wait until the execution finishes
-                        or not.
+                            or not.
         """
 
-        procedures = _events.trigger(SHARD_DISABLE, shard_id)
+        procedures = _events.trigger(
+            SHARD_DISABLE, self.get_lockable_objects(), shard_id
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 LOOKUP_SHARD_SERVERS = \
@@ -282,12 +305,14 @@ class LookupShardServers(ProcedureCommand):
         #TODO: A GLOBAL lookup should not pass a key. They key should point
         #TODO: to either  sentinel value or should be None. This case needs to
         #TODO: be handled.
-        procedures = _events.trigger(LOOKUP_SHARD_SERVERS, table_name, key,
-                                                        hint)
+        procedures = _events.trigger(
+            LOOKUP_SHARD_SERVERS, self.get_lockable_objects(),
+            table_name, key, hint
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 PRUNE_SHARD_TABLES = _events.Event("PRUNE_SHARD_TABLES")
-class PruneShardTables(ProcedureCommand):
+class PruneShardTables(ProcedureShard):
     """Given the table name prune the tables according to the defined
     sharding specification for the table.
     """
@@ -299,9 +324,11 @@ class PruneShardTables(ProcedureCommand):
 
         :param table_name: The table that needs to be sharded.
         :param synchronous: Whether one should wait until the execution finishes
-                        or not.
+                            or not.
         """
-        procedures = _events.trigger(PRUNE_SHARD_TABLES, table_name)
+        procedures = _events.trigger(
+            PRUNE_SHARD_TABLES, self.get_lockable_objects(), table_name
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 BACKUP_SOURCE_SHARD =  _events.Event("BACKUP_SOURCE_SHARD")
@@ -309,17 +336,17 @@ RESTORE_SHARD_BACKUP = _events.Event("RESTORE_SHARD_BACKUP")
 SETUP_MOVE_SYNC = _events.Event("SETUP_MOVE_SYNC")
 SETUP_RESHARDING_SWITCH = _events.Event("SETUP_RESHARDING_SWITCH")
 PRUNE_SHARDS = _events.Event("PRUNE_SHARDS")
-class MoveShardServer(ProcedureCommand):
+class MoveShardServer(ProcedureShard):
     """Move the shard represented by the shard_id to the destination group.
     """
     group_name = "sharding"
     command_name = "move"
-    def execute(self,  shard_id,  destn_group_id,  synchronous=True):
+    def execute(self,  shard_id,  group_id,  synchronous=True):
         """Move the shard represented by the shard_id to the destination group.
 
         :param shard_id: The ID of the shard that needs to be moved.
-        :param destn_group_id: The ID of the group to which the shard needs to
-                                be moved.
+        :param group_id: The ID of the group to which the shard needs to
+                         be moved.
         :param synchronous: Whether one should wait until the execution finishes
                         or not.
         """
@@ -339,28 +366,25 @@ class MoveShardServer(ProcedureCommand):
         mysqlclient_binary =  _read_config_value(self.config, 'sharding',
                                                 'mysqlclient_program')
 
-        procedures = _events.trigger(BACKUP_SOURCE_SHARD,
-                                           shard_id,
-                                           destn_group_id, 
-                                           mysqldump_binary,
-                                           mysqlclient_binary,
-                                           None, 
-                                           "MOVE")
+        procedures = _events.trigger(
+            BACKUP_SOURCE_SHARD, self.get_lockable_objects(), shard_id,
+            group_id, mysqldump_binary, mysqlclient_binary, None, "MOVE"
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
-class SplitShardServer(ProcedureCommand):
+class SplitShardServer(ProcedureShard):
     """Split the shard represented by the shard_id into the destination group.
     """
     group_name = "sharding"
     command_name = "split"
-    def execute(self,  shard_id,  destn_group_id,  split_value = None,
-                          synchronous=True):
+    def execute(self, shard_id,  group_id,  split_value = None,
+                synchronous=True):
         """Split the shard represented by the shard_id into the destination
         group.
 
         :param shard_id: The shard_id of the shard that needs to be split.
-        :param destn_group_id: The ID of the group into which the split data
-                                needs to be moved.
+        :param group_id: The ID of the group into which the split data needs
+                         to be moved.
         :param split_value: The value at which the range needs to be split.
         :param synchronous: Whether one should wait until the execution
                             finishes
@@ -381,13 +405,10 @@ class SplitShardServer(ProcedureCommand):
         mysqlclient_binary =  _read_config_value(self.config, 'sharding',
                                                 'mysqlclient_program')
 
-        procedures = _events.trigger(BACKUP_SOURCE_SHARD,
-                                           shard_id,
-                                           destn_group_id,
-                                           mysqldump_binary,
-                                           mysqlclient_binary,
-                                           split_value, 
-                                           "SPLIT")
+        procedures = _events.trigger(
+            BACKUP_SOURCE_SHARD, self.get_lockable_objects(),
+            shard_id, group_id, mysqldump_binary, mysqlclient_binary,
+            split_value, "SPLIT")
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DEFINE_SHARD_MAPPING)
@@ -744,7 +765,7 @@ def _prune_shard_tables(table_name):
 def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
                          mysqlclient_binary, split_value, cmd):
     """Backup the source shard.
-    
+
         :param shard_id: The shard ID of the shard that needs to be moved.
         :param source_group_id: The group_id of the source shard.
         :param destn_group_id: The ID of the group to which the shard needs to
@@ -983,7 +1004,7 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     """
     #Setup replication for the new group from the global server
 
-    #Fetch the Range sharding specification. 
+    #Fetch the Range sharding specification.
     range_sharding_spec, source_shard, _, _ = _verify_and_fetch_shard(shard_id)
 
     #Disable the old shard
