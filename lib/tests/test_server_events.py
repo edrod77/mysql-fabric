@@ -333,19 +333,27 @@ class TestServerServices(unittest.TestCase):
 
     def test_server_status(self):
         # Prepare group and servers
-        address = tests.utils.MySQLInstances().get_address(0)
-        status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
         self.proxy.group.create("group", "Testing group...")
-        self.proxy.group.add("group", address, "root", "")
-        status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(1)
+        self.proxy.group.add("group", address_1, "root", "")
+        status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
         self.assertEqual(status_uuid[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status_uuid[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status_uuid[1][-1]["description"],
                          "Executed action (_lookup_uuid).")
-        uuid = status_uuid[-1]
+        uuid_1 = status_uuid[-1]
+        self.proxy.group.add("group", address_2, "root", "")
+        status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
+        self.assertEqual(status_uuid[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status_uuid[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status_uuid[1][-1]["description"],
+                         "Executed action (_lookup_uuid).")
+        uuid_2 = status_uuid[-1]
+        error_uuid = status_uuid[0]
 
         # Try to set a spare server when the server does not exist.
-        status = self.proxy.server.set_status(status_uuid[0], "SPARE")
+        status = self.proxy.server.set_status(error_uuid, "SPARE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -353,8 +361,8 @@ class TestServerServices(unittest.TestCase):
 
         # Try to set a spare server when the server is a master.
         group = _server.Group.fetch("group")
-        group.master = _uuid.UUID(uuid)
-        status = self.proxy.server.set_status(uuid, "SPARE")
+        group.master = _uuid.UUID(uuid_1)
+        status = self.proxy.server.set_status(uuid_1, "SPARE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -362,9 +370,9 @@ class TestServerServices(unittest.TestCase):
         group.master = None
 
         # Try to set a spare server when the server is offline.
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.OFFLINE
-        status = self.proxy.server.set_status(uuid, "SPARE")
+        status = self.proxy.server.set_status(uuid_1, "SPARE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -372,18 +380,18 @@ class TestServerServices(unittest.TestCase):
         server.status = _server.MySQLServer.RUNNING
 
         # Set a spare server.
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.RUNNING)
-        status = self.proxy.server.set_status(uuid, "SPARE")
+        status = self.proxy.server.set_status(uuid_1, "SPARE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_set_server_status).")
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
 
         # Try to set an offline server that does not exist.
-        status = self.proxy.server.set_status(status_uuid[0], "OFFLINE")
+        status = self.proxy.server.set_status(error_uuid, "OFFLINE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -391,8 +399,8 @@ class TestServerServices(unittest.TestCase):
 
         # Try to set an offline server when the server is a master.
         group = _server.Group.fetch("group")
-        group.master = _uuid.UUID(uuid)
-        status = self.proxy.server.set_status(uuid, "OFFLINE")
+        group.master = _uuid.UUID(uuid_1)
+        status = self.proxy.server.set_status(uuid_1, "OFFLINE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -400,44 +408,72 @@ class TestServerServices(unittest.TestCase):
         group.master = None
 
         # Set an offline server.
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
-        status = self.proxy.server.set_status(uuid, "OFFLINE")
+        status = self.proxy.server.set_status(uuid_1, "OFFLINE")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_set_server_status).")
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.OFFLINE)
 
         # Try to set a running server that does not exist.
-        status = self.proxy.server.set_status(status_uuid[0], "RUNNING")
+        status = self.proxy.server.set_status(error_uuid, "RUNNING")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_status).")
 
         # Set a running server.
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.OFFLINE)
-        status = self.proxy.server.set_status(uuid, "RUNNING")
+        status = self.proxy.server.set_status(uuid_1, "RUNNING")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_set_server_status).")
-        server = _server.MySQLServer.fetch(uuid)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.RUNNING)
 
-        # Try to set a faulty server.
-        server = _server.MySQLServer.fetch(uuid)
+        # Set a faulty server (slave).
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.RUNNING)
-        status = self.proxy.server.set_status(uuid, "FAULTY")
+        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        server = _server.MySQLServer.fetch(uuid_1)
+        self.assertEqual(server.status, _server.MySQLServer.FAULTY)
+
+        # Set a faulty server twice (slave).
+        status = self.proxy.server.set_status(uuid_1, "FAULTY")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_status).")
-        server = _server.MySQLServer.fetch(uuid)
+
+        # Try to set a faulty server while the group is activate.
+        group.status = _server.Group.ACTIVE
+        self.proxy.server.set_status(uuid_1, "RUNNING")
+        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.RUNNING)
+
+        # Try to set a faulty server (master).
+        group.status = _server.Group.INACTIVE
+        group = _server.Group.fetch("group")
+        self.assertEqual(group.master, None)
+        self.proxy.group.promote(group.group_id, str(server.uuid))
+        group = _server.Group.fetch("group")
+        self.assertEqual(group.master, server.uuid)
+        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        group = _server.Group.fetch("group")
+        self.assertNotEqual(group.master, server.uuid)
+        self.assertNotEqual(group.master, None)
 
     def test_lookup_servers(self):
         # Prepare group and servers

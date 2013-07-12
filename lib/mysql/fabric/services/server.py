@@ -557,6 +557,8 @@ def _set_server_status(uuid, status):
         _set_server_running(server)
     elif status == _server.MySQLServer.OFFLINE:
         _set_server_offline(server)
+    elif status == _server.MySQLServer.FAULTY:
+        _set_server_faulty(server)
     else:
         raise _errors.ServerError("Trying to set invalid status (%s) "
             "for server (%s)." % (server.status, uuid)
@@ -614,6 +616,34 @@ def _set_server_offline(server):
             )
     server.status = _server.MySQLServer.OFFLINE
     _server.ConnectionPool().purge_connections(server.uuid)
+
+def _set_server_faulty(server):
+    """Put the server in faulty mode.
+    """
+    group = _server.Group.group_from_server(server.uuid)
+    if group.status == _server.Group.ACTIVE:
+        raise _errors.ServerError(
+            "Group (%s) has the failure detector activate so that "
+            "one cannot manually set a server (%s) as faulty."
+            % (group.group_id, server.uuid)
+        )
+
+    if server.status ==  _server.MySQLServer.FAULTY:
+        raise _errors.ServerError(
+            "Server (%s) was already set to faulty." % (server.uuid, )
+        )
+
+    server.status = _server.MySQLServer.FAULTY
+    _server.ConnectionPool().purge_connections(server.uuid)
+
+    if group.master == server.uuid:
+        _LOGGER.info("Master (%s) in group (%s) has "
+                     "been lost.", server.uuid, group.group_id)
+        _events.trigger_within_procedure("FAIL_OVER", group.group_id)
+
+    _events.trigger_within_procedure(
+        "SERVER_LOST", group.group_id, server.uuid
+    )
 
 def _do_remove_server(group, server):
     """Remove a server from a group.
