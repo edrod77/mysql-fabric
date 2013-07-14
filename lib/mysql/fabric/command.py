@@ -21,7 +21,10 @@ shown in command help message.
 """
 import re
 import inspect
+import logging
 
+
+import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
 
 from mysql.fabric.sharding import (
@@ -31,6 +34,8 @@ from mysql.fabric.sharding import (
 from mysql.fabric import (
     persistence as _persistence,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 _COMMANDS_CLASS = {}
 
@@ -85,6 +90,9 @@ class CommandMeta(type):
     This class will register any new commands defined and add them to
     the a list of existing commands.
     """
+    # TODO: Try to find a better way of removing false positives.
+    IgnoredCommand = \
+        ("command", "procedurecommand", "proceduregroup", "procedureshard")
     def __init__(cls, cname, cbases, cdict):
         """Register command definitions.
         """
@@ -98,8 +106,7 @@ class CommandMeta(type):
         except AttributeError:
             cls.command_name = cname.lower()
 
-        # TODO: Try to find a better way of removing false positives.
-        if cls.command_name not in ("command", "procedurecommand") and \
+        if cls.command_name not in CommandMeta.IgnoredCommand and \
             re.match("[A-Za-z]\w+", cls.command_name):
             register_command(cls.group_name, cls.command_name, cls)
 
@@ -316,6 +323,12 @@ class ProcedureCommand(Command):
         else:
             return str(procedure_param[-1].uuid)
 
+    def execute(self):
+        """Any command derived from this class must redefine this
+        method.
+        """
+        pass
+
     @staticmethod
     def procedure_status(status, details=False):
         """Transform a status reported by :func:`wait_for_procedures` into
@@ -380,6 +393,9 @@ class ProcedureCommand(Command):
 
 
 class ProcedureGroup(ProcedureCommand):
+    """Class used to implement commands that are built as procedures and
+    execute operations within a group.
+    """
     def get_lockable_objects(self, variable=None, function=None):
         """Return the set of lockable objects by extracting information
         on the parameter's value passed to the function.
@@ -406,6 +422,9 @@ class ProcedureGroup(ProcedureCommand):
 
 
 class ProcedureShard(ProcedureCommand):
+    """Class used to implement commands that are built as procedures and
+    execute operations within a sharding.
+    """
     def get_lockable_objects(self, variable=None, function=None):
         """Return the set of lockable objects by extracting information
         on the parameter's value passed to the function.

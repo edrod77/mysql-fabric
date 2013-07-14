@@ -221,7 +221,7 @@ class Checkpoint(_persistence.Persistable):
         """Register that an action has been scheduled.
         """
         # TODO: Move lockable_objects to a different table.
-        param_args, param_kwargs, lockable_objects= \
+        param_args, param_kwargs, lockable_objects = \
             Checkpoint.serialize(self.__param_args, self.__param_kwargs,
                                  self.__lockable_objects)
         persister.exec_stmt(Checkpoint.INSERT_CHECKPOINT,
@@ -264,7 +264,7 @@ class Checkpoint(_persistence.Persistable):
         """
         (proc_uuid, lockable_objects, job_uuid, sequence, action_fqn,
          param_args, param_kwargs, started, finished) = row
-        param_args, param_kwargs, lockable_objects= \
+        param_args, param_kwargs, lockable_objects = \
              Checkpoint.deserialize(param_args, param_kwargs, lockable_objects)
         checkpoint = Checkpoint(
             _uuid.UUID(proc_uuid), lockable_objects, _uuid.UUID(job_uuid),

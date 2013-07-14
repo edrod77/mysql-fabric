@@ -233,7 +233,8 @@ class PromoteMaster(ProcedureGroup):
           }
         """
         procedures = _events.trigger(
-            DEFINE_HA_OPERATION, self.get_lockable_objects(), group_id, slave_uuid
+            DEFINE_HA_OPERATION, self.get_lockable_objects(), group_id,
+            slave_uuid
         )
         return self.wait_for_procedures(procedures, synchronous)
 

@@ -66,7 +66,7 @@ class ClassCommand_0(_command.ProcedureCommand):
 
     def execute(self, param, synchronous=True):
         procedures = _events.trigger(
-            NEW_PROCEDURE_COMMAND_0, set(["lock"]), param
+            NEW_PROCEDURE_COMMAND_0, self.get_lockable_objects(), param
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -81,13 +81,77 @@ class ClassCommand_1(_command.ProcedureCommand):
 
     def execute(self, param, synchronous=True):
         procedures = _events.trigger(
-            NEW_PROCEDURE_COMMAND_1, set(["lock"]), param
+            NEW_PROCEDURE_COMMAND_1, self.get_lockable_objects(), param
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(NEW_PROCEDURE_COMMAND_1)
 def _new_command_procedure_1(param):
     raise Exception("Error")
+
+NEW_PROCEDURE_GROUP_0 = _events.Event()
+class ClassGroup_0(_command.ProcedureGroup):
+    group_name = "test"
+    command_name = "procedure_group_0"
+
+    def execute(self, group_id, synchronous=True):
+        procedures = _events.trigger(
+            NEW_PROCEDURE_GROUP_0, self.get_lockable_objects(), group_id
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
+@_events.on_event(NEW_PROCEDURE_GROUP_0)
+def _new_procedure_group_0(group_id):
+    pass
+
+NEW_PROCEDURE_GROUP_1 = _events.Event()
+class ClassGroup_1(_command.ProcedureGroup):
+    group_name = "test"
+    command_name = "procedure_group_1"
+
+    def execute(self, param, synchronous=True):
+        procedures = _events.trigger(
+            NEW_PROCEDURE_GROUP_1, self.get_lockable_objects(), param
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
+@_events.on_event(NEW_PROCEDURE_GROUP_1)
+def _new_procedure_group_1(param):
+    pass
+
+NEW_PROCEDURE_SHARD_0 = _events.Event()
+class ClassShard_0(_command.ProcedureShard):
+    group_name = "test"
+    command_name = "procedure_shard_0"
+
+    def execute(self, group_id, synchronous=True):
+        lockable = self.get_lockable_objects("group_id")
+        assert(lockable == set(['test']))
+        procedures = _events.trigger(
+            NEW_PROCEDURE_SHARD_0, self.get_lockable_objects(), group_id
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
+@_events.on_event(NEW_PROCEDURE_SHARD_0)
+def _new_procedure_shard_0(group_id):
+    pass
+
+NEW_PROCEDURE_SHARD_1 = _events.Event()
+class ClassShard_1(_command.ProcedureShard):
+    group_name = "test"
+    command_name = "procedure_shard_1"
+
+    def execute(self, table_name, shard_mapping_id, shard_id,
+                synchronous=True):
+        procedures = _events.trigger(
+            NEW_PROCEDURE_SHARD_1, self.get_lockable_objects(),
+            table_name, shard_mapping_id, shard_id
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
+@_events.on_event(NEW_PROCEDURE_SHARD_1)
+def _new_procedure_shard_1(table_name, shard_mapping_id, shard_id):
+    pass
 
 class TestCommand(unittest.TestCase):
     "Test command interface."
@@ -240,6 +304,40 @@ class TestCommand(unittest.TestCase):
         status = self.proxy.test.procedure_command_1("test", False)
         self.assertNotEqual(check.match(status), None)
 
+    def test_procedure_group(self):
+        """Check returned values from a procedure
+        """
+        check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
+
+        # Procedure has argument group_id.
+        status = self.proxy.test.procedure_group_0("test")
+        self.assertNotEqual(check.match(status[0]), None)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[2], True)
+
+        # Procedure does not have argument group_id.
+        status = self.proxy.test.procedure_group_1("test")
+        self.assertNotEqual(check.match(status[0]), None)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[2], True)
+
+    def test_procedure_shard(self):
+        """Check returned values from a procedure that inherits from
+        ProcedureShard.
+        """
+        check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
+
+        # Procedure has argument group_id.
+        status = self.proxy.test.procedure_shard_0("test")
+        self.assertNotEqual(check.match(status[0]), None)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[2], True)
+
+        # Procedure has argument table_name, shard_mapping_id and shard_id.
+        status = self.proxy.test.procedure_shard_1("test", "test", "test")
+        self.assertNotEqual(check.match(status[0]), None)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[2], True)
 
 if __name__ == "__main__":
     unittest.main()

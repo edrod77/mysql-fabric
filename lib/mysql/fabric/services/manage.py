@@ -236,6 +236,9 @@ class Teardown(Command):
 
 
 def _create_file_handler(config, info, delay=0):
+    """Define a file handler where logging information will be
+    sent to.
+    """
     from logging.handlers import RotatingFileHandler
     assert info.scheme == 'file'
     if info.netloc:
@@ -264,6 +267,9 @@ def _create_file_handler(config, info, delay=0):
 #
 #   syslog://example.com/foo/bar
 def _create_syslog_handler(config, info):
+    """Define a syslog handler where logging information will be
+    sent to.
+    """
     from logging.handlers import SYSLOG_UDP_PORT, SysLogHandler
     assert info.scheme == 'syslog'
     if info.netloc and info.path:

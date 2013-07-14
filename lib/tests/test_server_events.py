@@ -343,14 +343,13 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status_uuid[1][-1]["description"],
                          "Executed action (_lookup_uuid).")
         uuid_1 = status_uuid[-1]
+        error_uuid = status_uuid[0]
         self.proxy.group.add("group", address_2, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
         self.assertEqual(status_uuid[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status_uuid[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status_uuid[1][-1]["description"],
                          "Executed action (_lookup_uuid).")
-        uuid_2 = status_uuid[-1]
-        error_uuid = status_uuid[0]
 
         # Try to set a spare server when the server does not exist.
         status = self.proxy.server.set_status(error_uuid, "SPARE")
@@ -474,6 +473,49 @@ class TestServerServices(unittest.TestCase):
         group = _server.Group.fetch("group")
         self.assertNotEqual(group.master, server.uuid)
         self.assertNotEqual(group.master, None)
+
+        # Try to set an invalid status.
+        status = self.proxy.server.set_status(uuid_1, "INVALID")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_status).")
+
+    def test_add_slave(self):
+        # Prepare group and servers
+        self.proxy.group.create("group", "Testing group...")
+        address_0 = tests.utils.MySQLInstances().get_address(0)
+        address_1 = tests.utils.MySQLInstances().get_address(1)
+        address_2 = tests.utils.MySQLInstances().get_address(2)
+        status_uuid = self.proxy.server.lookup_uuid(address_0, "root", "")
+        uuid_0 = status_uuid[-1]
+        status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
+        uuid_1 = status_uuid[-1]
+        status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
+        uuid_2 = status_uuid[-1]
+        status = self.proxy.group.add("group", address_0, "root", "")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_add_server).")
+        status = self.proxy.group.promote("group")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_change_to_candidate).")
+
+        # Add a servers and check that they are made slaves.
+        self.proxy.group.add("group", address_1, "root", "")
+        self.proxy.group.add("group", address_2, "root", "")
+        status =  self.proxy.group.lookup_servers("group")
+        retrieved = set(item for sublist in status[-1] for item in sublist)
+        expected = [
+            [uuid_0, address_0, True, "RUNNING"],
+            [uuid_1, address_1, False, "RUNNING"],
+            [uuid_2, address_2, False, "RUNNING"]
+        ]
+        expected = set(item for sublist in expected for item in sublist)
+        self.assertEqual(retrieved, expected)
 
     def test_lookup_servers(self):
         # Prepare group and servers

@@ -56,6 +56,8 @@ provided elsewhere.
 import logging
 import uuid as _uuid
 
+import mysql.fabric.services.utils as _utils
+
 from mysql.fabric import (
     events as _events,
     server as _server,
@@ -403,6 +405,9 @@ def _destroy_group(group_id, force):
     """Destroy a group.
     """
     group = _server.Group.fetch(group_id)
+    if not group:
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+
     #Since the group is being destroyed stop all the slaves associated
     #with this group would have been removed. If the group had been
     #a slave to another group, this would also have been stopped by the
@@ -412,9 +417,8 @@ def _destroy_group(group_id, force):
     group.remove_master_group_id()
     #Remove the slave group IDs.
     group.remove_slave_group_ids()
+
     servers_uuid = []
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
     servers = group.servers()
     if servers and force:
         for server in servers:
@@ -422,9 +426,11 @@ def _destroy_group(group_id, force):
             _do_remove_server(group, server)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
+
     cnx_pool = _server.ConnectionPool()
     for uuid in servers_uuid:
         cnx_pool.purge_connections(uuid)
+
     _detector.FailureDetector.unregister_group(group_id)
     _server.Group.remove(group)
     _LOGGER.debug("Removed group (%s).", group)

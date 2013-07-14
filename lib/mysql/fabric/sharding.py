@@ -224,11 +224,11 @@ class ShardMapping(_persistence.Persistable):
         rows = cur.fetchall()
 
         #TODO: Better to put the query with the code, since this is the only
-        #TODO: place it is used. That makes it clear what each number refers
-        #TODO: to. If you're concerned about row lengths, you can always
-        #TODO: define a local variable.
-        #TODO: An alternative is to "unpack" the row into local variables that
-        #TODO: make sense. E.g., "id, table_name, ... = row".
+        # place it is used. That makes it clear what each number refers
+        # to. If you're concerned about row lengths, you can always
+        # define a local variable.
+        # An alternative is to "unpack" the row into local variables that
+        # make sense. E.g., "id, table_name, ... = row".
         return [ ShardMapping(*row[0:5]) for row in rows ]
 
     # TODO: FOLLOW THE SAME PATTERN ADOPTED IN MySQLServer.
@@ -317,7 +317,8 @@ class ShardMapping(_persistence.Persistable):
 
     @staticmethod
     def fetch_by_id(shard_mapping_id, persister=None):
-        """Fetch the shard specification mapping for the given shard mapping ID.
+        """Fetch the shard specification mapping for the given shard mapping
+        ID.
 
         :param shard_mapping_id: The shard mapping id for which the sharding
                             specification is being queried.
@@ -493,8 +494,8 @@ class Shards(_persistence.Persistable):
     def __init__(self, shard_id, group_id,  state="DISABLED"):
         """Initialize the Shards object with the shard to group mapping.
 
-        :param shard_id: An unique identification, a logical representation for a
-                    shard of a particular table.
+        :param shard_id: An unique identification, a logical representation for
+                         a shard of a particular table.
         :param group_id: The group ID to which the shard maps to.
         :param state: Indicates whether a given shard is ENABLED or DISABLED
         """
@@ -574,9 +575,9 @@ class Shards(_persistence.Persistable):
         row = persister.exec_stmt(Shards.SELECT_SHARD, \
                                   {"params":(shard_id,)})
         #TODO: exec_stmt can return a list as well as a cursor, but
-        #TODO: They are done in a consistent manner. It should either
-        #TODO: return a list of a cursor everywhere in the sharding
-        #TODO: code.
+        # They are done in a consistent manner. It should either
+        # return a list of a cursor everywhere in the sharding
+        # code.
 
         if row is None:
             return None
@@ -976,10 +977,10 @@ class RangeShardingSpecification(_persistence.Persistable):
         :return: The next value in the range for the given lower_bound.
         """
         #TODO: Even though a function like this seems practical, it
-        #TODO: encourages a bad usage since there really are no upper
-        #TODO: bounds any more, just lower bounds. It would probably
-        #TODO: be better to re-write the prune method to be based on
-        #TODO: just lower bounds.
+        # encourages a bad usage since there really are no upper
+        # bounds any more, just lower bounds. It would probably
+        # be better to re-write the prune method to be based on
+        # just lower bounds.
         cur = persister.exec_stmt(
                         RangeShardingSpecification.SELECT_UPPER_BOUND,
                         {"raw" : False,
@@ -1025,7 +1026,7 @@ class RangeShardingSpecification(_persistence.Persistable):
             RangeShardingSpecification.prune_shard_id(shard.shard_id)
 
     #TODO: Narayanan: Explore if the errors below can be handled at the service
-    #TODO: Narayanan: layer.
+    # layer.
     @staticmethod
     def prune_shard_id(shard_id):
         """Remove the rows in the shard that do not match the metadata
@@ -1045,15 +1046,17 @@ class RangeShardingSpecification(_persistence.Persistable):
                             range_sharding_spec.shard_mapping_id
                         )
 
-        shard_mapping = ShardMapping.fetch_by_id(range_sharding_spec.shard_mapping_id)
+        shard_mapping = \
+            ShardMapping.fetch_by_id(range_sharding_spec.shard_mapping_id)
         if shard_mapping is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
         table_name = shard_mapping.table_name
 
         if upper_bound is not None:
-            #TODO: OR is notoriously bad for the optimizer. Better to turn it into
-            #TODO: two separate queries handling all below and all above respectively.
+            #TODO: OR is notoriously bad for the optimizer. Better to turn it
+            # into two separate queries handling all below and all above
+            # respectively.
             delete_query = ("DELETE FROM %s WHERE %s < %s OR %s >= %s") % (
                 table_name,
                 shard_mapping.column_name,
@@ -1206,7 +1209,8 @@ class HashShardingSpecification(RangeShardingSpecification):
 
         shard = Shards.fetch(shard_id)
 
-        shard_mapping = ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
+        shard_mapping = \
+            ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
         if shard_mapping is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
@@ -1273,17 +1277,18 @@ class HashShardingSpecification(RangeShardingSpecification):
             }
         )
         #TODO: Note that we do not return a HashShardingSpecification instance.
-        #TODO: This behaviour is different from the RangeShardingSpecification.
-        #TODO: What should be done in this case ?
+        # This behaviour is different from the RangeShardingSpecification.
+        # What should be done in this case ?
 
     @staticmethod
     def add_hash_split(shard_mapping_id, shard_id, persister=None):
-        """Add the HASH shard specification after a split. This represents a single instance
-        of a shard specification that maps a key HASH to a server.
+        """Add the HASH shard specification after a split. This represents a
+        single instance of a shard specification that maps a key HASH to a
+        server.
 
         :param shard_mapping_id: The unique identification for a shard mapping.
         :param shard_id: An unique identification, a logical representation
-                        for a shard of a particular table.
+                         for a shard of a particular table.
         """
         shard = Shards.fetch(shard_id)
         persister.exec_stmt(
@@ -1296,8 +1301,8 @@ class HashShardingSpecification(RangeShardingSpecification):
             }
         )
         #TODO: Note that we do not return a HashShardingSpecification instance.
-        #TODO: This behaviour is different from the RangeShardingSpecification.
-        #TODO: What should be done in this case ?
+        # This behaviour is different from the RangeShardingSpecification.
+        # What should be done in this case ?
 
     @staticmethod
     def lookup(key, shard_mapping_id, persister=None):
@@ -1394,8 +1399,8 @@ class HashShardingSpecification(RangeShardingSpecification):
 
     @staticmethod
     def add_constraints(persister=None):
-        """Add the constraints on the sharding tables. We use a dummy implementation
-        here.
+        """Add the constraints on the sharding tables. We use a dummy
+        implementation here.
 
         :param persister: The DB server that can be used to access the
                           state store.
@@ -1427,10 +1432,10 @@ class HashShardingSpecification(RangeShardingSpecification):
         :return: The next value in the range for the given lower_bound.
         """
         #TODO: Even though a function like this seems practical, it
-        #TODO: encourages a bad usage since there really are no upper
-        #TODO: bounds any more, just lower bounds. It would probably
-        #TODO: be better to re-write the prune method to be based on
-        #TODO: just lower bounds.
+        # encourages a bad usage since there really are no upper
+        # bounds any more, just lower bounds. It would probably
+        # be better to re-write the prune method to be based on
+        # just lower bounds.
         cur = persister.exec_stmt(
                         HashShardingSpecification.SELECT_UPPER_BOUND,
                         {"raw" : False,
@@ -1445,8 +1450,8 @@ class HashShardingSpecification(RangeShardingSpecification):
         return row[0]
 
     #TODO: Explore if the errors below can be handled at the service
-    #TODO: layer. Also explore if the function can be moved into the
-    #TODO: Service layer.
+    # layer. Also explore if the function can be moved into the
+    # Service layer.
     @staticmethod
     def prune_shard_id(shard_id):
         """Remove the rows in the shard that do not match the metadata
@@ -1466,15 +1471,17 @@ class HashShardingSpecification(RangeShardingSpecification):
                             hash_sharding_spec.shard_mapping_id
                         )
 
-        shard_mapping = ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
+        shard_mapping = \
+            ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
         if shard_mapping is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
         table_name = shard_mapping.table_name
 
         if upper_bound is not None:
-            #TODO: OR is notoriously bad for the optimizer. Better to turn it into
-            #TODO: two separate queries handling all below and all above respectively.
+            #TODO: OR is notoriously bad for the optimizer. Better to turn it
+            # into two separate queries handling all below and all above
+            # respectively.
             delete_query = (
                 "DELETE FROM %s"
                 " WHERE "
