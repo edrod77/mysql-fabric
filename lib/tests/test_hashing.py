@@ -38,6 +38,15 @@ class TestHashSharding(unittest.TestCase):
         self.__options_2["uuid"] = _uuid.UUID(uuid_server2)
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)
+        self.__server_2.connect()
+        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_2.exec_stmt("CREATE DATABASE db1")
+        self.__server_2.exec_stmt("CREATE TABLE db1.t1"
+                                  "(userID INT, name VARCHAR(30))")
+        for i in range(1, 501):
+            self.__server_2.exec_stmt("INSERT INTO db1.t1 "
+                                  "VALUES(%s, 'TEST %s')" % (i, i))
+
 
         self.__group_2 = Group("GROUPID2", "Second description.")
         Group.add(self.__group_2)
@@ -54,6 +63,14 @@ class TestHashSharding(unittest.TestCase):
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
         self.__server_3 = MySQLServer(**self.__options_3)
         MySQLServer.add( self.__server_3)
+        self.__server_3.connect()
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_3.exec_stmt("CREATE DATABASE db1")
+        self.__server_3.exec_stmt("CREATE TABLE db1.t1"
+                                  "(userID INT, name VARCHAR(30))")
+        for i in range(1, 501):
+            self.__server_3.exec_stmt("INSERT INTO db1.t1 "
+                                  "VALUES(%s, 'TEST %s')" % (i, i))
 
         self.__group_3 = Group("GROUPID3", "Third description.")
         Group.add( self.__group_3)
@@ -70,6 +87,14 @@ class TestHashSharding(unittest.TestCase):
         self.__options_4["uuid"] = _uuid.UUID(uuid_server4)
         self.__server_4 = MySQLServer(**self.__options_4)
         MySQLServer.add(self.__server_4)
+        self.__server_4.connect()
+        self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_4.exec_stmt("CREATE DATABASE db1")
+        self.__server_4.exec_stmt("CREATE TABLE db1.t1"
+                                  "(userID INT, name VARCHAR(30))")
+        for i in range(1, 501):
+            self.__server_4.exec_stmt("INSERT INTO db1.t1 "
+                                  "VALUES(%s, 'TEST %s')" % (i, i))
 
         self.__group_4 = Group("GROUPID4", "Fourth description.")
         Group.add( self.__group_4)
@@ -86,6 +111,14 @@ class TestHashSharding(unittest.TestCase):
         self.__options_5["uuid"] = _uuid.UUID(uuid_server5)
         self.__server_5 = MySQLServer(**self.__options_5)
         MySQLServer.add(self.__server_5)
+        self.__server_5.connect()
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_5.exec_stmt("CREATE DATABASE db1")
+        self.__server_5.exec_stmt("CREATE TABLE db1.t1"
+                                  "(userID INT, name VARCHAR(30))")
+        for i in range(1, 501):
+            self.__server_5.exec_stmt("INSERT INTO db1.t1 "
+                                  "VALUES(%s, 'TEST %s')" % (i, i))
 
         self.__group_5 = Group("GROUPID5", "Fifth description.")
         Group.add( self.__group_5)
@@ -102,6 +135,14 @@ class TestHashSharding(unittest.TestCase):
         self.__options_6["uuid"] = _uuid.UUID(uuid_server6)
         self.__server_6 = MySQLServer(**self.__options_6)
         MySQLServer.add(self.__server_6)
+        self.__server_6.connect()
+        self.__server_6.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_6.exec_stmt("CREATE DATABASE db1")
+        self.__server_6.exec_stmt("CREATE TABLE db1.t1"
+                                  "(userID INT, name VARCHAR(30))")
+        for i in range(1, 501):
+            self.__server_6.exec_stmt("INSERT INTO db1.t1 "
+                                  "VALUES(%s, 'TEST %s')" % (i, i))
 
         self.__group_6 = Group("GROUPID6", "Sixth description.")
         Group.add( self.__group_6)
@@ -113,7 +154,11 @@ class TestHashSharding(unittest.TestCase):
 
         self.__shard_mapping_id_1 = ShardMapping.define("HASH", "GROUPID1")
 
-        self.__shard_mapping_1 = ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
+        self.__shard_mapping_1 = ShardMapping.add(
+                                    self.__shard_mapping_id_1,
+                                    "db1.t1",
+                                    "userID"
+                                )
 
         self.__shard_1 = Shards.add("GROUPID2")
         self.__shard_2 = Shards.add("GROUPID3")
@@ -155,7 +200,7 @@ class TestHashSharding(unittest.TestCase):
         shard_4_cnt = 0
         shard_5_cnt = 0
 
-        #Lookup a range of keys to ensure that both the shards are
+        #Lookup a range of keys to ensure that all the shards are
         #utilized.
         for i in range(0,  1000):
             hash_sharding_spec_1 = HashShardingSpecification.lookup(
@@ -266,6 +311,62 @@ class TestHashSharding(unittest.TestCase):
             )
         )
 
+    def test_prune_shard(self):
+        rows =  self.__server_2.exec_stmt(
+                                            "SELECT * FROM db1.t1",
+                                            {"fetch" : True})
+        rows =  self.__server_2.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        self.assertTrue(int(rows[0][0]) == 500)
+        rows =  self.__server_3.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        self.assertTrue(int(rows[0][0]) == 500)
+        rows =  self.__server_4.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        self.assertTrue(int(rows[0][0]) == 500)
+        rows =  self.__server_5.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        self.assertTrue(int(rows[0][0]) == 500)
+        rows =  self.__server_6.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        self.assertTrue(int(rows[0][0]) == 500)
+        HashShardingSpecification.prune_shard_id(1)
+        HashShardingSpecification.prune_shard_id(2)
+        HashShardingSpecification.prune_shard_id(3)
+        HashShardingSpecification.prune_shard_id(4)
+        HashShardingSpecification.prune_shard_id(5)
+        rows =  self.__server_2.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        cnt1 = int(rows[0][0])
+        self.assertTrue(int(rows[0][0]) < 500)
+        rows =  self.__server_3.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        cnt2 = int(rows[0][0])
+        self.assertTrue(int(rows[0][0]) < 500)
+        rows =  self.__server_4.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        cnt3 = int(rows[0][0])
+        self.assertTrue(int(rows[0][0]) < 500)
+        rows =  self.__server_5.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        cnt4 = int(rows[0][0])
+        self.assertTrue(int(rows[0][0]) < 500)
+        rows =  self.__server_6.exec_stmt(
+                                            "SELECT COUNT(*) FROM db1.t1",
+                                            {"fetch" : True})
+        cnt5 = int(rows[0][0])
+        self.assertTrue(int(rows[0][0]) < 500)
+        self.assertTrue((cnt1 + cnt2 + cnt3 + cnt4 + cnt5) == 500)
+
     def hash_sharding_specification_in_list(self,
                                             hash_sharding_spec,
                                             hash_sharding_specification_list
@@ -292,4 +393,14 @@ class TestHashSharding(unittest.TestCase):
     def tearDown(self):
         """Tear down the state store setup.
         """
+        self.__server_2.exec_stmt("DROP TABLE db1.t1")
+        self.__server_2.exec_stmt("DROP DATABASE db1")
+        self.__server_3.exec_stmt("DROP TABLE db1.t1")
+        self.__server_3.exec_stmt("DROP DATABASE db1")
+        self.__server_4.exec_stmt("DROP TABLE db1.t1")
+        self.__server_4.exec_stmt("DROP DATABASE db1")
+        self.__server_5.exec_stmt("DROP TABLE db1.t1")
+        self.__server_5.exec_stmt("DROP DATABASE db1")
+        self.__server_6.exec_stmt("DROP TABLE db1.t1")
+        self.__server_6.exec_stmt("DROP DATABASE db1")
         tests.utils.cleanup_environment()

@@ -757,7 +757,7 @@ class RangeShardingSpecification(_persistence.Persistable):
     #Select the UPPER BOUND for a given LOWER BOUND value.
     SELECT_UPPER_BOUND = (
         "SELECT lower_bound FROM "
-        "shard_ranges JOIN shards USING (shard_id) "
+        "shard_ranges "
         "WHERE lower_bound > %s AND shard_mapping_id = %s "
         "ORDER BY lower_bound ASC LIMIT 1"
     )
@@ -1169,6 +1169,7 @@ class HashShardingSpecification(RangeShardingSpecification):
                 "LIMIT 1"
                 )
 
+    #TODO: The below query is duplicated, merge with RANGE queries.
     #Select the UPPER BOUND for a given LOWER BOUND value.
     SELECT_UPPER_BOUND = (
         "SELECT HEX(lower_bound) FROM "
@@ -1179,6 +1180,14 @@ class HashShardingSpecification(RangeShardingSpecification):
         "shard_mapping_id = %s "
         "ORDER BY lower_bound ASC LIMIT 1"
     )
+
+    #Select the least LOWER BOUND of all the LOWER BOUNDs for
+    #a given shard mapping ID.
+    SELECT_LEAST_LOWER_BOUND = (
+        "SELECT MIN(HEX(lower_bound)) FROM "
+        "shard_ranges "
+        "WHERE shard_mapping_id = %s"
+        )
 
     def __init__(self, shard_mapping_id, lower_bound, shard_id):
         """Initialize a given HASH sharding mapping specification.
@@ -1355,6 +1364,25 @@ class HashShardingSpecification(RangeShardingSpecification):
             return None
         return HashShardingSpecification(row[0], row[1],  row[2])
 
+
+    @staticmethod
+    def fetch_least_lower_bound(shard_mapping_id, persister=None):
+        """Fetch the least of the lower_bound's for a given shard mapping ID.
+
+        :param shard_mapping_id: The unique identification for a shard mapping.
+
+        :return: The least lower_bound for a given shard mapping ID.
+        """
+        cur = persister.exec_stmt(
+                    HashShardingSpecification.SELECT_LEAST_LOWER_BOUND,
+                        {"raw" : False,
+                        "fetch" : False,
+                        "params" : (shard_mapping_id,)})
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return row[0]
+
     @staticmethod
     def list(shard_mapping_id, persister=None):
         """Return the HashShardingSpecification objects corresponding to the
@@ -1483,11 +1511,11 @@ class HashShardingSpecification(RangeShardingSpecification):
             # into two separate queries handling all below and all above
             # respectively.
             delete_query = (
-                "DELETE FROM %s"
-                " WHERE "
-                "HEX(MD5(%s)) < '%s' "
+                "DELETE FROM %s "
+                "WHERE "
+                "MD5(%s) < '%s' "
                 "OR "
-                "HEX(MD5(%s)) >= '%s'"
+                "MD5(%s) >= '%s'"
             ) % (
                 table_name,
                 shard_mapping.column_name,
@@ -1496,11 +1524,21 @@ class HashShardingSpecification(RangeShardingSpecification):
                 upper_bound
             )
         else:
+            #HASH based sharding forms a circular ring. Hence
+            #when there is no upper_bound, all the values, that
+            #circle around from the largest lower_bound to the
+            #least upper_bound need to be present in this shard.
             delete_query = ("DELETE FROM %s "
                 "WHERE "
-                "HEX(MD5(%s)) < '%s'"
+                "MD5(%s) >= '%s' "
+                "AND "
+                "MD5(%s) < '%s'"
             ) % (
                 table_name,
+                shard_mapping.column_name,
+                HashShardingSpecification.fetch_least_lower_bound(
+                    shard_mapping.shard_mapping_id
+                ),
                 shard_mapping.column_name,
                 hash_sharding_spec.lower_bound
             )
