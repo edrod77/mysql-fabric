@@ -144,7 +144,11 @@ class MyClient(xmlrpclib.ServerProxy):
         the command with arguments to the server.
         """
 
-        uri = "http://%s" % command.config.get('protocol.xmlrpc', 'address')
+        address = command.config.get('protocol.xmlrpc', 'address')
+        host, port = address.split(":")
+        if not host:
+            host = "localhost"
+        uri = "http://%s:%s" % (host, port)
         xmlrpclib.ServerProxy.__init__(self, uri)
         try:
             reference = command.group_name + "." + command.command_name
