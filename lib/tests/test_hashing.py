@@ -1,17 +1,24 @@
 import unittest
 import uuid as _uuid
 import mysql.fabric.sharding as _sharding
-import mysql.fabric.errors as _errors
 import tests.utils
 
 from mysql.fabric.sharding import ShardMapping, HashShardingSpecification, Shards
 from mysql.fabric.server import Group, MySQLServer
-from mysql.fabric import persistence
+from mysql.fabric import (
+    executor as _executor,
+)
 
 from tests.utils import ShardingUtils, MySQLInstances
 
 class TestHashSharding(unittest.TestCase):
+    def assertStatus(self, status, expect):
+        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
+        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
+
     def setUp(self):
+        self.manager, self.proxy = tests.utils.setup_xmlrpc()
+
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(0),
@@ -313,9 +320,6 @@ class TestHashSharding(unittest.TestCase):
 
     def test_prune_shard(self):
         rows =  self.__server_2.exec_stmt(
-                                            "SELECT * FROM db1.t1",
-                                            {"fetch" : True})
-        rows =  self.__server_2.exec_stmt(
                                             "SELECT COUNT(*) FROM db1.t1",
                                             {"fetch" : True})
         self.assertTrue(int(rows[0][0]) == 500)
@@ -335,11 +339,13 @@ class TestHashSharding(unittest.TestCase):
                                             "SELECT COUNT(*) FROM db1.t1",
                                             {"fetch" : True})
         self.assertTrue(int(rows[0][0]) == 500)
-        HashShardingSpecification.prune_shard_id(1)
-        HashShardingSpecification.prune_shard_id(2)
-        HashShardingSpecification.prune_shard_id(3)
-        HashShardingSpecification.prune_shard_id(4)
-        HashShardingSpecification.prune_shard_id(5)
+
+        status = self.proxy.sharding.prune_shard("db1.t1")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_prune_shard_tables).")
+
         rows =  self.__server_2.exec_stmt(
                                             "SELECT COUNT(*) FROM db1.t1",
                                             {"fetch" : True})
@@ -366,6 +372,74 @@ class TestHashSharding(unittest.TestCase):
         cnt5 = int(rows[0][0])
         self.assertTrue(int(rows[0][0]) < 500)
         self.assertTrue((cnt1 + cnt2 + cnt3 + cnt4 + cnt5) == 500)
+
+    def test_prune_lookup(self):
+        status = self.proxy.sharding.prune_shard("db1.t1")
+        rows =  self.__server_2.exec_stmt(
+                                            "SELECT userID FROM db1.t1",
+                                            {"fetch" : True})
+        for val in rows[0:len(rows)][0]:
+            hash_sharding_spec_1 = HashShardingSpecification.lookup(
+                                    val,
+                                    self.__shard_mapping_id_1
+                                )
+            self.assertEqual(
+                             hash_sharding_spec_1.shard_id,
+                             1
+            )
+
+        rows =  self.__server_3.exec_stmt(
+                                            "SELECT userID FROM db1.t1",
+                                            {"fetch" : True})
+        for val in rows[0:len(rows)][0]:
+            hash_sharding_spec_2 = HashShardingSpecification.lookup(
+                                    val,
+                                    self.__shard_mapping_id_1
+                                )
+            self.assertEqual(
+                             hash_sharding_spec_2.shard_id,
+                             2
+            )
+
+        rows =  self.__server_4.exec_stmt(
+                                            "SELECT userID FROM db1.t1",
+                                            {"fetch" : True})
+        for val in rows[0:len(rows)][0]:
+            hash_sharding_spec_3 = HashShardingSpecification.lookup(
+                                    val,
+                                    self.__shard_mapping_id_1
+                                )
+            self.assertEqual(
+                             hash_sharding_spec_3.shard_id,
+                             3
+            )
+
+        rows =  self.__server_5.exec_stmt(
+                                            "SELECT userID FROM db1.t1",
+                                            {"fetch" : True})
+        for val in rows[0:len(rows)][0]:
+            hash_sharding_spec_4 = HashShardingSpecification.lookup(
+                                    val,
+                                    self.__shard_mapping_id_1
+                                )
+            self.assertEqual(
+                             hash_sharding_spec_4.shard_id,
+                             4
+            )
+
+        rows =  self.__server_6.exec_stmt(
+                                            "SELECT userID FROM db1.t1",
+                                            {"fetch" : True})
+        for val in rows[0:len(rows)][0]:
+            hash_sharding_spec_5 = HashShardingSpecification.lookup(
+                                    val,
+                                    self.__shard_mapping_id_1
+                                )
+            self.assertEqual(
+                             hash_sharding_spec_5.shard_id,
+                             5
+            )
+
 
     def hash_sharding_specification_in_list(self,
                                             hash_sharding_spec,
@@ -403,4 +477,6 @@ class TestHashSharding(unittest.TestCase):
         self.__server_5.exec_stmt("DROP DATABASE db1")
         self.__server_6.exec_stmt("DROP TABLE db1.t1")
         self.__server_6.exec_stmt("DROP DATABASE db1")
+
         tests.utils.cleanup_environment()
+        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

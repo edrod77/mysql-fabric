@@ -744,8 +744,6 @@ def _disable_shard(shard_id):
     _stop_shard_group_replication(shard_id,  False)
     shard.disable()
 
-#TODO: Removed Go Fish Lookup. Provide Dump facility.
-
 @_events.on_event(PRUNE_SHARD_TABLES)
 def _prune_shard_tables(table_name):
     """Delete the data from the copied data directories based on the
@@ -757,9 +755,13 @@ def _prune_shard_tables(table_name):
     c) Deleting the sharding keys that fall outside the range for a given
         server.
 
-    :param job: The Job object created for executing this event.
+    :param table_name: The table_name who's shards need to be pruned.
     """
-    RangeShardingSpecification.delete_from_shard_db(table_name)
+    shard_mapping = ShardMapping.fetch(table_name)
+    if shard_mapping.type_name == "RANGE":
+        RangeShardingSpecification.delete_from_shard_db(table_name)
+    elif shard_mapping.type_name == "HASH":
+        HashShardingSpecification.delete_from_shard_db(table_name)
 
 @_events.on_event(BACKUP_SOURCE_SHARD)
 def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,

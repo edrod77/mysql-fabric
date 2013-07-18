@@ -747,10 +747,10 @@ class RangeShardingSpecification(_persistence.Persistable):
         "s.shard_id "
         "FROM "
         "shard_ranges AS sr, shards AS s "
-        "WHERE %s >= sr.lower_bound "
+        "WHERE %s >= CAST(lower_bound AS SIGNED) "
         "AND sr.shard_mapping_id = %s "
         "AND s.shard_id = sr.shard_id "
-        "ORDER BY sr.lower_bound DESC "
+        "ORDER BY CAST(lower_bound AS SIGNED) DESC "
         "LIMIT 1"
     )
 
@@ -758,8 +758,8 @@ class RangeShardingSpecification(_persistence.Persistable):
     SELECT_UPPER_BOUND = (
         "SELECT lower_bound FROM "
         "shard_ranges "
-        "WHERE lower_bound > %s AND shard_mapping_id = %s "
-        "ORDER BY lower_bound ASC LIMIT 1"
+        "WHERE  CAST(lower_bound AS SIGNED) > %s AND shard_mapping_id = %s "
+        "ORDER BY  CAST(lower_bound AS SIGNED) ASC LIMIT 1"
     )
 
     #Update the Range for a particular shard. The updation needs to happen
@@ -1147,10 +1147,10 @@ class HashShardingSpecification(RangeShardingSpecification):
                 "HEX(sr.lower_bound) AS lower_bound, "
                 "s.shard_id "
                 "FROM shard_ranges AS sr, shards AS s "
-                "WHERE UNHEX(MD5(%s)) >= sr.lower_bound "
+                "WHERE MD5(%s) >= HEX(sr.lower_bound) "
                 "AND sr.shard_mapping_id = %s "
                 "AND s.shard_id = sr.shard_id "
-                "ORDER BY sr.lower_bound DESC "
+                "ORDER BY HEX(sr.lower_bound) DESC "
                 "LIMIT 1"
                 ") "
                 "UNION ALL "
@@ -1162,10 +1162,10 @@ class HashShardingSpecification(RangeShardingSpecification):
                 "FROM shard_ranges AS sr, shards AS s "
                 "WHERE sr.shard_mapping_id = %s "
                 "AND s.shard_id = sr.shard_id "
-                "ORDER BY sr.lower_bound DESC "
+                "ORDER BY HEX(sr.lower_bound) DESC "
                 "LIMIT 1"
                 ") "
-                "ORDER BY lower_bound ASC "
+                "ORDER BY HEX(lower_bound) ASC "
                 "LIMIT 1"
                 )
 
@@ -1178,7 +1178,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         "HEX(lower_bound) > %s "
         "AND "
         "shard_mapping_id = %s "
-        "ORDER BY lower_bound ASC LIMIT 1"
+        "ORDER BY HEX(lower_bound) ASC LIMIT 1"
     )
 
     #Select the least LOWER BOUND of all the LOWER BOUNDs for
@@ -1444,6 +1444,37 @@ class HashShardingSpecification(RangeShardingSpecification):
                   state store.
         """
         pass
+
+    @staticmethod
+    def delete_from_shard_db(table_name):
+        """Delete the data from the copied data directories based on the
+        sharding configuration uploaded in the sharding tables of the state
+        store. The basic logic consists of
+
+        * Querying the shard mapping ID corresponding to the sharding
+          table.
+        * Using the shard mapping ID to find the type of shard scheme and hence
+            the sharding scheme table to query in.
+        * Querying the sharding key range using the shard mapping ID.
+        * Deleting the sharding keys that fall outside the range for a given
+          server.
+
+        :param table_name: The table being sharded.
+        """
+
+        shard_mapping = ShardMapping.fetch(table_name)
+        if shard_mapping is None:
+            raise _errors.ShardingError("Shard Mapping not found.")
+
+        shard_mapping_id = shard_mapping.shard_mapping_id
+
+        shards = HashShardingSpecification.list(shard_mapping_id)
+        if not shards:
+            raise _errors.ShardingError("No shards associated with this"
+                                        " shard mapping ID.")
+
+        for shard in shards:
+            HashShardingSpecification.prune_shard_id(shard.shard_id)
 
     @staticmethod
     def get_upper_bound(lower_bound, shard_mapping_id, persister=None):
