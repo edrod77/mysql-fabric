@@ -26,7 +26,7 @@ from mysql.fabric.command import (
     get_groups,
     get_commands,
     get_command,
-    )
+   )
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class Help(Command):
             args = None
             cls = get_command(group_name, command_name)
             try:
-                args = inspect.getargspec(cls.execute)[0]
+                args = inspect.getargspec(cls.execute.original_function)[0]
             except AttributeError:
                 args = inspect.getargspec(cls.dispatch)[0]
             command_text = \
@@ -307,7 +307,7 @@ def _configure_logging(config, daemon):
         handler = logging.StreamHandler()
 
     formatter = logging.Formatter(
-        "[%(levelname)s] %(asctime)s - %(threadName)s"
+        "[%(levelname)s] %(created)f - %(threadName)s"
         " - %(message)s")
     handler.setFormatter(formatter)
     try:

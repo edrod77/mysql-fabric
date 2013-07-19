@@ -22,7 +22,7 @@ shown in command help message.
 import re
 import inspect
 import logging
-
+import functools
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
@@ -109,6 +109,31 @@ class CommandMeta(type):
         if cls.command_name not in CommandMeta.IgnoredCommand and \
             re.match("[A-Za-z]\w+", cls.command_name):
             register_command(cls.group_name, cls.command_name, cls)
+
+    @classmethod
+    def _wrapfunc(cls, func, cname):
+        """Wrap the a function in order to log when it started and
+        finished its execution.
+        """
+        original = func
+        @functools.wraps(func)
+        def _wrap(*args, **kwrds):
+            _LOGGER.debug("Started command (%s).", cname)
+            ret = original(*args, **kwrds)
+            _LOGGER.debug("Finished command (%s).", cname)
+            return ret
+        _wrap.original_function = func
+        return _wrap
+
+    def __new__(mcs, cname, cbases, cdict):
+        """Wrap the execute function in order to log when it starts
+        and finishes its execution.
+        """
+        for name, func in cdict.items():
+            if name == "execute" and callable(func):
+                cdict[name] = mcs._wrapfunc(func, cname)
+        return type.__new__(mcs, cname, cbases, cdict)
+
 
 class Command(object):
     """Base class for all commands.
@@ -406,7 +431,7 @@ class ProcedureGroup(ProcedureCommand):
                          searched for.
         """
         variable = variable or "group_id"
-        function = function or self.execute
+        function = function or self.execute.original_function
         lockable_objects = set()
         # TODO: IS THERE A BETTER WAY TO GET THE FRAME?
         frame = inspect.currentframe().f_back
@@ -438,7 +463,7 @@ class ProcedureShard(ProcedureCommand):
         # groups associated with a shard_mapping_id while adding a shard.
         variable = variable or \
             ("group_id", "table_name", "shard_mapping_id", "shard_id")
-        function = function or self.execute
+        function = function or self.execute.original_function
         lockable_objects = set()
         # TODO: IS THERE A BETTER WAY TO GET THE FRAME?
         frame = inspect.currentframe().f_back

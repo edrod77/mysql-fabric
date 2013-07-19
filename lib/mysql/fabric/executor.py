@@ -52,9 +52,7 @@ class Procedure(object):
         self.__status = []
         self.__lockable_objects = lockable_objects
 
-        _LOGGER.debug("Created procedure (%s, %s).",
-            self.__uuid, time.time()
-        )
+        _LOGGER.debug("Created procedure (%s).", self.__uuid)
 
     def get_lockable_objects(self):
         """Return the objects that need to be locked before this procedure
@@ -137,9 +135,7 @@ class Procedure(object):
                 self.__complete = True
                 self.__lock.notify_all()
                 _checkpoint.Checkpoint.remove(job.checkpoint)
-                _LOGGER.debug("Complete procedure (%s, %s).",
-                    self.__uuid, time.time()
-                )
+                _LOGGER.debug("Complete procedure (%s).", self.__uuid)
 
     @property
     def uuid(self):
@@ -205,10 +201,10 @@ class Job(object):
         SUCCESS : "Success"
     }
 
-    ENQUEUED, PROCESSING, COMPLETE = range(3, 6)
-    EVENT_STATE = [ENQUEUED, PROCESSING, COMPLETE]
+    CREATED, PROCESSING, COMPLETE = range(3, 6)
+    EVENT_STATE = [CREATED, PROCESSING, COMPLETE]
     EVENT_STATE_DESCRIPTION = {
-        ENQUEUED : "Enqueued",
+        CREATED : "Created",
         PROCESSING : "Processing",
         COMPLETE : "Complete"
     }
@@ -247,7 +243,7 @@ class Job(object):
             self.__uuid, self.__action_fqn, args, kwargs
         )
 
-        self._add_status(Job.SUCCESS, Job.ENQUEUED, description)
+        self._add_status(Job.SUCCESS, Job.CREATED, description)
         self.__procedure.add_scheduled_job(self)
 
     @property
@@ -334,9 +330,9 @@ class Job(object):
             }
         self.__status.append(status)
 
-        _LOGGER.debug("%s job (%s, %s, %s, %s, %s).",
+        _LOGGER.debug("%s job (%s, %s, %s, %s).",
             Job.EVENT_STATE_DESCRIPTION[state],
-            self.__procedure.uuid, self.__uuid, self.__action_fqn, when,
+            self.__procedure.uuid, self.__uuid, self.__action_fqn,
             Job.EVENT_OUTCOME_DESCRIPTION[success]
         )
 

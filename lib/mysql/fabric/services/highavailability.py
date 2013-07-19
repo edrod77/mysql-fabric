@@ -312,14 +312,11 @@ class DemoteMaster(ProcedureGroup):
             block_write --> executor [ label = "schedule(wait_slaves)" ];
             block_write <-- executor;
             executor <- block_write;
-            === Execute "wait_slaves" and schedule "reset_candidates" ===
+            === Execute "wait_slaves" ===
             executor -> wait_slaves [ label = "execute(wait_slaves)" ];
-            wait_slaves --> executor [ label = "schedule(reset_candidates)" ];
+            wait_slaves --> executor;
             wait_slaves <-- executor;
             executor <- wait_slaves;
-            === Execute "reset_candidates" ===
-            executor -> reset_candidates [ label = "execute(reset_candidates)" ];
-            executor <- reset_candidates;
           }
         """
         procedures = _events.trigger(

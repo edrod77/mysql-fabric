@@ -212,7 +212,7 @@ if __name__ == '__main__':
 
     handler = None
     formatter = logging.Formatter(
-        "[%(levelname)s] %(asctime)s - %(threadName)s - %(message)s")
+        "[%(levelname)s] %(created)f - %(threadName)s - %(message)s")
 
     if options.password is None:
         options.password = getpass.getpass()

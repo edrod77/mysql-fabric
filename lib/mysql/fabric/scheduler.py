@@ -40,8 +40,9 @@ class Scheduler(object):
 
         :param procedure: Reference to a procedure.
         """
-        _LOGGER.debug("Enqueuing procedure %s.", procedure)
         self.__queue.put(procedure)
+        if procedure:
+            _LOGGER.debug("Enqueued procedure (%s).", procedure.uuid)
 
     def next_procedure(self, condition=None):
         """Get the next procedure to be executed.
@@ -54,16 +55,15 @@ class Scheduler(object):
         :rtype: Procedure
         """
         procedure = self.__queue.get()
-        _LOGGER.debug("Getting the next procedure %s.", procedure)
         if procedure is not None:
-            _LOGGER.debug("Locking procedure %s.", procedure)
+            _LOGGER.debug("Locking procedure (%s).", procedure.uuid)
             self.__lock_manager.lock(
                 procedure,
                 procedure.get_lockable_objects(),
                 procedure.get_priority(),
                 condition
             )
-            _LOGGER.debug("Locked procedure %s.", procedure)
+            _LOGGER.debug("Locked procedure (%s).", procedure.uuid)
         return procedure
 
     def done(self, procedure):
@@ -72,10 +72,10 @@ class Scheduler(object):
 
         :param procedure: Reference to a procedure.
         """
-        _LOGGER.debug("Unlock procedure %s.", procedure)
         if procedure is not None:
             self.__lock_manager.release(procedure)
             self.__queue.task_done()
+            _LOGGER.debug("Unlocked procedure (%s).", procedure.uuid)
 
 
 class LockManager(object):
