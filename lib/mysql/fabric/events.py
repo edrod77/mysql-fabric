@@ -61,10 +61,9 @@ def on_event(event):
             try:
                 _LOGGER.debug("Executing %s", wrapped.function.__name__)
                 return wrapped.function(*args, **kwargs)
-            except Exception as error:       # pylint: disable=W0703
+            except Exception:
                 _LOGGER.debug("%s failed, executing compensation",
                               func.__name__)
-                _LOGGER.exception(error)
                 if wrapped.undo_function is not None:
                     wrapped.undo_function(*args, **kwargs)
                 raise

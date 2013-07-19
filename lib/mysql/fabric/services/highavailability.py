@@ -564,7 +564,10 @@ def _do_find_candidate(group_id, event):
                         slave_issues, has_valid_master
                         )
             except _errors.DatabaseError as error:
-                _LOGGER.exception(error)
+                _LOGGER.debug(
+                    "Error accessing candidate (%s).", candidate.uuid,
+                    exc_info=error
+                )
 
     if not chosen_uuid:
         raise _errors.GroupError(
@@ -692,7 +695,10 @@ def _do_wait_slaves_catch(group_id, master, skip_servers=None):
                     _LOGGER.debug("Slave (%s) has a different master "
                         "from group (%s).", server.uuid, group_id)
             except _errors.DatabaseError as error:
-                _LOGGER.exception(error)
+                _LOGGER.debug(
+                    "Error synchronizing slave (%s).", server.uuid,
+                    exc_info=error
+                )
 
     # At the end, we notify that a server was demoted.
     _events.trigger("SERVER_DEMOTED", set([group_id]),
@@ -718,7 +724,10 @@ def _change_to_candidate(group_id, master_uuid):
             try:
                 _utils.switch_master(server, master)
             except _errors.DatabaseError as error:
-                _LOGGER.exception(error)
+                _LOGGER.debug(
+                    "Error configuring slave (%s).", server.uuid,
+                    exc_info=error
+                )
 
     # At the end, we notify that a server was promoted.
     _events.trigger("SERVER_PROMOTED", set([group_id]),
@@ -769,13 +778,15 @@ def _check_candidate_fail(group_id, slave_uuid):
             server.connect()
             if server.is_alive():
                 _LOGGER.warning(
-                    "Failover or promote is being executed in group (%s). "
-                    "Switchover should have been executed in order to "
-                    "guarantee consistency as the master is apparently "
-                    "running." % (group_id, )
-                    )
+                    "Failover is being executed in group (%s) when previous "
+                    "master is apparently running and this may lead to "
+                    "consistency problems because some transactions may not "
+                    "be transfered to slaves." % (group_id, )
+                )
         except _errors.DatabaseError as error:
-            _LOGGER.debug(error)
+            _LOGGER.debug(
+                "Master (%s) cannot be reached.", server.uuid
+            )
 
     if slave.status not in \
         (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
@@ -832,7 +843,10 @@ def _wait_slaves_demote(group_id, master_uuid):
         try:
             _utils.stop_slave(server)
         except _errors.DatabaseError as error:
-            _LOGGER.exception(error)
+            _LOGGER.debug(
+                "Error waiting for slave (%s) to stop.", server.uuid,
+                exc_info=error
+            )
 
 @_events.on_event(CHECK_GROUP_AVAILABILITY)
 def _check_group_availability(group_id):

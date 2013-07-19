@@ -34,7 +34,6 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         self.__is_running = True
         self.daemon = True
         self.__lock = threading.Condition()
-        _LOGGER.info("Setting %s XML-RPC session(s).", self.__number_threads)
 
     def run(self):
         """Call the main routine.
@@ -83,6 +82,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
     def process_request_thread(self):
         """Obtain request from queue instead of directly from server socket.
         """
+        _LOGGER.info("Started XML-RPC-Session.")
         _persistence.init_thread()
         while True:
             assert(self.__requests is not None)
@@ -109,6 +109,11 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         # TODO: Define a lower and upper bound.
         self.__requests = Queue.Queue(self.__number_threads)
 
+        _LOGGER.info(
+            "XML-RPC protocol server %s started.", self.server_address
+        )
+        _LOGGER.info("Setting %s XML-RPC session(s).", self.__number_threads)
+
         for nt in range(0, self.__number_threads):
             thread = threading.Thread(
                 target = self.process_request_thread,
@@ -117,7 +122,6 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             thread.daemon = True
             thread.start()
             self.__threads.append(thread)
-        _LOGGER.info("XML-RPC protocol server started.")
 
         while self.__is_running:
             self.handle_request()

@@ -351,7 +351,7 @@ class ShardMapping(_persistence.Persistable):
                                   {"raw" : False,
                                   "fetch" : True,
                                   "params" : (shard_mapping_id,)})
-        if row is not None:
+        if row:
             #There is no abstraction for a shard mapping definition. A
             #shard mapping definition is just a triplet of
             #(shard_id, sharding_type, global_group)
@@ -532,6 +532,8 @@ class Shards(_persistence.Persistable):
         :return: The Shards object containing a mapping between the shard
                     and the group.
         """
+        # TODO: This can generate a duplicate key error and this problem should
+        # be caught at the service level.
         persister.exec_stmt(Shards.INSERT_SHARD, {"params":(group_id, state)})
         row = persister.exec_stmt("SELECT LAST_INSERT_ID()")
         return Shards(int(row[0][0]), group_id, state)

@@ -8,7 +8,6 @@ import mysql.fabric.errors as _errors
 import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.server as _server
 
-_LOGGER = logging.getLogger(__name__)
 
 _RPL_USER_QUERY = (
     "SELECT user, host, password != '' as has_password "

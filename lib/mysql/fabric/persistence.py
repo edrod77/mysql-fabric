@@ -361,8 +361,10 @@ def init(host, user, password=None, port=None, database=None, timeout=None):
     if database is None:
         database = DEFAULT_DATABASE
 
-    _LOGGER.info("Initializing persister using user '%s' at server %s:%d "
-                 "using database '%s'.", user, host, port, database)
+    _LOGGER.info(
+        "Initializing persister: user (%s), server (%s:%d), database (%s).",
+        user, host, port, database
+    )
 
     MySQLPersister.init(host=host, port=port,
                         user=user, password=password,

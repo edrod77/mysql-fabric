@@ -37,13 +37,14 @@ def server_logging(function):
     def wrapper_check(*args, **kwrds):
         """Inner function that logs information on wrapped function.
         """
-        _LOGGER.debug("Start executing function: %s(%s).", function.__name__,
-                      str(kwrds))
+        _LOGGER.debug(
+            "Start executing function: %s(%s, %s).", function.__name__,
+            str(args), str(kwrds)
+        )
         try:
             ret = function(*args, **kwrds)
-        except Exception as error:
+        except Exception:
             _LOGGER.debug("Error executing function: %s.", function.__name__)
-            _LOGGER.exception(error)
             raise
         else:
             _LOGGER.debug("Finish executing function: %s.", function.__name__)
@@ -308,7 +309,7 @@ class Group(_persistence.Persistable):
                             {"params": (self.__group_id, slave_group_id)})
 
     def remove_slave_group_id(self,  slave_group_id, persister=None):
-        """Remove a slave group ID from the slave group ID list. Unregister a 
+        """Remove a slave group ID from the slave group ID list. Unregister a
         slave group.
 
         :param slave_group_id: the group ID of the slave group that needs to
@@ -323,7 +324,7 @@ class Group(_persistence.Persistable):
         """
         persister.exec_stmt(Group.DELETE_SLAVE_GROUPS,
                             {"params": (self.__group_id, )})
-        
+
     def add_master_group_id(self,  master_group_id, persister=None):
         """Set the master group ID. Register a group as a master. This Group
         basically is a slave to the registered group.
@@ -339,7 +340,7 @@ class Group(_persistence.Persistable):
         """
         persister.exec_stmt(Group.DELETE_MASTER_GROUP,
                             {"params": (self.__group_id, )})
-    
+
     def add_server(self, server, persister=None):
         """Add a server into this group.
 
@@ -602,7 +603,7 @@ class Group(_persistence.Persistable):
         except _errors.DatabaseError:
             persister.exec_stmt(Group.DROP_GROUP_SERVER)
             persister.exec_stmt(Group.DROP_GROUP)
-            raise 
+            raise
 
         try:
             persister.exec_stmt(Group.CREATE_GROUP_REPLICATION_SLAVE)
@@ -610,7 +611,7 @@ class Group(_persistence.Persistable):
             persister.exec_stmt(Group.DROP_GROUP_REPLICATION_MASTER)
             persister.exec_stmt(Group.DROP_GROUP_SERVER)
             persister.exec_stmt(Group.DROP_GROUP)
-            raise 
+            raise
 
     @staticmethod
     def drop(persister=None):

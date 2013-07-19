@@ -23,12 +23,6 @@ class UnknownCallableError(Error):
     """
     pass
 
-class UnknownEventError(Error):
-    """Exception raised when trying to use an event that was not known
-    in a situation where a known event was expected.
-    """
-    pass
-
 class ExecutorError(Error):
     """Exception raised when the one tries to access the executor that
     is not properly configured.
@@ -39,15 +33,19 @@ class InvalidGtidError(Error):
     invalid GTID(s).
     """
 
-class DatabaseError(Error):
-    """Exception raised when something bad happens while accessing a
-    database.
+class UuidError(Error):
+    """Exception raised when there are problems with uuids. For example,
+    if the expected uuid does not match the server's uuid.
     """
     pass
 
-class UuidError(DatabaseError):
-    """Exception raised when there are problems with uuids. For example,
-    if the expected uuid does not match the server's uuid.
+class TimeoutError(Error):
+    """Exception raised when there is a timeout.
+    """
+
+class DatabaseError(Error):
+    """Exception raised when something bad happens while accessing a
+    database.
     """
     pass
 
@@ -58,17 +56,13 @@ class ProgrammingError(Error):
     pass
 
 class ConfigurationError(ProgrammingError):
-    """Exception raised when access parameters are not properly configured.
+    """Exception raised when configuration options are not properly set.
     """
     pass
 
-class TimeoutError(ProgrammingError):
-    """Exception raised when there is a timeout.
-    """
-
-class PersistenceError(Error):
-    """Exception raised when something wrong happens while accessing the
-    state store.
+class LockManagerError(Error):
+    """Exception raised when an invalid operation is attempted on the
+    lock manager or locks are broken.
     """
     pass
 
@@ -97,14 +91,8 @@ class ProcedureError(ServiceError):
     """
     pass
 
-class ShardingError(Error):
+class ShardingError(ServiceError):
     """Exception raised when an invalid operation is attempted on the
     sharding system.
-    """
-    pass
-
-class LockManagerError(Error):
-    """Exception raised when an invalid operation is attempted on the
-    lock manager.
     """
     pass

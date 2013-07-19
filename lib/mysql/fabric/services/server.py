@@ -524,7 +524,11 @@ def _add_server(group_id, address, user, passwd):
 def _remove_server(group_id, uuid):
     """Remove a server from a group.
     """
-    uuid = _uuid.UUID(uuid)
+    try:
+        uuid = _uuid.UUID(uuid)
+    except ValueError:
+        raise _errors.ServerError("Malformed UUID (%s).", uuid)
+
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
@@ -547,7 +551,10 @@ def _remove_server(group_id, uuid):
 def _set_server_status(uuid, status):
     """Set a server's status.
     """
-    uuid = _uuid.UUID(uuid)
+    try:
+        uuid = _uuid.UUID(uuid)
+    except ValueError:
+        raise _errors.ServerError("Malformed UUID (%s).", uuid)
 
     server = _server.MySQLServer.fetch(uuid)
     if not server:
@@ -693,5 +700,10 @@ def _configure_as_slave(group, server):
             master.connect()
             _utils.switch_master(server, master)
     except _errors.DatabaseError as error:
-        # TODO: Check this in the context of HAM-193
-        _LOGGER.error(error)
+        _LOGGER.debug(
+            "Error configuring slave (%s)...", sever.uuid, exc_info=error
+        )
+        raise _errors.ServerError(
+            "Error trying to configure Server (%s) as slave."
+            % (server.uuid, )
+        )

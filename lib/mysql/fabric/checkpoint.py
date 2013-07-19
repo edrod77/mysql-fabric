@@ -10,7 +10,6 @@ import sys
 
 import mysql.fabric.persistence as _persistence
 
-_LOGGER = logging.getLogger(__name__)
 
 class Checkpoint(_persistence.Persistable):
     """This is responsible for keeping track of a procedure execution

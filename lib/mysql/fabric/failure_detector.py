@@ -73,6 +73,7 @@ class FailureDetector(object):
 
         :param group_id: Group's id.
         """
+        _LOGGER.info("Stop monitoring group (%s)." % (group_id, ))
         with FailureDetector.LOCK:
             if group_id in FailureDetector.GROUPS:
                 detector = FailureDetector.GROUPS[group_id]
@@ -147,5 +148,7 @@ class FailureDetector(object):
                         server.status = MySQLServer.FAULTY
             except (_errors.ExecutorError, _errors.DatabaseError):
                 pass
+            except Exception as error:
+                _LOGGER.exception(error)
             time.sleep(self.__sleep)
         _persistence.deinit_thread()

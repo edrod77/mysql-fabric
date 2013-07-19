@@ -64,7 +64,7 @@ class Logging(Command):
             logger = logging.getLogger(module)
             logger.setLevel(_LOGGING_LEVELS[level.upper()])
         except (KeyError, ImportError) as error:
-            _LOGGER.exception(error)
+            _LOGGER.debug(error)
             return False
         return True
 
@@ -179,6 +179,7 @@ class Start(Command):
         # Configure logging.
         _configure_logging(self.config, self.options.daemonize)
 
+        _LOGGER.info("Fabric node starting.")
         # Configure connections.
         _configure_connections(self.config)
 
@@ -187,7 +188,6 @@ class Start(Command):
             _utils.daemonize()
 
         # Start Fabric server.
-        _LOGGER.info("Fabric node starting.")
         _start(self.options, self.config)
         _services.ServiceManager().wait()
         _LOGGER.info("Fabric node stopped.")
