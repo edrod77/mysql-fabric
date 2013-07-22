@@ -680,8 +680,8 @@ def _check_requirements(server):
 
     if not server.has_root_privileges():
         _LOGGER.warning(
-            "User (%s) needs root privileges on Server (%s, %s)."
-            % (server.user, server.address, server.uuid)
+            "User (%s) needs root privileges on Server (%s, %s).",
+            server.user, server.address, server.uuid
             )
 
     if not server.gtid_enabled or not server.binlog_enabled:
@@ -701,7 +701,7 @@ def _configure_as_slave(group, server):
             _utils.switch_master(server, master)
     except _errors.DatabaseError as error:
         _LOGGER.debug(
-            "Error configuring slave (%s)...", sever.uuid, exc_info=error
+            "Error configuring slave (%s)...", server.uuid, exc_info=error
         )
         raise _errors.ServerError(
             "Error trying to configure Server (%s) as slave."

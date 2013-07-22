@@ -60,7 +60,7 @@ class FailureDetector(object):
 
         :param group_id: Group's id.
         """
-        _LOGGER.info("Monitoring group (%s)." % (group_id, ))
+        _LOGGER.info("Monitoring group (%s).", group_id)
         with FailureDetector.LOCK:
             if group_id not in FailureDetector.GROUPS:
                 detector = FailureDetector(group_id)
@@ -73,7 +73,7 @@ class FailureDetector(object):
 
         :param group_id: Group's id.
         """
-        _LOGGER.info("Stop monitoring group (%s)." % (group_id, ))
+        _LOGGER.info("Stop monitoring group (%s).", group_id)
         with FailureDetector.LOCK:
             if group_id in FailureDetector.GROUPS:
                 detector = FailureDetector.GROUPS[group_id]

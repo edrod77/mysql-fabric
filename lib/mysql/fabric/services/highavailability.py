@@ -781,9 +781,8 @@ def _check_candidate_fail(group_id, slave_uuid):
                     "Failover is being executed in group (%s) when previous "
                     "master is apparently running and this may lead to "
                     "consistency problems because some transactions may not "
-                    "be transfered to slaves." % (group_id, )
-                )
-        except _errors.DatabaseError as error:
+                    "be transfered to slaves.", group_id)
+        except _errors.DatabaseError:
             _LOGGER.debug(
                 "Master (%s) cannot be reached.", server.uuid
             )

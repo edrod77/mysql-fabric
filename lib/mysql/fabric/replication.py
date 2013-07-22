@@ -1,7 +1,6 @@
 """This module contains abstractions of MySQL replication features.
 """
 import time
-import logging
 import uuid as _uuid
 
 import mysql.fabric.errors as _errors
@@ -369,7 +368,7 @@ def sync_slave_with_master(slave, master, timeout=0):
 
     master_gtids = master.get_gtid_status()
     master_gtids = master_gtids[0].GTID_EXECUTED.strip(",")
-    wait_for_slave_gtid(slave, master_gtids)
+    wait_for_slave_gtid(slave, master_gtids, timeout)
 
 @_server.server_logging
 def wait_for_slave_gtid(server, gtids, timeout=0):
@@ -605,9 +604,9 @@ def _check_condition(server, threads, check_if_running):
     return achieved
 
 #TODO: Optimize the data that is being synchronized between the source
-#TODO: and the destination shards. Currently we are shipping everything
-#TODO: and pruning later. This can possibly be optimized to send only the
-#TODO: necessary information.
+# and the destination shards. Currently we are shipping everything
+# and pruning later. This can possibly be optimized to send only the
+# necessary information.
 def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     """Synchronize the master with the slave. The function accepts a transaction
     lag and a timeout parameters.
@@ -652,7 +651,7 @@ def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
                 timeout = timeout - (time.time() - start_time)
                 if timeout <= 0:
                     synced = True
-        except _errors.TimeoutError as error:
+        except _errors.TimeoutError:
             #If the code flow reaches here the timeout has been exceeded.
             #We lock the master and let the master and slave sync at this
             #point.

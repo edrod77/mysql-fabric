@@ -2,7 +2,6 @@
 means so that one can guarantee consistency in the case of a failure.
 """
 
-import logging
 import uuid as _uuid
 import time
 import pickle as pickle
