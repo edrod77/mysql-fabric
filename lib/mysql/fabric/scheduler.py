@@ -40,9 +40,9 @@ class Scheduler(object):
 
         :param procedure: Reference to a procedure.
         """
-        self.__queue.put(procedure)
         if procedure:
             _LOGGER.debug("Enqueued procedure (%s).", procedure.uuid)
+        self.__queue.put(procedure)
 
     def next_procedure(self, condition=None):
         """Get the next procedure to be executed.
@@ -164,8 +164,8 @@ class LockManager(object):
         try:
             self.__lock.acquire()
             _LOGGER.debug(
-                "Enqueuing request for procedure (%s) on objects(%s).",
-                procedure, objects
+                "LockManager - Enqueuing request for procedure (%s) "
+                "on objects(%s).", procedure, objects
             )
             if force:
                 self._break_conflicts(objects)
@@ -184,7 +184,10 @@ class LockManager(object):
         :param procedure: Reference to procedure.
         """
         with self.__lock:
-            _LOGGER.debug("Dequeuing request for procedure (%s).", procedure)
+            _LOGGER.debug(
+                "LockManager - Dequeuing request for procedure (%s).",
+                procedure
+            )
             self._dequeue(procedure)
 
     def enqueue(self, procedure, objects, force=False):
@@ -199,8 +202,8 @@ class LockManager(object):
         """
         with self.__lock:
             _LOGGER.debug(
-                "Enqueuing request for procedure (%s) on objects(%s).",
-                procedure, objects
+                "LockManager - Enqueuing request for procedure (%s) on "
+                "objects(%s).", procedure, objects
             )
             if force:
                 self._break_conflicts(objects)

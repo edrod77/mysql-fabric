@@ -39,7 +39,7 @@ def server_logging(function):
         """
         _LOGGER.debug(
             "Start executing function: %s(%s, %s).", function.__name__,
-            str(args), str(kwrds)
+            args, kwrds
         )
         try:
             ret = function(*args, **kwrds)

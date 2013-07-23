@@ -509,8 +509,7 @@ class ExecutorThread(threading.Thread):
         while True:
             if procedure is None or procedure.is_complete():
                 procedure = self._next_procedure(procedure)
-                _LOGGER.debug("Reading procedure from scheduler, found %s.",
-                              procedure)
+                _LOGGER.debug("Executing procedure (%s).", procedure)
                 if procedure is None:
                     break
 
