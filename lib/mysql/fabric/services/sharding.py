@@ -10,6 +10,7 @@ from mysql.fabric import (
     group_replication as _group_replication,
     replication as _replication,
     backup as _backup,
+    sharding as _sharding,
     utils as _utils,
 )
 
@@ -28,6 +29,7 @@ from mysql.fabric.sharding import (
 from mysql.fabric.command import (
     ProcedureShard,
     ProcedureCommand,
+    Command,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -363,7 +365,7 @@ class MoveShardServer(ProcedureShard):
 
         mysqldump_binary = _read_config_value(self.config, 'sharding',
                                             'mysqldump_program')
-        mysqlclient_binary =  _read_config_value(self.config, 'sharding',
+        mysqlclient_binary = _read_config_value(self.config, 'sharding',
                                                 'mysqlclient_program')
 
         procedures = _events.trigger(
@@ -410,6 +412,58 @@ class SplitShardServer(ProcedureShard):
             shard_id, group_id, mysqldump_binary, mysqlclient_binary,
             split_value, "SPLIT")
         return self.wait_for_procedures(procedures, synchronous)
+
+class DumpShardTables(Command):
+    """Return information about all tables belonging to mappings
+    matching any of the provided patterns. If no patterns are provided,
+    dump information about all tables.
+    """
+    group_name = "store"
+    command_name = "dump_shard_tables"
+
+    def execute(self, version=None, patterns=""):
+        """Return information about all tables belonging to mappings
+        matching any of the provided patterns.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard mapping pattern.
+        """
+        return ShardMapping.dump_shard_tables(version, patterns)
+
+class DumpShardMappings(Command):
+    """Return information about all shard mappings matching any of the
+    provided patterns. If no patterns are provided, dump information about
+    all shard mappings.
+    """
+    group_name = "store"
+    command_name = "dump_shard_maps"
+
+    def execute(self, version=None, patterns=""):
+        """Return information about all shard mappings matching any of the
+        provided patterns.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard mapping pattern.
+        """
+        return ShardMapping.dump_shard_maps(version, patterns)
+
+class DumpShardIndex(Command):
+    """Return information about the index for all mappings matching
+    any of the patterns provided. If no pattern is provided, dump the
+    entire index. The lower_bound that is returned is a string that is
+    a md-5 hash of the group-id in which the data is stored.
+    """
+    group_name = "store"
+    command_name = "dump_shard_index"
+
+    def execute(self, version=None, patterns=""):
+        """Return information about the index for all mappings matching
+        any of the patterns provided.
+
+        :param version: The connectors version of the data.
+        :param patterns: group pattern.
+        """
+        return Shards.dump_shard_indexes(version, patterns)
 
 @_events.on_event(DEFINE_SHARD_MAPPING)
 def _define_shard_mapping(type_name, global_group_id):

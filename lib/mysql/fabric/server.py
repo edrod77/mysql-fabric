@@ -780,6 +780,20 @@ class MySQLServer(_persistence.Persistable):
         "FROM servers WHERE server_uuid = %s"
         )
 
+    #SQL Statement to retrieve the servers belonging to a group.
+    DUMP_SERVERS = (
+        "SELECT "
+        "s.server_uuid, g.group_id, s.server_address "
+        "FROM "
+        "servers AS s, groups_servers AS g "
+        "WHERE "
+        "s.server_uuid = g.server_uuid AND "
+        "g.group_id LIKE %s"
+        )
+
+    #Default weight for the server
+    DEFAULT_WEIGHT = 1.0
+
     # Define a session context for a variable.
     SESSION_CONTEXT = "SESSION"
 
@@ -1275,6 +1289,92 @@ class MySQLServer(_persistence.Persistable):
                 _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
                 status=status
                 )
+
+    @staticmethod
+    def dump_servers(version=None, patterns="", persister=None):
+        """Return the list of servers that are part of the groups
+        listed in the patterns strings separated by comma.
+
+        :param version: The connectors version of the data.
+        :param patterns: group pattern.
+        :param persister: Persister to persist the object to.
+        :return: A list of servers belonging to the groups that match
+                the provided pattern.
+        """
+        #SERVER MODE CONSTANTS
+        OFFLINE = 0
+        READ_ONLY = 1
+        READ_WRITE = 3
+
+        #SERVER ROLE CONSTANTS
+        SPARE = 0
+        SCALE = 1
+        SECONDARY = 2
+        PRIMARY = 3
+
+        #This is used to store the consolidated list of servers
+        #that will be returned.
+        result_server_list = []
+
+        #This stores the pattern that will be passed to the LIKE MySQL
+        #command.
+        like_pattern = None
+
+        if patterns is None:
+            patterns = ''
+
+        #Split the patterns string into a list of patterns of groups.
+        pattern_list = _utils.split_dump_pattern(patterns)
+
+        #Iterate through the pattern list and fire a query for
+        #each pattern.
+        for p in pattern_list:
+            if p == '':
+                like_pattern = '%%'
+            else:
+                like_pattern = '%' + p + '%'
+            cur = persister.exec_stmt(MySQLServer.DUMP_SERVERS,
+                                  {"fetch" : False, "params":(like_pattern,)})
+            rows = cur.fetchall()
+            #For each row fetched, split the address into a host and port.
+            for row in rows:
+                group = Group.fetch(row[1])
+                server = MySQLServer.fetch(row[0])
+
+                #NOTE: The scale information is not available in the server
+                #yet.
+                mode = -1
+                role = -1
+
+                if server.status == "FAULTY":
+                    mode = FAULTY
+                elif server.status == "OFFLINE":
+                    mode = OFFLINE
+                elif server.status == "SPARE":
+                    mode = READ_ONLY
+                else:
+                    mode = READ_WRITE if group.master == server.uuid \
+                    else READ_ONLY
+
+                if server.status == "SPARE":
+                    role = SPARE
+                elif group.master == server.uuid:
+                    role = PRIMARY
+                else:
+                    role = SECONDARY
+
+                assert(mode != -1 and role != -1)
+
+                host, port = _server_utils.split_host_port(
+                                row[2],
+                                _server_utils.MYSQL_DEFAULT_PORT
+                             )
+                result_server_list.append(
+                    (row[0], row[1], host, port, mode, role,
+                    MySQLServer.DEFAULT_WEIGHT)
+                )
+        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
+                _utils.TTL, result_server_list)
 
     @staticmethod
     def create(persister=None):

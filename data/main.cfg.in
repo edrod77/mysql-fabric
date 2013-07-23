@@ -19,3 +19,6 @@ url = file:///var/log/fabric.log
 [sharding]
 mysqldump_program = /usr/bin/mysqldump
 mysqlclient_program = /usr/bin/mysql
+
+[connector]
+TTL = 1

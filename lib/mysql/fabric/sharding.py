@@ -5,6 +5,7 @@ querying the sharding information from the state stores.
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.persistence as _persistence
+import mysql.fabric.utils as _utils
 
 from mysql.fabric.server import MySQLServer, Group
 
@@ -59,11 +60,30 @@ class ShardMapping(_persistence.Persistable):
                             "column_name VARCHAR(64) NOT NULL, "
                             "PRIMARY KEY (table_name, column_name), "
                             "INDEX(shard_mapping_id))")
+
+    DUMP_SHARD_TABLES = (
+                            "SELECT "
+                            "table_name, column_name, shard_mapping_id "
+                            "FROM "
+                            "shard_tables "
+                            "WHERE "
+                            "shard_mapping_id LIKE %s"
+                         )
+
     CREATE_SHARD_MAPPING_DEFN = ("CREATE TABLE shard_maps"
                                  "(shard_mapping_id INT AUTO_INCREMENT "
                                  "NOT NULL PRIMARY KEY, "
                                  "type_name ENUM('RANGE', 'HASH') NOT NULL, "
                                  "global_group VARCHAR(64))")
+
+    DUMP_SHARD_MAPS = (
+                            "SELECT "
+                            "shard_mapping_id, type_name, global_group "
+                            "FROM "
+                            "shard_maps "
+                            "WHERE "
+                            "shard_mapping_id LIKE %s"
+                       )
 
     #Drop the schema for the tables used to store the shard specification
     #mapping information
@@ -410,6 +430,95 @@ class ShardMapping(_persistence.Persistable):
             {"params":(shard_mapping_id, table_name, column_name)})
         return ShardMapping.fetch(table_name)
 
+    @staticmethod
+    def dump_shard_tables(version=None, patterns="", persister=None):
+        """Return the list of shard tables that belong to the shard mappings
+        listed in the patterns strings separated by comma.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard mapping pattern.
+        :param persister: Persister to persist the object to.
+        :return: A list of registered tables using the provided shard mapping
+                pattern.
+        """
+        #This is used to store the consolidated list of shard mappings
+        #that will be returned.
+        result_shard_tables_list = []
+
+        #This stores the pattern that will be passed to the LIKE MySQL
+        #command.
+        like_pattern = None
+
+        if patterns is None:
+            patterns = ''
+
+        #Split the patterns string into a list of patterns of groups.
+        pattern_list = _utils.split_dump_pattern(patterns)
+
+        #Iterate through the pattern list and fire a query for
+        #each pattern.
+        for p in pattern_list:
+            if p == '':
+                like_pattern = '%%'
+            else:
+                like_pattern = '%' + p + '%'
+            cur = persister.exec_stmt(ShardMapping.DUMP_SHARD_TABLES,
+                                  {"fetch" : False, "params":(like_pattern,)})
+            rows = cur.fetchall()
+            #For each row fetched, split the fully qualified table name into
+            #a database and table name.
+            for row in rows:
+                database, table = _utils.split_database_table(row[0])
+                result_shard_tables_list.append(
+                    (
+                        database,
+                        table,
+                        row[1],
+                        row[2]
+                    )
+                )
+        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
+                _utils.TTL, result_shard_tables_list)
+
+    @staticmethod
+    def dump_shard_maps(version=None, patterns="", persister=None):
+        """Return the list of shard mappings identified by the shard mapping
+        IDs listed in the patterns strings separated by comma.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard mapping pattern.
+        :param persister: Persister to persist the object to.
+        :return: A list of shard mappings matching the provided pattern.
+        """
+        #This is used to store the consolidated list of shard mappings
+        #that will be returned.
+        result_shard_maps = []
+
+        #This stores the pattern that will be passed to the LIKE MySQL
+        #command.
+        like_pattern = None
+
+        if patterns is None:
+            patterns = ''
+
+        #Split the patterns string into a list of patterns of groups.
+        pattern_list = _utils.split_dump_pattern(patterns)
+
+        #Iterate through the pattern list and fire a query for
+        #each pattern.
+        for p in pattern_list:
+            if p == '':
+                like_pattern = '%%'
+            else:
+                like_pattern = '%' + p + '%'
+            cur = persister.exec_stmt(ShardMapping.DUMP_SHARD_MAPS,
+                                  {"fetch" : False, "params":(like_pattern,)})
+            rows = cur.fetchall()
+            for row in rows:
+                result_shard_maps.append((row[0], row[1], row[2]))
+        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
+                _utils.TTL, result_shard_maps)
+
 class Shards(_persistence.Persistable):
     """Contains the mapping between the Shard ID and the Group ID
 
@@ -484,6 +593,18 @@ class Shards(_persistence.Persistable):
     #Select the group to which a shard ID maps to.
     SELECT_SHARD = ("SELECT shard_id, group_id, state "
                                     "FROM shards WHERE shard_id = %s")
+
+    #Dump all the shard indexes that belong to a shard mapping ID.
+    DUMP_SHARD_INDEXES = (
+                            "SELECT "
+                            "sr.lower_bound, sr.shard_mapping_id, "
+                            "s.shard_id, s.group_id "
+                            "FROM "
+                            "shards AS s, shard_ranges AS sr "
+                            "WHERE s.shard_id = sr.shard_id "
+                            "AND "
+                            "sr.shard_mapping_id LIKE %s"
+                            )
 
     #Select the shard that belongs to a given group.
     SELECT_GROUP_FOR_SHARD = ("SELECT shard_id FROM shards WHERE group_id = %s")
@@ -642,6 +763,50 @@ class Shards(_persistence.Persistable):
         """Return whether the state is ENABLED or DISABLED.
         """
         return self.__state
+
+    @staticmethod
+    def dump_shard_indexes(version=None, patterns="", persister=None):
+        """Return the list of shard indexes that belong to the shard mappings
+        listed in the patterns strings separated by comma.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard mapping pattern.
+        :param persister: Persister to persist the object to.
+        :return: A list of shard indexes belonging to the shard mappings that
+                match the provded patterns.
+        """
+        #This is used to store the consolidated list of shard mappings
+        #that will be returned.
+        result_shard_indexes_list = []
+
+        #This stores the pattern that will be passed to the LIKE MySQL
+        #command.
+        like_pattern = None
+
+        if patterns is None:
+            patterns = ''
+
+        #Split the patterns string into a list of patterns of groups.
+        pattern_list = _utils.split_dump_pattern(patterns)
+
+        #Iterate through the pattern list and fire a query for
+        #each pattern.
+        for p in pattern_list:
+            if p == '':
+                like_pattern = '%%'
+            else:
+                like_pattern = '%' + p + '%'
+            cur = persister.exec_stmt(Shards.DUMP_SHARD_INDEXES,
+                                  {"fetch" : False, "params":(like_pattern,)})
+            rows = cur.fetchall()
+            for row in rows:
+                result_shard_indexes_list.append(
+                    (
+                        row[0], row[1], row[2], row[3]
+                    )
+                )
+        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
+                _utils.TTL, result_shard_indexes_list)
 
 class RangeShardingSpecification(_persistence.Persistable):
     """Represents a RANGE sharding specification. The class helps encapsulate

@@ -45,6 +45,9 @@ DEFAULT_N_THREADS = 1
 # Number of concurrent executors that are created to handle jobs.
 DEFAULT_N_EXECUTORS = 1
 
+#Default TTL value
+DEFAULT_TTL = 0
+
 class Logging(Command):
     """Set logging level.
     """
@@ -183,6 +186,9 @@ class Start(Command):
         # Configure connections.
         _configure_connections(self.config)
 
+        #Configure TTL
+        _setup_TTL(config)
+
         # Daemonize ourselves.
         if self.options.daemonize:
             _utils.daemonize()
@@ -210,6 +216,9 @@ class Setup(Command):
         # Configure connections.
         _configure_connections(self.config)
 
+        #Configure TTL
+        _setup_TTL(self.config)
+
         # Create database and objects.
         _persistence.setup()
 
@@ -230,6 +239,9 @@ class Teardown(Command):
 
         # Configure connections.
         _configure_connections(self.config)
+
+        #Configure TTL
+        _setup_TTL(config)
 
         # Drop database and objects.
         _persistence.teardown()
@@ -370,6 +382,16 @@ def _configure_connections(config):
                       user=user, password=password,
                       database=database, timeout=timeout)
 
+def _setup_TTL(config):
+    """Read the configured TTL and set its value.
+    """
+    #configure the TTL to be used for the connectors.
+    try:
+        ttl = config.get('connector', "ttl")
+        ttl = int(ttl)
+        _utils.TTL = ttl
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        _utils.TTL = DEFAULT_TTL
 
 def _start(options, config):
     """Start Fabric server.

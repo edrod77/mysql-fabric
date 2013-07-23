@@ -69,6 +69,7 @@ from mysql.fabric import (
 from mysql.fabric.command import (
     ProcedureGroup,
     ProcedureCommand,
+    Command,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -300,6 +301,22 @@ class DeactivateGroup(ProcedureGroup):
             DEACTIVATE_GROUP, self.get_lockable_objects(), group_id
         )
         return self.wait_for_procedures(procedures, synchronous)
+
+class DumpServers(Command):
+    """Return information about all servers. The servers might belong to any
+    group that matches any of the provided patterns, or all servers if no
+    patterns are provided.
+    """
+    group_name = "store"
+    command_name = "dump_servers"
+
+    def execute(self, version=None, patterns=""):
+        """Return information about all servers.
+
+        :param version: The connectors version of the data.
+        :param patterns: group pattern.
+        """
+        return _server.MySQLServer.dump_servers(version, patterns)
 
 # TODO: This procedure should consider groups.
 SET_SERVER_STATUS = _events.Event()

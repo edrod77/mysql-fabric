@@ -4,6 +4,11 @@ import os
 import sys
 import inspect
 import ctypes
+import re
+
+TTL = 0
+VERSION_TOKEN = 0
+FABRIC_UUID = 0
 
 class SingletonMeta(type):
     """Define a Singleton.
@@ -83,3 +88,19 @@ def async_raise(tid, exctype):
     elif res != 1:
         ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(tid), None)
         raise SystemError("Failed to throw an exception.")
+
+def split_dump_pattern(pattern):
+    """Split a comma separated string of patterns, into a list of patterns.
+
+    :param pattern: A comma separated string of patterns.
+    """
+    regex = re.compile('\s*,\s*')
+    return regex.split(pattern)
+
+def split_database_table(fully_qualified_table_name):
+    """Split a fully qualified table name, which is the database name
+    followed by the table name (database_name.table_name).
+
+    :param fully_qualified_table_name: The fully qualified table name.
+    """
+    return fully_qualified_table_name.split('.')
