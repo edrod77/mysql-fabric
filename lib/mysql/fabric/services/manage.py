@@ -187,7 +187,7 @@ class Start(Command):
         _configure_connections(self.config)
 
         #Configure TTL
-        _setup_TTL(config)
+        _setup_TTL(self.config)
 
         # Daemonize ourselves.
         if self.options.daemonize:
@@ -241,7 +241,7 @@ class Teardown(Command):
         _configure_connections(self.config)
 
         #Configure TTL
-        _setup_TTL(config)
+        _setup_TTL(self.config)
 
         # Drop database and objects.
         _persistence.teardown()
