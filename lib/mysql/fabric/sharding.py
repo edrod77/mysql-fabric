@@ -1414,7 +1414,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         if master is None:
             raise _errors.ShardingError(
                 "Group Master not found (%s)" %
-                (str(group.master))
+                (group.master, )
             )
 
         master.connect()
@@ -1759,7 +1759,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         if master is None:
             raise _errors.ShardingError(
                 "Group Master not found (%s)" %
-                (str(group.master))
+                (group.master, )
             )
 
         master.connect()

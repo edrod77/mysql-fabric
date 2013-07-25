@@ -631,8 +631,8 @@ def _check_candidate_switch(group_id, slave_uuid):
 
     if slave.status not in \
         (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
-        raise _errors.ServerError("Server (%s) is not either running or "
-                                  "a spare.", (slave_uuid, ))
+        raise _errors.ServerError("Server (%s) is either not running or "
+                                  "is a spare." % (slave_uuid, ))
 
     _events.trigger_within_procedure(
         BLOCK_WRITE_SWITCH, group_id, master_uuid, slave_uuid
@@ -789,8 +789,8 @@ def _check_candidate_fail(group_id, slave_uuid):
 
     if slave.status not in \
         (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
-        raise _errors.ServerError("Server (%s) is not either running or "
-                                  "a spare.", (slave_uuid, ))
+        raise _errors.ServerError("Server (%s) is either not running or "
+                                  "is a spare." % (slave_uuid, ))
 
     _events.trigger_within_procedure(WAIT_SLAVE_FAIL, group_id, slave_uuid)
 

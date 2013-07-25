@@ -60,7 +60,8 @@ def _do_row_to_python(self, convert, rowdata, desc=None):
         return tuple_factory(row)
     except StandardError as error:
         raise mysql.connector.errors.InterfaceError(
-            "Failed converting row to Python types; %s" % error)
+            "Failed converting row to Python types; %s" % (error, )
+        )
 
 class MySQLCursorNamedTuple(MySQLCursor):
     """Create a cursor with named columns and non-raw data.
@@ -127,13 +128,14 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     except mysql.connector.Error as error:
         cur.close()
         raise _errors.DatabaseError(
-            "Command (%s, %s) failed: %s" % (stmt_str, params, str(error)),
+            "Command (%s, %s) failed: %s" % (stmt_str, params, error),
             error.errno)
     except Exception as error:
         cur.close()
         raise _errors.DatabaseError(
-            "Unknown error. Command: (%s, %s) failed: %s" % (stmt_str, \
-            params, str(error)))
+            "Unknown error. Command: (%s, %s) failed: %s" % (stmt_str,
+            params, error)
+        )
 
     if fetch:
         results = None
@@ -142,8 +144,8 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
                 results = cur.fetchall()
         except mysql.connector.errors.InterfaceError as error:
             raise _errors.DatabaseError(
-                "Error (%s) fetching data for statement: (%s)." % \
-                (str(error), stmt_str))
+                "Error (%s) fetching data for statement: (%s)." %
+                (error, stmt_str))
         finally:
             cur.close()
         return results
@@ -157,8 +159,8 @@ def create_mysql_connection(**kwargs):
         cnx = mysql.connector.Connect(**kwargs)
         return cnx
     except mysql.connector.Error as error:
-        raise _errors.DatabaseError("Cannot connect to the server. "\
-            "Error %s" % (str(error)), error.errno)
+        raise _errors.DatabaseError("Cannot connect to the server. "
+            "Error %s" % (error, ), error.errno)
 
 def destroy_mysql_connection(cnx):
     """Close the connection.
@@ -167,8 +169,9 @@ def destroy_mysql_connection(cnx):
         if cnx:
             cnx.disconnect()
     except Exception as error:
-        raise _errors.DatabaseError("Error tyring to disconnect. "\
-                                    "Error %s" % (str(error)))
+        raise _errors.DatabaseError(
+            "Error trying to disconnect. Error %s" % (error, )
+        )
 
 def is_valid_mysql_connection(cnx):
     """Check if it is a valid MySQL connection.

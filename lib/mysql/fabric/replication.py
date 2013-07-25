@@ -186,7 +186,9 @@ def get_num_gtid(gtids, server_uuid=None):
             sid, trx_ids = gtid.split(":")
         else:
             if not sid:
-                raise _errors.ProgrammingError("Malformed GTID (%s)." % gtid)
+                raise _errors.ProgrammingError(
+                    "Malformed GTID (%s)." % (gtid, )
+                )
             trx_ids = gtid
 
         # Ignore differences if server_uuid is set and does

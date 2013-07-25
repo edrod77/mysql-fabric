@@ -544,7 +544,7 @@ def _remove_server(group_id, uuid):
     try:
         uuid = _uuid.UUID(uuid)
     except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s).", uuid)
+        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
 
     group = _server.Group.fetch(group_id)
     if not group:
@@ -571,7 +571,7 @@ def _set_server_status(uuid, status):
     try:
         uuid = _uuid.UUID(uuid)
     except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s).", uuid)
+        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
 
     server = _server.MySQLServer.fetch(uuid)
     if not server:
