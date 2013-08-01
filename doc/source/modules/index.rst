@@ -9,6 +9,7 @@ Contents
    errors
    config
    options
+   persistence
    utils
    executor
    events

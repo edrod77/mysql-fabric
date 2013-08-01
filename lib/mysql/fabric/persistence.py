@@ -159,6 +159,124 @@ class PersistentMeta(type):
 
 class Persistable(object):
     """Class for all persistable objects.
+
+    Classes whose instances are going to be persisted to the backing store
+    should inherit from this class.
+
+    To be usable by the Fabric the persistence class have to define the
+    following methods:
+
+    **create**\ (*persister=None*)
+      This is a static (or class) method called when the persistence tables need
+      to be created because the system is set up initially. The method is
+      expected to use the passed persister to create any tables that are
+      necessary to persist the instances of this class.
+
+    **drop**\ (*persister=None*)
+      This is a static (or class) method called when the persistence tables need
+      to be removed because the system is torn down. The method is expected to
+      use the passed persister to drop any tables that where created in the
+      `create` method.
+
+    **add_constraint**\ (*persister=None*)
+      This is a static (or class) method called after all the persistence tables
+      are created in the initial set up. The method is expected to use the
+      passed persister to add any constraints needed on the tables (for example,
+      foreign keys) created in the **create** method for the class.
+
+    **drop_constraint**\ (*persister=None*)
+      This is a static (or class) method called before the persistence tables
+      are dropped in the tear down. The method is expected to use the passed
+      persister to remove any constraints added to the tables so that the table
+      can be trivially dropped later.
+
+    The following methods are customary used to manipulate instances of objects
+    and can be defined (but do not have to):
+
+    **add**\ (*object*, *persister=None*)
+      This is a static (or class) method to add an instance to the collection of
+      instances in the persistent store. This method is expected to use the
+      passed persister to insert a new object into the tables for the
+      persistable object.
+
+    **remove**\ (*object*, *persister=None*)
+      This is a static (or class) method to remove an instance from the
+      collection of instances in the persistent store. This method is expected
+      to use the passed persister to delete the entry for the object from the
+      tables in the persistent store.
+
+    **fetch**\ (..., *persister=None*)
+      This is a static (or class) method to fetch an already created instance
+      from the collection of instances in the persistent store. This method is
+      expected to take any arguments necessary to identify the object and fetch
+      the object from the persistent store and return it as a new instance of
+      the class.
+
+    .. note::
+
+       All the methods accept a *persister* parameter that should be placed last
+       and have a default value of `None`.
+
+    A example for how to create a persistable object is::
+
+        from mysql.fabric.persistence import Persistable
+
+        class Car(Persistable):
+            def __init__(self, reg_no, model):
+                self.reg_no = reg_no
+                self.model = model
+
+            @staticmethod
+            def create(persister=None):
+                persister.exec_stmt(
+                    "CREATE TABLE cars ("
+                    "  reg_no CHAR(6) PRIMARY KEY,"
+                    "  model VARCHAR(16)"
+                    ")"
+                )
+
+            @staticmethod
+            def drop(persister=None):
+                persister.exec_stmt("DROP TABLE cars")
+
+            @staticmethod
+            def add(car, persister=None):
+                persister.exec_stmt(
+                    "INSERT INTO cars(reg_no, model) VALUES (%s)",
+                    { "params": (car.reg_no, car.model) }
+                )
+
+            @staticmethod
+            def remove(car, persister=None):
+                persister.exec_stmt(
+                    "DELETE FROM cars WHERE reg_no = %s",
+                    { "params": (car.reg_no,) }
+                )
+
+            @staticmethod
+            def fetch(reg_no, persister=None):
+                row = persister.exec_stmt(
+                    "SELECT reg_no, model FROM cars WHERE reg_no = %s",
+                    { "params": (reg_no,) }
+                ).fetch_one()
+
+                return Car(reg_no=row[0], model=row[1]) if row else None
+
+    The `add`, `remove`, and `fetch` methods can be used to manipuate instances
+    of the peristent class, but in this case the *persister* parameter should
+    not be used.  The :class:`PersistentMeta` class will add a wrapper to each
+    function that adds the persister argument to the class if it was not
+    passed.
+
+    The following is an example of code for manipulating persistent objects::
+
+       my_car = Car(reg_no='XYZ123', model='Volvo')
+       Car.add(my_car)
+       ...
+       some_car = Car.fetch(reg_no='XYZ123')
+       print some_car.model
+       Car.remove(some_car)
+
     """
 
     __metaclass__ = PersistentMeta
@@ -166,17 +284,18 @@ class Persistable(object):
 class MySQLPersister(object):
     """Class responsible for persisting objects to a MySQL database.
 
-    The class is responsible for managing the connection with the
-    database where the persistent objects are stored. There should
-    normally be one instance of this class available for each thread.
+    The class is responsible for managing the connection with the database where
+    the persistent objects are stored. There should normally be one instance of
+    this class available for each thread.
 
-    Before using the persister, the system have to be initialized
-    using :method:`MySQLPersister.init`. This will provide connection
-    information to the object database for each
-    :class:`MySQLPersister` instance created, set up the object
-    database, and give each subclass of :class:`Persistable` a chance
-    to set itself up by calling the class init method.
+    Before using the persister, the system has to be initialized using
+    :meth:`MySQLPersister.init`. This will provide connection information to the
+    object database for each :class:`MySQLPersister` instance created, set up
+    the object database, and give each subclass of :class:`Persistable` a chance
+    to set itself up by calling the class `init` method.
+
     """
+
     # Information for connecting to the database
     connection_info = None
 
@@ -264,7 +383,7 @@ class MySQLPersister(object):
             database=info["database"], autocommit=True, use_unicode=False)
         if self.uuid is None:
             _LOGGER.warning(
-                "MySQLPersister does not support uuid or "
+                "MySQLPersister does not support UUID or "
                 "it is not configured."
                 )
 
@@ -294,7 +413,7 @@ class MySQLPersister(object):
 
     @property
     def uuid(self):
-        """Return the MySQLPersister's uuid if the server supports it.
+        """Return the MySQLPersister's UUID if the server supports it.
         Otherwise, return None.
         """
         try:
