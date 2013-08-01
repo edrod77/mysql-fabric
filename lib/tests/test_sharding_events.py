@@ -137,6 +137,13 @@ class TestShardingServices(unittest.TestCase):
             "Tried to execute action (_add_shard)."
         )
 
+        #Ensure that adding an invalid shard_mapping_id fails.
+        status = self.proxy.sharding.add_shard(20000, "GROUPID2", "ENABLED", 0)
+        self.assertStatus(status,  _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                        "Tried to execute action (_add_shard).")
+
         #Ensure that adding a string, but valid lower_bound passes.
         status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED",
                         "1001")

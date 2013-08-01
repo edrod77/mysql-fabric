@@ -547,7 +547,7 @@ class Shards(_persistence.Persistable):
     #Create the schema for storing the shard to groups mapping
     CREATE_SHARDS = ("CREATE TABLE shards ("
                     "shard_id INT AUTO_INCREMENT NOT NULL PRIMARY KEY, "
-                    "group_id VARCHAR(64) UNIQUE NOT NULL, "
+                    "group_id VARCHAR(64) NOT NULL, "
                     "state ENUM('DISABLED', 'ENABLED') NOT NULL)")
 
     #Create the referential integrity constraint with the groups table.
@@ -561,22 +561,6 @@ class Shards(_persistence.Persistable):
     DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
                                     ("ALTER TABLE shards DROP "
                                      "FOREIGN KEY fk_shards_group_id")
-
-    #Create the referential integrity constraint with the shard_mapping_defn
-    #table
-    ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                ("ALTER TABLE shards "
-                                  "ADD CONSTRAINT "
-                                  "fk_shard_mapping_id_sharding_spec "
-                                  "FOREIGN KEY(shard_mapping_id) REFERENCES "
-                                  "shard_maps(shard_mapping_id)")
-
-    #Drop the referential integrity constraint with the shard_maps
-    #table
-    DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                    ("ALTER TABLE shards "
-                                       "DROP FOREIGN KEY "
-                                       "fk_shard_mapping_id_sharding_spec")
 
     #Drop the schema for storing the shard to group mapping.
     DROP_SHARDS = ("DROP TABLE shards")
@@ -833,7 +817,6 @@ class RangeShardingSpecification(_persistence.Persistable):
     CREATE_RANGE_SPECIFICATION = ("CREATE TABLE "
                                 "shard_ranges "
                                 "(shard_mapping_id INT NOT NULL, "
-                                "INDEX(shard_mapping_id), "
                                 "lower_bound VARBINARY(16) NOT NULL, "
                                 "INDEX(lower_bound), "
                                 "UNIQUE(shard_mapping_id, lower_bound), "
@@ -846,7 +829,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         "ADD CONSTRAINT "
         "fk_shard_mapping_id_sharding_spec "
         "FOREIGN KEY(shard_mapping_id) REFERENCES "
-        "shard_mapping_defn(shard_mapping_id)"
+        "shard_maps(shard_mapping_id)"
     )
 
     #Drop the referential integrity constraint with the shard_mapping_defn
@@ -1055,6 +1038,9 @@ class RangeShardingSpecification(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(
+            RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
+            )
+        persister.exec_stmt(
             RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID
             )
 
@@ -1067,6 +1053,9 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         persister.exec_stmt(
             RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID
+            )
+        persister.exec_stmt(
+            RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
             )
 
     @staticmethod
