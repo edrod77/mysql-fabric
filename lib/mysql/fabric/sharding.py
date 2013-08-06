@@ -1446,7 +1446,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         # What should be done in this case ?
 
     @staticmethod
-    def add_hash_split(shard_mapping_id, shard_id, persister=None):
+    def add_hash_split(shard_mapping_id, shard_id, lower_bound, persister=None):
         """Add the HASH shard specification after a split. This represents a
         single instance of a shard specification that maps a key HASH to a
         server.
@@ -1454,13 +1454,14 @@ class HashShardingSpecification(RangeShardingSpecification):
         :param shard_mapping_id: The unique identification for a shard mapping.
         :param shard_id: An unique identification, a logical representation
                          for a shard of a particular table.
+        :param lower_bound: The new lower_bound being inserted for the 
         """
         shard = Shards.fetch(shard_id)
         persister.exec_stmt(
             HashShardingSpecification.INSERT_HASH_SPLIT_SPECIFICATION, {
                 "params":(
                     shard_mapping_id,
-                    shard.group_id,
+                    lower_bound,
                     shard_id
                 )
             }

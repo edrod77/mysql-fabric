@@ -833,7 +833,6 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
                                        for shard split operations.
         :param cmd: Indicates the type of re-sharding operation (move, split)
     """
-    #If it is a split ensure that the range is correct.
 
     if cmd == "SPLIT":
         range_sharding_spec, shard,  shard_mapping,  shard_mapping_defn = \
@@ -854,8 +853,20 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
                 #is unavailable pick the maximum value in the set of values in
                 #the shard.
                 upper_bound = HashShardingSpecification.fetch_max_key(shard_id)
-                upper_bound = int(upper_bound, 16)
+            #Retrieve an integer representation of the hexadecimal
+            #lower_bound. The value is actually a long. Python automatically
+            #returns a long value.
+            upper_bound = int(upper_bound, 16)
+            #split value after the below computation is actually a long.
             split_value = lower_bound + (upper_bound - lower_bound) / 2
+            #split_value after the hex computation gets stored with a prefix
+            #0x indicating a hexadecimal value and a suffix of L indicating a
+            #Long. Extract the hexadecimal string from this value.
+            split_value = "%x" % (split_value)
+        #TODO:
+        #Factor code like the following (based on the type name) into
+        #subclasses that does the work for us.
+        #e.g. shard_mapping.compute_split_value()
         elif shard_mapping.type_name == "RANGE" and split_value is None:
             #If the underlying sharding specification is a RANGE, and the
             #split value is not given, then calculate it as the mid value
@@ -1058,10 +1069,9 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
                                    for shard split operations.
     :param cmd: Indicates the type of re-sharding operation.
     """
-    #Setup replication for the new group from the global server
-
     #Fetch the Range sharding specification.
-    range_sharding_spec, source_shard, _, _ = _verify_and_fetch_shard(shard_id)
+    range_sharding_spec, source_shard,  shard_mapping,  shard_mapping_defn = \
+            _verify_and_fetch_shard(shard_id)
 
     #Disable the old shard
     source_shard.disable()
@@ -1070,22 +1080,40 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     range_sharding_spec.remove()
     source_shard.remove()
 
-    #Add the new shards
+    #Add the new shards. Generate new shard IDs for the shard being
+    #split and also for the shard that is created as a result of the split.
     new_shard_1 = Shards.add(source_shard.group_id, "DISABLED")
     new_shard_2 = Shards.add(destination_group_id, "DISABLED")
 
-    #Add the new split ranges (split_value, upper_bound)
-    RangeShardingSpecification.add(
-        range_sharding_spec.shard_mapping_id,
-        range_sharding_spec.lower_bound,
-        new_shard_1.shard_id
-    )
-
-    RangeShardingSpecification.add(
-        range_sharding_spec.shard_mapping_id,
-        split_value,
-        new_shard_2.shard_id
-    )
+    if shard_mapping.type_name == "HASH":
+        #In the case of a split involving a HASH sharding scheme,
+        #the shard that is split gets a new shard_id, while the split
+        #gets the new computed lower_bound and also a new shard id.
+        #NOTE: How the shard that is split retains its lower_bound.
+        HashShardingSpecification.add_hash_split(
+            range_sharding_spec.shard_mapping_id,
+            new_shard_1.shard_id,
+            range_sharding_spec.lower_bound
+        )
+        HashShardingSpecification.add_hash_split(
+            range_sharding_spec.shard_mapping_id,
+            new_shard_2.shard_id,
+            split_value
+        )
+    else:
+        #Add the new ranges. Note that the shard being split retains
+        #its lower_bound, while the new shard gets the computed,
+        #lower_bound.
+        RangeShardingSpecification.add(
+            range_sharding_spec.shard_mapping_id,
+            range_sharding_spec.lower_bound,
+            new_shard_1.shard_id
+        )
+        RangeShardingSpecification.add(
+            range_sharding_spec.shard_mapping_id,
+            split_value,
+            new_shard_2.shard_id
+        )
 
     #The source shard group master would have been marked as read only
     #during the sync. Remove the read_only flag.
@@ -1098,6 +1126,10 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
         raise _errors.ShardingError(SHARD_GROUP_MASTER_NOT_FOUND)
     source_group_master.connect()
     source_group_master.read_only = False
+
+    #Setup replication for the new group from the global server
+    _group_replication.setup_group_replication \
+            (shard_mapping_defn[2],  destination_group_id)
 
     #Enable the split shards
     new_shard_1.enable()
