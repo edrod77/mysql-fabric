@@ -67,8 +67,20 @@ class ShardMapping(_persistence.Persistable):
                             "FROM "
                             "shard_tables "
                             "WHERE "
-                            "shard_mapping_id LIKE %s"
+                            "shard_mapping_id LIKE %s " 
+                            "ORDER BY shard_mapping_id, table_name, column_name"
                          )
+
+    DUMP_SHARDING_INFORMATION = (
+        "SELECT t.table_name, t.column_name, r.lower_bound, r.shard_id, "
+        "m.type_name, s.group_id, m.global_group "
+        "FROM "
+        "shard_maps AS m RIGHT JOIN shard_tables AS t USING (shard_mapping_id) "
+        "LEFT JOIN shard_ranges AS r USING (shard_mapping_id) "
+        "LEFT JOIN shards AS s USING (shard_id) "
+        "WHERE table_name LIKE %s "
+        "ORDER BY r.shard_id, t.table_name, t.column_name, r.lower_bound"
+    )
 
     CREATE_SHARD_MAPPING_DEFN = ("CREATE TABLE shard_maps"
                                  "(shard_mapping_id INT AUTO_INCREMENT "
@@ -82,7 +94,9 @@ class ShardMapping(_persistence.Persistable):
                             "FROM "
                             "shard_maps "
                             "WHERE "
-                            "shard_mapping_id LIKE %s"
+                            "shard_mapping_id LIKE %s "
+                            "ORDER BY "
+                            "shard_mapping_id, type_name, global_group"
                        )
 
     #Drop the schema for the tables used to store the shard specification
@@ -481,6 +495,59 @@ class ShardMapping(_persistence.Persistable):
                 _utils.TTL, result_shard_tables_list)
 
     @staticmethod
+    def dump_sharding_info(version=None, patterns="", persister=None):
+        """Return all the sharding information about the table in the
+        patterns string.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard table pattern.
+        :param persister: Persister to persist the object to.
+        :return: The sharding information for all the tables passed in patterns.
+        """
+        #This is used to store the consolidated list of shard mappings
+        #that will be returned.
+        result_shard_tables_list = []
+
+        #This stores the pattern that will be passed to the LIKE MySQL
+        #command.
+        like_pattern = None
+
+        if patterns is None:
+            patterns = ''
+
+        #Split the patterns string into a list of patterns of groups.
+        pattern_list = _utils.split_dump_pattern(patterns)
+
+        #Iterate through the pattern list and fire a query for
+        #each pattern.
+        for p in pattern_list:
+            if not p:
+                like_pattern = '%%'
+            else:
+                like_pattern = p
+            cur = persister.exec_stmt(ShardMapping.DUMP_SHARDING_INFORMATION,
+                                  {"fetch" : False, "params":(like_pattern,)})
+            rows = cur.fetchall()
+            #For each row fetched, split the fully qualified table name into
+            #a database and table name.
+            for row in rows:
+                database, table = _utils.split_database_table(row[0])
+                result_shard_tables_list.append(
+                    (
+                        database,
+                        table,
+                        row[1], # column_name
+                        row[2], # lower_bound
+                        row[3], # shard_id
+                        row[4], # group_id
+                        row[5], # global_group
+                        row[6], # type
+                    )
+                )
+        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
+                _utils.TTL, result_shard_tables_list)
+
+    @staticmethod
     def dump_shard_maps(version=None, patterns="", persister=None):
         """Return the list of shard mappings identified by the shard mapping
         IDs listed in the patterns strings separated by comma.
@@ -587,7 +654,9 @@ class Shards(_persistence.Persistable):
                             "shards AS s, shard_ranges AS sr "
                             "WHERE s.shard_id = sr.shard_id "
                             "AND "
-                            "sr.shard_mapping_id LIKE %s"
+                            "sr.shard_mapping_id LIKE %s "
+                            "ORDER BY s.shard_id, sr.shard_mapping_id, "
+                            "sr.lower_bound, s.group_id"
                             )
 
     #Select the shard that belongs to a given group.

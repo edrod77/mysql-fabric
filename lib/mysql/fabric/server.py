@@ -788,7 +788,8 @@ class MySQLServer(_persistence.Persistable):
         "servers AS s, groups_servers AS g "
         "WHERE "
         "s.server_uuid = g.server_uuid AND "
-        "g.group_id LIKE %s"
+        "g.group_id LIKE %s "
+        "ORDER BY g.group_id, s.server_address, s.server_uuid"
         )
 
     #Default weight for the server

@@ -430,6 +430,23 @@ class DumpShardTables(Command):
         """
         return ShardMapping.dump_shard_tables(version, patterns)
 
+class DumpShardingInformation(Command):
+    """Return all the sharding information about the tables passed as patterns.
+    If no patterns are provided, dump sharding information about all tables.
+    """
+    group_name = "store"
+    command_name = "dump_sharding_information"
+
+    def execute(self, version=None, patterns=""):
+        """Return all the sharding information about the tables passed as
+        patterns. If no patterns are provided, dump sharding information
+        about all tables.
+
+        :param version: The connectors version of the data.
+        :param patterns: shard table pattern.
+        """
+        return ShardMapping.dump_sharding_info(version, patterns)
+
 class DumpShardMappings(Command):
     """Return information about all shard mappings matching any of the
     provided patterns. If no patterns are provided, dump information about
