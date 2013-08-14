@@ -1305,6 +1305,7 @@ class MySQLServer(_persistence.Persistable):
         #SERVER MODE CONSTANTS
         OFFLINE = 0
         READ_ONLY = 1
+        FAULTY = 2
         READ_WRITE = 3
 
         #SERVER ROLE CONSTANTS
