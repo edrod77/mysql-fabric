@@ -338,7 +338,7 @@ class ProcedureCommand(Command):
                 or (str(procedure.uuid))
         """
         assert(len(procedure_param) == 1)
-        synchronous = str(synchronous).upper() in ("TRUE", "1")
+        synchronous = str(synchronous).upper() not in ("FALSE", "0")
         if synchronous:
             executor = _executor.Executor()
             for procedure in procedure_param:

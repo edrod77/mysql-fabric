@@ -288,10 +288,12 @@ class TestCommand(unittest.TestCase):
         status = self.proxy.test.procedure_command_0("test", "False")
         self.assertNotEqual(check.match(status), None)
 
-        # Procedure is asynchronously executed and returns only the
-        # the procedure's uuid (Synchronous = "abc").
+        # Procedure is synchronously executed and returns the report
+        # about execution.
         status = self.proxy.test.procedure_command_0("test", "abc")
-        self.assertNotEqual(check.match(status), None)
+        self.assertNotEqual(check.match(status[0]), None)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[2], True)
 
         # Procedure is synchronously executed but throws an error.
         status = self.proxy.test.procedure_command_1("test", True)
