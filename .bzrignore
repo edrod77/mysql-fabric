@@ -5,3 +5,6 @@ build
 cobertura
 coverage.xml
 htmlcov
+
+# Generated configuration file
+data/fabric.cfg
