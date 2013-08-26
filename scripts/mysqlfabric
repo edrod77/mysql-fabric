@@ -98,7 +98,7 @@ def create_command(group_name, command_name):
         if not options.config_file:
             directory = os.path.dirname(__file__)
             prefix = os.path.join(directory, '..')
-            config_file = os.path.join(prefix, 'etc', 'fabric', 'main.cfg')
+            config_file = os.path.join(prefix, 'etc', 'mysql', 'fabric.cfg')
             options.config_file = os.path.normpath(config_file)
 
         # Read configuration file

@@ -9,6 +9,7 @@ Contents:
    :maxdepth: 2
 
    CHANGELOG
+   mysqlfabric
    modules/index
 
 The MySQL Fabric is a framework for managing a heterogenous collection

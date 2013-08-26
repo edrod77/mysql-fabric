@@ -268,7 +268,7 @@ META_INFO = {
     # matches *.cfg (after template processing) and install the file
     # relative configuration directory instead of the data directory.
     'data_files' : [
-        ('fabric', ['data/main.cfg.in']),
+        ('mysql', ['data/fabric.cfg.in']),
         ],
     'classifiers': [
         'Development Status :: 2 - Pre-Alpha',
