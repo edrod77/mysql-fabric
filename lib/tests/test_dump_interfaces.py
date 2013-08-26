@@ -1,3 +1,20 @@
+#
+# Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+#
+
 import unittest
 import uuid as _uuid
 import mysql.fabric.sharding as _sharding
@@ -6,7 +23,7 @@ import tests.utils
 
 from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
 from mysql.fabric.server import Group, MySQLServer
-from mysql.fabric import persistence
+from mysql.fabric import persistence, server_utils
 
 from tests.utils import ShardingUtils, MySQLInstances
 
@@ -77,6 +94,19 @@ class TestSharding(unittest.TestCase):
         self.__group_3.add_server(self.__server_5)
         self.__group_3.add_server(self.__server_6)
         self.__group_3.master = self.__options_5["uuid"]
+
+        self.__options_1_host,  self.__options_1_port =\
+            server_utils.split_host_port(self.__options_1["address"], 13001)
+        self.__options_2_host,  self.__options_2_port =\
+            server_utils.split_host_port(self.__options_2["address"], 13001)
+        self.__options_3_host,  self.__options_3_port =\
+            server_utils.split_host_port(self.__options_3["address"], 13001)
+        self.__options_4_host,  self.__options_4_port =\
+            server_utils.split_host_port(self.__options_4["address"], 13001)
+        self.__options_5_host,  self.__options_5_port =\
+            server_utils.split_host_port(self.__options_5["address"], 13001)
+        self.__options_6_host,  self.__options_6_port =\
+            server_utils.split_host_port(self.__options_6["address"], 13001)
 
         group_4 = Group("GROUPID4", "4TH description.")
         Group.add(group_4)
@@ -190,44 +220,62 @@ class TestSharding(unittest.TestCase):
 
         self.__setofservers = [0, 0, 0,
             [[str(self.__server_1.uuid),
-            'GROUPID1', 'server_1.mysql.com', '3060', 3, 3, 1.0],
+            'GROUPID1', self.__options_1_host,  self.__options_1_port,
+            3, 3, 1.0],
             [str(self.__server_2.uuid),
-            'GROUPID1', 'server_2.mysql.com', '3060', 1, 2, 1.0],
+            'GROUPID1', self.__options_2_host,  self.__options_2_port,
+            1, 2, 1.0],
             [str(self.__server_3.uuid),
-            'GROUPID2', 'localhost', '13001', 3, 3, 1.0],
+            'GROUPID2', self.__options_3_host,  self.__options_3_port,
+            3, 3, 1.0],
             [str(self.__server_4.uuid),
-            'GROUPID2', 'server_4.mysql.com', '3060', 1, 2, 1.0],
+            'GROUPID2', self.__options_4_host,  self.__options_4_port,
+            1, 2, 1.0],
             [str(self.__server_5.uuid),
-            'GROUPID3', 'localhost', '13003', 3, 3, 1.0],
+            'GROUPID3', self.__options_5_host,  self.__options_5_port,
+            3, 3, 1.0],
             [str(self.__server_6.uuid),
-            'GROUPID3', 'server_6.mysql.com', '3060', 1, 2, 1.0]]]
+            'GROUPID3', self.__options_6_host,  self.__options_6_port,
+            1, 2, 1.0]]]
         self.__setofservers_1 = [0, 0, 0,
                 [[str(self.__server_1.uuid),
-                'GROUPID1', 'server_1.mysql.com', '3060', 3, 3, 1.0],
+                'GROUPID1', self.__options_1_host,  self.__options_1_port,
+                3, 3, 1.0],
                 [str(self.__server_2.uuid),
-                'GROUPID1', 'server_2.mysql.com', '3060', 1, 2, 1.0]]]
+                'GROUPID1', self.__options_2_host,  self.__options_2_port,
+                1, 2, 1.0]]]
         self.__setofservers_2 = [0, 0, 0,
                 [[str(self.__server_1.uuid),
-                'GROUPID1', 'server_1.mysql.com', '3060', 3, 3, 1.0],
+                'GROUPID1', self.__options_1_host,  self.__options_1_port,
+                3, 3, 1.0],
                 [str(self.__server_2.uuid),
-                'GROUPID1', 'server_2.mysql.com', '3060', 1, 2, 1.0],
+                'GROUPID1', self.__options_2_host,  self.__options_2_port,
+                1, 2, 1.0],
                 [str(self.__server_3.uuid),
-                'GROUPID2', 'localhost', '13001', 3, 3, 1.0],
+                'GROUPID2', self.__options_3_host,  self.__options_3_port,
+                3, 3, 1.0],
                 [str(self.__server_4.uuid),
-                'GROUPID2', 'server_4.mysql.com', '3060', 1, 2, 1.0]]]
+                'GROUPID2', self.__options_4_host,  self.__options_4_port,
+                1, 2, 1.0]]]
         self.__setofservers_3 = [0, 0, 0,
-                [[str(self.__server_1.uuid),
-                'GROUPID1', 'server_1.mysql.com', '3060', 3, 3, 1.0],
-                [str(self.__server_2.uuid),
-                'GROUPID1', 'server_2.mysql.com', '3060', 1, 2, 1.0],
-                [str(self.__server_3.uuid),
-                'GROUPID2', 'localhost', '13001', 3, 3, 1.0],
-                [str(self.__server_4.uuid),
-                'GROUPID2', 'server_4.mysql.com', '3060', 1, 2, 1.0],
-                [str(self.__server_5.uuid),
-                'GROUPID3', 'localhost', '13003', 3, 3, 1.0],
-                [str(self.__server_6.uuid),
-                'GROUPID3', 'server_6.mysql.com', '3060', 1, 2, 1.0]]]
+            [[str(self.__server_1.uuid),
+            'GROUPID1', self.__options_1_host,  self.__options_1_port,
+            3, 3, 1.0],
+            [str(self.__server_2.uuid),
+            'GROUPID1', self.__options_2_host,  self.__options_2_port,
+            1, 2, 1.0],
+            [str(self.__server_3.uuid),
+            'GROUPID2', self.__options_3_host,  self.__options_3_port,
+            3, 3, 1.0],
+            [str(self.__server_4.uuid),
+            'GROUPID2', self.__options_4_host,  self.__options_4_port,
+            1, 2, 1.0],
+            [str(self.__server_5.uuid),
+            'GROUPID3', self.__options_5_host,  self.__options_5_port,
+            3, 3, 1.0],
+            [str(self.__server_6.uuid),
+            'GROUPID3', self.__options_6_host,  self.__options_6_port,
+            1, 2, 1.0]]]
         self.__setoftables = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
                               ['db2', 't2', 'userID2', '2'],
                               ['db3', 't3', 'userID3', '3'],
