@@ -114,8 +114,11 @@ def create_command(group_name, command_name):
         # script location.
         if not options.config_file:
             directory = os.path.dirname(__file__)
-            prefix = os.path.join(directory, '..')
-            config_file = os.path.join(prefix, 'etc', 'mysql', 'fabric.cfg')
+            prefix = os.path.realpath(os.path.join(directory, '..'))
+            if os.name == 'posix' and prefix in ('/', '/usr'):
+                config_file = '/etc/mysql/fabric.cfg'
+            else:
+                config_file = os.path.join(prefix, 'etc', 'mysql', 'fabric.cfg')
             options.config_file = os.path.normpath(config_file)
 
         # Read configuration file
