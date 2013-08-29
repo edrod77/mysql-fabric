@@ -1,34 +1,76 @@
                Management system for MySQL deployments
                =======================================
 
-This is a management system for managing a deployment of MySQL servers.
+This is a system for managing a farm of MySQL servers.
 
+Installing
+----------
 
-Dependencies
-------------
+You can install the MySQL Fabric from source code using:
 
-To build the documentation, you need to have Sphinx installed. The documentation
-also requires adding seqdiag to build. These can be installed from PyPI using:
+    python setup.pt install
 
-    pip install sphinx sphinxcontrib-seqdiag
+This will install the 'mysql.fabric' package (and all sub-packages), a
+command-line script (i.e. mysqlfabric) that is used to administer the farm
+and a sample configuration file.
 
-Installation
-------------
+The location where the packages, command-line and configuration files will
+be installed depends on the operating system and distro being used. In Ubuntu
+12.04, for example, the "/usr/local" path is the base location.
 
-You can install the MySQL Fabric using:
+Running
+-------
 
-    python setup.py build
-    python setup.py install
+After installing MySQL, one may execute commands as follows:
 
-This will install the 'mysql.fabric' package (and all sub-packages) and a set of
-command-line scripts that are used to administer the fabric.
+mysqlfabric list-commands
+
+On Windows though, a file without extension cannot be executed, so commands
+must be executed as follows:
+
+python <script-dir>/mysqlfabric list-commands
+
+The problem does not happen if you install Fabric through a Windows Installer.
+In this case, the script is created as "mysqlfabric.exe" which can be directly
+executed. The full path to the script must be specified as its directory is
+not automatically added to the "PATH" variable.
+
+Installation Issues
+-------------------
+
+1 - Make sure that the python executable is in the path and points to the
+    correct version. Only python 2.6 and 2.7 are supported.
+
+2 - On non-windows platforms, make sure that the script location is in the
+    path. It will not be possible to call it directly otherwise.
+
+3 - On windows, make sure that the following associations are defined:
+
+    H:\>assoc .py
+    .py=Python.File
+
+    H:\>assoc .pyo
+    .pyo=Python.File
+
+    H:\>assoc .pyw
+    .pyw=Python.File
+
+    H:\>assoc .pyc
+    .pyc=Python.File
+
+    H:\>ftype Python.File
+    Python.File="C:\Python27\python.exe" "%1" %*
 
 Documentation
 -------------
 
-To build the documentation, one needs to install sphinx and build or install
-MySQL Fabric first. After these steps, the following command can be used to
-build the documentation:
+To build the documentation, one needs to install sphinx which can be done from
+PyPI as follows:
+
+    pip install sphinx sphinxcontrib-seqdiag
+
+Then it is necessary to either build or install Fabric and after these steps,
+the following command can be used to build the documentation:
 
     python setup.py build_docs
 
@@ -37,13 +79,3 @@ change the documentation format, the build directory and other options whenever
 appropriate. Run the following command to see the list of available options:
 
     python setup.py build_docs --help
-
-Running unit tests
-------------------
-
-The package also contain a bunch of unit tests that are used mainly during
-development to check that all pieces work correctly. The tests can be executed
-using the command:
-
-    python test.py --host=<host> --port=<port> --user=<user> \
-    --password=<password> --servers="<servers' addresses>"

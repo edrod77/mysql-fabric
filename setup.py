@@ -171,7 +171,7 @@ if result:
         """Create documentation using Sphinx.
         """
         user_options = _sphinx.BuildDoc.user_options + [
-            ("code-dir=", None, "Look for code in the directory."),
+            ("code-dir=", None, "Look for code in the directory"),
             ]
 
         description = "Create documentation using sphinx"

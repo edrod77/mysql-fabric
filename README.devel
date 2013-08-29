@@ -20,12 +20,11 @@ ProcedureCommand class.
 Running unit tests
 ------------------
 
-In order to run tests while developing, it is often best to install all
-the necessary dependencies in the build directory and execute from
-there. Connector/Python is one of the dependencies and having it in the
-build directory will avoid conflicts on the "mysql" package location.
+In order to run tests while developing, it is necessary to install the
+Connector/Python in the build directory avoiding conflicts on the "mysql"
+package location.
 
-So something similar to this would install Connector/Python with the
+So something similar to this will install Connector/Python with the
 version of your choice into the build directory and allow you to run
 the unit tests:
 
@@ -38,11 +37,19 @@ the unit tests:
         cp version.py ${fabricdir}/build/lib*/mysql/connector/.
       )
 
-      python test.py --build-dir=${fabricdir}/build/lib --host=<host> \
+      export MYSQLDUMP=<mysql-dir>/client/mysqldump
+      export MYSQLCLIENT=<mysql-dir>/client/mysql
+      python test.py --build-dir=${fabricdir}/build --host=<host> \
       --port=<port> --user=<user> --password=<password> \
-      --servers="<servers' addresses>"
+      --servers="<servers' addresses>" --log-file=output.log
 
-Note that the "lib" directory name varies depending on the platform.
+Note that the "lib" directory name varies depending on the platform and
+that "MYSQLDUMP" and "MYSQLCLIENT" must point to a location where the
+mysql and mysqldump can be found.
+
+Information on tests' outcome is sent to terminal but logging messages
+from the different modules are omitted. If one wants to check the logging
+messages, the log-file option must be used.
 
 Running commands
 ----------------
@@ -54,13 +61,13 @@ and print debug log messages to the terminal.
 
     export PYTHONPATH=build/lib
     export PATH=build/script:$PATH
-    fabric manage start --config=data/main.cfg --ignore-site-config
+    mysqlfabric manage start --config=data/main.cfg
 
 You can stop the MySQL Fabric using:
 
     export PYTHONPATH=build/lib
     export PATH=build/script:$PATH
-    fabric manage stop --config=data/main.cfg --ignore-site-config
+    mysqlfabric manage stop --config=data/main.cfg
 
 The port used for these commands is stored in the configuration file.
 

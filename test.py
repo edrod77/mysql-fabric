@@ -41,8 +41,6 @@ else:
 # fandango since the script may be called from another directory than
 # the repository top directory.
 script_dir = os.path.dirname(os.path.realpath(__file__))
-# Append the directory where the project is located.
-sys.path.append(os.path.join(script_dir, 'lib'))
 
 from unittest import (
     TestLoader,
@@ -132,7 +130,6 @@ def run_tests(pkg, options, args, env_options):
             script_dir, options.build_dir,
             "lib.%s-%s" % (get_platform(), sys.version[0:3]),
             ),
-        os.path.join(script_dir, options.build_dir, 'lib'),
         os.path.join(script_dir, 'lib'),
         ]
 

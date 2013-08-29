@@ -39,10 +39,6 @@ class OptionParser(optparse.OptionParser):
        site-wide configuration file. Options given in this file will
        override the options given in the site-wide file.
 
-    .. option:: --ignore_site_config
-
-       Ignore the site-wide configuration file.
-
     Based on this, the options structure returned can hold the
     following attributes:
 
@@ -65,14 +61,6 @@ class OptionParser(optparse.OptionParser):
             },
          }
 
-    .. attribute:: ignore_site_config
-
-       If True, the site configuration file will be ignored. This can
-       be useful when all configuration parameters are given on the
-       command line.
-
-    A typical usage can be seen in :mod:`mysql.fabric.config`.
-
     """
     def __init__(self, *args, **kwrds):
         optparse.OptionParser.__init__(self, *args, **kwrds)
@@ -87,8 +75,3 @@ class OptionParser(optparse.OptionParser):
             action="store", dest="config_file", default=None,
             metavar="FILE",
             help="Read configuration from FILE.")
-        self.add_option(
-            "--ignore-site-config",
-            action="store_true", dest="ignore_site_config", default=False,
-            help="Ignore the site-wide configuration file.")
-
