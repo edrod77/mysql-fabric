@@ -45,7 +45,6 @@ import mysql.fabric.failure_detector as _detector
 
 _LOGGER = logging.getLogger(__name__)
 
-# TODO: Improve this function and make it generic.
 def server_logging(function):
     """This logs information on functions being called within server
     instances.
@@ -282,8 +281,6 @@ class Group(_persistence.Persistable):
         """
         return self.__group_id
 
-#TODO: Make the Group replication properties return objects.
-
     @property
     def slave_group_ids(self):
         return self.fetch_slave_group_ids()
@@ -492,7 +489,6 @@ class Group(_persistence.Persistable):
 
     @staticmethod
     def groups_by_status(status, persister=None):
-        # TODO: This must be changed. This must return a set of groups.
         """Return the group_ids of all the available groups.
 
         :param persister: Persister to persist the object to.
@@ -504,7 +500,6 @@ class Group(_persistence.Persistable):
 
     @staticmethod
     def groups(persister=None):
-        # TODO: This must be changed. This must return a set of groups.
         """Return the group_ids of all the available groups.
 
         :param persister: Persister to persist the object to.
@@ -862,7 +857,7 @@ class MySQLServer(_persistence.Persistable):
 
     @staticmethod
     @server_logging
-    def discover_uuid(**kwargs): # TODO: Change the format of the parameter.
+    def discover_uuid(**kwargs):
         """Retrieve the uuid from a server.
 
         :param kwargs: Dictionary with parmaters to connect to a server.
@@ -1052,7 +1047,7 @@ class MySQLServer(_persistence.Persistable):
 
     @property
     def gtid_enabled(self):
-        """Return if gtid is enabled.
+        """Return if GTID is enabled.
         """
         return self.__gtid_enabled
 
@@ -1084,8 +1079,6 @@ class MySQLServer(_persistence.Persistable):
         :param user: The user name.
         """
         if self.__user != user:
-            # TODO: This will be removed from here when we remove the user
-            # property from the server object.
             self.disconnect()
             persister.exec_stmt(MySQLServer.UPDATE_SERVER_USER,
                                 {"params":(user, str(self.uuid))})
@@ -1108,8 +1101,6 @@ class MySQLServer(_persistence.Persistable):
         :param passwd: The password that needs to be set.
         """
         if self.__passwd != passwd:
-            # TODO: This will be removed from here when we remove the passwd
-            # property from the server object.
             self.disconnect()
             persister.exec_stmt(MySQLServer.UPDATE_SERVER_PASSWD,
                                 {"params":(passwd, str(self.uuid))})
@@ -1216,10 +1207,12 @@ class MySQLServer(_persistence.Persistable):
     def set_session_binlog(self, enabled=True):
         """Enable or disable binary logging for the client.
 
-        Note: user must have SUPER privilege
-
         :param disable: If 'disable', turn off the binary log
                         otherwise turn binary log on.
+
+        .. note::
+
+           User must have SUPER privilege to execute this.
         """
         self.set_variable("SQL_LOG_BIN", "ON" if enabled else "OFF",
                           MySQLServer.SESSION_CONTEXT)
@@ -1268,7 +1261,7 @@ class MySQLServer(_persistence.Persistable):
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
-        See :meth:`mysql.fabric.server_utils.exec_stmt`.
+        See :meth:`~mysql.fabric.server_utils.exec_stmt`.
         """
         return _server_utils.exec_mysql_stmt(self.__cnx, stmt_str, options)
 

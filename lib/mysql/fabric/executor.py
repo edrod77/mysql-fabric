@@ -429,7 +429,6 @@ class Job(object):
             # Register information on jobs created within the context of the
             # current job.
             _checkpoint.register(self.__jobs, True)
-            # TODO: Check if this is the best choice.
             for procedure in self.__procedures:
                 assert(len(procedure.get_executed_jobs()) == 0)
                 _checkpoint.register(procedure.get_scheduled_jobs(), True)
@@ -592,10 +591,24 @@ class ExecutorQueue(object):
          self.__queue.task_done()
 
 class Executor(Singleton):
-    """Class responsible for dispatching execution of procedures.
+    """Class responsible for scheduling execution of procedures.
 
-    Procedures to be executed are queued into the scheduler and
-    sequentially executed.
+    Any service that uses the :class:`Executor` class to schedule procedures
+    must be started after it. Before stopping the :class:`Executor`, it is
+    necessary to ensure that any service that may schedule a procedure is
+    stopped. Otherwise, the :class:`~mysql.fabric.errors.ExecutorError`
+    exception is raised.
+
+    Procedures to be executed are enqueued into the scheduler and concurrently
+    executed if they do not conflict among each other. Two procedures conflict
+    if they access a common lockable object which can be arbitrarily defined.
+    See also the :class:`~mysql.fabric.scheduler.Scheduler`.
+
+    The number of Executor's threads cannot be dynamically changed so that it
+    cannot adapt to changes in the load.
+
+    :raises: :class:`~mysql.fabric.errors.ExecutorError` if one tries to
+             schedule a procedure when the Executor is stopped.
     """
     def __init__(self):
         """Constructor for the Executor.
@@ -706,7 +719,6 @@ class Executor(Singleton):
         with self.__threads_lock:
             self._assert_running()
 
-        # TODO: ENQUEUE WITH LOCK SO THAT THE THREADS ARE NOT KILLED.
         return self._do_enqueue_procedures(
             within_procedure, actions, lockable_objects
         )
@@ -763,7 +775,6 @@ class Executor(Singleton):
         with self.__threads_lock:
             self._assert_running()
 
-        # TODO: ENQUEUE WITH LOCK SO THAT THE THREADS ARE NOT KILLED.
         return self._do_reschedule_procedure(
             proc_uuid, actions, lockable_objects
         )

@@ -321,9 +321,6 @@ class LookupShardServers(ProcedureCommand):
 
         :return: The Group UUID that contains the range in which the key belongs.
         """
-        #TODO: A GLOBAL lookup should not pass a key. They key should point
-        #TODO: to either  sentinel value or should be None. This case needs to
-        #TODO: be handled.
         procedures = _events.trigger(
             LOOKUP_SHARD_SERVERS, self.get_lockable_objects(),
             table_name, key, hint
@@ -369,17 +366,6 @@ class MoveShardServer(ProcedureShard):
         :param synchronous: Whether one should wait until the execution finishes
                         or not.
         """
-        #TODO: Add a configurable timeout option. The option will allow the
-        #TODO: code to wait until timeout without taking a lock and after timeout
-        #TODO: will take a read lock on the master.
-
-        #TODO: Change MOVE to an integer constant
-
-        #TODO: Once we have the subsystem init patch implemented, we
-        #TODO: should read these programs from the configuration file
-        #TODO: when initializing the module, not each time a command is
-        #TODO: dispatched.
-
         mysqldump_binary = _read_config_value(self.config, 'sharding',
                                             'mysqldump_program')
         mysqlclient_binary = _read_config_value(self.config, 'sharding',
@@ -408,17 +394,6 @@ class SplitShardServer(ProcedureShard):
         :param synchronous: Whether one should wait until the execution
                             finishes
         """
-        #TODO: Add a configurable timeout option. The option will allow the
-        #TODO: code to wait until timeout without taking a lock and after timeout
-        #TODO: will take a read lock on the master.
-
-        #TODO: Change SPLIT to an integer constant
-
-        #TODO: Once we have the subsystem init patch implemented, we
-        #TODO: should read these programs from the configuration file
-        #TODO: when initializing the module, not each time a command is
-        #TODO: dispatched.
-
         mysqldump_binary = _read_config_value(self.config, 'sharding',
                                             'mysqldump_program')
         mysqlclient_binary =  _read_config_value(self.config, 'sharding',
@@ -661,7 +636,6 @@ def _add_shard(shard_mapping_id, lower_bound, group_id, state):
                                                     (shard_mapping_id,  ))
 
     schema_type = shard_mapping[1]
-    #TODO: Currently the RANGE sharding type supports only integer bounds.
     if schema_type == "RANGE":
         try:
             split_value = int(lower_bound)
@@ -769,8 +743,6 @@ def _lookup(table_name, key,  hint):
         if group is None:
             raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
     elif shard_mapping.type_name == "HASH":
-        #TODO: Use a dictionary that maps the type to the prune method,
-        #TODO: instead of duplicating code between RANGE and HASH.
         hash_sharding_specification = HashShardingSpecification.lookup \
                                         (key, shard_mapping.shard_mapping_id)
         if hash_sharding_specification is None:
@@ -897,10 +869,6 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
             #0x indicating a hexadecimal value and a suffix of L indicating a
             #Long. Extract the hexadecimal string from this value.
             split_value = "%x" % (split_value)
-        #TODO:
-        #Factor code like the following (based on the type name) into
-        #subclasses that does the work for us.
-        #e.g. shard_mapping.compute_split_value()
         elif shard_mapping.type_name == "RANGE" and split_value is None:
             #If the underlying sharding specification is a RANGE, and the
             #split value is not given, then calculate it as the mid value
@@ -908,7 +876,6 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
             lower_bound = int(range_sharding_spec.lower_bound)
             upper_bound = int(RangeShardingSpecification.get_upper_bound)
             split_value = lower_bound + (upper_bound - lower_bound) / 2
-        #TODO: Currently the RANGE sharding type supports only integer bounds.
         elif shard_mapping.type_name == "RANGE" and split_value is not None:
             try:
                 split_value = int(split_value)
@@ -931,25 +898,13 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     if source_group is None:
         raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
 
-    #TODO: Alfranio: The code that choses a SPARE or a SLAVE needs to be
-    #TODO: Alfranio: factored into the HA code.
-
     move_source_server = _fetch_backup_server(source_group)
-
-    #TODO: The backup method should generic based on the backup tool
-    #TODO: used to do the backup. Change this code to support generic
-    #TODO: backups.
 
     #Do the backup of the group hosting the source shard.
     backup_image = _backup.MySQLDump.backup(
                         move_source_server,
                         mysqldump_binary
                     )
-
-    #TODO: the backup image path should be handled in a more generic manner.
-    #TODO: it is not right to just pass the path. This may work for MySQLDump
-    #TODO: but we will need to do better to handle it for heterogenous backup
-    #TODO: mechanisms.
 
     #Change the master for the server that is master of the group which hosts
     #the destination shard.
@@ -989,7 +944,6 @@ def _restore_shard_backup(shard_id,  source_group_id, destn_group_id,
     #Build a backup image that will be used for restoring
     bk_img = _backup.BackupImage(backup_image)
 
-#TODO: convert to start one thread for each restore later.
     for destn_group_server in destn_group.servers():
         destn_group_server.connect()
         _backup.MySQLDump.restore(
@@ -1052,7 +1006,6 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
     _replication.start_slave(slave, wait=True)
 
     #Synchronize until the slave catches up with the master.
-    #TODO: Make the timeout configurable.
     _replication.synchronize_with_read_only(slave, master)
 
     #Reset replication once the syncing is done.
@@ -1183,10 +1136,6 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     :param shard_id_1: The first shard id after the split.
     :param shard_id_2: The second shard id after the split.
     """
-    #TODO: Start the threads that do the delete. For now the deletes are
-    #TODO: done as part of the same thread. These will be started as
-    #TODO: separate threads later.
-
     #Fetch the Range sharding specification. When we start implementing
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
@@ -1194,7 +1143,6 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     range_sharding_spec, source_shard,  shard_mapping,  _ = \
         _verify_and_fetch_shard(shard_id_1)
 
-    #TODO: Use a dictionary that maps the type to the prune method.
     if shard_mapping.type_name == "RANGE":
         RangeShardingSpecification.prune_shard_id(shard_id_1)
         RangeShardingSpecification.prune_shard_id(shard_id_2)
@@ -1284,10 +1232,6 @@ def _verify_and_fetch_shard(shard_id):
 
     :raises: ShardingError if the shard ID is not found.
     """
-    #TODO: Change implementation to accept a flag that allows the method
-    #TODO: to fetch only what is required.
-
-    #Note:
     #Here the underlying sharding specification might be a RANGE
     #or a HASH. The type of sharding specification is obtained from the
     #shard mapping.
@@ -1368,7 +1312,6 @@ def _stop_shard_group_replication(shard_id,  clear_ref):
     _group_replication.stop_group_slave(shard_mapping_defn[2],  shard.group_id,
                                                                 clear_ref)
 
-#TODO: Should _read_config_value be moved to utils ?
 def _read_config_value(config,  config_group,  config_name):
     """Read the value of the configuration option from the config files.
 

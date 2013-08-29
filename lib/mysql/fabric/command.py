@@ -104,12 +104,19 @@ def get_command(group_name, command_name):
 class CommandMeta(type):
     """Metaclass for defining new commands.
 
-    This class will register any new commands defined and add them to
-    the a list of existing commands.
+    This class will register new commands defined and add them to  the a list
+    of existing commands.
+
+    Users willing to create a new command should create a class that inherits
+    from either the :class:`ProcedureCommand`, :class:`ProcedureGroup` or
+    :class:`ProcedureShard` classes. However any base class defined upon one of
+    the aforementioned classes must have its name appended to the
+    `IgnoredCommand` attribute. Otherwise, it will erroneously be considered a
+    command.
     """
-    # TODO: Try to find a better way of removing false positives.
     IgnoredCommand = \
         ("command", "procedurecommand", "proceduregroup", "procedureshard")
+
     def __init__(cls, cname, cbases, cdict):
         """Register command definitions.
         """
@@ -300,9 +307,6 @@ class Command(object):
 
 
 class ProcedureCommand(Command):
-    # TODO: IMPROVE THE CODE SO USERS MAY DECIDE NOT TO USE WAIT_FOR_PROCEDURES AND
-    # RETURN SOMETHING SIMPLE INSTEAD OF THE EXECUTION HISTORY ALONG WITH RETURN
-    # VALUES.
     """Class used to implement commands that are built as procedures and
     schedule job(s) to be executed. Any command that needs to access the
     state store must be built upon this class.
@@ -450,7 +454,6 @@ class ProcedureGroup(ProcedureCommand):
         variable = variable or "group_id"
         function = function or self.execute.original_function
         lockable_objects = set()
-        # TODO: IS THERE A BETTER WAY TO GET THE FRAME?
         frame = inspect.currentframe().f_back
 
         args = _get_args_values((variable, ), function, frame)
@@ -471,18 +474,18 @@ class ProcedureShard(ProcedureCommand):
         """Return the set of lockable objects by extracting information
         on the parameter's value passed to the function.
 
+        The current implementation blocks all groups associated with a
+        shard_mapping_id while a shard is being added.
+
         :param variable: Parameter's name from which the value should be
                          extracted.
         :param function: Function where the parameter's value will be
                          searched for.
         """
-        # TODO: AddShard(ProcedureShard): The current design blocks all
-        # groups associated with a shard_mapping_id while adding a shard.
         variable = variable or \
             ("group_id", "table_name", "shard_mapping_id", "shard_id")
         function = function or self.execute.original_function
         lockable_objects = set()
-        # TODO: IS THERE A BETTER WAY TO GET THE FRAME?
         frame = inspect.currentframe().f_back
 
         persister = _persistence.current_persister()
@@ -533,7 +536,6 @@ def _get_args_values(variables, function, frame):
     argsspec = inspect.getargspec(function)
     if frame is None:
         return args
-    # TODO: ADD ASSERTION THAT FRAME MUST MATCH FUNCTION.
     try:
         for variable in variables:
             if variable in argsspec.args:

@@ -94,14 +94,13 @@ class MySQLCursorRawNamedTuple(MySQLCursor):
     def _row_to_python(self, rowdata, desc=None):
         return _do_row_to_python(self, _null_converter, rowdata, desc)
 
-# TODO: Extend this to accept list of statements.
 def exec_mysql_stmt(cnx, stmt_str, options=None):
     """Execute a statement for the client and return a result set or a
     cursor.
 
     This is the singular method to execute queries. If something goes
     wrong while executing a statement, the exception
-   :class:`mysql.fabric.errors.DatabaseError` is raised.
+    :class:`~mysql.fabric.errors.DatabaseError` is raised.
 
     :param cnx: Database connection.
     :param stmt_str: The statement (e.g. query, updates, etc) to execute.

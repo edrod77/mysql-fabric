@@ -72,7 +72,6 @@ class Checkpoint(_persistence.Persistable):
                      has completed.
     :param sequence: Identify the order of the job within a procedure.
     """
-    # TODO: INVESTIGATE WHY started and finished ARE BEING TRUNCATED.
     # SQL Statement for creating the table checkpoint which is used to
     # keep track of execution (i.e. jobs).
     CREATE_CHECKPOINTS = (
@@ -119,7 +118,6 @@ class Checkpoint(_persistence.Persistable):
 
     #SQL statement for retrieving all occurrences in the checkptoint which
     #is used for recovery.
-    #TODO: Simplify this statement.
     QUERY_UNFINISHED_CHECKPOINTS = (
         "SELECT chk_info.proc_uuid, chk_info.lockable_objects, "
         "chk_info.job_uuid, chk_info.sequence, chk_info.action_fqn, "
@@ -235,7 +233,6 @@ class Checkpoint(_persistence.Persistable):
     def schedule(self, persister=None):
         """Register that an action has been scheduled.
         """
-        # TODO: Move lockable_objects to a different table.
         param_args, param_kwargs, lockable_objects = \
             Checkpoint.serialize(self.__param_args, self.__param_kwargs,
                                  self.__lockable_objects)

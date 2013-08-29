@@ -30,14 +30,9 @@ from mysql.fabric import (
 
 from mysql.fabric.server import MySQLServer
 from mysql.fabric.replication import *
-# TODO: Remove the * and test the following functions:
-# Unused import get_master_rpl_users from wildcard import
-# Unused import check_slave_delay_health from wildcard import
-# Unused import get_master_slaves from wildcard import
 
 import tests.utils
 
-# TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),
     "address"  : tests.utils.MySQLInstances().get_address(0),
@@ -58,7 +53,6 @@ class TestMySQLMaster(unittest.TestCase):
         """
         uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
-        # TODO: Change the initialization style.
         self.master = MySQLServer(**OPTIONS_MASTER)
         self.master.connect()
         reset_master(self.master)
@@ -72,10 +66,8 @@ class TestMySQLMaster(unittest.TestCase):
         self.master.disconnect()
 
     def test_master_binary_log(self):
+        # Note this is only being tested with the binary log.
         master = self.master
-        # TODO: Test it also without binary log.
-        # These tests requires to restart the master what will be done
-        # with the FakeMySQL.
 
         # Get master status.
         check = re.compile('\w+-bin.000001')
@@ -88,11 +80,8 @@ class TestMySQLMaster(unittest.TestCase):
         self.assertEqual(int(ret[0][1]), 151) # Format descriptor event.
 
     def test_master_health(self):
+        # Note this is only being tested with the binary log.
         master = self.master
-        # TODO: Test it also without binary log.
-        # TODO: Test it after removing rpl users.
-        # These tests requires to restart the master what will be done
-        # with the FakeMySQL.
 
         # Check health as a master before calling connect.
         master.disconnect()
@@ -134,10 +123,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.master.disconnect()
 
     def test_switch_master(self):
-        # TODO: Test it also without gtis so we can define binary
-        # log positions.
-        # These tests requires to restart the slave what will be done
-        # with the FakeMySQL.
+        # Note this is only being tested with gtids.
 
         # Set up replication.
         master = self.master
@@ -196,10 +182,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertEqual(slave_has_master(slave), str(master.uuid))
 
     def test_slave_binary_log(self):
-        # TODO: Test it also without binary log.
-        # These tests requires to restart the slave what will be done
-        # with the FakeMySQL.
-
+        # Note this is only being tested with the binary log.
         # Set up replication.
         master = self.master
         slave = self.slave

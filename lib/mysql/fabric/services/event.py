@@ -68,7 +68,7 @@ class WaitForProcedures(Command):
 
         However, before starting waiting, the function checks if the procedures
         exist. If one of the procedures is not found, the following exception
-        is raised :class:`mysql.fabric.errors.ProcedureError`.
+        is raised :class:`~mysql.fabric.errors.ProcedureError`.
 
         :param proc_uuids: Iterable with procedures' uuids.
         """

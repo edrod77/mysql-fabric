@@ -65,6 +65,9 @@ DEFAULT_N_EXECUTORS = 1
 #Default TTL value
 DEFAULT_TTL = 0
 
+# MySQL's port
+_MYSQL_PORT = 3306
+
 class Logging(Command):
     """Set logging level.
     """
@@ -113,8 +116,6 @@ class Help(Command):
         :param group_name: Group which the command belongs to.
         :param command_name: Command name.
         """
-        # TODO: IMPROVE HOW THIS IS PRESENTED. MAYBE WE SHOULD MOVE
-        # THIS TO OTHER MODULE WHICH TAKES CARE OF FORMATING STUFF.
         try:
             # Get the command and information on its parameters.
             args = None
@@ -144,8 +145,6 @@ class List(Command):
     def dispatch(self):
         """List the possible commands and their descriptions.
         """
-        # TODO: IMPROVE HOW THIS IS PRESENTED. MAYBE WE SHOULD MOVE
-        # THIS TO OTHER MODULE WHICH TAKES CARE OF FORMATING STUFF.
         commands = []
         max_name_size = 0
 
@@ -381,7 +380,7 @@ def _configure_connections(config):
         port = int(port)
     except ValueError:
         host = address
-        port = 3306 # TODO: DEFINE A CONSTANT
+        port = _MYSQL_PORT
     user = config.get('storage', 'user')
     database = config.get('storage', 'database')
     try:
@@ -419,7 +418,9 @@ def _start(options, config):
     # Initilize the state store.
     _persistence.init_thread()
 
-    # Start the executor, failure detector and then service manager.
+    # Start the executor, failure detector and then service manager. In this
+    # scenario, the recovery is sequentially executed after starting the
+    # executor and before starting the service manager.
     _events.Handler().start()
     _recovery.recovery()
     _detector.FailureDetector.register_groups()

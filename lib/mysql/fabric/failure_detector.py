@@ -54,7 +54,7 @@ class FailureDetector(object):
     group is alive.
 
     It does so by connecting to these servers and executing a query (i.e.
-    :meth:`mysql.fabric.server.MySQLServer.is_alive`.
+    :meth:`~mysql.fabric.server.MySQLServer.is_alive`.
     """
     LOCK = threading.Condition()
     GROUPS = {}
@@ -107,8 +107,6 @@ class FailureDetector(object):
                 detector.shutdown()
             FailureDetector.GROUPS = {}
 
-    # TODO: USE A CONFIGURATION FILE TO DEFINE THE PERIOD.
-    #       MAYBE WE SHOULD ALSO INHERIT FROM Threading.
     def __init__(self, group_id, sleep=None):
         """Constructor for FailureDetector.
         """

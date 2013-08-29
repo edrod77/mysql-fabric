@@ -557,9 +557,15 @@ class TestServerServices(unittest.TestCase):
         server =  self.proxy.group.lookup_servers("group")
         self.assertEqual(len(server[-1]), 3)
 
-        # TODO: HOW TO FIX THIS (HAM-132)?
-        # The return is temporarily placed here while
-        # HAM-132 is not fixed.
+        #
+        # It it not possible to specify only some of the optional
+        # parameters. For that reason, this part of the test is
+        # skipped as it requires to set the status without setting
+        # the uuid parameter.
+        # Note this is not possible though as the method has the
+        #following signature:
+        # lookup_servers(self, group_id, uuid=None, status=None, ...)
+        #
         return
         # Fetch all running servers in a group.
         server =  self.proxy.group.lookup_servers(

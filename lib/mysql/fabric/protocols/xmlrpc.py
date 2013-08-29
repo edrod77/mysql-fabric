@@ -37,7 +37,15 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
-    """Simple XML-RPC server.
+    """Multi-threaded XML-RPC server whose threads are created during startup.
+
+    .. note::
+       Threads cannot be dynamically created so that the Multi-threaded XML-RPC
+       cannot easily adapt to changes in the load.
+
+    :param host: Address used by the XML-RPC Server.
+    :param port: Port used by the XML-RPC Server.
+    :param number_threads: Number of threads that will be started.
     """
     def __init__(self, host, port, number_threads):
         """Create a MyServer object.
@@ -123,7 +131,6 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
     def serve_forever(self):
         """Main routine which handles one request at a time.
         """
-        # TODO: Define a lower and upper bound.
         self.__requests = Queue.Queue(self.__number_threads)
 
         _LOGGER.info(
@@ -149,11 +156,11 @@ class MyClient(xmlrpclib.ServerProxy):
     """Simple XML-RPC Client.
 
     This class defines the client-side interface of the command subsystem.
+    The connection to the XML-RPC Server is made when the dispatch method
+    is called. This is done because the information on the server is passed
+    to the command object after its creation.
     """
     def __init__(self):
-        # TODO: Notice that the call to the __init__ is placed in the dispatch
-        # when the call to the server happens. Maybe we should move this to
-        # to here.
         """Create a MyClient object.
         """
         pass
@@ -164,7 +171,6 @@ class MyClient(xmlrpclib.ServerProxy):
         This is the default dispatch method that will just dispatch
         the command with arguments to the server.
         """
-
         address = command.config.get('protocol.xmlrpc', 'address')
         host, port = address.split(":")
         if not host:
@@ -175,8 +181,4 @@ class MyClient(xmlrpclib.ServerProxy):
             reference = command.group_name + "." + command.command_name
             return getattr(self, reference)(*args)
         except xmlrpclib.Fault as error:
-            # TODO: IMPROVE ERROR HANDLING. MAYBE WE SHOULD CREATE AN
-            # EXCEPTION IF THE ERROR MESSAGE HAS INFORMATION ON ONE.
-            # FOR EXAMPLE:
-            # <Fault 1: "<class 'mysql.fabric.errors.JobError'>:Job not found.">
             print >> sys.stderr, error

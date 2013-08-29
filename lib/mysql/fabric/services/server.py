@@ -26,8 +26,8 @@ also find out the server's uuid if the server is alive and kicking.
 
 When a group is created though, it is inactive which means that the failure
 detector will not check if its servers are alive. To start up the failure
-detector, one needs to call :meth:`ativate_group`. A server may have one of
-the following status:
+detector, one needs to explicitly activate it per group. A server may have
+one of the following status:
 
 - RUNNING - This is the regular status of a server and means that a server
   is alive and kicking.
@@ -197,9 +197,9 @@ class ServerLookups(ProcedureCommand):
         :rtype: [server_uuid, ....] or  {"uuid" : uuid, "address": address,
                 "user": user, "passwd": passwd}
 
-        If the group does not exist, the :class:`mysqly.fabric.errors.GroupError`
-        exception is thrown. The information returned has the following
-        format::
+        If the group does not exist, the
+        :class:`~mysqly.fabric.errors.GroupError` exception is thrown. The
+        information returned has the following format::
 
           [[uuid, address, is_master, status], ...]
         """
@@ -335,7 +335,6 @@ class DumpServers(Command):
         """
         return _server.MySQLServer.dump_servers(version, patterns)
 
-# TODO: This procedure should consider groups.
 SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):
     """Set a server's status.
@@ -703,9 +702,6 @@ def _do_remove_server(group, server):
 def _check_requirements(server):
     """Check if the server fulfils some requirements.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . CHECK FILTERS COMPATIBILITY.
-    #  . CHECK PURGED GTIDS.
     if not server.check_version_compat((5, 6, 8)):
         raise _errors.ServerError(
             "Server (%s) has an outdated version (%s). 5.6.8 or greater "
@@ -727,7 +723,6 @@ def _check_requirements(server):
 def _configure_as_slave(group, server):
     """Configure the server as a slave.
     """
-    # TODO: Integrate this code with the highavailability.py.
     try:
         if group.master:
             master = _server.MySQLServer.fetch(group.master)

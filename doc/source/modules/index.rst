@@ -22,3 +22,5 @@ Contents
    sharding_services
    recovery
    scheduler
+   command
+   protocol_xmlrpc

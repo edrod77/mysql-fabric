@@ -54,8 +54,8 @@ def process_slave_backlog(slave, gtid_executed, gtid_retrieved):
     """Wait until slave processes its backlog.
 
     :param slave: slave.
-    :param gtid_executed: Executed gtids.
-    :param gtid_retrieved: Retrieved gtids.
+    :param gtid_executed: Executed GTIDs.
+    :param gtid_retrieved: Retrieved GTIDs.
     """
     _replication.stop_slave(slave, wait=True)
     _replication.start_slave(slave, threads=("SQL_THREAD", ), wait=True)

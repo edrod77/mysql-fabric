@@ -304,7 +304,7 @@ class Handler(Singleton):
                   event.
         :rtype: Procedures that were scheduled.
 
-        See :meth:`mysql.fabric.executor.Executor.enqueue_procedures()`.
+        See :meth:`~mysql.fabric.executor.Executor.enqueue_procedures`.
         """
         _LOGGER.debug("Triggering event %s", event)
 
@@ -346,7 +346,7 @@ def trigger_within_procedure(event, *args, **kwargs):
     procedure.
 
     This method must be called within a job otherwise the
-    :class:`mysql.fabric.errors.ProgrammingError` exception will be raised.
+    :class:`~mysql.fabric.errors.ProgrammingError` exception will be raised.
 
     :param event: The event to trigger.
     :type event: Event name or event instance.

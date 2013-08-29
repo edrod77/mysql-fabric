@@ -46,7 +46,7 @@ def get_master_status(server, options=None):
     MASTER STATUS` command in the MySQL Manual for further details.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
+                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     if options is None:
         options = {}
@@ -68,7 +68,7 @@ def get_master_rpl_users(server, options=None):
     returned.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
+                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     :return:  List of users that have the `REPLICATION SLAVE PRIVILEGE`.
     :rtype: user, host, password = (0, 1).
     """
@@ -86,7 +86,7 @@ def get_master_slaves(server, options=None):
     details.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
+                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     if options is None:
         options = {}
@@ -96,15 +96,12 @@ def get_master_slaves(server, options=None):
 
 @_server.server_logging
 def check_master_issues(server):
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . CHECK FILTERS.
-    #  . CHECK PURGED GTIDS.
     """Check if there is any issue to make the server a master.
 
     This method checks if there is any issue to make the server a master.
     and returns a dictionary that contains information on any issue found
     , if there is any. Basically, it checks if the master is alive and
-    kicking, if the binary log is enabled, if the gtid is enabled, if the
+    kicking, if the binary log is enabled, if the GTID is enabled, if the
     server is able to log the updates through the SQL Thread and finally
     if there is a user that has the `REPLICATION SLAVE PRIVILEGE`.
 
@@ -118,6 +115,13 @@ def check_master_issues(server):
 
     :param server: MySQL Server.
     :return: A dictionary with issues, if there is any.
+
+    .. note::
+
+       It does not consider if there are filters or some binary logs have been
+       purged and by consequence the associated GTIDs. These are also important
+       characteristics before considering a server eligible for becoming a
+       master.
     """
     status = {}
 
@@ -150,7 +154,7 @@ def get_slave_status(server, options=None):
     SLAVE STATUS` command in the MySQL Manual for further details.
 
     :param options: Define how the result is formatted and retrieved.
-                    See :meth:`mysql.fabric.server.MySQLServer.exec_stmt`.
+                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     if options is None:
         options = {}
@@ -176,7 +180,7 @@ def slave_has_master(server):
     ret = get_slave_status(server)
     if ret:
         try:
-            _uuid.UUID(ret[0].Master_UUID) # TODO: In the future, return UUID.
+            _uuid.UUID(ret[0].Master_UUID)
             return ret[0].Master_UUID
         except ValueError:
             pass
@@ -184,9 +188,9 @@ def slave_has_master(server):
 
 @_server.server_logging
 def get_num_gtid(gtids, server_uuid=None):
-    """Return the number of transactions represented in gtids.
+    """Return the number of transactions represented in GTIDs.
 
-    By default this function considers any server in gtids. So if one wants
+    By default this function considers any server in GTIDs. So if one wants
     to count transactions from a specific server, the parameter server_uuid
     must be defined.
 
@@ -220,14 +224,11 @@ def get_num_gtid(gtids, server_uuid=None):
             difference += int(rgno) - int(lgno)
     return difference
 
-# TODO: master_uuid should be a list and not a single value.
-#       This can be useful to determine the set of values one
-#       is insterested in.
 def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
     """Get the number of transactions behind the master.
 
     :param master_gtids: GTID information retrieved from the master.
-        See :meth:`mysql.fabric.server.MySQLServer.get_gtid_status`.
+        See :meth:`~mysql.fabric.server.MySQLServer.get_gtid_status`.
     :param master_uuid: Master which is used as the basis for comparison.
     :return: Number of transactions behind master.
     """
@@ -340,8 +341,8 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
 
     This methods call the MySQL function `SELECT MASTER_POS_WAIT`. If
     the timeout period expires prior to achieving the condition the
-    :class:`mysql.fabric.errors.TimeoutError` exception is raised. If any
-    thread is stopped, the :class:`mysql.fabric.errors.DatabaseError`
+    :class:`~mysql.fabric.errors.TimeoutError` exception is raised. If any
+    thread is stopped, the :class:`~mysql.fabric.errors.DatabaseError`
     exception is raised.
 
     :param binlog_file: Master's binlog file.
@@ -391,13 +392,13 @@ def sync_slave_with_master(slave, master, timeout=0):
 
 @_server.server_logging
 def wait_for_slave_gtid(server, gtids, timeout=0):
-    """Wait until a slave executes gtids.
+    """Wait until a slave executes GITDs.
 
     The function `SELECT WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS` is called until the
     slave catches up. If the timeout period expires prior to achieving
-    the condition the :class:`mysql.fabric.errors.TimeoutError` exception is
+    the condition the :class:`~mysql.fabric.errors.TimeoutError` exception is
     raised. If any thread is stopped, the
-    :class:`mysql.fabric.errors.DatabaseError` exception is raised.
+    :class:`~mysql.fabric.errors.DatabaseError` exception is raised.
 
     :param slave: Reference to a slave.
     :param gtids: Gtid information.
@@ -425,7 +426,6 @@ def wait_for_slave_gtid(server, gtids, timeout=0):
 
     assert(res[0][0] > -1)
 
-# TODO: SPLIT THIS FUNCTION IN TWO: GTIDS and NO GTIDS.
 @_server.server_logging
 def switch_master(slave, master, master_user, master_passwd=None,
                   from_beginning=True, master_log_file=None,
@@ -460,6 +460,7 @@ def switch_master(slave, master, master_user, master_passwd=None,
         params.append(master_passwd)
     else:
         commands.append("MASTER_PASSWORD = ''")
+
     if slave.gtid_enabled:
         commands.append("MASTER_AUTO_POSITION = 1")
     elif not from_beginning:
@@ -563,12 +564,8 @@ def check_slave_delay(slave, master):
     if seconds_behind:
         status["seconds_behind"] = seconds_behind
 
-    if not slave.gtid_enabled:
-        master_status = get_master_status(master)
-        # TODO: Create a function similar to get_slave_num_gtid_behind().
-
-    # Check GTID trans behind.
-    elif slave.gtid_enabled:
+    # Check gtid trans behind.
+    if slave.gtid_enabled:
         master_gtid_status = master.get_gtid_status()
         num_gtids_behind = get_slave_num_gtid_behind(slave,
                                                      master_gtid_status,
@@ -581,7 +578,7 @@ def check_slave_delay(slave, master):
 def _check_condition(server, threads, check_if_running):
     """Check if slave's threads are either running or stopped. If the
     `SQL_THREAD` or the `IO_THREAD` are stopped and there is an error,
-    the :class:`mysql.fabric.errors.DatabaseError` exception is raised.
+    the :class:`~mysql.fabric.errors.DatabaseError` exception is raised.
 
     :param threads: Which threads should be checked.
     :type threads: `SQL_THREAD` or `IO_THREAD`.
@@ -622,10 +619,6 @@ def _check_condition(server, threads, check_if_running):
 
     return achieved
 
-#TODO: Optimize the data that is being synchronized between the source
-# and the destination shards. Currently we are shipping everything
-# and pruning later. This can possibly be optimized to send only the
-# necessary information.
 def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     """Synchronize the master with the slave. The function accepts a transaction
     lag and a timeout parameters.

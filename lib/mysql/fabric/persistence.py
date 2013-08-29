@@ -364,7 +364,6 @@ class MySQLPersister(object):
             connection_timeout=info["connection_timeout"],
             autocommit=True, use_unicode=False
             )
-        #TODO: Can 'database' be used for SQL injection?
         conn.cursor().execute(
             "CREATE DATABASE IF NOT EXISTS %s" %
             (cls.connection_info["database"], )
@@ -445,7 +444,7 @@ class MySQLPersister(object):
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
 
-        See :meth:`mysql.fabric.server_utils.exec_stmt`.
+        See :meth:`~mysql.fabric.server_utils.exec_stmt`.
 
         """
 
@@ -520,8 +519,6 @@ def setup():
             _LOGGER.debug("Create database objects for %s", cls.__name__)
             cls.create(persister=persister)
 
-    #TODO : The constraints will not need to be created separately after this
-    #TODO: After the sharded system is modified to boot the HA layer.
     #Initialize the constraints after creating the tables.
     for cls in PersistentMeta.classes:
         #Call the add_constraints method of those classes that sub-class from

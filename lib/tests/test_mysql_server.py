@@ -29,7 +29,6 @@ from mysql.fabric.server import MySQLServer, Group, ConnectionPool
 
 import tests.utils
 
-# TODO: When the FakeMysql is pushed, change it and take care of the todos.
 OPTIONS = {
     "uuid" : None,
     "address"  : tests.utils.MySQLInstances().get_address(0),
@@ -123,9 +122,8 @@ class TestMySQLServer(unittest.TestCase):
         # Check version.
         self.assertFalse(server.check_version_compat((7, 0, 0)))
         self.assertFalse(server.check_version_compat((6, 0, 0)))
-        #TODO: Check when version is composed only with numbers 5.5.7.
-        #TODO: Create a generic function so we don't need to update
-        #      it every time a new release is created.
+        # Note this function needs to be updated to update every
+        # time a new release is created.
 
     def test_gtid(self):
         server = self.server
@@ -136,7 +134,8 @@ class TestMySQLServer(unittest.TestCase):
             self.assertEqual(record.GTID_EXECUTED, "")
             self.assertEqual(record.GTID_PURGED, "")
             self.assertEqual(record.GTID_OWNED, "")
-        #TODO: Test with gtids disabled.
+        # Note this is only being tested with GTIDs.
+
 
     def test_storage(self):
         server = self.server
@@ -166,7 +165,7 @@ class TestMySQLServer(unittest.TestCase):
         check = re.compile('\w+-bin.000001')
         for record in server.get_binary_logs():
             self.assertNotEqual(check.match(record.Log_name), None)
-        # TODO: Test with binlog disabled.
+        # Note this is only being tested with the binary log.
 
     def test_exec_stmt_options(self):
         server = self.server

@@ -45,7 +45,6 @@ DISCOVER_TOPOLOGY = _events.Event()
 # Import the replication topology outputed in the previous step.
 IMPORT_TOPOLOGY = _events.Event()
 
-# TODO: AVOID USING UUID STRING and use UUID OBJECT.
 class ImportTopology(ProcedureGroup):
     """Try to figure out the replication topology and import it into the
     state store.
@@ -516,21 +515,13 @@ def _do_find_candidate(group_id, event):
     master.
 
     It chooses the slave that has processed more transactions and may become a
-    master, i.e. has the binary log enabled.
+    master, i.e. has the binary log enabled. This function does not consider
+    purged transactions and delays in the slave while picking up a slave.
 
     :param group_id: Group's id from where a candidate will be chosen.
     :return: Return the uuid of the best candidate to become a master in the
              group.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . CHECK FILTERS COMPATIBILITY.
-    #  . CHECK PURGED GTIDS.
-    #  . REPLACE get_slave_num_gtid_behind() BY get_num_gtid().
-    #  . USE ALSO check_slave_delay().
-    #  . CHECK determined fields in the reported issues according to the
-    #    event.
-    #  . If the do_find_candidate is executed, it is not necessary to
-    #    run more checks in future jobs.
     group = _server.Group.fetch(group_id)
 
     master_uuid = None
@@ -599,10 +590,6 @@ def _check_candidate_switch(group_id, slave_uuid):
     """Check if the candidate has all the issues to become the new
     master.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . CHECK FILTERS COMPATIBILITY.
-    #  . CHECK PURGED GTIDS.
-    # TODO: TRY TO MERGE THE TWO CHECK_CANDIDATE FUNCTIONS.
     group = _server.Group.fetch(group_id)
 
     if not group.contains_server(slave_uuid):
@@ -666,15 +653,15 @@ def _block_write_switch(group_id, master_uuid, slave_uuid):
 
 def _do_block_write_master(group_id, master_uuid):
     """Block and disable write access to the current master.
+
+    Note that connections are not killed and blocking the master
+    may take some time.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #   . KILL CONNECTIONS AND MAKE THIS FASTER.
     group = _server.Group.fetch(group_id)
 
     # Temporarily unset the master in this group.
     _set_group_master_replication(group, None,  False)
 
-    # TODO: IN THE FUTURUE, KILL CONNECTIONS AND MAKE THIS FASTER.
     server = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     server.connect()
     _utils.set_read_only(server, True)
@@ -682,9 +669,10 @@ def _do_block_write_master(group_id, master_uuid):
 @_events.on_event(WAIT_SLAVES_SWITCH)
 def _wait_slaves_switch(group_id, master_uuid, slave_uuid):
     """Synchronize candidate with master and also all the other slaves.
+
+    Note that this can be optimized as one may determine the set of
+    slaves that must be synchronized with the master.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . DETERMINE WHICH SLAVES MUST BE SYNCHRONIZED.
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
@@ -735,7 +723,6 @@ def _change_to_candidate(group_id, master_uuid):
 
     _set_group_master_replication(group,  master.uuid,  False)
 
-    # TODO: Connect is called from servers(). Revisit this.
     for server in group.servers():
         if server.uuid != _uuid.UUID(master_uuid):
             try:
@@ -764,9 +751,6 @@ def _check_candidate_fail(group_id, slave_uuid):
     """Check if the candidate has all the prerequisites to become the new
     master.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . CHECK FILTERS COMPATIBILITY.
-    #  . INTRODUCE A STEP TO FETCH INFORMATION FROM ALL SLAVES.
     group = _server.Group.fetch(group_id)
 
     if not group.contains_server(slave_uuid):
@@ -853,7 +837,6 @@ def _wait_slaves_demote(group_id, master_uuid):
 
     _do_wait_slaves_catch(group_id, master)
 
-    # TODO: Connect is called from servers(). Revisit this.
     group = _server.Group.fetch(group_id)
     for server in group.servers():
         try:
@@ -868,10 +851,6 @@ def _wait_slaves_demote(group_id, master_uuid):
 def _check_group_availability(group_id):
     """Check which servers in a group are up and down.
     """
-    # TODO: THIS ROUTINE IS INCOMPLETE. IT STILL NEEDS TO:
-    #  . SHOW INFORMATION ON FILTERS.
-    #  . PURGED GTIDS.
-    #  . SHOW check_slave_delay().
     availability = {}
 
     group = _server.Group.fetch(group_id)

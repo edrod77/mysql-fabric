@@ -122,8 +122,6 @@ class ServiceManager(Singleton):
                         "Registering %s.", command.group_name + '.' + \
                         command.command_name
                         )
-                    # TODO: The same object is shared among the sessions.
-                    # We need to improve this.
                     cmd = command()
                     cmd.setup_server(self.__rpc_server, options, config)
                     self.__rpc_server.register_command(cmd)

@@ -34,12 +34,10 @@ would have resulted in tight coupling between the HA and the Server layers and
 also would have resulted in a circular dependency, since the replication module
 already has a reference to the server module.
 """
-#TODO: Alfranio: Verify error situations in this module.
 from mysql.fabric.server import Group,  MySQLServer
 import mysql.fabric.replication as _replication
 import mysql.fabric.errors as _errors
 
-#TODO: Use error messages from common error file.
 GROUP_REPLICATION_GROUP_NOT_FOUND_ERROR = "Group not found %s"
 GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR = "Group master not found %s"
 
@@ -79,8 +77,6 @@ def stop_group_slaves(master_group_id,  clear_ref):
 
     :param master_group_id: The master group ID.
     """
-    #TODO: call stop_group_slave from here. Do not duplicate
-    #TODO: code to stop the slaves.
     master_group = Group.fetch(master_group_id)
     if master_group is None:
         raise _errors.GroupError \
@@ -110,8 +106,6 @@ def stop_group_slaves(master_group_id,  clear_ref):
     if clear_ref:
         master_group.remove_slave_group_ids()
 
-#TODO: explore to see if the group_master_id can be obtained from
-#TODO: the group_slave_id.
 def stop_group_slave(group_master_id,  group_slave_id,  clear_ref):
     """Stop the slave on the slave group. This utility method is the
     completement of the setup_group_replication method and is
@@ -207,8 +201,6 @@ def setup_group_replication(group_master_id,  group_slave_id):
 
     _replication.switch_master(slave, master, master.user, master.passwd)
 
-    #TODO: Explore if wait can be false below.
-    #Start the slave.
     _replication.start_slave(slave, wait=True)
 
     try:
