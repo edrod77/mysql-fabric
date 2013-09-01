@@ -21,21 +21,14 @@ on the global server.
 
 import unittest
 import uuid as _uuid
-
-from mysql.fabric import (
-    executor as _executor,
-    errors as _errors,
-    persistence as _persistence,
-    sharding as _sharding,
-    replication as _replication,
-)
-
 import time
-
-from mysql.fabric.server import Group, MySQLServer
-
 import tests.utils
 
+from mysql.fabric import executor as _executor
+from mysql.fabric.server import (
+    Group,
+    MySQLServer,
+)
 from tests.utils import MySQLInstances
 
 class TestShardingPrune(unittest.TestCase):

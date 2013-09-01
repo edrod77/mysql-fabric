@@ -20,18 +20,11 @@
 import re
 import unittest
 import uuid as _uuid
+import tests.utils
 
-from collections import namedtuple
-
-from mysql.fabric import (
-    errors as _errors,
-    persistence as persistence,
-    )
-
+from mysql.fabric import errors as _errors
 from mysql.fabric.server import MySQLServer
 from mysql.fabric.replication import *
-
-import tests.utils
 
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),

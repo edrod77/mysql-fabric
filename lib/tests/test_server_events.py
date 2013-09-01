@@ -19,14 +19,12 @@
 """
 import unittest
 import uuid as _uuid
+import tests.utils
 
 from mysql.fabric import (
     executor as _executor,
     server as _server,
-    persistence as _persistence,
-    )
-
-import tests.utils
+)
 
 class TestServerServices(unittest.TestCase):
     "Test server service interface"

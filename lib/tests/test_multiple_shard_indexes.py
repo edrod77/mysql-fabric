@@ -17,17 +17,14 @@
 
 import unittest
 import uuid as _uuid
-
-from mysql.fabric import (
-    executor as _executor,
-    persistence as _persistence,
-)
-
-from mysql.fabric.server import Group, MySQLServer
-
 import tests.utils
 
 from tests.utils import MySQLInstances
+from mysql.fabric import executor as _executor
+from mysql.fabric.server import (
+    Group,
+    MySQLServer,
+)
 
 class TestShardingServices(unittest.TestCase):
 
@@ -326,20 +323,20 @@ class TestShardingServices(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        status = self.proxy.sharding.disable_shard(1)
-        status = self.proxy.sharding.remove_shard(1)
+        self.proxy.sharding.disable_shard(1)
+        self.proxy.sharding.remove_shard(1)
 
-        status = self.proxy.sharding.disable_shard(2)
-        status = self.proxy.sharding.remove_shard(2)
+        self.proxy.sharding.disable_shard(2)
+        self.proxy.sharding.remove_shard(2)
 
-        status = self.proxy.sharding.disable_shard(3)
-        status = self.proxy.sharding.remove_shard(3)
+        self.proxy.sharding.disable_shard(3)
+        self.proxy.sharding.remove_shard(3)
 
-        status = self.proxy.sharding.disable_shard(4)
-        status = self.proxy.sharding.remove_shard(4)
+        self.proxy.sharding.disable_shard(4)
+        self.proxy.sharding.remove_shard(4)
 
-        status = self.proxy.sharding.disable_shard(5)
-        status = self.proxy.sharding.remove_shard(5)
+        self.proxy.sharding.disable_shard(5)
+        self.proxy.sharding.remove_shard(5)
 
         tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)

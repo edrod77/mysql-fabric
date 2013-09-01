@@ -17,16 +17,13 @@
 
 import unittest
 import uuid as _uuid
-
-from mysql.fabric import (
-    executor as _executor,
-    persistence as _persistence,
-)
-
-from mysql.fabric.server import Group, MySQLServer
-
 import tests.utils
 
+from mysql.fabric import executor as _executor
+from mysql.fabric.server import (
+    Group,
+    MySQLServer,
+)
 from tests.utils import MySQLInstances
 
 class TestShardingServices(unittest.TestCase):
@@ -218,8 +215,6 @@ class TestShardingServices(unittest.TestCase):
             status[1][-1]["description"],
             "Tried to execute action (_add_shard)."
         )
-
-    
 
     def test_define_shard_mapping_wrong_sharding_type(self):
         #Use an invalid sharding type (WRONG)

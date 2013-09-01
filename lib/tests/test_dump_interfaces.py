@@ -17,15 +17,19 @@
 
 import unittest
 import uuid as _uuid
-import mysql.fabric.sharding as _sharding
-import mysql.fabric.errors as _errors
 import tests.utils
 
-from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification, Shards
-from mysql.fabric.server import Group, MySQLServer
-from mysql.fabric import persistence, server_utils
-
-from tests.utils import ShardingUtils, MySQLInstances
+from mysql.fabric.sharding import (
+    ShardMapping,
+    RangeShardingSpecification,
+    Shards,
+)
+from mysql.fabric.server import (
+    Group,
+    MySQLServer,
+)
+from mysql.fabric import server_utils
+from tests.utils import MySQLInstances
 
 class TestSharding(unittest.TestCase):
 
@@ -95,17 +99,17 @@ class TestSharding(unittest.TestCase):
         self.__group_3.add_server(self.__server_6)
         self.__group_3.master = self.__options_5["uuid"]
 
-        self.__options_1_host,  self.__options_1_port =\
+        self.__options_1_host,  self.__options_1_port = \
             server_utils.split_host_port(self.__options_1["address"], 13001)
-        self.__options_2_host,  self.__options_2_port =\
+        self.__options_2_host,  self.__options_2_port = \
             server_utils.split_host_port(self.__options_2["address"], 13001)
-        self.__options_3_host,  self.__options_3_port =\
+        self.__options_3_host,  self.__options_3_port = \
             server_utils.split_host_port(self.__options_3["address"], 13001)
-        self.__options_4_host,  self.__options_4_port =\
+        self.__options_4_host,  self.__options_4_port = \
             server_utils.split_host_port(self.__options_4["address"], 13001)
-        self.__options_5_host,  self.__options_5_port =\
+        self.__options_5_host,  self.__options_5_port = \
             server_utils.split_host_port(self.__options_5["address"], 13001)
-        self.__options_6_host,  self.__options_6_port =\
+        self.__options_6_host,  self.__options_6_port = \
             server_utils.split_host_port(self.__options_6["address"], 13001)
 
         group_4 = Group("GROUPID4", "4TH description.")
@@ -284,7 +288,7 @@ class TestSharding(unittest.TestCase):
         self.__setoftables_1 = [0, 0, 0, [['db1', 't1', 'userID1', '1']]]
         self.__setoftables_2 = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
                                  ['db2', 't2', 'userID2', '2']]]
-        self.__setoftables_3 =[0, 0, 0, [['db1', 't1', 'userID1', '1'],
+        self.__setoftables_3 = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
                                 ['db2', 't2', 'userID2', '2'],
                                 ['db3', 't3', 'userID3', '3']]]
         self.__setofshardmaps = [0, 0, 0, [['1', 'RANGE', 'GROUPID10'],

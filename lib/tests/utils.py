@@ -19,21 +19,20 @@
 """
 import glob
 import os
-import threading
-import time
 import uuid as _uuid
 import xmlrpclib
 import logging
 
 from mysql.fabric import (
-    config as _config,
-    persistence as _persistence,
     replication as _replication,
     server as _server,
     utils as _utils,
-    )
-
-from mysql.fabric.sharding import ShardMapping, RangeShardingSpecification,  HashShardingSpecification
+)
+from mysql.fabric.sharding import (
+    ShardMapping,
+    RangeShardingSpecification,
+    HashShardingSpecification,
+)
 
 _LOGGER = logging.getLogger(__name__)
 

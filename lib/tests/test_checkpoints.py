@@ -20,6 +20,7 @@
 """
 import unittest
 import uuid as _uuid
+import tests.utils
 
 from mysql.fabric import (
     events as _events,
@@ -27,9 +28,7 @@ from mysql.fabric import (
     persistence as _persistence,
     checkpoint as _checkpoint,
     recovery as _recovery,
-    )
-
-import tests.utils
+)
 
 EVENT_CHECK_PROPERTIES_1 = _events.Event("EVENT_CHECK_PROPERTIES_1")
 EVENT_CHECK_PROPERTIES_2 = _events.Event("EVENT_CHECK_PROPERTIES_2")
@@ -156,6 +155,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         # Get the result (Checkpoint object) from the procedure.
         self.assertEqual(len(procedures), 2)
         result = None
+        procedure = None
         for procedure in procedures:
             procedure.wait()
             result = procedure.result
@@ -184,6 +184,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         # Get the result (Checkpoint object) from the procedure.
         self.assertEqual(len(procedures), 1)
         result = None
+        procedure = None
         for procedure in procedures:
             procedure.wait()
             result = procedure.result
@@ -210,6 +211,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         # Get the result (Checkpoint object) from the procedure.
         self.assertEqual(len(procedures), 1)
         result = None
+        procedure = None
         for procedure in procedures:
             procedure.wait()
             result = procedure.result
@@ -242,6 +244,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         # Get the result (Checkpoint object) from the procedure.
         self.assertEqual(len(procedures), 1)
         result = None
+        procedure = None
         for procedure in procedures:
             procedure.wait()
             result = procedure.result
@@ -268,6 +271,7 @@ class TestPropertiesCheckpoint(unittest.TestCase):
         # Get the result (Checkpoint object) from the procedure.
         self.assertEqual(len(procedures), 1)
         result = None
+        procedure = None
         for procedure in procedures:
             procedure.wait()
             result = procedure.result
@@ -496,7 +500,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
             )
         scheduled_2 = _checkpoint.Checkpoint(
             proc_uuid, lockable_objects, job_uuid_scheduled_2,
-            do_action_scheduled_1_fqn, args, kwargs
+            do_action_scheduled_2_fqn, args, kwargs
             )
         checkpoint.schedule()
         checkpoint.begin()
@@ -529,21 +533,18 @@ class TestRecoveryCheckpoint(unittest.TestCase):
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_1)
 def check_properties_1(param_01, param_02):
-    executor = _executor.Executor()
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_2)
 def check_properties_2_proc_1(param_01, param_02):
-    executor = _executor.Executor()
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_2)
 def check_properties_2_proc_2(param_01, param_02):
-    executor = _executor.Executor()
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
@@ -554,7 +555,6 @@ def check_properties_3(param_01, param_02):
         EVENT_CHECK_PROPERTIES_1, set(["lock"]), "NEW 01", "NEW 02"
         )
 
-    executor = _executor.Executor()
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
@@ -571,7 +571,6 @@ def check_properties_5(param_01, param_02):
         EVENT_CHECK_PROPERTIES_2, set(["lock"]), "NEW 01", "NEW 02"
         )
 
-    executor = _executor.Executor()
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint

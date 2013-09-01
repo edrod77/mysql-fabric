@@ -17,16 +17,22 @@
 
 import unittest
 import uuid as _uuid
-import mysql.fabric.sharding as _sharding
 import tests.utils
 
-from mysql.fabric.sharding import ShardMapping, HashShardingSpecification, Shards
-from mysql.fabric.server import Group, MySQLServer
-from mysql.fabric import (
-    executor as _executor,
+from mysql.fabric.sharding import (
+    ShardMapping,
+    HashShardingSpecification,
+    Shards,
 )
-
-from tests.utils import ShardingUtils, MySQLInstances
+from mysql.fabric.server import (
+    Group,
+    MySQLServer,
+)
+from mysql.fabric import executor as _executor
+from tests.utils import (
+    ShardingUtils,
+    MySQLInstances,
+)
 
 class TestHashSharding(unittest.TestCase):
     def assertStatus(self, status, expect):
@@ -391,7 +397,7 @@ class TestHashSharding(unittest.TestCase):
         self.assertTrue((cnt1 + cnt2 + cnt3 + cnt4 + cnt5) == 500)
 
     def test_prune_lookup(self):
-        status = self.proxy.sharding.prune_shard("db1.t1")
+        self.proxy.sharding.prune_shard("db1.t1")
         rows =  self.__server_2.exec_stmt(
                                             "SELECT userID FROM db1.t1",
                                             {"fetch" : True})

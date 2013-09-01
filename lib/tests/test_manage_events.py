@@ -17,17 +17,11 @@
 
 import unittest
 import sys
-
-from cStringIO import StringIO
-
-from mysql.fabric import (
-    command as _command,
-    persistence as _persistence,
-)
-
+import tests.utils
 import mysql.fabric.services.manage as _manage
 
-import tests.utils
+from cStringIO import StringIO
+from mysql.fabric import command as _command
 
 some_commands = (
     "test non_doc_command_1\n"

@@ -16,24 +16,16 @@
 #
 
 import unittest
-import uuid as _uuid
+import tests.utils
 
+from tests.utils import MySQLInstances
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
     group_replication as _group_replication,
-    persistence as _persistence,
-    sharding as _sharding,
     replication as _replication,
 )
-
-from time import time, sleep
-
-from mysql.fabric.server import Group, MySQLServer
-
-import tests.utils
-
-from tests.utils import MySQLInstances
+from mysql.fabric.server import MySQLServer
 
 class TestShardingPrune(unittest.TestCase):
 

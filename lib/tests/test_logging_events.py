@@ -18,9 +18,6 @@
 """Unit tests for administrative on servers.
 """
 import unittest
-
-import mysql.fabric.persistence as _persistence
-
 import tests.utils
 
 class TestLoggingServices(unittest.TestCase):

@@ -18,14 +18,12 @@
 """Unit tests for the event handler.
 """
 import unittest
+import tests.utils
 
 from mysql.fabric import (
     errors as _errors,
     events as _events,
-    persistence as _persistence,
-    )
-
-import tests.utils
+)
 
 _TEST1 = None
 
@@ -163,12 +161,12 @@ class TestHandler(unittest.TestCase):
         # Check that temporary, unnamed events, also work by
         # registering a bunch of callables with a temporary event
         callables = [ Callable(n) for n in range(0, 2) ]
-        my_event = _events.Event("TestEvent")
-        self.handler.register(my_event, callables)
+        my_event_var = _events.Event("TestEvent")
+        self.handler.register(my_event_var, callables)
 
         # Trigger the event and wait for all jobs to finish
         jobs = self.handler.trigger(
-            False, my_event, set(["lock"]), 3, ""
+            False, my_event_var, set(["lock"]), 3, ""
         )
         for job in jobs:
             job.wait()

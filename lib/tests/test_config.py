@@ -21,12 +21,9 @@
 import os.path
 import unittest
 import urlparse
-
-import tests
 import mysql.fabric.config as _config
 
 from mysql.fabric.options import OptionParser
-
 
 def _resolve_config(config_file):
     return os.path.abspath(

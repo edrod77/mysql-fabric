@@ -16,24 +16,15 @@
 #
 
 import unittest
-import uuid as _uuid
-
-from mysql.fabric import (
-    executor as _executor,
-    errors as _errors,
-    persistence as _persistence,
-    sharding as _sharding,
-    replication as _replication,
-)
-
-from time import time, sleep
-
-from mysql.fabric.server import Group, MySQLServer
-from mysql.fabric.sharding import ShardMapping, HashShardingSpecification, Shards
-
 import tests.utils
 
-from tests.utils import MySQLInstances, ShardingUtils
+from tests.utils import (
+    MySQLInstances,
+    ShardingUtils,
+)
+from mysql.fabric import executor as _executor
+from mysql.fabric.server import MySQLServer
+from mysql.fabric.sharding import HashShardingSpecification
 
 class TestShardSplit(unittest.TestCase):
 

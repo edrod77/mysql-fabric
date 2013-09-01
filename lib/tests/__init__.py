@@ -15,10 +15,15 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
+"""This module fetches all test cases that can be loaded and imported in
+the current namespace.
+"""
 import os.path
 import glob
 
 def fetch_modules():
+    """Fetch all test cases in the current namespace.
+    """
     result = []
     here = os.path.dirname(os.path.realpath(__file__))
     for path in glob.glob(os.path.join(here, '*.py')):

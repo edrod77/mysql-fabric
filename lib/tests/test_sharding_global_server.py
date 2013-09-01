@@ -16,23 +16,15 @@
 #
 
 import unittest
-import uuid as _uuid
+import tests.utils
 
+from time import sleep
+from tests.utils import MySQLInstances
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
-    persistence as _persistence,
-    sharding as _sharding,
-    replication as _replication,
 )
-
-from time import time, sleep
-
-from mysql.fabric.server import Group, MySQLServer
-
-import tests.utils
-
-from tests.utils import MySQLInstances
+from mysql.fabric.server import MySQLServer
 
 class TestShardingGlobalServer(unittest.TestCase):
 
@@ -564,18 +556,18 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(3)
 
         try:
-            rows = shard_server_1.exec_stmt(
-                                    "SELECT NAME FROM global_db.global_table",
-                                    {"fetch" : True})
+            shard_server_1.exec_stmt(
+                "SELECT NAME FROM global_db.global_table", {"fetch" : True}
+                )
             raise Exception("Disable Shard failed to remove shard.")
         except _errors.DatabaseError:
             #Expected
             pass
 
         try:
-            rows =shard_server_2.exec_stmt(
-                                    "SELECT NAME FROM global_db.global_table",
-                                    {"fetch" : True})
+            shard_server_2.exec_stmt(
+                "SELECT NAME FROM global_db.global_table", {"fetch" : True}
+            )
             raise Exception("Disable Shard failed to remove shard.")
         except _errors.DatabaseError:
             #Expected
@@ -701,7 +693,7 @@ class TestShardingGlobalServer(unittest.TestCase):
                 shard_uuid = obtained_server_list[idx][0]
                 shard_server = MySQLServer.fetch(shard_uuid)
                 shard_server.connect()
-                rows = shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
+                shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
 
         status = self.proxy.sharding.disable_shard("1")
         self.assertStatus(status, _executor.Job.SUCCESS)

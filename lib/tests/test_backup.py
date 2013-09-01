@@ -17,18 +17,11 @@
 
 import unittest
 import uuid as _uuid
-
-import mysql.fabric.server_utils as _server_utils
-
-import os
-
 import tests.utils
 
-from mysql.fabric.backup import BackupImage,  MySQLDump
-from mysql.fabric.server import Group, MySQLServer
-import mysql.fabric.persistence as _persistence
-
 from tests.utils import MySQLInstances
+from mysql.fabric.backup import MySQLDump
+from mysql.fabric.server import MySQLServer
 
 class TestBackupMySQLDump(unittest.TestCase):
     """Test taking a backup from a source group to a destination group. The

@@ -19,13 +19,10 @@
 """
 import unittest
 import uuid as _uuid
-
+import tests.utils
 import mysql.fabric.executor as _executor
 import mysql.fabric.server as _server
 import mysql.fabric.replication as _repl
-import mysql.fabric.persistence as _persistence
-
-import tests.utils
 
 from mysql.fabric.server import Group
 

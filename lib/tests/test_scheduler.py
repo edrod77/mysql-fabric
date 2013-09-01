@@ -19,7 +19,6 @@
 """
 import unittest
 import logging
-import uuid
 import threading
 import time
 
@@ -43,8 +42,8 @@ class Run(threading.Thread):
             procedure = self.scheduler.get(self.procedure)
             assert(procedure is not None)
             while True:
-               time.sleep(1)
-        except _errors.LockManagerError as error:
+                time.sleep(1)
+        except _errors.LockManagerError:
             pass
 
 class TestScheduler(unittest.TestCase):

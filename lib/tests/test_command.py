@@ -16,20 +16,14 @@
 #
 
 import unittest
-import sys
 import re
+import tests.utils
 
-from cStringIO import StringIO
-
-import mysql.fabric.persistence as _persistence
 import mysql.fabric.command as _command
-import mysql.fabric.services as _services
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
 import mysql.fabric.config as _config
 import mysql.fabric.events as _events
 import mysql.fabric.executor as _executor
-
-import tests.utils
 
 class NewCommand(_command.Command):
     command_options = [

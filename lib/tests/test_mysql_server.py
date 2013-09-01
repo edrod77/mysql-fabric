@@ -20,14 +20,16 @@
 import re
 import unittest
 import uuid as _uuid
-
+import tests.utils
 import mysql.fabric.errors as _errors
 import mysql.fabric.persistence as persistence
 import mysql.fabric.server_utils as _server_utils
 
-from mysql.fabric.server import MySQLServer, Group, ConnectionPool
-
-import tests.utils
+from mysql.fabric.server import (
+    MySQLServer,
+    Group,
+    ConnectionPool,
+)
 
 OPTIONS = {
     "uuid" : None,
@@ -130,7 +132,6 @@ class TestMySQLServer(unittest.TestCase):
         server.connect()
 
         for record in server.get_gtid_status():
-            executed = record.GTID_EXECUTED.lower()
             self.assertEqual(record.GTID_EXECUTED, "")
             self.assertEqual(record.GTID_PURGED, "")
             self.assertEqual(record.GTID_OWNED, "")

@@ -20,14 +20,12 @@
 import unittest
 import logging
 import uuid
-
 import tests
 
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
-    persistence as _persistence,
-    )
+)
 
 count = []
 other = None

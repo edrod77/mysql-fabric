@@ -19,17 +19,13 @@
 highavailability module.
 """
 import unittest
-import uuid as _uuid
-
-import mysql.fabric.executor as _executor
-import mysql.fabric.server as _server
-import mysql.fabric.replication as _repl
-import mysql.fabric.persistence as _persistence
-import mysql.fabric.errors as _errors
-
 import tests.utils
 
-from mysql.fabric.server import Group
+from mysql.fabric import (
+    executor as _executor,
+    replication as _repl,
+    errors as _errors,
+)
 
 class TestReplicationUse(unittest.TestCase):
 
