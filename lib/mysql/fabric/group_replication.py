@@ -263,7 +263,7 @@ def server_running(server):
 
     :param server: The MySQLServer object who's status needs to be checked.
 
-    :return True if server is in the running state.
+    :return: True if server is in the running state.
             False otherwise.
     """
     if server.status in [MySQLServer.OFFLINE, MySQLServer.FAULTY]:
