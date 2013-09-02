@@ -40,6 +40,7 @@ import mysql.fabric.errors as _errors
 
 GROUP_REPLICATION_GROUP_NOT_FOUND_ERROR = "Group not found %s"
 GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR = "Group master not found %s"
+GROUP_MASTER_NOT_RUNNING = "Group master not running %s"
 
 def start_group_slaves(master_group_id):
     """Start the slave groups for the given master group. The
@@ -95,7 +96,15 @@ def stop_group_slaves(master_group_id,  clear_ref):
             raise _errors.GroupError \
             (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
               (slave_group.master, ))
-        slave_group_master.connect()
+        if not server_running(slave_group_master):
+            #The server is already down. we cannot connect to it to stop
+            #replication.
+            continue
+        try:
+            slave_group_master.connect()
+        except _errors.DatabaseError:
+            #Server is not accessible, unable to connect to the server.
+            continue
         _replication.stop_slave(slave_group_master, wait=True)
         #Reset the slave to remove the reference of the master so
         #that when the server is used as a slave next it does not
@@ -139,9 +148,19 @@ def stop_group_slave(group_master_id,  group_slave_id,  clear_ref):
              raise _errors.GroupError \
              (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR %
                (slave_group.master, ))
+
+    if not server_running(slave_group_master):
+        #The server is already down. We cannot connect to it to stop
+        #replication.
+        return
+    try:
+        slave_group_master.connect()
+    except _errors.DatabaseError:
+        #Server is not accessible, unable to connect to the server.
+        return
+
     #Stop replication on the master of the group and clear the references,
     #if clear_ref has been set.
-    slave_group_master.connect()
     _replication.stop_slave(slave_group_master, wait=True)
     _replication.reset_slave(slave_group_master,  clean=True)
     if clear_ref:
@@ -191,8 +210,33 @@ def setup_group_replication(group_master_id,  group_slave_id):
          (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
          (group_slave.master, ))
 
-    master.connect()
-    slave.connect()
+    if not server_running(master):
+        #The server is already down. We cannot connect to it to setup
+        #replication.
+            raise _errors.GroupError \
+                (GROUP_MASTER_NOT_RUNNING % (group_master.group_id, ))
+
+    try:
+        master.connect()
+    except _errors.DatabaseError:
+        #Server is not accessible, unable to connect to the server.
+        raise _errors.GroupError \
+            (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
+            (group_slave.master, ))
+
+    if not server_running(slave):
+        #The server is already down. We cannot connect to it to setup
+        #replication.
+        raise _errors.GroupError \
+            (GROUP_MASTER_NOT_RUNNING % (group_slave.group_id, ))
+
+    try:
+        slave.connect()
+    except _errors.DatabaseError:
+        #Server is not accessible, unable to connect to the server.
+        raise _errors.GroupError \
+            (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
+            (group_master.master, ))
 
     _replication.stop_slave(slave, wait=True)
 
@@ -213,3 +257,15 @@ def setup_group_replication(group_master_id,  group_slave_id):
         #is happening because the group was already registered.
         #Ignore this error.
         pass
+
+def server_running(server):
+    """Check if the server is in the running state.
+
+    :param server: The MySQLServer object who's status needs to be checked.
+
+    :return True if server is in the running state.
+            False otherwise.
+    """
+    if server.status in [MySQLServer.OFFLINE, MySQLServer.FAULTY]:
+        return False
+    return True
