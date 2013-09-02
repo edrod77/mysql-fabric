@@ -367,19 +367,26 @@ class ShardMapping(_persistence.Persistable):
         :param shard_mapping_id: The shard mapping id for which the sharding
                             specification is being queried.
         :param persister: A valid handle to the state store.
-        :return: The ShardMapping object that encapsulates the shard mapping
+        :return: The ShardMapping objects that encapsulates the shard mapping
                     information for the given shard mapping ID.
         """
+        #When there are several tables related (sharded) by the same key defn,
+        #we will have multiple shard mappings for the same shard mapping key.
+        shard_mapping_list = []
+
         cur = persister.exec_stmt(
                                   ShardMapping.SELECT_SHARD_MAPPING_BY_ID,
                                   {"raw" : False,
                                   "fetch" : False,
                                   "params" : (shard_mapping_id,)})
-        row = cur.fetchone()
-        if row:
-            return ShardMapping(row[0], row[1], row[2], row[3], row[4])
+        rows = cur.fetchall()
 
-        return None
+        for row in rows:
+            shard_mapping_list.append(
+                ShardMapping(row[0], row[1], row[2], row[3], row[4])
+            )
+
+        return shard_mapping_list
 
     @staticmethod
     def fetch_shard_mapping_defn(shard_mapping_id, persister=None):
@@ -1252,10 +1259,12 @@ class RangeShardingSpecification(_persistence.Persistable):
     @staticmethod
     def prune_shard_id(shard_id):
         """Remove the rows in the shard that do not match the metadata
-        in the shard_range tables.
+        in the shard_range tables. When the rows are being removed
+        foreign key checks will be disabled.
 
         :param shard_id: The ID of the shard that needs to be pruned.
         """
+
         range_sharding_spec = RangeShardingSpecification.fetch(shard_id)
         if range_sharding_spec is None:
             raise _errors.ShardingError("No shards associated with this"
@@ -1268,53 +1277,62 @@ class RangeShardingSpecification(_persistence.Persistable):
                             range_sharding_spec.shard_mapping_id
                         )
 
-        shard_mapping = \
+        shard_mappings = \
             ShardMapping.fetch_by_id(range_sharding_spec.shard_mapping_id)
-        if shard_mapping is None:
+        if shard_mappings is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
-        table_name = shard_mapping.table_name
+        #There may be multiple tables sharded by the same sharding defns. We
+        #need to run prune for all of them.
+        for shard_mapping in shard_mappings:
+            table_name = shard_mapping.table_name
 
-        if upper_bound is not None:
-            delete_query = ("DELETE FROM %s WHERE %s < %s OR %s >= %s") % (
-                table_name,
-                shard_mapping.column_name,
-                range_sharding_spec.lower_bound,
-                shard_mapping.column_name,
-                upper_bound
-            )
-        else:
-            delete_query = ("DELETE FROM %s WHERE %s < %s") % (
-                table_name,
-                shard_mapping.column_name,
-                range_sharding_spec.lower_bound
-            )
+            if upper_bound is not None:
+                delete_query = ("DELETE FROM %s WHERE %s < %s OR %s >= %s") % (
+                    table_name,
+                    shard_mapping.column_name,
+                    range_sharding_spec.lower_bound,
+                    shard_mapping.column_name,
+                    upper_bound
+                )
+            else:
+                delete_query = ("DELETE FROM %s WHERE %s < %s") % (
+                    table_name,
+                    shard_mapping.column_name,
+                    range_sharding_spec.lower_bound
+                )
 
-        shard = Shards.fetch(range_sharding_spec.shard_id)
-        if shard is None:
-            raise _errors.ShardingError(
-                "Shard not found (%s)" %
-                (range_sharding_spec.shard_id, )
-            )
+            shard = Shards.fetch(range_sharding_spec.shard_id)
+            if shard is None:
+                raise _errors.ShardingError(
+                    "Shard not found (%s)" %
+                    (range_sharding_spec.shard_id, )
+                )
 
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(
-                "Group not found (%s)" %
-                (shard.group_id, )
-            )
+            group = Group.fetch(shard.group_id)
+            if group is None:
+                raise _errors.ShardingError(
+                    "Group not found (%s)" %
+                    (shard.group_id, )
+                )
 
-        master = MySQLServer.fetch(group.master)
-        if master is None:
-            raise _errors.ShardingError(
-                "Group Master not found (%s)" %
-                (str(group.master))
-            )
+            master = MySQLServer.fetch(group.master)
+            if master is None:
+                raise _errors.ShardingError(
+                    "Group Master not found (%s)" %
+                    (str(group.master))
+                )
 
-        master.connect()
+            master.connect()
 
-        master.exec_stmt(delete_query)
-
+            #Dependencies between tables being pruned may lead to the prune
+            #failing. Hence we need to disable foreign key checks during the
+            #pruning process.
+            master.set_foreign_key_checks(False)
+            #Perform the pruning of the table
+            master.exec_stmt(delete_query)
+            #Enable Foreign Key Checking
+            master.set_foreign_key_checks(True)
 
 class HashShardingSpecification(RangeShardingSpecification):
     #Insert a HASH of keys and the server to which they belong.
@@ -1426,7 +1444,16 @@ class HashShardingSpecification(RangeShardingSpecification):
         """Fetch the maximum value of the key in this shard. This will
         be used for the shards in the boundary that do not have a upper_bound
         to compare with.
+
+        @param shard_id: The ID of the shard, from which the maximum value
+                        of the tables need to be returned.
+
+        :return: A dictionary of maximum values belonging to each of the tables
+                in the shard.
         """
+        #Store the list of max_keys from all the tables that belong to this shard.
+        max_keys = []
+
         hash_sharding_spec = HashShardingSpecification.fetch(shard_id)
         if hash_sharding_spec is None:
             raise _errors.ShardingError("No shards associated with this"
@@ -1434,53 +1461,67 @@ class HashShardingSpecification(RangeShardingSpecification):
 
         shard = Shards.fetch(shard_id)
 
-        shard_mapping = \
+        shard_mappings = \
             ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
-        if shard_mapping is None:
+        if shard_mappings is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
-        max_query = "SELECT HEX(MD5(MAX(%s))) FROM %s" % \
-                    (
-                    shard_mapping.column_name,
-                    shard_mapping.table_name
-                    )
+        for shard_mapping in shard_mappings:
+            max_query = "SELECT HEX(MD5(MAX(%s))) FROM %s" % \
+                        (
+                        shard_mapping.column_name,
+                        shard_mapping.table_name
+                        )
 
-        shard = Shards.fetch(shard_id)
-        if shard is None:
-            raise _errors.ShardingError(
-                "Shard not found (%s)" %
-                (hash_sharding_spec.shard_id, )
-            )
+            shard = Shards.fetch(shard_id)
+            if shard is None:
+                raise _errors.ShardingError(
+                    "Shard not found (%s)" %
+                    (hash_sharding_spec.shard_id, )
+                )
 
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(
-                "Group not found (%s)" %
-                (shard.group_id, )
-            )
+            group = Group.fetch(shard.group_id)
+            if group is None:
+                raise _errors.ShardingError(
+                    "Group not found (%s)" %
+                    (shard.group_id, )
+                )
 
-        master = MySQLServer.fetch(group.master)
-        if master is None:
-            raise _errors.ShardingError(
-                "Group Master not found (%s)" %
-                (group.master, )
-            )
+            master = MySQLServer.fetch(group.master)
+            if master is None:
+                raise _errors.ShardingError(
+                    "Group Master not found (%s)" %
+                    (group.master, )
+                )
 
-        master.connect()
+            master.connect()
 
-        cur = master.exec_stmt(
-                        max_query,
-                        {"raw" : False,
-                        "fetch" : False,
-                        }
-                    )
+            cur = master.exec_stmt(
+                            max_query,
+                            {"raw" : False,
+                            "fetch" : False,
+                            }
+                        )
 
-        row = cur.fetchone()
+            row = cur.fetchone()
 
-        if row is None:
-            return None
+            if row is not None:
+                max_keys.append(row[0])
 
-        return row[0]
+        #max_keys stores  all the maximum values in all the tables. We will
+        #fetch the maximum values among all these values and use it as the
+        #maximum values for the given shard_id.
+        max_key = None
+        for key in max_keys:
+            if max_key is None:
+                max_key = key
+            elif int(key, 16) > int(max_key, 16):
+                max_key = key
+            else:
+                pass
+        #Return the maximum value among all the maximum values from
+        #all the tables.
+        return max_key
 
     @staticmethod
     def add(shard_mapping_id, shard_id, persister=None):
@@ -1721,6 +1762,7 @@ class HashShardingSpecification(RangeShardingSpecification):
 
         :param shard_id: The ID of the shard that needs to be pruned.
         """
+
         hash_sharding_spec = HashShardingSpecification.fetch(shard_id)
         if hash_sharding_spec is None:
             raise _errors.ShardingError("No shards associated with this"
@@ -1733,72 +1775,74 @@ class HashShardingSpecification(RangeShardingSpecification):
                             hash_sharding_spec.shard_mapping_id
                         )
 
-        shard_mapping = \
+        shard_mappings = \
             ShardMapping.fetch_by_id(hash_sharding_spec.shard_mapping_id)
-        if shard_mapping is None:
+        if shard_mappings is None:
             raise _errors.ShardingError("Shard Mapping not found.")
 
-        table_name = shard_mapping.table_name
+        for shard_mapping in shard_mappings:
+            table_name = shard_mapping.table_name
 
-        if upper_bound is not None:
-            delete_query = (
-                "DELETE FROM %s "
-                "WHERE "
-                "MD5(%s) < '%s' "
-                "OR "
-                "MD5(%s) >= '%s'"
-            ) % (
-                table_name,
-                shard_mapping.column_name,
-                hash_sharding_spec.lower_bound,
-                shard_mapping.column_name,
-                upper_bound
-            )
-        else:
-            #HASH based sharding forms a circular ring. Hence
-            #when there is no upper_bound, all the values, that
-            #circle around from the largest lower_bound to the
-            #least upper_bound need to be present in this shard.
-            delete_query = ("DELETE FROM %s "
-                "WHERE "
-                "MD5(%s) >= '%s' "
-                "AND "
-                "MD5(%s) < '%s'"
-            ) % (
-                table_name,
-                shard_mapping.column_name,
-                HashShardingSpecification.fetch_least_lower_bound(
-                    shard_mapping.shard_mapping_id
-                ),
-                shard_mapping.column_name,
-                hash_sharding_spec.lower_bound
-            )
+            if upper_bound is not None:
+                delete_query = (
+                    "DELETE FROM %s "
+                    "WHERE "
+                    "MD5(%s) < '%s' "
+                    "OR "
+                    "MD5(%s) >= '%s'"
+                ) % (
+                    table_name,
+                    shard_mapping.column_name,
+                    hash_sharding_spec.lower_bound,
+                    shard_mapping.column_name,
+                    upper_bound
+                )
+            else:
+                #HASH based sharding forms a circular ring. Hence
+                #when there is no upper_bound, all the values, that
+                #circle around from the largest lower_bound to the
+                #least upper_bound need to be present in this shard.
+                delete_query = ("DELETE FROM %s "
+                    "WHERE "
+                    "MD5(%s) >= '%s' "
+                    "AND "
+                    "MD5(%s) < '%s'"
+                ) % (
+                    table_name,
+                    shard_mapping.column_name,
+                    HashShardingSpecification.fetch_least_lower_bound(
+                        shard_mapping.shard_mapping_id
+                    ),
+                    shard_mapping.column_name,
+                    hash_sharding_spec.lower_bound
+                )
 
-        shard = Shards.fetch(hash_sharding_spec.shard_id)
-        if shard is None:
-            raise _errors.ShardingError(
-                "Shard not found (%s)" %
-                (hash_sharding_spec.shard_id, )
-            )
+            shard = Shards.fetch(hash_sharding_spec.shard_id)
+            if shard is None:
+                raise _errors.ShardingError(
+                    "Shard not found (%s)" %
+                    (hash_sharding_spec.shard_id, )
+                )
 
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(
-                "Group not found (%s)" %
-                (shard.group_id, )
-            )
+            group = Group.fetch(shard.group_id)
+            if group is None:
+                raise _errors.ShardingError(
+                    "Group not found (%s)" %
+                    (shard.group_id, )
+                )
 
-        master = MySQLServer.fetch(group.master)
-        if master is None:
-            raise _errors.ShardingError(
-                "Group Master not found (%s)" %
-                (group.master, )
-            )
+            master = MySQLServer.fetch(group.master)
+            if master is None:
+                raise _errors.ShardingError(
+                    "Group Master not found (%s)" %
+                    (group.master, )
+                )
 
-        master.connect()
+            master.connect()
 
-        master.exec_stmt(delete_query)
-
+            master.set_foreign_key_checks(False)
+            master.exec_stmt(delete_query)
+            master.set_foreign_key_checks(True)
 
 class MappingShardsGroups(_persistence.Persistable):
     """This class defines queries that are used to retrieve information

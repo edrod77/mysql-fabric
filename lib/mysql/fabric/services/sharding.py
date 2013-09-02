@@ -336,7 +336,10 @@ class PruneShardTables(ProcedureShard):
     command_name = "prune_shard"
     def execute(self, table_name, synchronous=True):
         """Given the table name prune the tables according to the defined
-        sharding specification for the table.
+        sharding specification for the table. The command prunes all the
+        tables that are part of this shard. There might be multiple tables that
+        are part of the same shard, these tables will be related together by
+        the same sharding key.
 
         :param table_name: The table that needs to be sharded.
         :param synchronous: Whether one should wait until the execution finishes
@@ -841,11 +844,14 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     """
 
     if cmd == "SPLIT":
-        range_sharding_spec, shard,  shard_mapping,  shard_mapping_defn = \
+        range_sharding_spec, shard,  shard_mappings,  shard_mapping_defn = \
             _verify_and_fetch_shard(shard_id)
 
-        #If the underlying sharding scheme is a HASH
-        if shard_mapping.type_name == "HASH":
+        #If the underlying sharding scheme is a HASH. When a shard is split, all
+        #the tables that are part of the shard, have the same sharding scheme.
+        #All the shard mappings associated with this shard_id will be of the
+        #same sharding type. Hence it is safe to use one of the shard mappings.
+        if shard_mappings[0].type_name == "HASH":
             #Calculate the split. The split indicates the point at which the
             #given shard is separated into two.
             lower_bound = int(range_sharding_spec.lower_bound,  16)
@@ -869,14 +875,14 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
             #0x indicating a hexadecimal value and a suffix of L indicating a
             #Long. Extract the hexadecimal string from this value.
             split_value = "%x" % (split_value)
-        elif shard_mapping.type_name == "RANGE" and split_value is None:
+        elif shard_mappings[0].type_name == "RANGE" and split_value is None:
             #If the underlying sharding specification is a RANGE, and the
             #split value is not given, then calculate it as the mid value
             #between the current lower_bound and its next lower_bound.
             lower_bound = int(range_sharding_spec.lower_bound)
             upper_bound = int(RangeShardingSpecification.get_upper_bound)
             split_value = lower_bound + (upper_bound - lower_bound) / 2
-        elif shard_mapping.type_name == "RANGE" and split_value is not None:
+        elif shard_mappings[0].type_name == "RANGE" and split_value is not None:
             try:
                 split_value = int(split_value)
             except ValueError:
@@ -1057,7 +1063,7 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     :param cmd: Indicates the type of re-sharding operation.
     """
     #Fetch the Range sharding specification.
-    range_sharding_spec, source_shard,  shard_mapping,  shard_mapping_defn = \
+    range_sharding_spec, source_shard,  shard_mappings,  shard_mapping_defn = \
             _verify_and_fetch_shard(shard_id)
 
     #Disable the old shard
@@ -1072,7 +1078,10 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     new_shard_1 = Shards.add(source_shard.group_id, "DISABLED")
     new_shard_2 = Shards.add(destination_group_id, "DISABLED")
 
-    if shard_mapping.type_name == "HASH":
+    #Both of the shard mappings associated with this shard_id should
+    #be of the same sharding type. Hence it is safe to use one of the
+    #shard mappings.
+    if shard_mappings[0].type_name == "HASH":
         #In the case of a split involving a HASH sharding scheme,
         #the shard that is split gets a new shard_id, while the split
         #gets the new computed lower_bound and also a new shard id.
@@ -1140,13 +1149,15 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, source_shard,  shard_mapping,  _ = \
+    range_sharding_spec, source_shard,  shard_mappings,  _ = \
         _verify_and_fetch_shard(shard_id_1)
 
-    if shard_mapping.type_name == "RANGE":
+    #All the shard mappings associated with this shard_id should be
+    #of the same type. Hence it is safe to use one of them.
+    if shard_mappings[0].type_name == "RANGE":
         RangeShardingSpecification.prune_shard_id(shard_id_1)
         RangeShardingSpecification.prune_shard_id(shard_id_2)
-    elif  shard_mapping.type_name == "HASH":
+    elif  shard_mappings[0].type_name == "HASH":
         HashShardingSpecification.prune_shard_id(shard_id_1)
         HashShardingSpecification.prune_shard_id(shard_id_2)
 
@@ -1166,7 +1177,7 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, source_shard,  shard_mapping,  shard_mapping_defn = \
+    _, source_shard,  _,  shard_mapping_defn = \
         _verify_and_fetch_shard(shard_id)
 
     #Setup replication between the shard group and the global group.
@@ -1239,19 +1250,20 @@ def _verify_and_fetch_shard(shard_id):
     if range_sharding_spec is None:
         raise _errors.ShardingError(SHARD_NOT_FOUND % (shard_id,  ))
 
-    #Fetch the shard mapping and use it to find the type of sharding
+    #Fetch the shard mappings and use them to find the type of sharding
     #scheme.
-    shard_mapping = ShardMapping.fetch_by_id(
+    shard_mappings = ShardMapping.fetch_by_id(
                         range_sharding_spec.shard_mapping_id
                     )
-    if shard_mapping is None:
+    if shard_mappings is None:
         raise _errors.ShardingError(
                     SHARD_MAPPING_NOT_FOUND % (
                         range_sharding_spec.shard_mapping_id,
                     )
                 )
 
-    #Fetch the shard mapping definition
+    #Fetch the shard mapping definition. There is only one shard mapping
+    #definition associated with all of the shard mappings.
     shard_mapping_defn =  ShardMapping.fetch_shard_mapping_defn(
                         range_sharding_spec.shard_mapping_id
                     )
@@ -1265,11 +1277,14 @@ def _verify_and_fetch_shard(shard_id):
     shard = Shards.fetch(shard_id)
     if shard is None:
         raise _errors.ShardingError(SHARD_NOT_FOUND % (shard_id,  ))
-    if shard_mapping.type_name == "HASH":
+
+    #Both of the shard_mappings retrieved will be of the same sharding
+    #type. Hence it is safe to use one of them to retireve the sharding type.
+    if shard_mappings[0].type_name == "HASH":
         return HashShardingSpecification.fetch(shard_id),\
-            shard,  shard_mapping, shard_mapping_defn
+            shard,  shard_mappings, shard_mapping_defn
     else:
-        return range_sharding_spec, shard, shard_mapping, shard_mapping_defn
+        return range_sharding_spec, shard, shard_mappings, shard_mapping_defn
 
 def _setup_shard_group_replication(shard_id):
     """Setup the replication between the master group and the
@@ -1284,7 +1299,7 @@ def _setup_shard_group_replication(shard_id):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, shard, shard_mapping, shard_mapping_defn  = \
+    _, shard, _, shard_mapping_defn  = \
         _verify_and_fetch_shard(shard_id)
 
     #Setup replication between the shard group and the global group.
@@ -1303,7 +1318,7 @@ def _stop_shard_group_replication(shard_id,  clear_ref):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    range_sharding_spec, shard, shard_mapping, shard_mapping_defn  = \
+    _, shard, _, shard_mapping_defn  = \
         _verify_and_fetch_shard(shard_id)
 
     #Stop the replication between the shard group and the global group. Also

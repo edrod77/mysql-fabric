@@ -80,10 +80,19 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_2.exec_stmt("CREATE DATABASE db1")
         self.__server_2.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 1001):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_2.exec_stmt("CREATE DATABASE db2")
+        self.__server_2.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 1001):
+            self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
         self.__group_2 = Group("GROUPID2", "Second description.")
         Group.add(self.__group_2)
@@ -104,10 +113,19 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_3.exec_stmt("CREATE DATABASE db1")
         self.__server_3.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 1001):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_3.exec_stmt("CREATE DATABASE db2")
+        self.__server_3.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 1001):
+            self.__server_3.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
         self.__group_3 = Group("GROUPID3", "Third description.")
         Group.add( self.__group_3)
@@ -128,10 +146,19 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_4.exec_stmt("CREATE DATABASE db1")
         self.__server_4.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 1001):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_4.exec_stmt("CREATE DATABASE db2")
+        self.__server_4.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 1001):
+            self.__server_4.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
         self.__group_4 = Group("GROUPID4", "Fourth description.")
         Group.add( self.__group_4)
@@ -152,10 +179,19 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_5.exec_stmt("CREATE DATABASE db1")
         self.__server_5.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 1001):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_5.exec_stmt("CREATE DATABASE db2")
+        self.__server_5.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 1001):
+            self.__server_5.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
         self.__group_5 = Group("GROUPID5", "Fifth description.")
         Group.add( self.__group_5)
@@ -186,6 +222,12 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.assertEqual(status[2], 1)
 
         status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_add_shard_mapping).")
+
+        status = self.proxy.sharding.add_mapping(1, "db2.t2", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -230,24 +272,41 @@ class TestHashMoveGlobal(unittest.TestCase):
         the inserted tuples. GROUPID2 should not have received the values
         since it has had the shard moved away from it.
         '''
-        row_cnt_shard_before_move = self.__server_2.exec_stmt(
+        row_cnt_shard_before_move_db1_t1 = self.__server_2.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move = int(row_cnt_shard_before_move[0][0])
+        row_cnt_shard_before_move_db2_t2 = self.__server_2.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_before_move_db1_t1 =\
+            int(row_cnt_shard_before_move_db1_t1[0][0])
+        row_cnt_shard_before_move_db2_t2 =\
+            int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("1", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_setup_resharding_switch).")
         self.__server_6.connect()
-        row_cnt_shard_after_move = self.__server_6.exec_stmt(
+        row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move = int(row_cnt_shard_after_move[0][0])
+        row_cnt_shard_after_move_db2_t2 = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_move_db1_t1 =\
+            int(row_cnt_shard_after_move_db1_t1[0][0])
+        row_cnt_shard_after_move_db2_t2 =\
+            int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
-            row_cnt_shard_before_move == row_cnt_shard_after_move
+            row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
+        )
+        self.assertTrue(
+            row_cnt_shard_before_move_db2_t2 == row_cnt_shard_after_move_db2_t2
         )
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
@@ -307,24 +366,41 @@ class TestHashMoveGlobal(unittest.TestCase):
         the inserted tuples. GROUPID3 should not have received the values
         since it has had the shard moved away from it.
         '''
-        row_cnt_shard_before_move = self.__server_3.exec_stmt(
+        row_cnt_shard_before_move_db1_t1 = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move = int(row_cnt_shard_before_move[0][0])
+        row_cnt_shard_before_move_db2_t2 = self.__server_3.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_before_move_db1_t1 =\
+            int(row_cnt_shard_before_move_db1_t1[0][0])
+        row_cnt_shard_before_move_db2_t2 =\
+            int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("2", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_setup_resharding_switch).")
         self.__server_6.connect()
-        row_cnt_shard_after_move = self.__server_6.exec_stmt(
+        row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move = int(row_cnt_shard_after_move[0][0])
+        row_cnt_shard_after_move_db2_t2 = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_move_db1_t1 =\
+            int(row_cnt_shard_after_move_db1_t1[0][0])
+        row_cnt_shard_after_move_db2_t2 =\
+            int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
-            row_cnt_shard_before_move == row_cnt_shard_after_move
+            row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
+        )
+        self.assertTrue(
+            row_cnt_shard_before_move_db2_t2 == row_cnt_shard_after_move_db2_t2
         )
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
@@ -384,24 +460,41 @@ class TestHashMoveGlobal(unittest.TestCase):
         the inserted tuples. GROUPID4 should not have received the values
         since it has had the shard moved away from it.
         '''
-        row_cnt_shard_before_move = self.__server_4.exec_stmt(
+        row_cnt_shard_before_move_db1_t1 = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move = int(row_cnt_shard_before_move[0][0])
+        row_cnt_shard_before_move_db2_t2 = self.__server_4.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_before_move_db1_t1 =\
+            int(row_cnt_shard_before_move_db1_t1[0][0])
+        row_cnt_shard_before_move_db2_t2 =\
+            int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("3", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_setup_resharding_switch).")
         self.__server_6.connect()
-        row_cnt_shard_after_move = self.__server_6.exec_stmt(
+        row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move = int(row_cnt_shard_after_move[0][0])
+        row_cnt_shard_after_move_db2_t2 = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_move_db1_t1 =\
+            int(row_cnt_shard_after_move_db1_t1[0][0])
+        row_cnt_shard_after_move_db2_t2 =\
+            int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
-            row_cnt_shard_before_move == row_cnt_shard_after_move
+            row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
+        )
+        self.assertTrue(
+            row_cnt_shard_before_move_db2_t2 == row_cnt_shard_after_move_db2_t2
         )
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
@@ -461,24 +554,41 @@ class TestHashMoveGlobal(unittest.TestCase):
         the inserted tuples. GROUPID5 should not have received the values
         since it has had the shard moved away from it.
         '''
-        row_cnt_shard_before_move = self.__server_5.exec_stmt(
+        row_cnt_shard_before_move_db1_t1 = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move = int(row_cnt_shard_before_move[0][0])
+        row_cnt_shard_before_move_db2_t2 = self.__server_5.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_before_move_db1_t1 =\
+            int(row_cnt_shard_before_move_db1_t1[0][0])
+        row_cnt_shard_before_move_db2_t2 =\
+            int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("4", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_setup_resharding_switch).")
         self.__server_6.connect()
-        row_cnt_shard_after_move = self.__server_6.exec_stmt(
+        row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move = int(row_cnt_shard_after_move[0][0])
+        row_cnt_shard_after_move_db2_t2 = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_move_db1_t1 =\
+            int(row_cnt_shard_after_move_db1_t1[0][0])
+        row_cnt_shard_after_move_db2_t2 =\
+            int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
-            row_cnt_shard_before_move == row_cnt_shard_after_move
+            row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
+        )
+        self.assertTrue(
+            row_cnt_shard_before_move_db2_t2 == row_cnt_shard_after_move_db2_t2
         )
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")

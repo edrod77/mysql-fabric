@@ -78,7 +78,7 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_2.exec_stmt("CREATE DATABASE db1")
         self.__server_2.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 71):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
@@ -94,6 +94,27 @@ class TestShardingPrune(unittest.TestCase):
         for i in range(100001, 100201):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_2.exec_stmt("CREATE DATABASE db2")
+        self.__server_2.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 71):
+            self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(101, 301):
+            self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(1001, 1201):
+            self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(10001, 10201):
+            self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(100001, 100201):
+            self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
 
         self.__group_2 = Group("GROUPID2", "Second description.")
@@ -115,7 +136,7 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_3.exec_stmt("CREATE DATABASE db1")
         self.__server_3.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 71):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
@@ -131,6 +152,27 @@ class TestShardingPrune(unittest.TestCase):
         for i in range(100001, 100201):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_3.exec_stmt("CREATE DATABASE db2")
+        self.__server_3.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 71):
+            self.__server_3.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(101, 301):
+            self.__server_3.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(1001, 1201):
+            self.__server_3.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(10001, 10201):
+            self.__server_3.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(100001, 100201):
+            self.__server_3.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
         self.__group_3 = Group("GROUPID3", "Third description.")
         Group.add( self.__group_3)
@@ -151,7 +193,7 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_4.exec_stmt("CREATE DATABASE db1")
         self.__server_4.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 71):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
@@ -167,6 +209,27 @@ class TestShardingPrune(unittest.TestCase):
         for i in range(100001, 100201):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_4.exec_stmt("CREATE DATABASE db2")
+        self.__server_4.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 71):
+            self.__server_4.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(101, 301):
+            self.__server_4.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(1001, 1201):
+            self.__server_4.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(10001, 10201):
+            self.__server_4.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(100001, 100201):
+            self.__server_4.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
 
         self.__group_4 = Group("GROUPID4", "Fourth description.")
         Group.add( self.__group_4)
@@ -187,7 +250,7 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_5.exec_stmt("CREATE DATABASE db1")
         self.__server_5.exec_stmt("CREATE TABLE db1.t1"
-                                  "(userID INT, name VARCHAR(30))")
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
         for i in range(1, 71):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
@@ -203,6 +266,28 @@ class TestShardingPrune(unittest.TestCase):
         for i in range(100001, 100201):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db2")
+        self.__server_5.exec_stmt("CREATE DATABASE db2")
+        self.__server_5.exec_stmt("CREATE TABLE db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
+        for i in range(1, 71):
+            self.__server_5.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(101, 301):
+            self.__server_5.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(1001, 1201):
+            self.__server_5.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(10001, 10201):
+            self.__server_5.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+        for i in range(100001, 100201):
+            self.__server_5.exec_stmt("INSERT INTO db2.t2 "
+                                  "VALUES(%s, %s)" % (i, i))
+
 
         self.__group_5 = Group("GROUPID5", "Fifth description.")
         Group.add( self.__group_5)
@@ -234,6 +319,11 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[2], 1)
 
         status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_add_shard_mapping).")
+        status = self.proxy.sharding.add_mapping(1, "db2.t2", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -277,29 +367,61 @@ class TestShardingPrune(unittest.TestCase):
         an INSERT on the global group and verifies that all the shards have got
         the inserted tuples.
         '''
-        row_cnt_shard_before_split = self.__server_2.exec_stmt(
+        row_cnt_shard_before_split_db1_t1 = self.__server_2.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_split = int(row_cnt_shard_before_split[0][0])
-        self.assertEqual(row_cnt_shard_before_split, 70)
+        row_cnt_shard_before_split_db2_t2 = self.__server_2.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+
+        row_cnt_shard_before_split_db1_t1 =\
+            int(row_cnt_shard_before_split_db1_t1[0][0])
+        row_cnt_shard_before_split_db2_t2 =\
+            int(row_cnt_shard_before_split_db2_t2[0][0])
+
+        self.assertEqual(row_cnt_shard_before_split_db1_t1, 70)
+        self.assertEqual(row_cnt_shard_before_split_db2_t2, 70)
+
         status = self.proxy.sharding.split("1", "GROUPID6", "36")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_prune_shard_tables_after_split).")
-        row_cnt_shard_after_split = self.__server_2.exec_stmt(
+
+        row_cnt_shard_after_split_db1_t1_a = self.__server_2.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 35)
-        row_cnt_shard_after_split = self.__server_6.exec_stmt(
+        row_cnt_shard_after_split_db1_t1_a =\
+            int(row_cnt_shard_after_split_db1_t1_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 35)
+
+        row_cnt_shard_after_split_db2_t2_a = self.__server_2.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_a =\
+            int(row_cnt_shard_after_split_db2_t2_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 35)
+
+        row_cnt_shard_after_split_db1_t1_b = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 35)
+        row_cnt_shard_after_split_db1_t1_b =\
+            int(row_cnt_shard_after_split_db1_t1_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 35)
+
+        row_cnt_shard_after_split_db2_t2_b = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_b =\
+            int(row_cnt_shard_after_split_db2_t2_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 35)
+
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
         self.__server_1.exec_stmt("CREATE DATABASE global")
@@ -353,29 +475,60 @@ class TestShardingPrune(unittest.TestCase):
         an INSERT on the global group and verifies that all the shards have got
         the inserted tuples.
         '''
-        row_cnt_shard_before_split = self.__server_3.exec_stmt(
+        row_cnt_shard_before_split_db1_t1 = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_split = int(row_cnt_shard_before_split[0][0])
-        self.assertEqual(row_cnt_shard_before_split, 200)
+        row_cnt_shard_before_split_db2_t2 = self.__server_3.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+
+        row_cnt_shard_before_split_db1_t1 =\
+            int(row_cnt_shard_before_split_db1_t1[0][0])
+        row_cnt_shard_before_split_db2_t2 =\
+            int(row_cnt_shard_before_split_db2_t2[0][0])
+
+        self.assertEqual(row_cnt_shard_before_split_db1_t1, 200)
+        self.assertEqual(row_cnt_shard_before_split_db2_t2, 200)
+
         status = self.proxy.sharding.split("2", "GROUPID6", "201")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_prune_shard_tables_after_split).")
-        row_cnt_shard_after_split = self.__server_3.exec_stmt(
+
+        row_cnt_shard_after_split_db1_t1_a = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 100)
-        row_cnt_shard_after_split = self.__server_6.exec_stmt(
+        row_cnt_shard_after_split_db1_t1_a =\
+            int(row_cnt_shard_after_split_db1_t1_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 100)
+
+        row_cnt_shard_after_split_db2_t2_a = self.__server_3.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_a =\
+            int(row_cnt_shard_after_split_db2_t2_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 100)
+
+        row_cnt_shard_after_split_db1_t1_b = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 100)
+        row_cnt_shard_after_split_db1_t1_b =\
+            int(row_cnt_shard_after_split_db1_t1_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 100)
+
+        row_cnt_shard_after_split_db2_t2_b = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_b =\
+            int(row_cnt_shard_after_split_db2_t2_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 100)
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
         self.__server_1.exec_stmt("CREATE DATABASE global")
@@ -429,29 +582,60 @@ class TestShardingPrune(unittest.TestCase):
         an INSERT on the global group and verifies that all the shards have got
         the inserted tuples.
         '''
-        row_cnt_shard_before_split = self.__server_4.exec_stmt(
+        row_cnt_shard_before_split_db1_t1 = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_split = int(row_cnt_shard_before_split[0][0])
-        self.assertEqual(row_cnt_shard_before_split, 200)
+        row_cnt_shard_before_split_db2_t2 = self.__server_4.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+
+        row_cnt_shard_before_split_db1_t1 =\
+            int(row_cnt_shard_before_split_db1_t1[0][0])
+        row_cnt_shard_before_split_db2_t2 =\
+            int(row_cnt_shard_before_split_db2_t2[0][0])
+
+        self.assertEqual(row_cnt_shard_before_split_db1_t1, 200)
+        self.assertEqual(row_cnt_shard_before_split_db2_t2, 200)
+
         status = self.proxy.sharding.split("3", "GROUPID6", "1101")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_prune_shard_tables_after_split).")
-        row_cnt_shard_after_split = self.__server_4.exec_stmt(
+
+        row_cnt_shard_after_split_db1_t1_a = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 100)
-        row_cnt_shard_after_split = self.__server_6.exec_stmt(
+        row_cnt_shard_after_split_db1_t1_a =\
+            int(row_cnt_shard_after_split_db1_t1_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 100)
+
+        row_cnt_shard_after_split_db2_t2_a = self.__server_4.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_a =\
+            int(row_cnt_shard_after_split_db2_t2_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 100)
+
+        row_cnt_shard_after_split_db1_t1_b = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 100)
+        row_cnt_shard_after_split_db1_t1_b =\
+            int(row_cnt_shard_after_split_db1_t1_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 100)
+
+        row_cnt_shard_after_split_db2_t2_b = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_b =\
+            int(row_cnt_shard_after_split_db2_t2_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 100)
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
         self.__server_1.exec_stmt("CREATE DATABASE global")
@@ -505,29 +689,60 @@ class TestShardingPrune(unittest.TestCase):
         an INSERT on the global group and verifies that all the shards have got
         the inserted tuples.
         '''
-        row_cnt_shard_before_split = self.__server_5.exec_stmt(
+        row_cnt_shard_before_split_db1_t1 = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_split = int(row_cnt_shard_before_split[0][0])
-        self.assertEqual(row_cnt_shard_before_split, 400)
+        row_cnt_shard_before_split_db2_t2 = self.__server_5.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+
+        row_cnt_shard_before_split_db1_t1 =\
+            int(row_cnt_shard_before_split_db1_t1[0][0])
+        row_cnt_shard_before_split_db2_t2 =\
+            int(row_cnt_shard_before_split_db2_t2[0][0])
+
+        self.assertEqual(row_cnt_shard_before_split_db1_t1, 400)
+        self.assertEqual(row_cnt_shard_before_split_db2_t2, 400)
+
         status = self.proxy.sharding.split("4", "GROUPID6", "100001")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_prune_shard_tables_after_split).")
-        row_cnt_shard_after_split = self.__server_5.exec_stmt(
+
+        row_cnt_shard_after_split_db1_t1_a = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 200)
-        row_cnt_shard_after_split = self.__server_6.exec_stmt(
+        row_cnt_shard_after_split_db1_t1_a =\
+            int(row_cnt_shard_after_split_db1_t1_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 200)
+
+        row_cnt_shard_after_split_db2_t2_a = self.__server_5.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_a =\
+            int(row_cnt_shard_after_split_db2_t2_a[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 200)
+
+        row_cnt_shard_after_split_db1_t1_b = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split = int(row_cnt_shard_after_split[0][0])
-        self.assertEqual(row_cnt_shard_after_split, 200)
+        row_cnt_shard_after_split_db1_t1_b =\
+            int(row_cnt_shard_after_split_db1_t1_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 200)
+
+        row_cnt_shard_after_split_db2_t2_b = self.__server_6.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2",
+                    {"fetch" : True}
+                )
+        row_cnt_shard_after_split_db2_t2_b =\
+            int(row_cnt_shard_after_split_db2_t2_b[0][0])
+        self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 200)
         #Enter data into the global server
         self.__server_1.exec_stmt("DROP DATABASE IF EXISTS global")
         self.__server_1.exec_stmt("CREATE DATABASE global")
@@ -574,17 +789,6 @@ class TestShardingPrune(unittest.TestCase):
         self.assertTrue(global_table_count == 10)
 
     def tearDown(self):
-        self.__server_2.exec_stmt("DROP TABLE db1.t1")
-        self.__server_2.exec_stmt("DROP DATABASE db1")
-        self.__server_3.exec_stmt("DROP TABLE db1.t1")
-        self.__server_3.exec_stmt("DROP DATABASE db1")
-        self.__server_4.exec_stmt("DROP TABLE db1.t1")
-        self.__server_4.exec_stmt("DROP DATABASE db1")
-        self.__server_5.exec_stmt("DROP TABLE db1.t1")
-        self.__server_5.exec_stmt("DROP DATABASE db1")
-        self.__server_6.exec_stmt("DROP TABLE db1.t1")
-        self.__server_6.exec_stmt("DROP DATABASE db1")
-
         status = self.proxy.sharding.disable_shard("1")
         status = self.proxy.sharding.disable_shard("2")
         status = self.proxy.sharding.disable_shard("3")

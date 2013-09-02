@@ -242,12 +242,14 @@ def cleanup_environment():
         __server.connect()
         _replication.stop_slave(__server, wait=True)
 
+        __server.set_foreign_key_checks(False)
         databases = __server.exec_stmt(
                                 "SHOW DATABASES",
                                 {"fetch" : True})
         for database in databases:
             if database[0] not in STANDARD_DB_LIST:
                 __server.exec_stmt("DROP DATABASE IF EXISTS %s" % (database[0], ))
+        __server.set_foreign_key_checks(True)
 
         _replication.reset_master(__server)
         _replication.reset_slave(__server, clean=True)
