@@ -838,6 +838,27 @@ class TestHashSplitGlobal(unittest.TestCase):
         global_table_count = int(global_table_count[0][0])
         self.assertTrue(global_table_count == 10)
 
+    def test_hash_dump(self):
+        """Test the dump of the HASH sharding information for the table.
+        """
+        self.__shardinginformation_1 = [0, 0, 0,
+            [['db1', 't1', 'userID',
+            'E2996A7B8509367020B55A4ACD2AE46A',
+            '1', 'HASH', 'GROUPID2', 'GROUPID1'],
+            ['db1', 't1', 'userID',
+            'E88F547DF45C99F27646C76316FB21DF',
+            '2', 'HASH', 'GROUPID3', 'GROUPID1'],
+            ['db1', 't1', 'userID',
+            '7A2E76448FF04233F3851A492BEF1090',
+            '3', 'HASH', 'GROUPID4', 'GROUPID1'],
+            ['db1', 't1', 'userID',
+            '97427AA63E300F56536710F5D73A35FA',
+            '4', 'HASH', 'GROUPID5', 'GROUPID1']]]
+        self.assertEqual(
+            self.proxy.store.dump_sharding_information(0, "db1.t1"),
+            self.__shardinginformation_1
+        )
+
     def tearDown(self):
         """Clean up the existing environment
         """

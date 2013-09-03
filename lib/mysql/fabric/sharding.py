@@ -89,7 +89,10 @@ class ShardMapping(_persistence.Persistable):
                          )
 
     DUMP_SHARDING_INFORMATION = (
-        "SELECT t.table_name, t.column_name, r.lower_bound, r.shard_id, "
+        "SELECT t.table_name, t.column_name, "
+        "IF( m.type_name = 'HASH', HEX(r.lower_bound), r.lower_bound) "
+        "AS lower_bound, "
+        "r.shard_id, "
         "m.type_name, s.group_id, m.global_group "
         "FROM "
         "shard_maps AS m RIGHT JOIN shard_tables AS t USING (shard_mapping_id) "
@@ -553,12 +556,12 @@ class ShardMapping(_persistence.Persistable):
                     (
                         database,
                         table,
-                        row[1], # column_name
-                        row[2], # lower_bound
-                        row[3], # shard_id
-                        row[4], # group_id
-                        row[5], # global_group
-                        row[6], # type
+                        row[1],  # column_name
+                        row[2],  # lower_bound
+                        row[3],  # shard_id
+                        row[4],  # group_id
+                        row[5],  # global_group
+                        row[6],  # type
                     )
                 )
         return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
