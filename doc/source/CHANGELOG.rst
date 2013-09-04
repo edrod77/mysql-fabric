@@ -3,6 +3,45 @@ ChangeLog for Fabric
 ####################
 
 
+Release 0.3.0 (released September 04, 2013)
+-------------------------------------------
+
+* HAM-62: Define the appropriate concurrency control mechanism among procedures
+* HAM-98: Instrument the code so that we can evaluate fabric performance
+* HAM-181: Use a pattern to check binary log names in the text cases.
+* HAM-182: Refactoring/Renaming sharding schema
+* HAM-183: Define a single interface to trigger either a switchover or failover
+* HAM-184: Setting a server's status to FAULTY should trigger a failover.
+* HAM-185: Setting a server's status to RUNNING should automatically make it a slave
+* HAM-190: Extending the underlying framework for RANGE sharding to allow its usage in HASH based sharding.
+* HAM-191: HASH based sharding.
+* HAM-193: Stack traces are being printed out when it is not really necessary
+* HAM-194: Group check_group_availability is showing below error if a server is down
+* HAM-201: Commands should return True to indicate success instead of False
+* HAM-202: Some tests are failing in jenkins due to cleanup problems
+* HAM-205: Not able to Install Fabric in Windows machine
+* HAM-222: Use rotating log file by default
+* HAM-239: Change name in code
+* HAM-240: Fix PyLint errors in sharding code
+* HAM-245: Move shard_mapping_id from shards to shard_ranges
+* HAM-251: Fabric couldn't start because the main.cfg was not correctly installed and executor parameter was not found
+* HAM-255: Dump Interface
+* HAM-264: manage stop throws an exception
+* HAM-267: There is no way to configure server and client individually from the same config
+* HAM-269: Number of concurrent executors are not being set properly in mysqlfabric
+* HAM-270: Sharding prune fails to delete proper rows in group tables
+* HAM-271: No error message appear if the add_shard (any FABRIC command) command is wrong (having wrong number of parameters).
+* HAM-272: Sharding Prune shows error with HASH base sharding
+* HAM-285: Error is not proper if promote a faulty status servers in a group
+* HAM-295: The install location of configuration file (main.cfg) changes for diff operating systems/distro
+* HAM-300: Improve documentation of persistence system
+* HAM-316: Configuration file should be in /etc/mysql.
+* HAM-323: Server Dump interfaces not relfecting status for a faulty server - Add faulty server state
+* HAM-324: Remove hard coding of server address and port number in the test_dump_interfaces test case
+* HAM-327: Remove TODOs from the code
+* HAM-340: Error executing mysqlfabric: Configuration file is not found
+* HAM-350: Add support to dump interfaces for HASH based sharding
+
 Release 0.2.0 (released May 07, 2013)
 -------------------------------------
 
