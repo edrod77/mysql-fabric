@@ -60,6 +60,8 @@ class TestMySQLServer(unittest.TestCase):
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
         server = MySQLServer(**OPTIONS)
         self.assertRaises(_errors.UuidError, server.connect)
+        server.disconnect()
+        ConnectionPool().purge_connections(OPTIONS["uuid"])
 
     def test_properties(self):
         server = self.server
