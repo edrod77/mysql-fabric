@@ -94,10 +94,8 @@ class TestReplicationServices(unittest.TestCase):
         # Create topology: M1 ---> S2, M1 ---> S3
         group_ = Group.fetch("group_id-1")
         group_.master = None
-        group_.remove_server(master)
         _server.MySQLServer.remove(master)
         master = None
-        group_.remove_server(slave)
         _server.MySQLServer.remove(slave)
         slave = None
         instances = tests.utils.MySQLInstances()
@@ -145,97 +143,6 @@ class TestReplicationServices(unittest.TestCase):
               _server.MySQLServer.RUNNING],
             [str(slave_2.uuid), slave_2.address, False,
               _server.MySQLServer.RUNNING]]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
-
-        group_ = Group.fetch("group_id-2")
-        # Create topology: M1 ---> S2 ---> S3
-        group_.master = None
-        group_.remove_server(master)
-        _server.MySQLServer.remove(master)
-        master = None
-        group_.remove_server(slave_1)
-        _server.MySQLServer.remove(slave_1)
-        slave_1 = None
-        group_.remove_server(slave_2)
-        _server.MySQLServer.remove(slave_2)
-        slave_2 = None
-        instances = tests.utils.MySQLInstances()
-        instances.destroy_instances()
-        instances.configure_instances({0 : [{1 : [{2 : []}]}]}, user, passwd)
-        master = instances.get_instance(0)
-        slave_1 = instances.get_instance(1)
-        slave_2 = instances.get_instance(2)
-
-        # Trying to import topology given a wrong group's id pattern.
-        topology = self.proxy.group.import_topology(
-            "group_id", "description...", master.address, user, passwd)
-        self.assertStatus(topology, _executor.Job.ERROR)
-        self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(topology[1][-1]["description"],
-                         "Tried to execute action (_import_topology).")
-
-        # Import topology.
-        topology = self.proxy.group.import_topology(
-            "group_id-2", "description...", master.address, user, passwd)
-        self.assertStatus(topology, _executor.Job.SUCCESS)
-        self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(topology[1][-1]["description"],
-                         "Executed action (_import_topology).")
-        expected_topology = {
-            str(master.uuid): {"address": master.address, "slaves": [
-            {str(slave_1.uuid): {"address": slave_1.address, "slaves": [
-            {str(slave_2.uuid): {"address": slave_2.address,
-            "slaves": []}}]}}]}}
-        self.assertEqual(topology[2], expected_topology)
-
-        # Look up a group.
-        group = self.proxy.group.lookup_groups("group_id-3")
-        self.assertStatus(group, _executor.Job.SUCCESS)
-        self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_groups).")
-        self.assertEqual(group[2], {"group_id": "group_id-3", "description":
-                                    "description..."})
-
-        # Look up servers.
-        servers = self.proxy.group.lookup_servers("group_id-3")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
-        expected = \
-            [[str(master.uuid), master.address, True,
-             _server.MySQLServer.RUNNING],
-            [str(slave_1.uuid), slave_1.address, False,
-             _server.MySQLServer.RUNNING]]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
-
-        # Look up a group.
-        group = self.proxy.group.lookup_groups("group_id-4")
-        self.assertStatus(group, _executor.Job.SUCCESS)
-        self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_groups).")
-        self.assertEqual(group[2], {"group_id": "group_id-4", "description":
-                                    "description..."})
-
-        # Look up servers.
-        servers = self.proxy.group.lookup_servers("group_id-4")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
-        expected = \
-            [[str(slave_1.uuid), slave_1.address, True,
-             _server.MySQLServer.RUNNING],
-            [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.RUNNING]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)

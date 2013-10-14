@@ -437,13 +437,13 @@ class TestGroup(unittest.TestCase):
         # Add servers to a group
         group_1.add_server(server_1)
         group_1.add_server(server_2)
-        self.assertRaises(_errors.DatabaseError, group_1.add_server, server_1)
+        self.assertRaises(AssertionError, group_1.add_server, server_1)
         self.assertEqual(len(group_1.servers()), 2)
 
         # Remove servers to a group
         group_1.remove_server(server_1)
         group_1.remove_server(server_2)
-        group_1.remove_server(server_1)
+        self.assertRaises(AssertionError, group_1.remove_server, server_1)
         self.assertEqual(len(group_1.servers()), 0)
 
 if __name__ == "__main__":

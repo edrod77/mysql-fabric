@@ -29,8 +29,6 @@ is instantiated. The provisioning steps must be done in other modules.
 
 Servers are organized into groups which have unique names. This aims
 at defining administrative domains and easing management activities.
-In the case of MySQL Servers whose version is lower or equal to 5.6,
-one of the servers in the group may become a master.
 """
 import threading
 import uuid as _uuid
@@ -105,55 +103,6 @@ class Group(_persistence.Persistable):
                             "CONSTRAINT FOREIGN KEY(slave_group_id) "
                             "REFERENCES groups(group_id))")
 
-    #Create the referential integrity constraint with the servers table
-    ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = \
-                                ("ALTER TABLE groups "
-                                  "ADD CONSTRAINT fk_master_uuid_groups "
-                                  "FOREIGN KEY(master_uuid) REFERENCES "
-                                  "servers(server_uuid)")
-
-    #Drop the referential integrity constraint with the servers table
-    DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = \
-                                ("ALTER TABLE groups "
-                                "DROP FOREIGN KEY fk_master_uuid_groups")
-
-    #SQL Statement for creating the table for storing the relationship
-    #between a group and the server.
-    CREATE_GROUP_SERVER = \
-                ("CREATE TABLE groups_servers"
-                 "(group_id VARCHAR(64) NOT NULL, "
-                 "server_uuid VARCHAR(40) NOT NULL, "
-                 "CONSTRAINT pk_group_id_server_uuid "
-                 "PRIMARY KEY(group_id, server_uuid), "
-                 "INDEX idx_server_uuid (server_uuid))")
-
-    #Create the referential integrity constraint with the groups table
-    ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
-                                 ("ALTER TABLE groups_servers "
-                                  "ADD CONSTRAINT fk_group_id_groups_servers "
-                                  "FOREIGN KEY(group_id) REFERENCES "
-                                  "groups(group_id)")
-
-    #Drop the referential integrity constraint with the groups table
-    DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
-                                  ("ALTER TABLE groups_servers "
-                                   "DROP FOREIGN KEY "
-                                   "fk_group_id_groups_servers")
-
-    #Create the referential integrity constraint with the servers table
-    ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID = \
-                                  ("ALTER TABLE groups_servers "
-                                  "ADD CONSTRAINT "
-                                  "fk_server_uuid_groups_servers "
-                                  "FOREIGN KEY(server_uuid) REFERENCES "
-                                  "servers(server_uuid)")
-
-    #Drop the referential integrity constraint with the servers table
-    DROP_FOREIGN_KEY_CONSTRAINT_SERVER_UUID = \
-                               ("ALTER TABLE groups_servers "
-                                "DROP FOREIGN KEY "
-                                "fk_server_uuid_groups_servers")
-
     #SQL Statements for dropping the table created for storing the Group
     #information
     DROP_GROUP = ("DROP TABLE groups")
@@ -164,35 +113,15 @@ class Group(_persistence.Persistable):
     #Drop the table that stores the slaves of a particular group.
     DROP_GROUP_REPLICATION_SLAVE =  ("DROP TABLE group_replication_slave")
 
-    #SQL Statements for dropping the table used for storing the relation
-    #between Group and the servers
-    DROP_GROUP_SERVER = ("DROP TABLE groups_servers")
-
     #SQL statement for inserting a new group into the table
     INSERT_GROUP = ("INSERT INTO groups(group_id, description, status) "
                     "VALUES(%s, %s, %s)")
-
-    #SQL statement for inserting a new server into a group
-    INSERT_GROUP_SERVER = ("INSERT INTO groups_servers(group_id, server_uuid) "
-                           "VALUES(%s, %s)")
-
-    #SQL statement for checking for the presence of a server within a group
-    QUERY_GROUP_SERVER_EXISTS = ("SELECT server_uuid FROM groups_servers "
-                                 "WHERE group_id = %s AND server_uuid = %s")
 
     #SQL statement for selecting all groups
     QUERY_GROUPS = ("SELECT group_id FROM groups")
 
     #SQL statement for selecting all groups
     QUERY_GROUPS_BY_STATUS = ("SELECT group_id FROM groups WHERE status = %s")
-
-    #SQL statement for selecting all the servers from a group
-    QUERY_GROUP_SERVERS = ("SELECT server_uuid FROM groups_servers WHERE "
-                           "group_id = %s")
-
-    #SQL statement for getting group(s) which the server belongs to.
-    QUERY_GROUP_FROM_SERVER = ("SELECT group_id FROM groups_servers WHERE "
-                               "server_uuid = %s")
 
     #Query the group that is the master of this group.
     QUERY_GROUP_REPLICATION_MASTER = ("SELECT master_group_id FROM "
@@ -207,10 +136,6 @@ class Group(_persistence.Persistable):
 
     #SQL statement used for deleting the group identified by the group id.
     REMOVE_GROUP = ("DELETE FROM groups WHERE group_id = %s")
-
-    #SQL Statement to delete a server from a group.
-    DELETE_GROUP_SERVER = ("DELETE FROM groups_servers WHERE group_id = %s AND "
-                           "server_uuid = %s")
 
     #Delete a Master Group of a Group.
     DELETE_MASTER_GROUP = ("DELETE FROM group_replication_master "
@@ -288,14 +213,14 @@ class Group(_persistence.Persistable):
     def fetch_slave_group_ids(self, persister=None):
         """Return the list of Groups that are slaves to this group.
         """
-        ret = set()
+        ret = []
         rows = persister.exec_stmt(Group.QUERY_GROUP_REPLICATION_SLAVES,
                                    {"fetch" : True, "params" : (self.__group_id,)})
         if not rows:
             return ret
 
         for row in rows:
-            ret.add(row[0])
+            ret.append(row[0])
         return ret
 
     @property
@@ -364,8 +289,8 @@ class Group(_persistence.Persistable):
                        Group.
         """
         assert(isinstance(server, MySQLServer))
-        persister.exec_stmt(Group.INSERT_GROUP_SERVER,
-                            {"params": (self.__group_id, str(server.uuid))})
+        assert(server.group_id == None)
+        server.group_id = self.__group_id
 
     def remove_server(self, server, persister=None):
         """Remove a server from this group.
@@ -376,35 +301,8 @@ class Group(_persistence.Persistable):
                        Group.
         """
         assert(isinstance(server, MySQLServer))
-        persister.exec_stmt(Group.DELETE_GROUP_SERVER,
-                            {"params":(self.__group_id, str(server.uuid))})
-
-    @staticmethod
-    def add_constraints(persister=None):
-        """Add the constraints on the tables in this Group.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
-        """
-        persister.exec_stmt(
-                Group.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        persister.exec_stmt(
-                Group.ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID)
-        persister.exec_stmt(
-                Group.ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID)
-        return True
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints on the tables in this Group.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(Group.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        persister.exec_stmt(Group.DROP_FOREIGN_KEY_CONSTRAINT_SERVER_UUID)
-        persister.exec_stmt(Group.DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID)
-        return True
+        assert(server.group_id == self.__group_id)
+        server.group_id = None
 
     @property
     def description(self):
@@ -425,24 +323,6 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.UPDATE_GROUP,
             {"params":(description, self.__group_id)})
         self.__description = description
-
-    def servers(self, persister=None):
-        """Return a set with the servers in this group.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
-        """
-        ret = set()
-        rows = persister.exec_stmt(Group.QUERY_GROUP_SERVERS,
-                                   {"params" : (self.__group_id,)})
-        for row in rows:
-            server = MySQLServer.fetch(_uuid.UUID(row[0]))
-            try:
-                server.connect()
-            except _errors.DatabaseError:
-                pass
-            ret.add(server)
-        return ret
 
     @property
     def master(self):
@@ -467,6 +347,14 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.UPDATE_MASTER,
             {"params":(param_master, self.__group_id)})
         self.__master = master
+
+    def servers(self, persister=None):
+        """Return a list with the servers in this group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        return MySQLServer.servers(self.__group_id)
 
     @property
     def status(self):
@@ -507,22 +395,6 @@ class Group(_persistence.Persistable):
         return persister.exec_stmt(Group.QUERY_GROUPS)
 
     @staticmethod
-    def group_from_server(uuid, persister=None):
-        """Return the group which a server belongs to.
-
-        :param uuid: Server's uuid.
-        :return: Group or None.
-        """
-        cur = persister.exec_stmt(
-            Group.QUERY_GROUP_FROM_SERVER,
-            {"fetch" : False, "params" : (str(uuid), )}
-            )
-        row = cur.fetchone()
-
-        if row:
-            return Group.fetch(row[0])
-
-    @staticmethod
     def remove(group, persister=None):
         """Remove the group object from the state store.
 
@@ -532,26 +404,6 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(
             Group.REMOVE_GROUP, {"params" : (group.group_id, )}
             )
-
-    def contains_server(self, uuid, persister=None):
-        """Check if the server represented by the uuid is part of the
-        current Group.
-
-        :param uuid: The uuid of the server whose membership needs to be
-                     verified.
-        :param persister: Persister to persist the object to.
-        :return: True if the server is part of the Group.
-                 False if the server is not part of the Group.
-        """
-        assert isinstance(uuid, (_uuid.UUID, basestring))
-        cur = persister.exec_stmt(Group.QUERY_GROUP_SERVER_EXISTS,
-            {"fetch" : False, "params":(self.__group_id, str(uuid))})
-        row = cur.fetchone()
-
-        if row:
-            return True
-        else:
-            return False
 
     @staticmethod
     def fetch(group_id, persister=None):
@@ -603,17 +455,8 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.CREATE_GROUP)
 
         try:
-            persister.exec_stmt(Group.CREATE_GROUP_SERVER)
-        except _errors.DatabaseError:
-            #If the creation of the second table fails Drop the first
-            #table.
-            persister.exec_stmt(Group.DROP_GROUP)
-            raise
-
-        try:
             persister.exec_stmt(Group.CREATE_GROUP_REPLICATION_MASTER)
         except _errors.DatabaseError:
-            persister.exec_stmt(Group.DROP_GROUP_SERVER)
             persister.exec_stmt(Group.DROP_GROUP)
             raise
 
@@ -621,7 +464,6 @@ class Group(_persistence.Persistable):
             persister.exec_stmt(Group.CREATE_GROUP_REPLICATION_SLAVE)
         except _errors.DatabaseError:
             persister.exec_stmt(Group.DROP_GROUP_REPLICATION_MASTER)
-            persister.exec_stmt(Group.DROP_GROUP_SERVER)
             persister.exec_stmt(Group.DROP_GROUP)
             raise
 
@@ -637,7 +479,6 @@ class Group(_persistence.Persistable):
         _detector.FailureDetector.unregister_groups()
         persister.exec_stmt(Group.DROP_GROUP_REPLICATION_SLAVE)
         persister.exec_stmt(Group.DROP_GROUP_REPLICATION_MASTER)
-        persister.exec_stmt(Group.DROP_GROUP_SERVER)
         persister.exec_stmt(Group.DROP_GROUP)
 
 class ConnectionPool(_utils.Singleton):
@@ -760,15 +601,29 @@ class MySQLServer(_persistence.Persistable):
         "server_address VARCHAR(128) NOT NULL, "
         "user CHAR(16), passwd TEXT, "
         "status ENUM(%s) NOT NULL, "
-        "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid))")
+        "group_id VARCHAR(64), "
+        "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid), "
+        "INDEX idx_group_id (group_id))"
+    )
 
     #SQL Statement for dropping the table used to store the details about the
     #server.
     DROP_SERVER = ("DROP TABLE servers")
 
+    #Create the referential integrity constraint with the groups table
+    ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = (
+        "ALTER TABLE servers ADD CONSTRAINT fk_group_id_servers "
+        "FOREIGN KEY(group_id) REFERENCES groups(group_id)"
+    )
+
+    #Drop the referential integrity constraint with the groups table
+    DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = (
+        "ALTER TABLE servers DROP FOREIGN KEY fk_group_id_servers"
+    )
+
     #SQL statement for inserting a new server into the table
     INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_address, user, "
-                     "passwd, status) values(%s, %s, %s, %s, %s)")
+                     "passwd, status, group_id) values(%s, %s, %s, %s, %s, %s)")
 
     #SQL statement for updating the server table identified by the server id.
     UPDATE_SERVER_USER = ("UPDATE servers SET user = %s WHERE server_uuid = %s")
@@ -783,25 +638,31 @@ class MySQLServer(_persistence.Persistable):
         "UPDATE servers SET status = %s WHERE server_uuid = %s"
         )
 
+    #SQL statement for updating the server table identified by the server id.
+    UPDATE_SERVER_GROUP_ID = (
+        "UPDATE servers SET group_id = %s WHERE server_uuid = %s"
+        )
+
     #SQL statement used for deleting the server identified by the server id.
     REMOVE_SERVER = ("DELETE FROM servers WHERE server_uuid = %s")
 
     #SQL Statement to retrieve the server from the state_store.
     QUERY_SERVER = (
-        "SELECT server_uuid, server_address, user, passwd, status "
+        "SELECT server_uuid, server_address, user, passwd, status, group_id "
         "FROM servers WHERE server_uuid = %s"
+        )
+
+    #SQL Statement to retrieve a set of servers in a group from the state_store.
+    QUERY_SERVER_GROUP_ID = (
+        "SELECT server_uuid, server_address, user, passwd, status "
+        "FROM servers WHERE group_id = %s"
         )
 
     #SQL Statement to retrieve the servers belonging to a group.
     DUMP_SERVERS = (
-        "SELECT "
-        "s.server_uuid, g.group_id, s.server_address "
-        "FROM "
-        "servers AS s, groups_servers AS g "
-        "WHERE "
-        "s.server_uuid = g.server_uuid AND "
-        "g.group_id LIKE %s "
-        "ORDER BY g.group_id, s.server_address, s.server_uuid"
+        "SELECT server_uuid, group_id, server_address "
+        "FROM servers WHERE group_id LIKE %s AND group_id IS NOT NULL "
+        "ORDER BY group_id, server_address, server_uuid"
         )
 
     #Default weight for the server
@@ -835,7 +696,7 @@ class MySQLServer(_persistence.Persistable):
     SERVER_STATUS = [OFFLINE, RUNNING, SPARE, FAULTY, RECOVERING]
 
     def __init__(self, uuid, address, user=None, passwd=None,
-                 status=RUNNING, default_charset="latin1"):
+                 status=RUNNING, group_id=None, default_charset="latin1"):
         """Constructor for MySQLServer.
         """
         super(MySQLServer, self).__init__()
@@ -844,6 +705,7 @@ class MySQLServer(_persistence.Persistable):
         self.__cnx = None
         self.__uuid = uuid
         self.__address = address
+        self.__group_id = group_id
         self.__pool = ConnectionPool()
         self.__user = user
         self.__passwd = passwd
@@ -920,7 +782,7 @@ class MySQLServer(_persistence.Persistable):
         if ret_uuid != self.uuid:
             self.disconnect()
             raise _errors.UuidError(
-                "Uuids do not match (stored (%s), read (%s))." % \
+                "Uuids do not match (stored (%s), read (%s))." %
                 (self.uuid, ret_uuid)
                 )
 
@@ -943,21 +805,21 @@ class MySQLServer(_persistence.Persistable):
         # Read read_only.
         self._check_read_only()
 
-        _LOGGER.debug("Connected to server with uuid (%s), server_id (%d), " \
-                      "version (%s), gtid (%s), binlog (%s), read_only (%s)." \
-                      , self.uuid, self.__server_id, self.__version, \
-                      self.__gtid_enabled, self.__binlog_enabled, \
+        _LOGGER.debug("Connected to server with uuid (%s), server_id (%d), "
+                      "version (%s), gtid (%s), binlog (%s), read_only (%s).",
+                      self.uuid, self.__server_id, self.__version,
+                      self.__gtid_enabled, self.__binlog_enabled,
                       self.__read_only)
 
     def disconnect(self):
         """Disconnect from the server.
         """
         if self.__cnx is not None:
-            _LOGGER.debug("Disconnecting from server with uuid (%s), " \
-                          "server_id (%s), version (%s), gtid (%s), " \
-                          "binlog (%s), read_only (%s).", self.uuid, \
-                          self.__server_id, self.__version, \
-                          self.__gtid_enabled, self.__binlog_enabled, \
+            _LOGGER.debug("Disconnecting from server with uuid (%s), "
+                          "server_id (%s), version (%s), gtid (%s), "
+                          "binlog (%s), read_only (%s).", self.uuid,
+                          self.__server_id, self.__version,
+                          self.__gtid_enabled, self.__binlog_enabled,
                           self.__read_only)
             self.__pool.release_connection(self.__uuid, self.__cnx)
             self.__cnx = None
@@ -1125,6 +987,48 @@ class MySQLServer(_persistence.Persistable):
                             {"params":(status, str(self.uuid))})
         self.__status = status
 
+    @property
+    def group_id(self):
+        """Return the server's group_id.
+        """
+        return self.__group_id
+
+    @group_id.setter
+    def group_id(self, group_id, persister=None):
+        """Set the server's group_id.
+
+        :param group_id: The new server's group_id.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        persister.exec_stmt(MySQLServer.UPDATE_SERVER_GROUP_ID,
+                            {"params":(group_id, str(self.uuid))})
+        self.__group_id = group_id
+
+    @staticmethod
+    def servers(group_id, persister=None):
+        """Return a list of servers identified by group_id.
+
+        :param group_id: Group's id.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        ret = []
+        rows = persister.exec_stmt(MySQLServer.QUERY_SERVER_GROUP_ID,
+                                   {"params" : (group_id, )})
+        for row in rows:
+            uuid, address, user, passwd, status = row
+            server = MySQLServer(
+                _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
+                status=status, group_id=group_id
+                )
+            try:
+                server.connect()
+            except _errors.DatabaseError:
+                pass
+            ret.append(server)
+        return ret
+
     def check_version_compat(self, expected_version):
         """Check version of the server against requested version.
 
@@ -1162,7 +1066,7 @@ class MySQLServer(_persistence.Persistable):
         """
         # Check servers for GTID support
         if self.__cnx and not self.__gtid_enabled:
-            raise _errors.ProgrammingError("Global Transaction IDs are not "\
+            raise _errors.ProgrammingError("Global Transaction IDs are not "
                                            "supported.")
 
         query_str = (
@@ -1246,7 +1150,7 @@ class MySQLServer(_persistence.Persistable):
         if not context:
             context = MySQLServer.GLOBAL_CONTEXT
         assert(context in MySQLServer.CONTEXTS)
-        ret = self.exec_stmt("SELECT @@%s.%s as %s" % \
+        ret = self.exec_stmt("SELECT @@%s.%s as %s" %
                              (context, variable, variable))
         return ret[0][0]
 
@@ -1256,8 +1160,8 @@ class MySQLServer(_persistence.Persistable):
         if not context:
             context = MySQLServer.GLOBAL_CONTEXT
         assert(context in MySQLServer.CONTEXTS)
-        return self.exec_stmt("SET @@%s.%s = %s" \
-                              % (context, variable, value))
+        return self.exec_stmt("SET @@%s.%s = %s" %
+                              (context, variable, value))
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
@@ -1295,10 +1199,10 @@ class MySQLServer(_persistence.Persistable):
                                   {"fetch" : False, "params":(str(uuid),)})
         row = cur.fetchone()
         if row:
-            uuid, address, user, passwd, status = row
+            uuid, address, user, passwd, status, group_id = row
             return MySQLServer(
                 _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
-                status=status
+                status=status, group_id=group_id
                 )
 
     @staticmethod
@@ -1410,6 +1314,27 @@ class MySQLServer(_persistence.Persistable):
         persister.exec_stmt(MySQLServer.DROP_SERVER)
 
     @staticmethod
+    def add_constraints(persister=None):
+        """Add the constraints to the servers table.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        persister.exec_stmt(
+                MySQLServer.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
+        return True
+
+    @staticmethod
+    def drop_constraints(persister=None):
+        """Drop the constraints to the servers table.
+
+        :param persister: The DB server that can be used to access the
+                  state store.
+        """
+        persister.exec_stmt(MySQLServer.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
+        return True
+
+    @staticmethod
     def add(server, persister=None):
         """Write a server object into the state store.
 
@@ -1424,7 +1349,7 @@ class MySQLServer(_persistence.Persistable):
 
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
             {"params":(str(server.uuid), server.address, server.user,
-            server.passwd, server.status)}
+            server.passwd, server.status, server.group_id)}
             )
 
     def __eq__(self,  other):

@@ -496,11 +496,12 @@ def _lookup_servers(group_id, uuid=None, status=None):
                     )
         return ret
 
-    if not group.contains_server(uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
+    server = _server.MySQLServer.fetch(uuid)
+
+    if group_id != server.group_id:
+        raise _errors.GroupError("Group (%s) does not contain server (%s)."
                                  % (group_id, uuid))
 
-    server = _server.MySQLServer.fetch(uuid)
     return {"uuid": str(server.uuid), "address": server.address,
             "user": server.user, "passwd": server.passwd}
 
@@ -524,16 +525,10 @@ def _add_server(group_id, address, user, passwd):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     server = _server.MySQLServer.fetch(uuid)
-    if server:
-        group = _server.Group.group_from_server(uuid)
-        if not group:
-            raise _errors.ServerError(
-                "State store seems to be corrupted. Server (%s) does not "
-                "belong to a group." % (uuid, )
-                )
+    if server and server.group_id:
         raise _errors.ServerError(
             "Server (%s) already exists in group (%s)." %
-            (uuid, group.group_id)
+            (uuid, server.group_id)
             )
 
     server = _server.MySQLServer(uuid=uuid, address=address, user=user,
@@ -566,16 +561,16 @@ def _remove_server(group_id, uuid):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
-    if not group.contains_server(uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)."
-                                 % (group_id, uuid))
-
     if group.master == uuid:
         raise _errors.ServerError("Cannot remove server (%s), which is master "
                                   "in group (%s). Please, demote it first."
                                   % (uuid, group_id))
 
     server = _server.MySQLServer.fetch(uuid)
+
+    if group_id != server.group_id:
+        raise _errors.GroupError("Group (%s) does not contain server (%s)."
+                                 % (group_id, uuid))
 
     _do_remove_server(group, server)
     _server.ConnectionPool().purge_connections(uuid)
@@ -593,6 +588,11 @@ def _set_server_status(uuid, status):
     if not server:
         raise _errors.ServerError(
             "Server (%s) does not exist." % (uuid, )
+            )
+
+    if not server.group_id:
+        raise _errors.GroupError(
+            "Server (%s) does not belong to a group." % (uuid, )
             )
 
     status = str(status).upper()
@@ -622,11 +622,12 @@ def _set_server_spare(server):
             "spare mode." % (server.uuid, server.status)
             )
 
-    group = _server.Group.group_from_server(server.uuid)
-    if group.master == server.uuid:
-        raise _errors.ServerError(
-            "Server (%s) is master in group (%s) and cannot be put in "
-            "spare mode." % (server.uuid, group.group_id)
+    if server.group_id:
+        group = _server.Group.fetch(server.group_id)
+        if group.master == server.uuid:
+            raise _errors.ServerError(
+                "Server (%s) is master in group (%s) and cannot be put in "
+                "spare mode." % (server.uuid, group.group_id)
             )
 
     server.status = _server.MySQLServer.SPARE
@@ -642,7 +643,7 @@ def _set_server_running(server):
 
         _check_requirements(server)
         if server.status not in forbidden_status:
-            group = _server.Group.group_from_server(server.uuid)
+            group = _server.Group.fetch(server.group_id)
             _configure_as_slave(group, server)
         server.status = _server.MySQLServer.RUNNING
 
@@ -654,7 +655,7 @@ def _set_server_running(server):
 def _set_server_offline(server):
     """Put the server in offline mode.
     """
-    group = _server.Group.group_from_server(server.uuid)
+    group = _server.Group.fetch(server.group_id)
     if group.master == server.uuid:
         raise _errors.ServerError(
             "Server (%s) is master in group (%s) and cannot be put in "
@@ -666,7 +667,7 @@ def _set_server_offline(server):
 def _set_server_faulty(server):
     """Put the server in faulty mode.
     """
-    group = _server.Group.group_from_server(server.uuid)
+    group = _server.Group.fetch(server.group_id)
     if group.status == _server.Group.ACTIVE:
         raise _errors.ServerError(
             "Group (%s) has the failure detector activate so that "

@@ -427,6 +427,9 @@ def _do_discover_topology(address, user, passwd, discovered_servers=None):
                 slave_discovery = _do_discover_topology(slave_address,
                     user, passwd, discovered_servers)
                 if slave_discovery:
+                    # A server cannot belong to more than one group.
+                    for chains in slave_discovery.values():
+                        assert(chains["slaves"] == [])
                     discovered_mapping[str_uuid]["slaves"].\
                         append(slave_discovery)
     return discovered_mapping
@@ -455,7 +458,7 @@ def _do_import_topology(pattern_group_id, group_description,
     check = re.compile('\w+-\d+')
     matched = check.match(pattern_group_id)
     if not matched or matched.end() != len(pattern_group_id):
-        raise _errors.GroupError("Group pattern's id (%s) is not valid." % \
+        raise _errors.GroupError("Group pattern's id (%s) is not valid." %
                                  (pattern_group_id, ))
     base_group_id, number_group_id = pattern_group_id.split("-", 1)
     number_group_id = int(number_group_id) + 1
@@ -592,10 +595,6 @@ def _check_candidate_switch(group_id, slave_uuid):
     """
     group = _server.Group.fetch(group_id)
 
-    if not group.contains_server(slave_uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)." \
-                                 % (group_id, slave_uuid))
-
     if not group.master:
         raise _errors.GroupError(
             "Group (%s) does not contain a valid "
@@ -609,6 +608,10 @@ def _check_candidate_switch(group_id, slave_uuid):
 
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
+
+    if group_id != slave.group_id:
+        raise _errors.GroupError("Group (%s) does not contain server (%s)."
+                                 % (group_id, slave_uuid))
 
     master_issues = _replication.check_master_issues(slave)
     if master_issues:
@@ -753,10 +756,6 @@ def _check_candidate_fail(group_id, slave_uuid):
     """
     group = _server.Group.fetch(group_id)
 
-    if not group.contains_server(slave_uuid):
-        raise _errors.GroupError("Group (%s) does not contain server (%s)."
-                                 % (group_id, slave_uuid))
-
     if group.master == _uuid.UUID(slave_uuid):
         raise _errors.ServerError(
             "Candidate slave (%s) is already master." % (slave_uuid, )
@@ -764,6 +763,10 @@ def _check_candidate_fail(group_id, slave_uuid):
 
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
+
+    if group_id != slave.group_id:
+        raise _errors.GroupError("Group (%s) does not contain server (%s)."
+                                 % (group_id, slave_uuid))
 
     master_issues = _replication.check_master_issues(slave)
     if master_issues:
