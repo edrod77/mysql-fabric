@@ -8,3 +8,6 @@ htmlcov
 
 # Generated configuration file
 data/fabric.cfg
+
+# Generated script file
+scripts/mysqlfabric

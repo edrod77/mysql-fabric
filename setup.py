@@ -26,6 +26,8 @@ from distutils.core import setup, Command
 from distutils.util import change_root
 from distutils.sysconfig import get_python_lib
 from distutils.command.install_data import install_data as _install_data
+from distutils.command.build_scripts import build_scripts as _build_scripts
+from distutils import log
 
 def fetch_version(module_name):
     """Retrieve information on Fabric version within *module_name*.
@@ -282,6 +284,47 @@ class install_data(_install_data):
         self.data_files = data_files
         _install_data.run(self)
 
+class build_scripts(_build_scripts):
+    """Class for providing a customized version of build_scripts.
+
+    When ``run`` is called, this command class will:
+    1. Create a copy of all ``.py`` files in the **scripts** option
+       that does not have the ``.py`` extension.
+    2. Replace the list in the **scripts** attribute with a list
+       consisting of the script files with the ``.py`` extension
+       removed.
+    3. Call run method in `distutils.command.build_scripts`.
+    4. Restore the scripts list to the old value, for other commands
+       to use.
+    """
+    def run(self):
+        if not self.scripts:
+            return
+
+        saved_scripts = self.scripts
+        self.scripts = []
+        for script in saved_scripts:
+            script = distutils.util.convert_path(script)
+            script_copy, script_ext = os.path.splitext(script)
+
+            if script_ext != '.py':
+                log.debug("Not removing extension from {script} "
+                          "since it's not '.py'".format(script=script))
+            else:
+                log.debug("Copying {orig} -> {dest}".format(
+                    orig=script, dest=script_copy))
+                self.copy_file(script, script_copy)
+                self.scripts.append(script_copy)
+        # distutils is compatible with 2.1 so we cannot use super() to
+        # call it.
+        _build_scripts.run(self)
+        self.outfiles = self.scripts
+        self.scripts = saved_scripts
+
+    def get_outputs(self):
+        """Get installed files"""
+        return self.outfiles
+
 META_INFO = {
     'name': "mysql-fabric",
     'license': "GPLv2",
@@ -294,7 +337,7 @@ META_INFO = {
         'mysql.connector (>=1.0)',
         ],
     'scripts': [
-        'scripts/mysqlfabric',
+        'scripts/mysqlfabric.py',
         ],
     # The install_data version above will recognize everything that
     # matches *.cfg (after template processing) and install the file
@@ -319,6 +362,11 @@ META_INFO = {
         'install_data': install_data,
         },
 }
+
+if os.name != "nt":
+    META_INFO['cmdclass'].update({
+        'build_scripts': build_scripts,
+        })
 
 #
 # When building the documentation that path is fixed based on
