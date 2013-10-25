@@ -23,6 +23,7 @@ import os
 import sys
 
 from distutils.core import setup, Command
+from distutils.util import change_root
 from distutils.sysconfig import get_python_lib
 from distutils.command.install_data import install_data as _install_data
 
@@ -225,25 +226,39 @@ class install_data(_install_data):
             install_sysconfdir = os.path.join(install_dir, 'etc')
 
         # Go over all entries in data_files and process it if needed
+        data_files = []
         for df in self.data_files:
             # Figure out what the entry contain and collect a list of files.
+            from_tuple = False
             if isinstance(df, str):
                 # This was just a file name, so it will be installed
                 # in the install_dir location. This is a copy of the
                 # behaviour inside distutils intall_data.
                 directory = install_dir
                 filenames = [df]
+                from_tuple = False
+                if self.warn_dir:
+                    self.warn("setup script did not provide a directory for "
+                              "'%s' -- installing somewhere under '%s' or "
+                              "'%s'" % (df, install_dir, install_sysconfdir))
             else:
                 directory = df[0]
                 filenames = df[1]
+                from_tuple = True
 
             # Process all the files for the entry and build a list of
             # tuples (directory, file)
-            data_files = []
             for filename in filenames:
                 # It was a config file template, add install
                 # directories to the config file.
                 if fnmatch.fnmatch(filename, 'data/*.cfg.in'):
+
+                    if not os.path.isabs(directory):
+                        directory = directory if from_tuple else "mysql"
+                        directory = os.path.join(install_sysconfdir, directory)
+                    elif self.root:
+                        directory = change_root(self.root, directory)
+
                     config = ConfigParser.RawConfigParser({
                             'prefix': install_dir,
                             'logdir': install_logdir,
@@ -252,7 +267,7 @@ class install_data(_install_data):
                     config.readfp(open(filename))
                     filename = os.path.splitext(filename)[0]
                     config.write(open(filename, "w"))
-                    directory = os.path.join(install_sysconfdir, directory)
+
                 data_files.append((directory, filename))
 
         # Re-construct the data_files entry from what was provided by
