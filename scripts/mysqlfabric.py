@@ -18,6 +18,7 @@
 
 import sys
 import os
+import inspect
 
 from mysql.fabric.services import (
     find_commands,
@@ -113,7 +114,10 @@ def create_command(group_name, command_name):
         # location of it based on the installed location of the
         # script location.
         if not options.config_file:
-            directory = os.path.dirname(__file__)
+            try:
+                directory = os.path.dirname(__file__)
+            except NameError:
+                directory = os.path.abspath(inspect.getfile(inspect.currentframe())) 
             prefix = os.path.realpath(os.path.join(directory, '..'))
             if os.name == 'posix' and prefix in ('/', '/usr'):
                 config_file = '/etc/mysql/fabric.cfg'
