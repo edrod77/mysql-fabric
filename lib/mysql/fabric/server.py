@@ -83,35 +83,25 @@ class Group(_persistence.Persistable):
                     "status BIT(1) NOT NULL,"
                     "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
 
-    #Create the table that stores the master group of a particular group.
-    CREATE_GROUP_REPLICATION_MASTER = (
-                            "CREATE TABLE group_replication_master"
-                            "(group_id VARCHAR(64) PRIMARY KEY NOT NULL, "
-                            "master_group_id VARCHAR(64) NOT NULL, "
-                            "CONSTRAINT FOREIGN KEY(group_id) "
-                            "REFERENCES groups(group_id), "
+    #Create the table that stores the group replication relationship.
+    CREATE_GROUP_REPLICATION = (
+                            "CREATE TABLE group_replication"
+                            "(master_group_id VARCHAR(64) NOT NULL, "
+                            "slave_group_id VARCHAR(64) NOT NULL, "
+                            "CONSTRAINT pk_master_slave_group_id "
+                            "PRIMARY KEY(master_group_id, slave_group_id), "
                             "CONSTRAINT FOREIGN KEY(master_group_id) "
-                            "REFERENCES groups(group_id))")
-
-    #Create the table that stores the slaves of a particular group.
-    CREATE_GROUP_REPLICATION_SLAVE =  (
-                            "CREATE TABLE group_replication_slave"
-                            "(group_id VARCHAR(64) NOT NULL, "
-                            "slave_group_id VARCHAR(64) UNIQUE NOT NULL, "
-                            "CONSTRAINT FOREIGN KEY(group_id) "
                             "REFERENCES groups(group_id), "
                             "CONSTRAINT FOREIGN KEY(slave_group_id) "
-                            "REFERENCES groups(group_id))")
+                            "REFERENCES groups(group_id), "
+                            "INDEX idx_slave_group_id(slave_group_id))")
 
     #SQL Statements for dropping the table created for storing the Group
     #information
     DROP_GROUP = ("DROP TABLE groups")
 
     #Drop the table that stores the master group of a particular group.
-    DROP_GROUP_REPLICATION_MASTER = ("DROP TABLE group_replication_master")
-
-    #Drop the table that stores the slaves of a particular group.
-    DROP_GROUP_REPLICATION_SLAVE =  ("DROP TABLE group_replication_slave")
+    DROP_GROUP_REPLICATION = ("DROP TABLE group_replication")
 
     #SQL statement for inserting a new group into the table
     INSERT_GROUP = ("INSERT INTO groups(group_id, description, status) "
@@ -125,11 +115,11 @@ class Group(_persistence.Persistable):
 
     #Query the group that is the master of this group.
     QUERY_GROUP_REPLICATION_MASTER = ("SELECT master_group_id FROM "
-                                "group_replication_master WHERE group_id = %s")
+                                "group_replication WHERE slave_group_id = %s")
 
     #Query the groups that are the slaves of this group.
     QUERY_GROUP_REPLICATION_SLAVES = ("SELECT slave_group_id FROM "
-                                "group_replication_slave WHERE group_id = %s")
+                                "group_replication WHERE master_group_id = %s")
 
     #SQL statement for updating the group table identified by the group id.
     UPDATE_GROUP = ("UPDATE groups SET description = %s WHERE group_id = %s")
@@ -137,28 +127,20 @@ class Group(_persistence.Persistable):
     #SQL statement used for deleting the group identified by the group id.
     REMOVE_GROUP = ("DELETE FROM groups WHERE group_id = %s")
 
-    #Delete a Master Group of a Group.
-    DELETE_MASTER_GROUP = ("DELETE FROM group_replication_master "
-                                                "WHERE group_id = %s")
+    #Remove the mapping between a master and a slave group.
+    DELETE_MASTER_SLAVE_GROUP_MAPPING = ("DELETE FROM group_replication "
+                            "WHERE slave_group_id = %s")
 
-    #Delete Slave Group of a Group.
-    DELETE_SLAVE_GROUP = ("DELETE FROM group_replication_slave "
-                                              "WHERE group_id = %s AND "
-                                              "slave_group_id = %s")
+    #Delete all the master to slave mappings for a given master group. A
+    #given master group can have multiple slaves.
+    DELETE_SLAVE_GROUPS = ("DELETE FROM group_replication "
+                            "WHERE master_group_id = %s")
 
-    #Delete Slave Groups of a Group.
-    DELETE_SLAVE_GROUPS = ("DELETE FROM group_replication_slave "
-                                                "WHERE group_id = %s")
-
-    #Add a Master Group to a Group.
-    INSERT_MASTER_GROUP = ("INSERT INTO group_replication_master"
-                                                "(group_id, master_group_id)"
-                                                " VALUES(%s, %s)")
-
-    #Add a Slave Group to a Group.
-    INSERT_SLAVE_GROUP = ("INSERT INTO group_replication_slave"
-                                            "(group_id, slave_group_id)"
-                                            " VALUES(%s, %s)")
+    #Add a Master - Slave Group mapping.
+    INSERT_MASTER_SLAVE_GROUP_MAPPING = \
+            ("INSERT INTO group_replication"
+             "(master_group_id, slave_group_id)"
+             " VALUES(%s, %s)")
 
     #SQL Statement to retrieve a specific group from the state_store.
     QUERY_GROUP = ("SELECT group_id, description, master_uuid, status "
@@ -244,7 +226,7 @@ class Group(_persistence.Persistable):
         :param slave_group_id: the group ID of the slave group that needs to
                                               be added.
         """
-        persister.exec_stmt(Group.INSERT_SLAVE_GROUP,
+        persister.exec_stmt(Group.INSERT_MASTER_SLAVE_GROUP_MAPPING,
                             {"params": (self.__group_id, slave_group_id)})
 
     def remove_slave_group_id(self,  slave_group_id, persister=None):
@@ -254,8 +236,8 @@ class Group(_persistence.Persistable):
         :param slave_group_id: the group ID of the slave group that needs to
                                               be removed.
         """
-        persister.exec_stmt(Group.DELETE_SLAVE_GROUP,
-                            {"params": (self.__group_id, slave_group_id)})
+        persister.exec_stmt(Group.DELETE_MASTER_SLAVE_GROUP_MAPPING,
+                            {"params": (slave_group_id, )})
 
     def remove_slave_group_ids(self, persister=None):
         """Remove slave group ids for a particular group. Unregisters
@@ -271,13 +253,13 @@ class Group(_persistence.Persistable):
         :param master_group_id: The group ID of the master that needs to be
                                                  added.
         """
-        persister.exec_stmt(Group.INSERT_MASTER_GROUP,
-                            {"params": (self.__group_id, master_group_id)})
+        persister.exec_stmt(Group.INSERT_MASTER_SLAVE_GROUP_MAPPING,
+                            {"params": (master_group_id, self.__group_id)})
 
     def remove_master_group_id(self, persister=None):
         """Remove the master group ID. Unregister a master group.
         """
-        persister.exec_stmt(Group.DELETE_MASTER_GROUP,
+        persister.exec_stmt(Group.DELETE_MASTER_SLAVE_GROUP_MAPPING,
                             {"params": (self.__group_id, )})
 
     def add_server(self, server, persister=None):
@@ -455,17 +437,10 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.CREATE_GROUP)
 
         try:
-            persister.exec_stmt(Group.CREATE_GROUP_REPLICATION_MASTER)
+            persister.exec_stmt(Group.CREATE_GROUP_REPLICATION)
         except _errors.DatabaseError:
-            persister.exec_stmt(Group.DROP_GROUP)
-            raise
-
-        try:
-            persister.exec_stmt(Group.CREATE_GROUP_REPLICATION_SLAVE)
-        except _errors.DatabaseError:
-            persister.exec_stmt(Group.DROP_GROUP_REPLICATION_MASTER)
-            persister.exec_stmt(Group.DROP_GROUP)
-            raise
+             persister.exec_stmt(Group.DROP_GROUP)
+             raise
 
     @staticmethod
     def drop(persister=None):
@@ -477,8 +452,7 @@ class Group(_persistence.Persistable):
         :raises: DatabaseError If the drop of the related table fails.
         """
         _detector.FailureDetector.unregister_groups()
-        persister.exec_stmt(Group.DROP_GROUP_REPLICATION_SLAVE)
-        persister.exec_stmt(Group.DROP_GROUP_REPLICATION_MASTER)
+        persister.exec_stmt(Group.DROP_GROUP_REPLICATION)
         persister.exec_stmt(Group.DROP_GROUP)
 
 class ConnectionPool(_utils.Singleton):
