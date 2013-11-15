@@ -47,7 +47,6 @@ class TestHashSharding(unittest.TestCase):
             "address"  : MySQLInstances().get_address(0),
             "user" : "root"
         }
-
         uuid_server1 = MySQLServer.discover_uuid(**self.__options_1)
         self.__options_1["uuid"] = _uuid.UUID(uuid_server1)
         self.__server_1 = MySQLServer(**self.__options_1)
@@ -56,7 +55,7 @@ class TestHashSharding(unittest.TestCase):
         self.__group_1 = Group("GROUPID1", "First description.")
         Group.add(self.__group_1)
         self.__group_1.add_server(self.__server_1)
-        self.__group_1.master = self.__options_1["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_1, self.__server_1)
 
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa45b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -81,7 +80,7 @@ class TestHashSharding(unittest.TestCase):
         self.__group_2 = Group("GROUPID2", "Second description.")
         Group.add(self.__group_2)
         self.__group_2.add_server(self.__server_2)
-        self.__group_2.master = self.__options_2["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_2, self.__server_2)
 
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -105,7 +104,7 @@ class TestHashSharding(unittest.TestCase):
         self.__group_3 = Group("GROUPID3", "Third description.")
         Group.add( self.__group_3)
         self.__group_3.add_server(self.__server_3)
-        self.__group_3.master = self.__options_3["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_3, self.__server_3)
 
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{bb45b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -129,7 +128,7 @@ class TestHashSharding(unittest.TestCase):
         self.__group_4 = Group("GROUPID4", "Fourth description.")
         Group.add( self.__group_4)
         self.__group_4.add_server(self.__server_4)
-        self.__group_4.master = self.__options_4["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_4, self.__server_4)
 
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -153,7 +152,7 @@ class TestHashSharding(unittest.TestCase):
         self.__group_5 = Group("GROUPID5", "Fifth description.")
         Group.add( self.__group_5)
         self.__group_5.add_server(self.__server_5)
-        self.__group_5.master = self.__options_5["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_5, self.__server_5)
 
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{cc45b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -177,7 +176,7 @@ class TestHashSharding(unittest.TestCase):
         self.__group_6 = Group("GROUPID6", "Sixth description.")
         Group.add( self.__group_6)
         self.__group_6.add_server(self.__server_6)
-        self.__group_6.master = self.__options_6["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         self.__shard_mapping_list = ShardMapping.list_shard_mapping_defn()
         self.assertEquals( self.__shard_mapping_list,  [])

@@ -269,7 +269,7 @@ def _define_ha_operation(group_id, slave_uuid):
         try:
             master = _server.MySQLServer.fetch(group.master)
             master.connect()
-            if master.status == _server.MySQLServer.RUNNING and \
+            if master.status != _server.MySQLServer.FAULTY and \
                 master.is_alive():
                 fail_over = False
         except _errors.DatabaseError:
@@ -474,9 +474,11 @@ def _do_import_topology(pattern_group_id, group_description,
     # Create master of the group.
     master_address = topology[master_uuid]["address"]
     server = _server.MySQLServer(
-        uuid=_uuid.UUID(master_uuid), address=master_address, user=user,
-        passwd=passwd, status=_server.MySQLServer.RUNNING
-        )
+        uuid=_uuid.UUID(master_uuid), address=master_address,
+        user=user, passwd=passwd,
+        mode=_server.MySQLServer.READ_WRITE,
+        status=_server.MySQLServer.PRIMARY
+    )
     _server.MySQLServer.add(server)
 
     # Added created master to the group.
@@ -492,9 +494,11 @@ def _do_import_topology(pattern_group_id, group_description,
         if not new_slaves:
             slave_address = slave[slave_uuid]["address"]
             server = _server.MySQLServer(
-                uuid=_uuid.UUID(slave_uuid), address=slave_address, user=user,
-                passwd=passwd, status=_server.MySQLServer.RUNNING
-                )
+                uuid=_uuid.UUID(slave_uuid), address=slave_address,
+                user=user, passwd=passwd,
+                mode=_server.MySQLServer.READ_ONLY,
+                status=_server.MySQLServer.SECONDARY
+            )
             _server.MySQLServer.add(server)
         else:
             groups.union(_do_import_topology(group_id, group_description,
@@ -525,6 +529,7 @@ def _do_find_candidate(group_id, event):
     :return: Return the uuid of the best candidate to become a master in the
              group.
     """
+    forbidden_status = (_server.MySQLServer.FAULTY, _server.MySQLServer.SPARE)
     group = _server.Group.fetch(group_id)
 
     master_uuid = None
@@ -535,7 +540,7 @@ def _do_find_candidate(group_id, event):
     chosen_gtid_status = None
     for candidate in group.servers():
         if master_uuid != str(candidate.uuid) and \
-            candidate.status == _server.MySQLServer.RUNNING:
+            candidate.status not in forbidden_status:
             try:
                 gtid_status = candidate.get_gtid_status()
                 master_issues = \
@@ -590,9 +595,10 @@ def _do_find_candidate(group_id, event):
 
 @_events.on_event(CHECK_CANDIDATE_SWITCH)
 def _check_candidate_switch(group_id, slave_uuid):
-    """Check if the candidate has all the issues to become the new
+    """Check if the candidate has all the features to become the new
     master.
     """
+    allowed_status = (_server.MySQLServer.SECONDARY, _server.MySQLServer.SPARE)
     group = _server.Group.fetch(group_id)
 
     if not group.master:
@@ -636,10 +642,8 @@ def _check_candidate_switch(group_id, slave_uuid):
             "master (%s)." % (group.master, master_uuid)
             )
 
-    if slave.status not in \
-        (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
-        raise _errors.ServerError("Server (%s) is either not running or "
-                                  "is a spare." % (slave_uuid, ))
+    if slave.status not in allowed_status:
+        raise _errors.ServerError("Server (%s) is faulty." % (slave_uuid, ))
 
     _events.trigger_within_procedure(
         BLOCK_WRITE_SWITCH, group_id, master_uuid, slave_uuid
@@ -668,6 +672,8 @@ def _do_block_write_master(group_id, master_uuid):
     server = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     server.connect()
     _utils.set_read_only(server, True)
+    server.mode = _server.MySQLServer.READ_ONLY
+    server.status = _server.MySQLServer.SECONDARY
 
 @_events.on_event(WAIT_SLAVES_SWITCH)
 def _wait_slaves_switch(group_id, master_uuid, slave_uuid):
@@ -721,6 +727,8 @@ def _change_to_candidate(group_id, master_uuid):
     master.connect()
     _utils.reset_slave(master)
     _utils.set_read_only(master, False)
+    master.mode = _server.MySQLServer.READ_WRITE
+    master.status = _server.MySQLServer.PRIMARY
 
     group = _server.Group.fetch(group_id)
 
@@ -754,6 +762,7 @@ def _check_candidate_fail(group_id, slave_uuid):
     """Check if the candidate has all the prerequisites to become the new
     master.
     """
+    allowed_status = (_server.MySQLServer.SECONDARY, _server.MySQLServer.SPARE)
     group = _server.Group.fetch(group_id)
 
     if group.master == _uuid.UUID(slave_uuid):
@@ -791,10 +800,8 @@ def _check_candidate_fail(group_id, slave_uuid):
                 "Master (%s) cannot be reached.", server.uuid
             )
 
-    if slave.status not in \
-        (_server.MySQLServer.RUNNING, _server.MySQLServer.SPARE):
-        raise _errors.ServerError("Server (%s) is either not running or "
-                                  "is a spare." % (slave_uuid, ))
+    if slave.status not in allowed_status:
+        raise _errors.ServerError("Server (%s) is faulty." % (slave_uuid, ))
 
     _events.trigger_within_procedure(WAIT_SLAVE_FAIL, group_id, slave_uuid)
 
@@ -881,8 +888,8 @@ def _check_group_availability(group_id):
                     thread_issues = slave_issues
         except _errors.DatabaseError:
             if status not in \
-                (_server.MySQLServer.FAULTY,  _server.MySQLServer.OFFLINE):
-                status = _server.MySQLServer.FAULTY
+                (_server.MySQLServer.FAULTY):
+                mode = _server.MySQLServer.FAULTY
         availability[str(server.uuid)] = {
             "is_alive" : alive,
             "is_master" : is_master,

@@ -135,7 +135,7 @@ class FailureDetector(object):
         from mysql.fabric.server import (
             Group, MySQLServer
         )
-        ignored_status = [MySQLServer.FAULTY, MySQLServer.OFFLINE]
+        ignored_status = [MySQLServer.FAULTY]
 
         _persistence.init_thread()
         while self.__check:

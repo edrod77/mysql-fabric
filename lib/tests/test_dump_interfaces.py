@@ -53,7 +53,6 @@ class TestSharding(unittest.TestCase):
         Group.add(self.__group_1)
         self.__group_1.add_server(self.__server_1)
         self.__group_1.add_server(self.__server_2)
-        self.__group_1.master = self.__options_1["uuid"]
 
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -75,7 +74,7 @@ class TestSharding(unittest.TestCase):
         Group.add(self.__group_2)
         self.__group_2.add_server(self.__server_3)
         self.__group_2.add_server(self.__server_4)
-        self.__group_2.master = self.__options_3["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_2, self.__server_3)
 
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -97,7 +96,7 @@ class TestSharding(unittest.TestCase):
         Group.add(self.__group_3)
         self.__group_3.add_server(self.__server_5)
         self.__group_3.add_server(self.__server_6)
-        self.__group_3.master = self.__options_5["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_3, self.__server_5)
 
         self.__options_1_host,  self.__options_1_port = \
             server_utils.split_host_port(self.__options_1["address"], 13001)
@@ -222,64 +221,77 @@ class TestSharding(unittest.TestCase):
             201,
             self.__shard_id_11.shard_id)
 
+        OFFLINE = MySQLServer.get_mode_idx(MySQLServer.OFFLINE)
+        READ_ONLY = MySQLServer.get_mode_idx(MySQLServer.READ_ONLY)
+        READ_WRITE = MySQLServer.get_mode_idx(MySQLServer.READ_WRITE)
+
+        FAULTY = MySQLServer.get_status_idx(MySQLServer.FAULTY)
+        SPARE = MySQLServer.get_status_idx(MySQLServer.SPARE)
+        SECONDARY = MySQLServer.get_status_idx(MySQLServer.SECONDARY)
+        PRIMARY = MySQLServer.get_status_idx(MySQLServer.PRIMARY)
+
         self.__setofservers = [0, 0, 0,
             [[str(self.__server_1.uuid),
             'GROUPID1', self.__options_1_host,  self.__options_1_port,
-            3, 3, 1.0],
+            READ_ONLY, SECONDARY, 1.0],
             [str(self.__server_2.uuid),
             'GROUPID1', self.__options_2_host,  self.__options_2_port,
-            1, 2, 1.0],
+            READ_ONLY, SECONDARY, 1.0],
             [str(self.__server_3.uuid),
             'GROUPID2', self.__options_3_host,  self.__options_3_port,
-            3, 3, 1.0],
+            READ_WRITE, PRIMARY, 1.0],
             [str(self.__server_4.uuid),
             'GROUPID2', self.__options_4_host,  self.__options_4_port,
-            1, 2, 1.0],
+            READ_ONLY, SECONDARY, 1.0],
             [str(self.__server_5.uuid),
             'GROUPID3', self.__options_5_host,  self.__options_5_port,
-            3, 3, 1.0],
+            READ_WRITE, PRIMARY, 1.0],
             [str(self.__server_6.uuid),
             'GROUPID3', self.__options_6_host,  self.__options_6_port,
-            1, 2, 1.0]]]
+            READ_ONLY, SECONDARY, 1.0]]]
+
         self.__setofservers_1 = [0, 0, 0,
                 [[str(self.__server_1.uuid),
                 'GROUPID1', self.__options_1_host,  self.__options_1_port,
-                3, 3, 1.0],
+                READ_ONLY, SECONDARY, 1.0],
                 [str(self.__server_2.uuid),
                 'GROUPID1', self.__options_2_host,  self.__options_2_port,
-                1, 2, 1.0]]]
+                READ_ONLY, SECONDARY, 1.0]]]
+
         self.__setofservers_2 = [0, 0, 0,
                 [[str(self.__server_1.uuid),
                 'GROUPID1', self.__options_1_host,  self.__options_1_port,
-                3, 3, 1.0],
+                READ_ONLY, SECONDARY, 1.0],
                 [str(self.__server_2.uuid),
                 'GROUPID1', self.__options_2_host,  self.__options_2_port,
-                1, 2, 1.0],
+                READ_ONLY, SECONDARY, 1.0],
                 [str(self.__server_3.uuid),
                 'GROUPID2', self.__options_3_host,  self.__options_3_port,
-                3, 3, 1.0],
+                READ_WRITE, PRIMARY, 1.0],
                 [str(self.__server_4.uuid),
                 'GROUPID2', self.__options_4_host,  self.__options_4_port,
-                1, 2, 1.0]]]
+                READ_ONLY, SECONDARY, 1.0]]]
+
         self.__setofservers_3 = [0, 0, 0,
             [[str(self.__server_1.uuid),
             'GROUPID1', self.__options_1_host,  self.__options_1_port,
-            3, 3, 1.0],
+            READ_ONLY, SECONDARY, 1.0],
             [str(self.__server_2.uuid),
             'GROUPID1', self.__options_2_host,  self.__options_2_port,
-            1, 2, 1.0],
+            READ_ONLY, SECONDARY, 1.0],
             [str(self.__server_3.uuid),
             'GROUPID2', self.__options_3_host,  self.__options_3_port,
-            3, 3, 1.0],
+            READ_WRITE, PRIMARY, 1.0],
             [str(self.__server_4.uuid),
             'GROUPID2', self.__options_4_host,  self.__options_4_port,
-            1, 2, 1.0],
+            READ_ONLY, SECONDARY, 1.0],
             [str(self.__server_5.uuid),
             'GROUPID3', self.__options_5_host,  self.__options_5_port,
-            3, 3, 1.0],
+            READ_WRITE, PRIMARY, 1.0],
             [str(self.__server_6.uuid),
             'GROUPID3', self.__options_6_host,  self.__options_6_port,
-            1, 2, 1.0]]]
+            READ_ONLY, SECONDARY, 1.0]]]
+
         self.__setoftables = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
                               ['db2', 't2', 'userID2', '2'],
                               ['db3', 't3', 'userID3', '3'],
@@ -368,6 +380,7 @@ class TestSharding(unittest.TestCase):
     def test_dumps(self):
         self.assertEqual(self.__setofservers,
             self.proxy.store.dump_servers(0))
+
         self.assertEqual(self.__setofservers_1,
             self.proxy.store.dump_servers(0, "GROUPID1"))
         self.assertEqual(self.__setofservers_2,

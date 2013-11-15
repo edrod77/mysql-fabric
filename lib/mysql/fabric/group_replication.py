@@ -261,11 +261,11 @@ def setup_group_replication(group_master_id,  group_slave_id):
 def server_running(server):
     """Check if the server is in the running state.
 
-    :param server: The MySQLServer object who's status needs to be checked.
+    :param server: The MySQLServer object whose mode needs to be checked.
 
     :return: True if server is in the running state.
-            False otherwise.
+             False otherwise.
     """
-    if server.status in [MySQLServer.OFFLINE, MySQLServer.FAULTY]:
+    if server.status in [MySQLServer.FAULTY]:
         return False
     return True

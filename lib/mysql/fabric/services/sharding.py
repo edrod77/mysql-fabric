@@ -1220,7 +1220,7 @@ def _fetch_backup_server(source_group):
     if backup_server is None:
         for server in source_group.servers():
             if source_group.master != server.uuid and \
-                server.status == "RUNNING":
+                server.status == "SECONDARY":
                 backup_server = server
 
     #If there is no running slave just use the master

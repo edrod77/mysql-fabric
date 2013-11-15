@@ -87,15 +87,34 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.passwd, fetched_server.passwd)
 
         # Check property status.
-        self.assertEqual(server.status, MySQLServer.RUNNING)
-        server.status = MySQLServer.OFFLINE
-        self.assertEqual(server.status, MySQLServer.OFFLINE)
-        fetched_server = MySQLServer.fetch(server.uuid)
-        persistence.MySQLPersister().commit()
-        self.assertEqual(server.status, fetched_server.status)
-        server.status = MySQLServer.RUNNING
+        self.assertEqual(server.status, MySQLServer.SECONDARY)
+        server.status = MySQLServer.FAULTY
+        self.assertEqual(server.status, MySQLServer.FAULTY)
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.status, fetched_server.status)
+        server.status = MySQLServer.SECONDARY
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.status, fetched_server.status)
+
+        # Check property mode.
+        self.assertEqual(server.mode, MySQLServer.READ_ONLY)
+        server.mode = MySQLServer.OFFLINE
+        self.assertEqual(server.mode, MySQLServer.OFFLINE)
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.mode, fetched_server.mode)
+        server.mode = MySQLServer.READ_ONLY
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.mode, fetched_server.mode)
+
+        # Check property weight.
+        self.assertEqual(server.weight, MySQLServer.DEFAULT_WEIGHT)
+        server.weight = 0.1
+        self.assertEqual(server.weight, 0.1)
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.weight, fetched_server.weight)
+        server.weight = MySQLServer.DEFAULT_WEIGHT
+        fetched_server = MySQLServer.fetch(server.uuid)
+        self.assertEqual(server.weight, fetched_server.weight)
 
         # Create instance without connecting it with a server.
         self.assertEqual(server.read_only, None)

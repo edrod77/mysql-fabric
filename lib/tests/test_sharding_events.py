@@ -63,8 +63,7 @@ class TestShardingServices(unittest.TestCase):
         Group.add(self.__group_1)
         self.__group_1.add_server(self.__server_1)
         self.__group_1.add_server(self.__server_2)
-        self.__group_1.master = self.__options_1["uuid"]
-
+        tests.utils.configure_decoupled_master(self.__group_1, self.__server_1)
 
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -92,7 +91,7 @@ class TestShardingServices(unittest.TestCase):
         Group.add(self.__group_2)
         self.__group_2.add_server(self.__server_3)
         self.__group_2.add_server(self.__server_4)
-        self.__group_2.master = self.__options_3["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_2, self.__server_3)
 
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
@@ -120,7 +119,7 @@ class TestShardingServices(unittest.TestCase):
         Group.add( self.__group_3)
         self.__group_3.add_server(self.__server_5)
         self.__group_3.add_server(self.__server_6)
-        self.__group_3.master = self.__options_5["uuid"]
+        tests.utils.configure_decoupled_master(self.__group_3, self.__server_5)
 
         status = self.proxy.sharding.define("RANGE", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)

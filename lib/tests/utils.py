@@ -36,6 +36,31 @@ from mysql.fabric.sharding import (
 
 _LOGGER = logging.getLogger(__name__)
 
+def configure_decoupled_master(group, master):
+    """Configure master in a group by changing the group.master and
+    mode and status properties without redirecting slaves to the
+    specified master.
+
+    :param group: Group object.
+    :param master: Reference to the master.
+    :type master: MySQLServer, UUID or None
+    """
+    for server in group.servers():
+        server.mode = _server.MySQLServer.READ_ONLY
+        server.status = _server.MySQLServer.SECONDARY
+    group.master = None
+
+    if master and isinstance(master, _uuid.UUID):
+        master = _server.MySQLServer.fetch(master)
+
+    if master and isinstance(master, _server.MySQLServer):
+        group.master = master.uuid
+        master.mode = _server.MySQLServer.READ_WRITE
+        master.status = _server.MySQLServer.PRIMARY
+    elif not master:
+        assert("Invalid instance")
+
+
 class MySQLInstances(_utils.Singleton):
     """Contain a reference to the available set of MySQL Instances that can be
     used in a test case.

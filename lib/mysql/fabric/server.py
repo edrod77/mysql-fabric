@@ -564,8 +564,14 @@ class MySQLServer(_persistence.Persistable):
     :param user: The username used to access the server.
     :param passwd: The password used to access the server.
     :param default_charset: The default charset that will be used.
+    :param mode: Server's mode.
+    :type mode: OFFLINE, READ_ONLY, READ_WRITE.
     :param status: Server's status.
-    :type status: OFFLINE, RUNNING, SPARE, etc.
+    :type status: FAULTY, SPARE, SECONDARY, PRIMARY.
+    :param weight: Server's weight which determines its likelihood of
+                   receiving requests.
+    :type weight: Float
+    :param group_id: Group's id which the server belongs to.
     """
     #SQL Statement for creating the table used to store details about the
     #server.
@@ -574,7 +580,9 @@ class MySQLServer(_persistence.Persistable):
         "(server_uuid VARCHAR(40) NOT NULL, "
         "server_address VARCHAR(128) NOT NULL, "
         "user CHAR(16), passwd TEXT, "
-        "status ENUM(%s) NOT NULL, "
+        "mode INTEGER NOT NULL, "
+        "status INTEGER NOT NULL, "
+        "weight FLOAT NOT NULL, "
         "group_id VARCHAR(64), "
         "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid), "
         "INDEX idx_group_id (group_id))"
@@ -597,7 +605,8 @@ class MySQLServer(_persistence.Persistable):
 
     #SQL statement for inserting a new server into the table
     INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_address, user, "
-                     "passwd, status, group_id) values(%s, %s, %s, %s, %s, %s)")
+                     "passwd, mode, status, weight, group_id) values(%s, %s, "
+                     "%s, %s, %s, %s, %s, %s)")
 
     #SQL statement for updating the server table identified by the server id.
     UPDATE_SERVER_USER = ("UPDATE servers SET user = %s WHERE server_uuid = %s")
@@ -608,8 +617,18 @@ class MySQLServer(_persistence.Persistable):
         )
 
     #SQL statement for updating the server table identified by the server id.
+    UPDATE_SERVER_MODE = (
+        "UPDATE servers SET mode = %s WHERE server_uuid = %s"
+        )
+
+    #SQL statement for updating the server table identified by the server id.
     UPDATE_SERVER_STATUS = (
         "UPDATE servers SET status = %s WHERE server_uuid = %s"
+        )
+
+    #SQL statement for updating the server table identified by the server id.
+    UPDATE_SERVER_WEIGHT = (
+        "UPDATE servers SET weight = %s WHERE server_uuid = %s"
         )
 
     #SQL statement for updating the server table identified by the server id.
@@ -622,21 +641,21 @@ class MySQLServer(_persistence.Persistable):
 
     #SQL Statement to retrieve the server from the state_store.
     QUERY_SERVER = (
-        "SELECT server_uuid, server_address, user, passwd, status, group_id "
-        "FROM servers WHERE server_uuid = %s"
+        "SELECT server_uuid, server_address, user, passwd, mode, status, "
+        "weight, group_id FROM servers WHERE server_uuid = %s"
         )
 
     #SQL Statement to retrieve a set of servers in a group from the state_store.
     QUERY_SERVER_GROUP_ID = (
-        "SELECT server_uuid, server_address, user, passwd, status "
-        "FROM servers WHERE group_id = %s"
+        "SELECT server_uuid, server_address, user, passwd, mode, status, "
+        "weight FROM servers WHERE group_id = %s"
         )
 
     #SQL Statement to retrieve the servers belonging to a group.
     DUMP_SERVERS = (
-        "SELECT server_uuid, group_id, server_address "
-        "FROM servers WHERE group_id LIKE %s AND group_id IS NOT NULL "
-        "ORDER BY group_id, server_address, server_uuid"
+        "SELECT server_uuid, group_id, server_address, mode, status, weight "
+        "FROM servers WHERE group_id LIKE %s AND group_id IS NOT NULL AND "
+        "status != %s ORDER BY group_id, server_address, server_uuid"
         )
 
     #Default weight for the server
@@ -651,30 +670,50 @@ class MySQLServer(_persistence.Persistable):
     # Set of contexts.
     CONTEXTS = [SESSION_CONTEXT, GLOBAL_CONTEXT]
 
-    # Define an off-line status.
+    # Define the offline mode.
     OFFLINE = "OFFLINE"
 
-    # Define a running status.
-    RUNNING = "RUNNING"
+    # Define the read-only mode.
+    READ_ONLY = "READ_ONLY"
 
-    # Define an spare status.
-    SPARE = "SPARE"
+    # Define the write-only mode.
+    WRITE_ONLY = "WRITE_ONLY"
 
-    # Define an faulty status.
+    # Define the read-write mode.
+    READ_WRITE = "READ_WRITE"
+
+    # Define default mode
+    DEFAULT_MODE = READ_ONLY
+
+    # Set of possible modes.
+    SERVER_MODE = [OFFLINE, READ_ONLY, WRITE_ONLY, READ_WRITE]
+
+    # Define the faulty status.
     FAULTY = "FAULTY"
 
-    # Define a recovering status.
-    RECOVERING = "RECOVERING"
+    # Define the spare status.
+    SPARE = "SPARE"
+
+    # Define the secondary status.
+    SECONDARY = "SECONDARY"
+
+    # Define the primary status.
+    PRIMARY = "PRIMARY"
+
+    # Define default status
+    DEFAULT_STATUS = SECONDARY
 
     # Set of possible statuses.
-    SERVER_STATUS = [OFFLINE, RUNNING, SPARE, FAULTY, RECOVERING]
+    SERVER_STATUS = [FAULTY, SPARE, SECONDARY, PRIMARY]
 
-    def __init__(self, uuid, address, user=None, passwd=None,
-                 status=RUNNING, group_id=None, default_charset="latin1"):
+    def __init__(self, uuid, address, user=None, passwd=None, mode=DEFAULT_MODE,
+                 status=DEFAULT_STATUS, weight=DEFAULT_WEIGHT, group_id=None,
+                 default_charset="latin1"):
         """Constructor for MySQLServer.
         """
         super(MySQLServer, self).__init__()
         assert(isinstance(uuid, _uuid.UUID))
+        assert(mode in MySQLServer.SERVER_MODE)
         assert(status in MySQLServer.SERVER_STATUS)
         self.__cnx = None
         self.__uuid = uuid
@@ -684,7 +723,9 @@ class MySQLServer(_persistence.Persistable):
         self.__user = user
         self.__passwd = passwd
         self.__default_charset = default_charset
+        self.__mode = mode
         self.__status = status
+        self.__weight = weight
         self.__read_only = None
         self.__server_id = None
         self.__version = None
@@ -943,6 +984,34 @@ class MySQLServer(_persistence.Persistable):
             self.__passwd = passwd
 
     @property
+    def mode(self):
+        """Return the server's mode.
+        """
+        return self.__mode
+
+    @mode.setter
+    def mode(self, mode, persister=None):
+        """Set the server's mode.
+
+        :param mode: The new server's mode.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        assert(mode in MySQLServer.SERVER_MODE)
+        idx = MySQLServer.get_mode_idx(mode)
+        persister.exec_stmt(MySQLServer.UPDATE_SERVER_MODE,
+                            {"params":(idx, str(self.uuid))})
+        self.__mode = mode
+
+    @staticmethod
+    def get_mode_idx(mode):
+        return MySQLServer.SERVER_MODE.index(mode)
+
+    @staticmethod
+    def get_mode(idx):
+        return MySQLServer.SERVER_MODE[idx]
+
+    @property
     def status(self):
         """Return the server's status.
         """
@@ -957,9 +1026,37 @@ class MySQLServer(_persistence.Persistable):
                           state store.
         """
         assert(status in MySQLServer.SERVER_STATUS)
+        idx = MySQLServer.get_status_idx(status)
         persister.exec_stmt(MySQLServer.UPDATE_SERVER_STATUS,
-                            {"params":(status, str(self.uuid))})
+                            {"params":(idx, str(self.uuid))})
         self.__status = status
+
+    @staticmethod
+    def get_status_idx(status):
+        return MySQLServer.SERVER_STATUS.index(status)
+
+    @staticmethod
+    def get_status(idx):
+        return MySQLServer.SERVER_STATUS[idx]
+
+    @property
+    def weight(self):
+        """Return the server's weight.
+        """
+        return self.__weight
+
+    @weight.setter
+    def weight(self, weight, persister=None):
+        """Set the server's weight.
+
+        :param weight: The new server's weight.
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        assert(weight > 0.0)
+        persister.exec_stmt(MySQLServer.UPDATE_SERVER_WEIGHT,
+                            {"params":(weight, str(self.uuid))})
+        self.__weight = weight
 
     @property
     def group_id(self):
@@ -989,13 +1086,16 @@ class MySQLServer(_persistence.Persistable):
         """
         ret = []
         rows = persister.exec_stmt(MySQLServer.QUERY_SERVER_GROUP_ID,
-                                   {"params" : (group_id, )})
+            {"raw" : False, "params" : (group_id, )}
+        )
         for row in rows:
-            uuid, address, user, passwd, status = row
+            uuid, address, user, passwd, idx_mode, idx_status, weight = row
+            mode = MySQLServer.get_mode(idx_mode)
+            status = MySQLServer.get_status(idx_status)
             server = MySQLServer(
                 _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
-                status=status, group_id=group_id
-                )
+                mode=mode, status=status, weight=weight, group_id=group_id
+            )
             try:
                 server.connect()
             except _errors.DatabaseError:
@@ -1146,7 +1246,10 @@ class MySQLServer(_persistence.Persistable):
     def __del__(self):
         """Destructor for MySQLServer.
         """
-        self.disconnect()
+        try:
+            self.disconnect()
+        except AttributeError:
+            pass
 
     @staticmethod
     def remove(server, persister=None):
@@ -1170,14 +1273,18 @@ class MySQLServer(_persistence.Persistable):
                  None if the server id does not exist.
         """
         cur = persister.exec_stmt(MySQLServer.QUERY_SERVER,
-                                  {"fetch" : False, "params":(str(uuid),)})
+            {"fetch" : False, "raw" : False, "params":(str(uuid),)}
+        )
         row = cur.fetchone()
         if row:
-            uuid, address, user, passwd, status, group_id = row
+            uuid, address, user, passwd, idx_mode, idx_status, \
+                weight, group_id = row
+            mode = MySQLServer.get_mode(idx_mode)
+            status = MySQLServer.get_status(idx_status)
             return MySQLServer(
                 _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
-                status=status, group_id=group_id
-                )
+                mode=mode, status=status, weight=weight, group_id=group_id
+            )
 
     @staticmethod
     def dump_servers(version=None, patterns="", persister=None):
@@ -1190,18 +1297,6 @@ class MySQLServer(_persistence.Persistable):
         :return: A list of servers belonging to the groups that match
                 the provided pattern.
         """
-        #SERVER MODE CONSTANTS
-        OFFLINE = 0
-        READ_ONLY = 1
-        FAULTY = 2
-        READ_WRITE = 3
-
-        #SERVER ROLE CONSTANTS
-        SPARE = 0
-        SCALE = 1
-        SECONDARY = 2
-        PRIMARY = 3
-
         #This is used to store the consolidated list of servers
         #that will be returned.
         result_server_list = []
@@ -1223,45 +1318,17 @@ class MySQLServer(_persistence.Persistable):
                 like_pattern = '%%'
             else:
                 like_pattern = '%' + p + '%'
-            cur = persister.exec_stmt(MySQLServer.DUMP_SERVERS,
-                                  {"fetch" : False, "params":(like_pattern,)})
-            rows = cur.fetchall()
-            #For each row fetched, split the address into a host and port.
+            rows = persister.exec_stmt(MySQLServer.DUMP_SERVERS,
+                {"raw" : False, "params":(like_pattern, "FAULTY")})
+
             for row in rows:
-                group = Group.fetch(row[1])
-                server = MySQLServer.fetch(row[0])
-
-                #NOTE: The scale information is not available in the server
-                #yet.
-                mode = -1
-                role = -1
-
-                if server.status == "FAULTY":
-                    mode = FAULTY
-                elif server.status == "OFFLINE":
-                    mode = OFFLINE
-                elif server.status == "SPARE":
-                    mode = READ_ONLY
-                else:
-                    mode = READ_WRITE if group.master == server.uuid \
-                    else READ_ONLY
-
-                if server.status == "SPARE":
-                    role = SPARE
-                elif group.master == server.uuid:
-                    role = PRIMARY
-                else:
-                    role = SECONDARY
-
-                assert(mode != -1 and role != -1)
-
                 host, port = _server_utils.split_host_port(
                                 row[2],
                                 _server_utils.MYSQL_DEFAULT_PORT
                              )
                 result_server_list.append(
-                    (row[0], row[1], host, port, mode, role,
-                    MySQLServer.DEFAULT_WEIGHT)
+                    (row[0], row[1], host, port, row[3], row[4],
+                    row[5])
                 )
         return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
                 _utils.TTL, result_server_list)
@@ -1274,8 +1341,7 @@ class MySQLServer(_persistence.Persistable):
         :param persister: Persister to persist the object to.
         :raises: DatabaseError If the table already exists.
         """
-        statuses = "'" + "', '".join(MySQLServer.SERVER_STATUS) + "'"
-        persister.exec_stmt(MySQLServer.CREATE_SERVER % statuses)
+        persister.exec_stmt(MySQLServer.CREATE_SERVER)
 
     @staticmethod
     def drop(persister=None):
@@ -1321,10 +1387,13 @@ class MySQLServer(_persistence.Persistable):
         if persister_uuid is not None and persister_uuid == server.uuid:
             raise _errors.ServerError("Fabric's state store cannot be managed.")
 
+        idx_mode = MySQLServer.get_mode_idx(server.mode)
+        idx_status = MySQLServer.get_status_idx(server.status)
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
             {"params":(str(server.uuid), server.address, server.user,
-            server.passwd, server.status, server.group_id)}
-            )
+            server.passwd, idx_mode, idx_status, server.weight,
+            server.group_id)}
+        )
 
     def __eq__(self,  other):
         """Two servers are equal if they are both subclasses of MySQLServer
@@ -1338,6 +1407,6 @@ class MySQLServer(_persistence.Persistable):
         return hash(self.__uuid)
 
     def __str__(self):
-        ret = "<server(uuid={0}, address={1}, status={2}>".\
-            format(self.__uuid, self.__address, self.__status)
+        ret = "<server(uuid={0}, address={1}, mode={2}, status={3}>".\
+            format(self.__uuid, self.__address, self.__mode, self.__status)
         return ret

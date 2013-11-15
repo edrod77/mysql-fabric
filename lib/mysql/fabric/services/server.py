@@ -27,16 +27,13 @@ also find out the server's uuid if the server is alive and kicking.
 When a group is created though, it is inactive which means that the failure
 detector will not check if its servers are alive. To start up the failure
 detector, one needs to explicitly activate it per group. A server may have
-one of the following status:
+one of the following statuses:
 
-- RUNNING - This is the regular status of a server and means that a server
-  is alive and kicking.
-- OFFLINE - It should be used before shutting down a server otherwise the
-  failure detector will trigger a notification. If users, however, want to
-  bring a master offline they must firstly run a switchover.
-- SPARE - This is used to make a slave not automatically eligible to become
-  a master in a switchover or failover operation. Nor are users redirected
-  to such a server to execute read-only transactions.
+- PRIMARY - This is set when the server may accept both reads and writes
+  operations.
+- SECONDARY - This is set when the server may accept only read operations.
+- SPARE - This is set when users want to have server that is kept in sync
+  but does not accept neither reads or writes operations.
 - FAULTY - This is set by the failure detector and indicates that a server
   is not reachable.
 
@@ -48,22 +45,20 @@ Find in what follows the possible state transitions:
     rankdir=LR;
     size="8,5"
 
-    node [shape = circle]; Master;
-    node [shape = circle]; Slave;
+    node [shape = circle]; Primary;
+    node [shape = circle]; Secondary;
     node [shape = circle]; Spare;
     node [shape = circle]; Faulty;
-    node [shape = circle]; Offline;
 
-    Master   -> Slave [ label = "demote, switchover" ];
-    Slave    -> Master [ label = "promote, switchover, failover" ];
-    Slave    -> Spare [ label = "set_status spare" ];
-    Spare    -> Master [ label = "promote, swichover, failover" ];
-    Master   -> Faulty [ label = "failover" ];
-    Slave    -> Faulty [ label = "failover" ];
-    Slave    -> Offline [ label = "set_status offline" ];
-    Faulty   -> Slave [ label = "set_status running" ];
-    Offline  -> Slave [ label = "set_status running" ];
-    Spare    -> Slave [ label = "set_status running" ];
+    Primary   -> Secondary [ label = "demote" ];
+    Primary   -> Faulty [ label = "failure" ];
+    Secondary -> Primary [ label = "promote" ];
+    Secondary -> Spare [ label = "set_status" ];
+    Secondary -> Faulty [ label = "failure" ];
+    Spare     -> Primary [ label = "promote" ];
+    Spare     -> Secondary [ label = "set_status" ];
+    Spare     -> Faulty [ label = "failure" ];
+    Faulty    -> Spare [ label = "set_status" ];
   }
 
 It is worth noticing that this module only provides functions for performing
@@ -183,13 +178,15 @@ class ServerLookups(ProcedureCommand):
     group_name = "group"
     command_name = "lookup_servers"
 
-    def execute(self, group_id, uuid=None, status=None, synchronous=True):
+    def execute(self, group_id, uuid=None, status=None, mode=None,
+                synchronous=True):
         """Return information on existing server(s) in a group.
 
         :param group_id: Group's id.
         :param uuid: None if one wants to list the existing servers
                      in a group or server's id if one wants information
                      on a server in a group.
+        :param status: Server's mode one is searching for.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: List with existing severs in a group or detailed information
@@ -204,7 +201,8 @@ class ServerLookups(ProcedureCommand):
           [[uuid, address, is_master, status], ...]
         """
         procedures = _events.trigger(
-            LOOKUP_SERVERS, self.get_lockable_objects(), group_id, uuid, status
+            LOOKUP_SERVERS, self.get_lockable_objects(), group_id, uuid,
+            status, mode
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -339,21 +337,14 @@ SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):
     """Set a server's status.
 
-    Any server added into a group has the RUNNING status which means that
-    it is aliving and kicking. Otherwise, it could not be inserted into
-    the group.
-
-    A server will have its status automatically changed to FAULTY, if the
-    failure detector is not able to reach it.
+    Any server added into a group has to be alive and kicking and is added
+    as Secondary. A server will have its status automatically changed to
+    FAULTY, if the failure detector is not able to reach it.
 
     Users can also manually change the server's status. Usually, a user
-    may change a slave's status to SPARE to avoid write and read access
+    may change a slave's mode to SPARE to avoid write and read access
     and guarantee that it is not choosen when a failover or swithover
     routine is executed.
-
-    If a slave needs to be taken offline, its status must be changed to
-    OFFLINE before switching it off thus avoiding that the failure
-    detector complains about not reaching the server.
     """
     group_name = "server"
     command_name = "set_status"
@@ -363,6 +354,42 @@ class SetServerStatus(ProcedureGroup):
         """
         procedures = _events.trigger(
             SET_SERVER_STATUS, self.get_lockable_objects(), uuid, status
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
+SET_SERVER_WEIGHT = _events.Event()
+class SetServerWeight(ProcedureGroup):
+    """Set a server's weight which determines the likelihood of a server
+    being choseen by a connector to process transactions or by the high
+    availability service to replace a failed master.
+
+    From the connector's perspective, a server whose weight is 2.0 will
+    receive 2 times more more requests than a server whose weight is 1.0.
+    """
+    group_name = "server"
+    command_name = "set_weight"
+
+    def execute(self, uuid, weight, synchronous=True):
+        """Set a server's weight.
+        """
+        procedures = _events.trigger(
+            SET_SERVER_WEIGHT, self.get_lockable_objects(), uuid, weight
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
+SET_SERVER_MODE = _events.Event()
+class SetServerMode(ProcedureGroup):
+    """Set a server's mode which determines whether it can process
+    read-only, read-write or both transaction types.
+    """
+    group_name = "server"
+    command_name = "set_mode"
+
+    def execute(self, uuid, mode, synchronous=True):
+        """Set a server's mode.
+        """
+        procedures = _events.trigger(
+            SET_SERVER_MODE, self.get_lockable_objects(), uuid, mode
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -456,7 +483,7 @@ def _destroy_group(group_id, force):
     if servers and force:
         for server in servers:
             servers_uuid.append(server.uuid)
-            _do_remove_server(group, server)
+            _server.MySQLServer.remove(server)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
 
@@ -469,16 +496,17 @@ def _destroy_group(group_id, force):
     _LOGGER.debug("Removed group (%s).", group)
 
 @_events.on_event(LOOKUP_SERVERS)
-def _lookup_servers(group_id, uuid=None, status=None):
+def _lookup_servers(group_id, uuid=None, status=None, mode=None):
     """Return existing servers in a group or information on a server.
     """
     group = _server.Group.fetch(group_id)
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
+    status = str(status).upper() if status is not None else None
     if status is not None and status not in _server.MySQLServer.SERVER_STATUS:
         raise _errors.ServerError(
-            "Unknown server status (%s). Possible status are (%s)." %
+            "Unknown server status (%s). Possible statuses are (%s)." %
             (status,  _server.MySQLServer.SERVER_STATUS)
             )
     elif status is None:
@@ -486,10 +514,21 @@ def _lookup_servers(group_id, uuid=None, status=None):
     else:
         status = [status]
 
+    mode = str(mode).upper() if mode is not None else None
+    if mode is not None and mode not in _server.MySQLServer.SERVER_MODE:
+        raise _errors.ServerError(
+            "Unknown server mode (%s). Possible modes are (%s)." %
+            (mode,  _server.MySQLServer.SERVER_MODE)
+            )
+    elif mode is None:
+        mode = _server.MySQLServer.SERVER_MODE
+    else:
+        mode = [mode]
+
     if uuid is None:
         ret = []
         for server in group.servers():
-            if server.status in status:
+            if server.status in status and server.mode in mode:
                 ret.append(
                     [str(server.uuid), server.address,
                     (group.master == server.uuid), server.status]
@@ -525,11 +564,8 @@ def _add_server(group_id, address, user, passwd):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     server = _server.MySQLServer.fetch(uuid)
-    if server and server.group_id:
-        raise _errors.ServerError(
-            "Server (%s) already exists in group (%s)." %
-            (uuid, server.group_id)
-            )
+    if server:
+        raise _errors.ServerError("Server (%s) already exists." % (uuid, ))
 
     server = _server.MySQLServer(uuid=uuid, address=address, user=user,
                                  passwd=passwd)
@@ -541,7 +577,7 @@ def _add_server(group_id, address, user, passwd):
     _check_requirements(server)
 
     # Add server as a member in the group.
-    group.add_server(server)
+    server.group_id = group_id
 
     # Configure the server as a slave if there is a master.
     _configure_as_slave(group, server)
@@ -568,104 +604,45 @@ def _remove_server(group_id, uuid):
 
     server = _server.MySQLServer.fetch(uuid)
 
-    if group_id != server.group_id:
+    if server and group_id != server.group_id:
         raise _errors.GroupError("Group (%s) does not contain server (%s)."
                                  % (group_id, uuid))
+    elif not server:
+        raise _errors.ServerError("Server (%s) does not exist." % (uuid, ))
 
-    _do_remove_server(group, server)
+    _server.MySQLServer.remove(server)
     _server.ConnectionPool().purge_connections(uuid)
 
 @_events.on_event(SET_SERVER_STATUS)
 def _set_server_status(uuid, status):
     """Set a server's status.
     """
-    try:
-        uuid = _uuid.UUID(uuid)
-    except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
-
-    server = _server.MySQLServer.fetch(uuid)
-    if not server:
-        raise _errors.ServerError(
-            "Server (%s) does not exist." % (uuid, )
-            )
-
-    if not server.group_id:
-        raise _errors.GroupError(
-            "Server (%s) does not belong to a group." % (uuid, )
-            )
+    server = _retrieve_server(uuid)
 
     status = str(status).upper()
-
-    if status == _server.MySQLServer.SPARE:
-        _set_server_spare(server)
-    elif status == _server.MySQLServer.RUNNING:
-        _set_server_running(server)
-    elif status == _server.MySQLServer.OFFLINE:
-        _set_server_offline(server)
+    if status == _server.MySQLServer.PRIMARY:
+        _set_server_status_primary(server)
+    elif status == _server.MySQLServer.SECONDARY:
+        _set_server_status_secondary(server)
+    elif status == _server.MySQLServer.SPARE:
+        _set_server_status_spare(server)
     elif status == _server.MySQLServer.FAULTY:
-        _set_server_faulty(server)
+        _set_server_status_faulty(server)
     else:
-        raise _errors.ServerError("Trying to set invalid status (%s) "
-            "for server (%s)." % (server.status, uuid)
+        raise _errors.ServerError("Trying to set an invalid status (%s) "
+            "for server (%s)." % (status, uuid)
             )
 
-def _set_server_spare(server):
-    """Put the server in spare mode.
+def _set_server_status_primary(server):
+    """Put the server in primary status.
     """
-    forbidden_status = [_server.MySQLServer.FAULTY,
-                        _server.MySQLServer.OFFLINE]
+    raise _errors.ServerError(
+        "If you want to put a server (%s) to primary, please, use the "
+        "promote interface." % (server.uuid, )
+    )
 
-    if server.status in forbidden_status:
-        raise _errors.ServerError(
-            "Cannot put server (%s) whose status is (%s) in "
-            "spare mode." % (server.uuid, server.status)
-            )
-
-    if server.group_id:
-        group = _server.Group.fetch(server.group_id)
-        if group.master == server.uuid:
-            raise _errors.ServerError(
-                "Server (%s) is master in group (%s) and cannot be put in "
-                "spare mode." % (server.uuid, group.group_id)
-            )
-
-    server.status = _server.MySQLServer.SPARE
-
-def _set_server_running(server):
-    """Put the server in running mode.
-    """
-    forbidden_status = [_server.MySQLServer.RUNNING]
-    server.connect()
-
-    if server.is_alive() and server.status not in forbidden_status:
-        forbidden_status = [_server.MySQLServer.SPARE]
-
-        _check_requirements(server)
-        if server.status not in forbidden_status:
-            group = _server.Group.fetch(server.group_id)
-            _configure_as_slave(group, server)
-        server.status = _server.MySQLServer.RUNNING
-
-    elif server.status not in forbidden_status:
-        raise _errors.ServerError(
-            "Cannot connect to server (%s)." % (server.uuid, )
-            )
-
-def _set_server_offline(server):
-    """Put the server in offline mode.
-    """
-    group = _server.Group.fetch(server.group_id)
-    if group.master == server.uuid:
-        raise _errors.ServerError(
-            "Server (%s) is master in group (%s) and cannot be put in "
-            "off-line mode." % (server.uuid, group.group_id)
-            )
-    server.status = _server.MySQLServer.OFFLINE
-    _server.ConnectionPool().purge_connections(server.uuid)
-
-def _set_server_faulty(server):
-    """Put the server in faulty mode.
+def _set_server_status_faulty(server):
+    """Put the server in faulty status.
     """
     group = _server.Group.fetch(server.group_id)
     if group.status == _server.Group.ACTIVE:
@@ -692,13 +669,133 @@ def _set_server_faulty(server):
         "SERVER_LOST", group.group_id, server.uuid
     )
 
-def _do_remove_server(group, server):
-    """Remove a server from a group.
+def _set_server_status_secondary(server):
+    """Put the server in secondary status.
     """
-    group.remove_server(server)
-    _server.MySQLServer.remove(server)
-    _LOGGER.debug("Removed server (%s) from group (%s).", server,
-                  group)
+    allowed_status = (_server.MySQLServer.SPARE)
+    status = _server.MySQLServer.SECONDARY
+    mode = _server.MySQLServer.READ_ONLY
+    return _do_set_status(server, allowed_status, status, mode)
+
+def _set_server_status_spare(server):
+    """Put the server in spare status.
+    """
+    allowed_status = (
+        _server.MySQLServer.SECONDARY, _server.MySQLServer.FAULTY
+    )
+    status = _server.MySQLServer.SPARE
+    mode = _server.MySQLServer.OFFLINE
+    return _do_set_status(server, allowed_status, status, mode)
+
+def _do_set_status(server, allowed_status, status, mode):
+    """Put the server into a specific status.
+    """
+    server.connect()
+    alive = server.is_alive()
+    allowed_transition = server.status in allowed_status
+
+    if alive and allowed_transition:
+        if server.status == _server.MySQLServer.FAULTY:
+            _check_requirements(server)
+            group = _server.Group.fetch(server.group_id)
+            _configure_as_slave(group, server)
+        server.status = status
+        server.mode = mode
+    elif not alive:
+        raise _errors.ServerError(
+            "Cannot connect to server (%s)." % (server.uuid, )
+            )
+    elif server.status not in allowed_status:
+        raise _errors.ServerError(
+            "Cannot put server (%s) whose status is (%s) in "
+            "(%s) status." % (server.uuid, server.status, status)
+            )
+
+@_events.on_event(SET_SERVER_WEIGHT)
+def _set_server_weight(uuid, weight):
+    """Set a server's weight.
+    """
+    server = _retrieve_server(uuid)
+    weight = float(weight)
+    if weight <= 0.0:
+        raise _errors.ServerError(
+            "Cannot set the server's weight (%s) to a value lower "
+            "than or equal to 0.0" % (weight, )
+        )
+    server.weight = weight
+
+@_events.on_event(SET_SERVER_MODE)
+def _set_server_mode(uuid, mode):
+    """Set a server's mode.
+    """
+    server = _retrieve_server(uuid)
+
+    mode = str(mode).upper()
+    if server.status == _server.MySQLServer.PRIMARY:
+        _set_server_mode_primary(server, mode)
+    elif server.status == _server.MySQLServer.SECONDARY:
+        _set_server_mode_secondary(server, mode)
+    elif server.status == _server.MySQLServer.SPARE:
+        _set_server_mode_spare(server, mode)
+    elif server.status == _server.MySQLServer.FAULTY:
+        _set_server_mode_faulty(server, mode)
+    else:
+        raise _errors.ServerError("Trying to set an invalid mode (%s) "
+            "for server (%s)." % (mode, uuid)
+            )
+
+def _set_server_mode_primary(server, mode):
+    """Set the server's mode when it is a primary.
+    """
+    allowed_mode = \
+        (_server.MySQLServer.WRITE_ONLY, _server.MySQLServer.READ_WRITE)
+    _do_set_server_mode(server, mode, allowed_mode)
+
+def _set_server_mode_secondary(server, mode):
+    """Set the server's mode when it is a secondary.
+    """
+    allowed_mode = \
+        (_server.MySQLServer.OFFLINE, _server.MySQLServer.READ_ONLY)
+    _do_set_server_mode(server, mode, allowed_mode)
+
+def _set_server_mode_spare(server, mode):
+    allowed_mode = \
+        (_server.MySQLServer.OFFLINE, _server.MySQLServer.READ_ONLY)
+    _do_set_server_mode(server, mode, allowed_mode)
+
+def _set_server_mode_faulty(server, mode):
+    """Set the server's mode when it is a faulty.
+    """
+    allowed_mode = ()
+    _do_set_server_mode(server, mode, allowed_mode)
+
+def _do_set_server_mode(server, mode, allowed_mode):
+    """Set a server's mode.
+    """
+    if mode not in allowed_mode:
+        raise _errors.ServerError(
+            "Cannot set mode to (%s) when the server's (%s) status is (%s)."
+            % (mode, server.uuid, server.status)
+            )
+    server.mode = mode
+
+def _retrieve_server(uuid):
+    try:
+        uuid = _uuid.UUID(uuid)
+    except ValueError:
+        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
+
+    server = _server.MySQLServer.fetch(uuid)
+    if not server:
+        raise _errors.ServerError(
+            "Server (%s) does not exist." % (uuid, )
+            )
+
+    if not server.group_id:
+        raise _errors.GroupError(
+            "Server (%s) does not belong to a group." % (uuid, )
+            )
+    return server
 
 def _check_requirements(server):
     """Check if the server fulfils some requirements.
@@ -728,6 +825,7 @@ def _configure_as_slave(group, server):
         if group.master:
             master = _server.MySQLServer.fetch(group.master)
             master.connect()
+            server.read_only = True
             _utils.switch_master(server, master)
     except _errors.DatabaseError as error:
         _LOGGER.debug(

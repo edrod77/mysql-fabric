@@ -84,16 +84,16 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.PRIMARY],
             [str(slave.uuid), slave.address, False,
-              _server.MySQLServer.RUNNING]]
+              _server.MySQLServer.SECONDARY]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
 
         # Create topology: M1 ---> S2, M1 ---> S3
         group_ = Group.fetch("group_id-1")
-        group_.master = None
+        tests.utils.configure_decoupled_master(group_, None)
         _server.MySQLServer.remove(master)
         master = None
         _server.MySQLServer.remove(slave)
@@ -138,11 +138,11 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.PRIMARY],
             [str(slave_1.uuid), slave_1.address, False,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.SECONDARY],
             [str(slave_2.uuid), slave_2.address, False,
-              _server.MySQLServer.RUNNING]]
+              _server.MySQLServer.SECONDARY]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -181,7 +181,8 @@ class TestReplicationServices(unittest.TestCase):
         self.proxy.group.add("group_id", slave_1.address, user, passwd)
         self.proxy.group.add("group_id", slave_2.address, user, passwd)
         group = _server.Group.fetch("group_id")
-        group.master = slave_1.uuid
+        tests.utils.configure_decoupled_master(group, slave_1)
+
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
@@ -191,7 +192,7 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_check_candidate_switch).")
 
         # Try to use a slave whose replication is not properly configured.
-        group.master = master.uuid
+        tests.utils.configure_decoupled_master(group, master)
         _repl.stop_slave(slave_1, wait=True)
         _repl.reset_slave(slave_1, clean=True)
         status = self.proxy.group.promote(
@@ -224,11 +225,11 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.PRIMARY],
             [str(slave_1.uuid), slave_1.address, False,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.SECONDARY],
             [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.RUNNING]]
+             _server.MySQLServer.SECONDARY]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -251,11 +252,11 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, False,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.SECONDARY],
             [str(slave_1.uuid), slave_1.address, True,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.PRIMARY],
             [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.RUNNING]]
+             _server.MySQLServer.SECONDARY]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -309,7 +310,7 @@ class TestReplicationServices(unittest.TestCase):
         self.proxy.group.add("group_id", slave_1.address, user, passwd)
         self.proxy.group.add("group_id", slave_2.address, user, passwd)
         self.proxy.group.add("group_id", slave_3.address, user, passwd)
-        group.master = master.uuid
+        tests.utils.configure_decoupled_master(group, master)
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
             "unknown_host:8080", user, passwd
@@ -330,15 +331,15 @@ class TestReplicationServices(unittest.TestCase):
 
         expected = \
             [[str(master.uuid), master.address, True,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.PRIMARY],
             [str(slave_1.uuid), slave_1.address, False,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.SECONDARY],
             [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.SECONDARY],
             [str(slave_3.uuid), slave_3.address, False,
-             _server.MySQLServer.RUNNING],
+             _server.MySQLServer.SECONDARY],
             [str(invalid_server.uuid), invalid_server.address, False,
-             _server.MySQLServer.RUNNING]]
+             _server.MySQLServer.SECONDARY]]
         retrieved.sort()
         expected.sort()
         self.assertEqual(expected, retrieved)
@@ -361,7 +362,7 @@ class TestReplicationServices(unittest.TestCase):
         self.assertNotEqual(expected, retrieved)
 
         # Do the promote without a current master.
-        group.master = None
+        tests.utils.configure_decoupled_master(group, None)
         status = self.proxy.group.promote("group_id")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -399,7 +400,7 @@ class TestReplicationServices(unittest.TestCase):
         self.proxy.group.add("group_id", slave_2.address, user, passwd)
         self.proxy.group.add("group_id", master.address, user, passwd)
         group = _server.Group.fetch("group_id")
-        group.master = master.uuid
+        tests.utils.configure_decoupled_master(group, master)
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
@@ -410,11 +411,11 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.PRIMARY],
              [str(slave_1.uuid), slave_1.address, False,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.SECONDARY],
              [str(slave_2.uuid), slave_2.address, False,
-              _server.MySQLServer.RUNNING]
+              _server.MySQLServer.SECONDARY]
             ]
         retrieved.sort()
         expected.sort()
@@ -438,11 +439,11 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, False,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.SECONDARY],
              [str(slave_1.uuid), slave_1.address, False,
-              _server.MySQLServer.RUNNING],
+              _server.MySQLServer.SECONDARY],
              [str(slave_2.uuid), slave_2.address, False,
-              _server.MySQLServer.RUNNING]
+              _server.MySQLServer.SECONDARY]
             ]
         retrieved.sort()
         expected.sort()
