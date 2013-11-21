@@ -668,13 +668,14 @@ class Shards(_persistence.Persistable):
     #Dump all the shard indexes that belong to a shard mapping ID.
     DUMP_SHARD_INDEXES = (
                             "SELECT "
-                            "sr.lower_bound, sr.shard_mapping_id, "
+                            "IF( m.type_name = 'HASH', HEX(sr.lower_bound), "
+                            "sr.lower_bound), sr.shard_mapping_id, "
                             "s.shard_id, s.group_id "
                             "FROM "
-                            "shards AS s, shard_ranges AS sr "
-                            "WHERE s.shard_id = sr.shard_id "
-                            "AND "
-                            "sr.shard_mapping_id LIKE %s "
+                            "shard_maps AS m JOIN shard_ranges AS sr "
+                            "USING (shard_mapping_id) "
+                            "JOIN shards AS s USING (shard_id) "
+                            "WHERE sr.shard_mapping_id LIKE %s "
                             "ORDER BY s.shard_id, sr.shard_mapping_id, "
                             "sr.lower_bound, s.group_id"
                             )
