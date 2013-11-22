@@ -230,11 +230,9 @@ class TestShardingPrune(unittest.TestCase):
                          "Executed action (_prune_shard_tables).")
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
@@ -252,11 +250,9 @@ class TestShardingPrune(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 1)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 101,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
@@ -274,11 +270,9 @@ class TestShardingPrune(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 101)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 202,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
@@ -296,11 +290,9 @@ class TestShardingPrune(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 201)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 303,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
@@ -318,11 +310,9 @@ class TestShardingPrune(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 301)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 404,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
@@ -427,11 +417,9 @@ class TestShardingPrune(unittest.TestCase):
         for group_id in ("GROUPID1", "GROUPID2", "GROUPID3",
             "GROUPID4", "GROUPID5", "GROUPID6"):
             status = self.proxy.group.lookup_servers(group_id)
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_lookup_servers).")
-            obtained_server_list = status[2]
+            self.assertEqual(status["success"], True)
+            self.assertEqual(status["message"], False)
+            obtained_server_list = status["return"]
             status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)

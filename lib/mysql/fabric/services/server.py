@@ -86,27 +86,22 @@ from mysql.fabric.command import (
 
 _LOGGER = logging.getLogger(__name__)
 
-LOOKUP_GROUPS = _events.Event()
-class GroupLookups(ProcedureCommand):
+class GroupLookups(Command):
     """Return information on existing group(s).
     """
     group_name = "group"
     command_name = "lookup_groups"
 
-    def execute(self, group_id=None, synchronous=True):
+    def execute(self, group_id=None):
         """Return information on existing group(s).
 
         :param group_id: None if one wants to list the existing groups or
                          group's id if one wants information on a group.
-        :param synchronous: Whether one should wait until the execution
-                            finishes or not.
         :return: List with existing groups or detailed information on group.
         :rtype: [[group], ....] or {group_id : ..., description : ...}.
         """
-        procedures = _events.trigger(
-            LOOKUP_GROUPS, self.get_lockable_objects(), group_id
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(
+            _lookup_groups, (group_id, ))
 
 CREATE_GROUP = _events.Event()
 class GroupCreate(ProcedureGroup):
@@ -171,15 +166,13 @@ class DestroyGroup(ProcedureGroup):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-LOOKUP_SERVERS = _events.Event()
-class ServerLookups(ProcedureCommand):
+class ServerLookups(Command):
     """Return information on existing server(s) in a group.
     """
     group_name = "group"
     command_name = "lookup_servers"
 
-    def execute(self, group_id, uuid=None, status=None, mode=None,
-                synchronous=True):
+    def execute(self, group_id, uuid=None, status=None, mode=None):
         """Return information on existing server(s) in a group.
 
         :param group_id: Group's id.
@@ -187,8 +180,6 @@ class ServerLookups(ProcedureCommand):
                      in a group or server's id if one wants information
                      on a server in a group.
         :param status: Server's mode one is searching for.
-        :param synchronous: Whether one should wait until the execution
-                            finishes or not.
         :return: List with existing severs in a group or detailed information
                  on a server in a group.
         :rtype: [server_uuid, ....] or  {"uuid" : uuid, "address": address,
@@ -200,33 +191,26 @@ class ServerLookups(ProcedureCommand):
 
           [[uuid, address, is_master, status], ...]
         """
-        procedures = _events.trigger(
-            LOOKUP_SERVERS, self.get_lockable_objects(), group_id, uuid,
-            status, mode
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(_lookup_servers,
+                                              (group_id, uuid, status, mode))
 
-LOOKUP_UUID = _events.Event()
-class ServerUuid(ProcedureCommand):
+class ServerUuid(Command):
     """Return server's uuid.
     """
     group_name = "server"
     command_name = "lookup_uuid"
 
-    def execute(self, address, user, passwd, synchronous=True):
+    def execute(self, address, user, passwd):
         """Return server's uuid.
 
         :param address: Server's address.
         :param user: Server's user.
         :param passwd: Server's passwd.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
+
         :return: uuid.
         """
-        procedures = _events.trigger(
-            LOOKUP_UUID, self.get_lockable_objects(), address, user, passwd
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(_lookup_uuid,
+                                                        (address, user, passwd))
 
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
@@ -393,7 +377,6 @@ class SetServerMode(ProcedureGroup):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-@_events.on_event(LOOKUP_GROUPS)
 def _lookup_groups(group_id=None):
     """Return a list of existing groups or fetch information on a group
     identified by group_id.
@@ -495,7 +478,6 @@ def _destroy_group(group_id, force):
     _server.Group.remove(group)
     _LOGGER.debug("Removed group (%s).", group)
 
-@_events.on_event(LOOKUP_SERVERS)
 def _lookup_servers(group_id, uuid=None, status=None, mode=None):
     """Return existing servers in a group or information on a server.
     """
@@ -544,7 +526,6 @@ def _lookup_servers(group_id, uuid=None, status=None, mode=None):
     return {"uuid": str(server.uuid), "address": server.address,
             "user": server.user, "passwd": server.passwd}
 
-@_events.on_event(LOOKUP_UUID)
 def _lookup_uuid(address, user, passwd):
     """Return server's uuid.
     """

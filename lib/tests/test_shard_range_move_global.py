@@ -772,11 +772,9 @@ class TestShardingPrune(unittest.TestCase):
         for group_id in ("GROUPID1", "GROUPID2", "GROUPID3",
             "GROUPID4", "GROUPID5", "GROUPID6"):
             status = self.proxy.group.lookup_servers(group_id)
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_lookup_servers).")
-            obtained_server_list = status[2]
+            self.assertEqual(status["success"], True)
+            self.assertEqual(status["message"], False)
+            obtained_server_list = status["return"]
             status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)

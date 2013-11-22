@@ -496,31 +496,25 @@ class TestShardingServices(unittest.TestCase):
     def test_list_shard_mappings(self):
         expected_shard_mapping_list1 =   [1, "HASH", "GROUPID1"]
         status = self.proxy.sharding.list_definitions()
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_list_definitions).")
-        obtained_shard_mapping_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_shard_mapping_list = status["return"]
         self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
 
     def test_lookup_shard_mapping(self):
         status = self.proxy.sharding.lookup_mapping("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup_shard_mapping).")
-        self.assertEqual(status[2], {"shard_mapping_id":1,
+        self.assertEqual(status["success"],True)
+        self.assertEqual(status["message"], False)
+        self.assertEqual(status["return"], {"shard_mapping_id":1,
                                      "table_name":"db1.t1",
                                      "column_name":"userID1",
                                      "type_name":"HASH",
                                      "global_group":"GROUPID1"})
 
         status = self.proxy.sharding.lookup_mapping("db2.t2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup_shard_mapping).")
-        self.assertEqual(status[2], {"shard_mapping_id":1,
+        self.assertEqual(status["success"],True)
+        self.assertEqual(status["message"], False)
+        self.assertEqual(status["return"], {"shard_mapping_id":1,
                                      "table_name":"db2.t2",
                                      "column_name":"userID2",
                                      "type_name":"HASH",

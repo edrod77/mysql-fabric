@@ -36,6 +36,7 @@ from  mysql.fabric import (
 
 from mysql.fabric.command import (
     ProcedureGroup,
+    Command,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -340,25 +341,20 @@ class DemoteMaster(ProcedureGroup):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-CHECK_GROUP_AVAILABILITY = _events.Event()
-class CheckHealth(ProcedureGroup):
+class CheckHealth(Command):
     """Check if any server within a group has failed and report health
     information.
     """
     group_name = "group"
     command_name = "check_group_availability"
 
-    def execute(self, group_id, synchronous=True):
+    def execute(self, group_id):
         """Check if any server within a group has failed.
 
         :param uuid: Group's id.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
         """
-        procedures = _events.trigger(
-            CHECK_GROUP_AVAILABILITY, self.get_lockable_objects(), group_id
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(
+            _check_group_availability, (group_id, ))
 
 @_events.on_event(DISCOVER_TOPOLOGY)
 def _discover_topology(pattern_group_id, group_description,
@@ -857,7 +853,6 @@ def _wait_slaves_demote(group_id, master_uuid):
                 exc_info=error
             )
 
-@_events.on_event(CHECK_GROUP_AVAILABILITY)
 def _check_group_availability(group_id):
     """Check which servers in a group are up and down.
     """

@@ -305,6 +305,34 @@ class Command(object):
         result = "\n".join(string)
         return result % (status, )
 
+    @staticmethod
+    def generate_output_pattern(func, params):
+        """Call the function with the input params and generate a output pattern
+        of {success:True/False, message:<for example exception>,
+        return:<return values>}.
+
+        :param func: the function that needs to be called
+        :param params: The parameters to the function
+
+        :return: {success:True/False, message:<for example exception>,
+                return:<return values>}.
+        """
+        try:
+            if params:
+                ret_value = func(*params)
+            else:
+                ret_value = func()
+        except Exception as e:
+            return {
+                    "success":False,
+                    "message":"Error:{0}".format(str(e)),
+                    "return":False
+                    }
+        return {
+                "success":True,
+                "message":False,
+                "return":ret_value
+                }
 
 class ProcedureCommand(Command):
     """Class used to implement commands that are built as procedures and

@@ -228,11 +228,9 @@ class TestShardingServices(unittest.TestCase):
                                           [3, "HASH", "GROUPID1"]
                                         ]
         status = self.proxy.sharding.list_definitions()
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_list_definitions).")
-        obtained_shard_mapping_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_shard_mapping_list = status["return"]
         self.assertEqual(set(expected_shard_mapping_list1[0]),
                          set(obtained_shard_mapping_list[0]))
         self.assertEqual(set(expected_shard_mapping_list1[1]),
@@ -242,11 +240,9 @@ class TestShardingServices(unittest.TestCase):
 
     def test_list_shard_mappings(self):
         status = self.proxy.sharding.list_mappings("HASH")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_list).")
-        self.assertEqual(status[2], [
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        self.assertEqual(status["return"], [
                                      {"shard_mapping_id":1,
                                      "table_name":"db1.t1",
                                      "column_name":"userID1",
@@ -259,11 +255,9 @@ class TestShardingServices(unittest.TestCase):
                                      "global_group":"GROUPID1"}
                                 ])
         status = self.proxy.sharding.list_mappings("RANGE")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_list).")
-        self.assertEqual(status[2], [
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        self.assertEqual(status["return"], [
                                      {"shard_mapping_id":2,
                                      "table_name":"db2.t2",
                                      "column_name":"userID2",
@@ -279,11 +273,9 @@ class TestShardingServices(unittest.TestCase):
                          "Executed action (_prune_shard_tables).")
 
         status = self.proxy.sharding.lookup_servers("db2.t2", 1,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
@@ -301,11 +293,9 @@ class TestShardingServices(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 1)
 
         status = self.proxy.sharding.lookup_servers("db2.t2", 101,  "LOCAL")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_lookup).")
-        obtained_server_list = status[2]
+        self.assertEqual(status["success"], True)
+        self.assertEqual(status["message"], False)
+        obtained_server_list = status["return"]
         shard_uuid = obtained_server_list[0][0]
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()

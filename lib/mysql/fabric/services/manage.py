@@ -452,7 +452,7 @@ def _shutdown():
 class FabricLookups(Command):
     """Return a list of Fabric servers.
     """
-    group_name = "manage"
+    group_name = "store"
     command_name = "lookup_fabrics"
 
     def execute(self):
@@ -462,4 +462,4 @@ class FabricLookups(Command):
         :rtype: ["host:port", ...]
         """
         service = _services.ServiceManager()
-        return [service.address]
+        return _utils._wrap_output([service.address])

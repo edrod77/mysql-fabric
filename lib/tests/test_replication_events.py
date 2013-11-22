@@ -68,20 +68,16 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up a group.
         group = self.proxy.group.lookup_groups("group_id-1")
-        self.assertStatus(group, _executor.Job.SUCCESS)
-        self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_groups).")
-        self.assertEqual(group[2], {"group_id": "group_id-1", "description":
+        self.assertEqual(group["success"], True)
+        self.assertEqual(group["message"], False)
+        self.assertEqual(group["return"], {"group_id": "group_id-1", "description":
                                     "description..."})
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id-1")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         expected = \
             [[str(master.uuid), master.address, True,
               _server.MySQLServer.PRIMARY],
@@ -122,20 +118,16 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up a group.
         group = self.proxy.group.lookup_groups("group_id-2")
-        self.assertStatus(group, _executor.Job.SUCCESS)
-        self.assertEqual(group[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(group[1][-1]["description"],
-                         "Executed action (_lookup_groups).")
-        self.assertEqual(group[2], {"group_id": "group_id-2", "description":
+        self.assertEqual(group["success"], True)
+        self.assertEqual(group["message"], False)
+        self.assertEqual(group["return"], {"group_id": "group_id-2", "description":
                                     "description..."})
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id-2")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         expected = \
             [[str(master.uuid), master.address, True,
               _server.MySQLServer.PRIMARY],
@@ -218,11 +210,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         expected = \
             [[str(master.uuid), master.address, True,
              _server.MySQLServer.PRIMARY],
@@ -245,11 +235,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         expected = \
             [[str(master.uuid), master.address, False,
              _server.MySQLServer.SECONDARY],
@@ -323,11 +311,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
 
         expected = \
             [[str(master.uuid), master.address, True,
@@ -353,11 +339,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertStatus(servers, _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         retrieved.sort()
         self.assertNotEqual(expected, retrieved)
 
@@ -404,11 +388,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         expected = \
             [[str(master.uuid), master.address, True,
               _server.MySQLServer.PRIMARY],
@@ -432,11 +414,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(servers[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(servers[1][-1]["description"],
-                         "Executed action (_lookup_servers).")
-        retrieved = servers[2]
+        self.assertEqual(servers["success"], True)
+        self.assertEqual(servers["message"], False)
+        retrieved = servers["return"]
         expected = \
             [[str(master.uuid), master.address, False,
               _server.MySQLServer.SECONDARY],

@@ -511,8 +511,7 @@ class ShardMapping(_persistence.Persistable):
                         row[2]
                     )
                 )
-        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
-                _utils.TTL, result_shard_tables_list)
+        return _utils._wrap_output(result_shard_tables_list)
 
     @staticmethod
     def dump_sharding_info(version=None, patterns="", persister=None):
@@ -564,8 +563,7 @@ class ShardMapping(_persistence.Persistable):
                         row[6],  # type
                     )
                 )
-        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
-                _utils.TTL, result_shard_tables_list)
+        return _utils._wrap_output(result_shard_tables_list)
 
     @staticmethod
     def dump_shard_maps(version=None, patterns="", persister=None):
@@ -603,8 +601,7 @@ class ShardMapping(_persistence.Persistable):
             rows = cur.fetchall()
             for row in rows:
                 result_shard_maps.append((row[0], row[1], row[2]))
-        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
-                _utils.TTL, result_shard_maps)
+        return _utils._wrap_output(result_shard_maps)
 
 class Shards(_persistence.Persistable):
     """Contains the mapping between the Shard ID and the Group ID
@@ -873,8 +870,7 @@ class Shards(_persistence.Persistable):
                         row[0], row[1], row[2], row[3]
                     )
                 )
-        return (_utils.FABRIC_UUID, _utils.VERSION_TOKEN,
-                _utils.TTL, result_shard_indexes_list)
+        return _utils._wrap_output(result_shard_indexes_list)
 
 class RangeShardingSpecification(_persistence.Persistable):
     """Represents a RANGE sharding specification. The class helps encapsulate

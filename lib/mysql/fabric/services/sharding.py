@@ -143,36 +143,30 @@ class RemoveShardMapping(ProcedureShard):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-LOOKUP_SHARD_MAPPING = _events.Event("LOOKUP_SHARD_MAPPING")
-class LookupShardMapping(ProcedureCommand):
+class LookupShardMapping(Command):
     """Fetch the shard specification mapping for the given table
     """
     group_name = "sharding"
     command_name = "lookup_mapping"
-    def execute(self, table_name, synchronous=True):
+    def execute(self, table_name):
         """Fetch the shard specification mapping for the given table
 
         :param table_name: The name of the table for which the sharding
                            specification is being queried.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
 
         :return: The a dictionary that contains the shard mapping information for
                  the given table.
         """
-        procedures = _events.trigger(
-            LOOKUP_SHARD_MAPPING, self.get_lockable_objects(), table_name
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(_lookup_shard_mapping,
+                                              (table_name, ))
 
-LIST_SHARD_MAPPINGS = _events.Event("LIST_SHARD_MAPPINGS")
-class ListShardMappings(ProcedureCommand):
+class ListShardMappings(Command):
     """Returns all the shard mappings of a particular
     sharding_type.
     """
     group_name = "sharding"
     command_name = "list_mappings"
-    def execute(self, sharding_type, synchronous=True):
+    def execute(self, sharding_type):
         """The method returns all the shard mappings (names) of a
         particular sharding_type. For example if the method is called
         with 'range' it returns all the sharding specifications that exist
@@ -180,8 +174,6 @@ class ListShardMappings(ProcedureCommand):
 
         :param sharding_type: The sharding type for which the sharding
                               specification needs to be returned.
-        :param synchronous: Whether one should wait until the execution finishes
-                            or not.
 
         :return: A list of dictionaries of shard mappings that are of
                      the sharding type
@@ -189,27 +181,22 @@ class ListShardMappings(ProcedureCommand):
                      shard mapping definition is found
                      An error if the sharding type is invalid.
         """
-        procedures = _events.trigger(
-            LIST_SHARD_MAPPINGS, self.get_lockable_objects(), sharding_type
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(_list,
+                                                        (sharding_type, ))
 
-LIST_SHARD_MAPPING_DEFINITIONS = _events.Event("LIST_SHARD_MAPPING_DEFINITIONS")
-class ListShardMappingDefinitions(ProcedureCommand):
+class ListShardMappingDefinitions(Command):
     """Lists all the shard mapping definitions.
     """
     group_name = "sharding"
     command_name = "list_definitions"
-    def execute(self, synchronous=True):
+    def execute(self):
         """The method returns all the shard mapping definitions.
 
         :return: A list of shard mapping definitions
                     An Empty List if no shard mapping definition is found.
         """
-        procedures = _events.trigger(
-            LIST_SHARD_MAPPING_DEFINITIONS, self.get_lockable_objects()
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(
+                            ShardMapping.list_shard_mapping_defn, None)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
 class AddShard(ProcedureShard):
@@ -301,14 +288,12 @@ class DisableShard(ProcedureShard):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-LOOKUP_SHARD_SERVERS = \
-        _events.Event("LOOKUP_SHARD_SERVERS")
-class LookupShardServers(ProcedureCommand):
+class LookupShardServers(Command):
     """Lookup a shard based on the give sharding key.
     """
     group_name = "sharding"
     command_name = "lookup_servers"
-    def execute(self, table_name, key, hint="LOCAL",  synchronous=True):
+    def execute(self, table_name, key, hint="LOCAL"):
         """Given a table name and a key return the server where the shard of
         this table can be found.
 
@@ -316,16 +301,11 @@ class LookupShardServers(ProcedureCommand):
                             looked up.
         :param key: The key value that needs to be looked up
         :param hint: A hint indicates if the query is LOCAL or GLOBAL
-        :param synchronous: Whether one should wait until the execution finishes
-                        or not.
 
         :return: The Group UUID that contains the range in which the key belongs.
         """
-        procedures = _events.trigger(
-            LOOKUP_SHARD_SERVERS, self.get_lockable_objects(),
-            table_name, key, hint
-        )
-        return self.wait_for_procedures(procedures, synchronous)
+        return Command.generate_output_pattern(_lookup,
+                                              (table_name, key, hint, ))
 
 PRUNE_SHARD_TABLES = _events.Event("PRUNE_SHARD_TABLES")
 class PruneShardTables(ProcedureShard):
@@ -540,7 +520,6 @@ def _remove_shard_mapping(table_name):
         raise _errors.ShardingError(INVALID_SHARDING_TYPE %
                                      (shard_mapping.type_name, ))
 
-@_events.on_event(LOOKUP_SHARD_MAPPING)
 def _lookup_shard_mapping(table_name):
     """Fetch the shard specification mapping for the given table
 
@@ -568,7 +547,6 @@ def _lookup_shard_mapping(table_name):
                 "type_name":"",
                 "global_group":""}
 
-@_events.on_event(LIST_SHARD_MAPPINGS)
 def _list(sharding_type):
     """The method returns all the shard mappings (names) of a
     particular sharding_type. For example if the method is called
@@ -599,15 +577,6 @@ def _list(sharding_type):
                     "type_name":shard_mapping.type_name,
                     "global_group":shard_mapping.global_group})
     return ret_shard_mappings
-
-@_events.on_event(LIST_SHARD_MAPPING_DEFINITIONS)
-def _list_definitions():
-    """This method lists all the shard mapping definitions
-
-    :return: A list of shard mapping definitions
-                An Empty List if no shard mapping definition is found.
-    """
-    return ShardMapping.list_shard_mapping_defn()
 
 @_events.on_event(ADD_SHARD)
 def _add_shard(shard_mapping_id, lower_bound, group_id, state):
@@ -708,7 +677,6 @@ def _remove_shard(shard_id):
     shard.remove()
     _LOGGER.debug("Removed Shard (%s).", shard_id)
 
-@_events.on_event(LOOKUP_SHARD_SERVERS)
 def _lookup(table_name, key,  hint):
     """Given a table name and a key return the servers of the Group where the
     shard of this table can be found
