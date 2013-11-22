@@ -192,7 +192,7 @@ class TestShardSplit(unittest.TestCase):
             self.assertEqual(rows[2][0], 'TEST 6')
             self.assertEqual(rows[3][0], 'TEST 7')
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -221,7 +221,7 @@ class TestShardSplit(unittest.TestCase):
 
         sleep(5)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -276,7 +276,7 @@ class TestShardSplit(unittest.TestCase):
     def tearDown(self):
         self.proxy.sharding.enable_shard("2")
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]

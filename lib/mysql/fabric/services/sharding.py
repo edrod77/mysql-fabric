@@ -677,12 +677,12 @@ def _remove_shard(shard_id):
     shard.remove()
     _LOGGER.debug("Removed Shard (%s).", shard_id)
 
-def _lookup(table_name, key,  hint):
+def _lookup(lookup_arg, key,  hint):
     """Given a table name and a key return the servers of the Group where the
     shard of this table can be found
 
-    :param table_name: The table whose sharding specification needs to be
-                        looked up.
+    :param lookup_arg: table name for "LOCAL" lookups
+                Shard Mapping ID for "GLOBAL" lookups.
     :param key: The key value that needs to be looked up
     :param hint: A hint indicates if the query is LOCAL or GLOBAL
 
@@ -693,47 +693,59 @@ def _lookup(table_name, key,  hint):
     hint = hint.upper()
     if hint not in VALID_HINTS:
         raise _errors.ShardingError(INVALID_SHARDING_HINT)
+
     group = None
-    shard_mapping = ShardMapping.fetch(table_name)
-    if shard_mapping is None:
-        raise _errors.ShardingError(TABLE_NAME_NOT_FOUND % (table_name,  ))
+
+    #Perform the lookup for the group contaning the lookup data.
     if hint == "GLOBAL":
-        group = Group.fetch(shard_mapping.global_group)
-    elif shard_mapping.type_name == "RANGE":
-        range_sharding_specification = RangeShardingSpecification.lookup \
-                                        (key, shard_mapping.shard_mapping_id)
-        if range_sharding_specification is None:
-            raise _errors.ShardingError(INVALID_SHARDING_KEY % (key,  ))
-        shard = Shards.fetch(str(range_sharding_specification.shard_id))
-        if shard.state == "DISABLED":
-            raise _errors.ShardingError(SHARD_NOT_ENABLED)
-
-        #group cannot be None since there is a foreign key on the group_id.
-        #An exception will be thrown nevertheless.
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
-    elif shard_mapping.type_name == "HASH":
-        hash_sharding_specification = HashShardingSpecification.lookup \
-                                        (key, shard_mapping.shard_mapping_id)
-        if hash_sharding_specification is None:
-            raise _errors.ShardingError(INVALID_SHARDING_KEY % (key,  ))
-        shard = Shards.fetch(str(hash_sharding_specification.shard_id))
-        if shard.state == "DISABLED":
-            raise _errors.ShardingError(SHARD_NOT_ENABLED)
-
-        #group cannot be None since there is a foreign key on the group_id.
-        #An exception will be thrown nevertheless.
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
+        #Fetch the shard mapping object. In the case of GLOBAL lookups
+        #the shard mapping ID is passed directly. In the case of "LOCAL"
+        #lookups it is the table name that is passed.
+        shard_mapping = ShardMapping.fetch_by_id(lookup_arg)
+        if shard_mapping is None:
+            raise _errors.ShardingError(SHARD_MAPPING_NOT_FOUND % (lookup_arg,  ))
+        #GLOBAL lookups. There can be only one global group, hence using
+        #shard_mapping[0] is safe.
+        group = Group.fetch(shard_mapping[0].global_group)
     else:
-        #A Shard Mapping cannot have a sharding type that is not
-        #recognized. This will point to an anomaly in the state store.
-        #If this case occurs we still need to degrade gracefully. Hence
-        #we will throw an exception indicating the sharding type
-        #was wrong.
-        raise _errors.ShardingError(INVALID_SHARDING_TYPE % ("",  ))
+        shard_mapping = ShardMapping.fetch(lookup_arg)
+        if shard_mapping is None:
+            raise _errors.ShardingError(TABLE_NAME_NOT_FOUND % (lookup_arg,  ))
+        elif shard_mapping.type_name == "RANGE":
+            #LOCAL lookups for RANGE sharding
+            range_sharding_specification = RangeShardingSpecification.lookup \
+                                            (key, shard_mapping.shard_mapping_id)
+            if range_sharding_specification is None:
+                raise _errors.ShardingError(INVALID_SHARDING_KEY % (key,  ))
+            shard = Shards.fetch(str(range_sharding_specification.shard_id))
+            if shard.state == "DISABLED":
+                raise _errors.ShardingError(SHARD_NOT_ENABLED)
+            #group cannot be None since there is a foreign key on the group_id.
+            #An exception will be thrown nevertheless.
+            group = Group.fetch(shard.group_id)
+            if group is None:
+                raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
+        elif shard_mapping.type_name == "HASH":
+            #LOCAL lookups for HASH sharding.
+            hash_sharding_specification = HashShardingSpecification.lookup \
+                                            (key, shard_mapping.shard_mapping_id)
+            if hash_sharding_specification is None:
+                raise _errors.ShardingError(INVALID_SHARDING_KEY % (key,  ))
+            shard = Shards.fetch(str(hash_sharding_specification.shard_id))
+            if shard.state == "DISABLED":
+                raise _errors.ShardingError(SHARD_NOT_ENABLED)
+            #group cannot be None since there is a foreign key on the group_id.
+            #An exception will be thrown nevertheless.
+            group = Group.fetch(shard.group_id)
+            if group is None:
+                raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
+        else:
+            #A Shard Mapping cannot have a sharding type that is not
+            #recognized. This will point to an anomaly in the state store.
+            #If this case occurs we still need to degrade gracefully. Hence
+            #we will throw an exception indicating the sharding type
+            #was wrong.
+            raise _errors.ShardingError(INVALID_SHARDING_TYPE % ("",  ))
 
     ret = []
     #An empty list will be returned if the registered group has not

@@ -147,7 +147,7 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
 
         sleep(3)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -205,7 +205,7 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
 
         sleep(3)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -300,7 +300,7 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
         self.proxy.sharding.enable_shard("2")
         self.proxy.sharding.enable_shard("3")
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]

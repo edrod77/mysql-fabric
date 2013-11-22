@@ -194,7 +194,7 @@ class TestShardingPrune(unittest.TestCase):
     def tearDown(self):
         self.proxy.sharding.enable_shard("1")
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]

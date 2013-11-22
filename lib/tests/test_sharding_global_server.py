@@ -138,7 +138,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         expected_server_address_list = [MySQLInstances().get_address(0), MySQLInstances().get_address(1)]
 
         #Perform the lookup
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -155,7 +155,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         """
 
         #Lookup the global server and run some DDL statements
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -217,7 +217,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         switchover is triggered. Basically it should ensure that the new master
         is redirected to replicate to all the other shards.
         """
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -246,7 +246,7 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         sleep(5)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -336,7 +336,7 @@ class TestShardingGlobalServer(unittest.TestCase):
                 self.assertEqual(rows[7][0], 'TEST 8')
 
     def test_global_update_propogation_failover(self):
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -368,7 +368,7 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         sleep(5)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -498,7 +498,7 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         sleep(3)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -550,7 +550,7 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         sleep(3)
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
@@ -616,7 +616,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         self.proxy.sharding.enable_shard("1")
         self.proxy.sharding.enable_shard("2")
 
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "GLOBAL")
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         self.assertEqual(status["success"], True)
         self.assertEqual(status["message"], False)
         obtained_server_list = status["return"]
