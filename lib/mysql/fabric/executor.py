@@ -39,14 +39,14 @@ class Procedure(object):
 
     Any job must belong to a procedure whereas a procedure may have several
     jobs associated to it. When job is created and is about to be scheduled,
-    it is added to a set of scheduled jobs. Upon the end of its execution,
+    it is added to a set of registered jobs. Upon the end of its execution,
     it is moved from the aforementioned set to a list of executed jobs.
-    During the execution of a job, new jobs may be scheduled in the context
+    During the execution of a job, new jobs may be created in the context
     of the current procedure.
 
     A procedure is marked as finished (i.e. complete) when its last job
-    finishes. Specifically, when a job finishes and there is no scheduled
-    job on behalf of the procedure.
+    finishes. Specifically, when a job finishes and there is no registered
+    job created on behalf of the procedure.
 
     This class is mainly used to keep track of requests and to provide the
     necessary means to build a synchronous execution.
@@ -64,10 +64,11 @@ class Procedure(object):
         self.__lock = threading.Condition()
         self.__complete = False
         self.__result = True
-        self.__scheduled_jobs = set()
+        self.__registered_jobs = set()
         self.__executed_jobs = []
         self.__status = []
         self.__lockable_objects = lockable_objects
+        self.__sequence = 0
 
         _LOGGER.debug("Created procedure (%s).", self.__uuid)
 
@@ -100,14 +101,15 @@ class Procedure(object):
         with self.__lock:
             return self.__complete
 
-    def get_scheduled_jobs(self):
-        """Return the set of jobs scheduled on behalf of this procedure.
+    def get_registered_jobs(self):
+        """Return the set of jobs to be scheduled on behalf of this
+        procedure.
 
-        :return: List of scheduled jobs.
+        :return: List of jobs to be scheduled.
         :rtype: List
         """
         with self.__lock:
-            return list(self.__scheduled_jobs)
+            return list(self.__registered_jobs)
 
     def get_executed_jobs(self):
         """Return the set of jobs executed on behalf of this procedure.
@@ -115,19 +117,19 @@ class Procedure(object):
         with self.__lock:
             return list(self.__executed_jobs)
 
-    def add_scheduled_job(self, job):
-        """Register that a job has been scheduled on behalf of the
+    def add_registered_job(self, job):
+        """Register that a job is about to be scheduled on behalf of the
         procedure.
 
-        :param job: Scheduled job.
+        :param job: Job to be scheduled.
         """
         with self.__lock:
             assert(not self.__complete)
-            assert(job not in self.__scheduled_jobs)
+            assert(job not in self.__registered_jobs)
             assert(job not in self.__executed_jobs)
             assert(job.procedure == self)
 
-            self.__scheduled_jobs.add(job)
+            self.__registered_jobs.add(job)
 
     def add_executed_job(self, job):
         """Register that a job has been executed on behalf of the
@@ -137,18 +139,18 @@ class Procedure(object):
         """
         with self.__lock:
             assert(not self.__complete)
-            assert(job in self.__scheduled_jobs)
+            assert(job in self.__registered_jobs)
             assert(job not in self.__executed_jobs)
             assert(job.procedure == self)
 
-            self.__scheduled_jobs.remove(job)
+            self.__registered_jobs.remove(job)
             self.__executed_jobs.append(job)
 
             if job.result is not None:
                 self.__result = job.result
             self.__status.extend(job.status)
 
-            if not self.__scheduled_jobs:
+            if not self.__registered_jobs:
                 self.__complete = True
                 self.__lock.notify_all()
                 _checkpoint.Checkpoint.remove(job.checkpoint)
@@ -185,6 +187,14 @@ class Procedure(object):
             while not self.__complete:
                 self.__lock.wait()
 
+    def get_sequence(self):
+        """Return the next available identifier/sequence for a job.
+
+        :return: Return the next available sequence for a job.
+        """
+        self.__sequence = self.__sequence + 1
+        return self.__sequence - 1
+
     def __eq__(self,  other):
         """Two procedures are equal if they have the same uuid.
         """
@@ -203,7 +213,7 @@ class Procedure(object):
             ret = "<Procedure object: uuid=%s, complete=%s, exec_jobs=%s, " \
                 "sche_jobs=%s>" % (self.__uuid, self.__complete,
                 [str(job.uuid) for job in self.__executed_jobs],
-                [str(job.uuid) for job in self.__scheduled_jobs])
+                [str(job.uuid) for job in self.__registered_jobs])
             return ret
 
 
@@ -230,9 +240,11 @@ class Job(object):
                  args, kwargs, uuid=None):
         """Create a Job object.
         """
+        is_recoverable = _checkpoint.Checkpoint.is_recoverable(action)
+
         if not callable(action):
             raise _errors.NotCallableError("Callable expected")
-        elif not _checkpoint.Checkpoint.is_recoverable(action):
+        elif not is_recoverable:
             # Currently we only print out a warning message. In the future,
             # we may decide to change this and raise an error.
             _LOGGER.warning(
@@ -250,18 +262,19 @@ class Job(object):
         self.__result = None
         self.__complete = False
         self.__procedure = procedure
-        self.__is_recoverable = _checkpoint.Checkpoint.is_recoverable(action)
+        self.__is_recoverable = is_recoverable
         self.__jobs = []
         self.__procedures = []
         self.__action_fqn = action.__module__ + "." + action.__name__
 
         self.__checkpoint = _checkpoint.Checkpoint(
             self.__procedure.uuid, self.__procedure.get_lockable_objects(),
-            self.__uuid, self.__action_fqn, args, kwargs
+            self.__uuid, self.__procedure.get_sequence(), self.__action_fqn,
+            args, kwargs,
         )
 
         self._add_status(Job.SUCCESS, Job.CREATED, description)
-        self.__procedure.add_scheduled_job(self)
+        self.__procedure.add_registered_job(self)
 
     @property
     def uuid(self):
@@ -278,7 +291,7 @@ class Job(object):
 
     @property
     def status(self):
-        """Return the status of the execution phases (i.e. scheduled,
+        """Return the status of the execution phases (i.e. created,
         processing, completed).
 
         A status has the following format::
@@ -440,7 +453,7 @@ class Job(object):
             # of the current job.
             for procedure in self.__procedures:
                 assert(len(procedure.get_executed_jobs()) == 0)
-                _checkpoint.register(procedure.get_scheduled_jobs(), True)
+                _checkpoint.register(procedure.get_registered_jobs(), True)
 
             # Register that the job has finished the execution.
             if self.__is_recoverable:
@@ -598,7 +611,7 @@ class ExecutorThread(threading.Thread):
         if procedure is not None:
             assert(not procedure.is_complete())
             assert(len(procedure.get_executed_jobs()) == 0)
-            self.__queue.schedule(procedure.get_scheduled_jobs())
+            self.__queue.schedule(procedure.get_registered_jobs())
         return procedure
 
 class ExecutorQueue(object):

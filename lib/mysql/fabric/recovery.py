@@ -58,7 +58,7 @@ def recovery():
 
     actions = []
     procedure_uuid = None
-    for checkpoint in Checkpoint.scheduled():
+    for checkpoint in Checkpoint.registered():
         actions.append({
             "job" : checkpoint.job_uuid,
             "action" : (checkpoint.do_action,

@@ -331,6 +331,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         proc_uuid = _uuid.UUID("9f994e3a-a732-43ba-8aab-f1051f553437")
         lockable_objects = set(["lock"])
         job_uuid = _uuid.UUID("64835080-2114-46de-8fbf-8caba8e8cd90")
+        job_sequence = 0
         do_action = check_do_action
         do_action_fqn = do_action.__module__ + "." + do_action.__name__
         args = (count_1, count_2)
@@ -340,15 +341,16 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
-            )
-        checkpoint.schedule()
+            proc_uuid, lockable_objects, job_uuid, job_sequence,
+            do_action_fqn, args, kwargs
+        )
+        checkpoint.register()
 
         self.assertEqual(COUNT_1, 0)
         self.assertEqual(COUNT_2, 0)
 
         self.assertEqual(MyTransAction.count(), 0)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 1)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 1)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 1)
         _checkpoint.Checkpoint.cleanup()
@@ -362,7 +364,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 1)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
         executor.remove_procedure(proc_uuid)
 
@@ -370,9 +372,10 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, job_sequence,
+            do_action_fqn, args, kwargs
             )
-        checkpoint.schedule()
+        checkpoint.register()
         checkpoint.begin()
         self.persister.begin()
         ####### empty #######
@@ -381,7 +384,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_1, 0)
         self.assertEqual(COUNT_2, 0)
         self.assertEqual(MyTransAction.count(), 1)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 1)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 1)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 1)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 1)
         _checkpoint.Checkpoint.cleanup()
@@ -395,7 +398,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 2)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
         executor.remove_procedure(proc_uuid)
 
@@ -403,9 +406,10 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, job_sequence,
+            do_action_fqn, args, kwargs
             )
-        checkpoint.schedule()
+        checkpoint.register()
         checkpoint.begin()
         self.persister.begin()
         do_action(10, 30)
@@ -415,7 +419,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_1, 10)
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 2)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 1)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 1)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 1)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 1)
         _checkpoint.Checkpoint.cleanup()
@@ -429,7 +433,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 3)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
         executor.remove_procedure(proc_uuid)
 
@@ -437,9 +441,10 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, job_sequence,
+            do_action_fqn, args, kwargs,
             )
-        checkpoint.schedule()
+        checkpoint.register()
         checkpoint.begin()
         self.persister.begin()
         do_action(10, 30)
@@ -449,7 +454,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_1, 10)
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 4)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 1)
         _recovery.recovery()
@@ -461,7 +466,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 4)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
         executor.remove_procedure(proc_uuid)
 
@@ -475,16 +480,19 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         proc_uuid = _uuid.UUID("01da10ed-514e-43a4-8388-ab05c04d67e1")
         lockable_objects = set(["lock"])
         job_uuid = _uuid.UUID("e4e1ba17-ff1d-45e6-a83c-5655ea5bb646")
-        job_uuid_scheduled_1 = _uuid.UUID("aaa1ba17-ff1d-45e6-a83c-5655ea5bb646")
-        job_uuid_scheduled_2 = _uuid.UUID("bbb1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        job_sequence = 0
+        job_uuid_registered_1 = _uuid.UUID("aaa1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        job_sequence_1 = 1
+        job_uuid_registered_2 = _uuid.UUID("bbb1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        job_sequence_2 = 2
         do_action = check_do_action
-        do_action_scheduled_1 = check_do_action_scheduled_1
-        do_action_scheduled_2 = check_do_action_scheduled_2
+        do_action_registered_1 = check_do_action_registered_1
+        do_action_registered_2 = check_do_action_registered_2
         do_action_fqn = do_action.__module__ + "." + do_action.__name__
-        do_action_scheduled_1_fqn = \
-            do_action_scheduled_1.__module__ + "." + do_action_scheduled_1.__name__
-        do_action_scheduled_2_fqn = \
-            do_action_scheduled_2.__module__ + "." + do_action_scheduled_2.__name__
+        do_action_registered_1_fqn = \
+            do_action_registered_1.__module__ + "." + do_action_registered_1.__name__
+        do_action_registered_2_fqn = \
+            do_action_registered_2.__module__ + "." + do_action_registered_2.__name__
         args = (count_1, count_2)
         kwargs = {}
 
@@ -492,29 +500,30 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         COUNT_1 = 0
         COUNT_2 = 0
         checkpoint = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid, do_action_fqn, args, kwargs
+            proc_uuid, lockable_objects, job_uuid, job_sequence,
+            do_action_fqn, args, kwargs
             )
-        scheduled_1 = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid_scheduled_1,
-            do_action_scheduled_1_fqn, args, kwargs
+        registered_1 = _checkpoint.Checkpoint(
+            proc_uuid, lockable_objects, job_uuid_registered_1,
+            job_sequence_1, do_action_registered_1_fqn, args, kwargs
             )
-        scheduled_2 = _checkpoint.Checkpoint(
-            proc_uuid, lockable_objects, job_uuid_scheduled_2,
-            do_action_scheduled_2_fqn, args, kwargs
+        registered_2 = _checkpoint.Checkpoint(
+            proc_uuid, lockable_objects, job_uuid_registered_2,
+            job_sequence_2, do_action_registered_2_fqn, args, kwargs
             )
-        checkpoint.schedule()
+        checkpoint.register()
         checkpoint.begin()
         self.persister.begin()
         do_action(10, 30)
         checkpoint.finish()
-        scheduled_1.schedule()
-        scheduled_2.schedule()
+        registered_1.register()
+        registered_2.register()
         self.persister.commit()
 
         self.assertEqual(COUNT_1, 10)
         self.assertEqual(COUNT_2, 30)
         self.assertEqual(MyTransAction.count(), 1)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 2)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 2)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 3)
         _checkpoint.Checkpoint.cleanup()
@@ -527,7 +536,7 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         self.assertEqual(COUNT_1, 30)
         self.assertEqual(COUNT_2, 90)
         self.assertEqual(len(_checkpoint.Checkpoint.unfinished()), 0)
-        self.assertEqual(len(_checkpoint.Checkpoint.scheduled()), 0)
+        self.assertEqual(len(_checkpoint.Checkpoint.registered()), 0)
         self.assertEqual(len(_checkpoint.Checkpoint.fetch(proc_uuid)), 0)
         executor.remove_procedure(proc_uuid)
 
@@ -610,13 +619,13 @@ def check_do_action(count_1, count_2):
 def check_undo_action(count_1, count_2):
     non_trans_undo_action()
 
-def check_do_action_scheduled_1(count_1, count_2):
+def check_do_action_registered_1(count_1, count_2):
     global COUNT_1, COUNT_2
 
     COUNT_1 += count_1
     COUNT_2 += count_2
 
-def check_do_action_scheduled_2(count_1, count_2):
+def check_do_action_registered_2(count_1, count_2):
     global COUNT_1, COUNT_2
 
     COUNT_1 += count_1

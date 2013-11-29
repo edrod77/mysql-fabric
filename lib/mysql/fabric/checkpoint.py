@@ -44,9 +44,9 @@ class Checkpoint(_persistence.Persistable):
 
       diagram {
       activation = none;
-      === Schedule "action" and Create "procedure" ===
+      === Register "action" and Create "procedure" ===
       trigger -> executor;
-      executor -> procedure [ label = "schedule(action)" ];
+      executor -> procedure [ label = "register(action)" ];
       executor <- procedure;
       trigger <- executor;
       === Execute "action" ===
@@ -93,8 +93,7 @@ class Checkpoint(_persistence.Persistable):
     INSERT_CHECKPOINT = (
         "INSERT INTO checkpoints(proc_uuid, lockable_objects, job_uuid, "
         "sequence, action_fqn, param_args, param_kwargs) "
-        "SELECT %s, %s, %s, coalesce(MAX(sequence), 0) + 1, %s, %s, %s FROM "
-        "checkpoints WHERE proc_uuid = %s"
+        "VALUES (%s, %s, %s, %s, %s, %s, %s)"
         )
 
     #SQL statement for updating the started time.
@@ -134,7 +133,7 @@ class Checkpoint(_persistence.Persistable):
         "chk_info.sequence = chk_core.sequence"
         )
 
-    QUERY_SCHEDULED_CHECKPOINTS = (
+    QUERY_REGISTERED_CHECKPOINTS = (
         "SELECT proc_uuid, lockable_objects, job_uuid, sequence, "
         "action_fqn, param_args, param_kwargs, started, finished "
         "FROM checkpoints WHERE finished "
@@ -149,9 +148,9 @@ class Checkpoint(_persistence.Persistable):
         "WHERE chk_info.finished is NULL)"
         )
 
-    def __init__(self, proc_uuid, lockable_objects, job_uuid,
-                 action_fqn, param_args, param_kwargs,
-                 started=None, finished=None, sequence=None):
+    def __init__(self, proc_uuid, lockable_objects, job_uuid, sequence,
+                 action_fqn, param_args, param_kwargs, started=None,
+                 finished=None):
         """Constructor for Checkpoint object.
         """
         super(Checkpoint, self).__init__()
@@ -232,16 +231,16 @@ class Checkpoint(_persistence.Persistable):
         """
         return self.__sequence
 
-    def schedule(self, persister=None):
-        """Register that an action has been scheduled.
+    def register(self, persister=None):
+        """Register that an action has been registered.
         """
         param_args, param_kwargs, lockable_objects = \
             Checkpoint.serialize(self.__param_args, self.__param_kwargs,
                                  self.__lockable_objects)
         persister.exec_stmt(Checkpoint.INSERT_CHECKPOINT,
             {"params":(str(self.__proc_uuid), lockable_objects,
-            str(self.__job_uuid), self.__action_fqn, param_args, param_kwargs,
-            str(self.__proc_uuid))}
+            str(self.__job_uuid), self.__sequence, self.__action_fqn,
+            param_args, param_kwargs)}
             )
 
     def begin(self, persister=None):
@@ -281,8 +280,9 @@ class Checkpoint(_persistence.Persistable):
         param_args, param_kwargs, lockable_objects = \
              Checkpoint.deserialize(param_args, param_kwargs, lockable_objects)
         checkpoint = Checkpoint(
-            _uuid.UUID(proc_uuid), lockable_objects, _uuid.UUID(job_uuid),
-            action_fqn, param_args, param_kwargs, started, finished, sequence
+            _uuid.UUID(proc_uuid), lockable_objects, _uuid.UUID(job_uuid), 
+            sequence, action_fqn, param_args, param_kwargs,
+            started, finished
             )
         return checkpoint
 
@@ -303,16 +303,16 @@ class Checkpoint(_persistence.Persistable):
         return checkpoints
 
     @staticmethod
-    def scheduled(persister=None):
-        """Return scheduled procedures.
+    def registered(persister=None):
+        """Return registered procedures.
 
         :param persister: The DB server that can be used to access the
                           state store.
-        :return: Set of procedures that were scheduled.
+        :return: Set of procedures that were registered.
         :rtype: set(Checkpoint, ...)
         """
         checkpoints = set()
-        rows = persister.exec_stmt(Checkpoint.QUERY_SCHEDULED_CHECKPOINTS,
+        rows = persister.exec_stmt(Checkpoint.QUERY_REGISTERED_CHECKPOINTS,
                                    {"raw": False})
         for row in rows:
             checkpoints.add(Checkpoint._create_object_from_row(row))
@@ -491,7 +491,7 @@ _LOGGER = logging.getLogger(__name__)
 def register(jobs, transaction):
     """Atomically register jobs.
 
-    :param jobs: List of jobs to be scheduled.
+    :param jobs: List of jobs to be registered.
     :param transaction: Whether there is transaction context or not.
     """
     assert(isinstance(jobs, list))
@@ -503,7 +503,7 @@ def register(jobs, transaction):
     try:
         for job in jobs:
             if job.is_recoverable:
-                job.checkpoint.schedule()
+                job.checkpoint.register()
 
     except _errors.DatabaseError:
         try:
