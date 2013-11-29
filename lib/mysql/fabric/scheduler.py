@@ -25,7 +25,6 @@ import Queue
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.utils as _utils
-import mysql.fabric.executor
 
 _LOGGER = logging.getLogger(__name__)
 

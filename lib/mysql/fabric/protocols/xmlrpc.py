@@ -54,31 +54,45 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         threading.Thread.__init__(self, name="XML-RPC-Server")
         self.register_introspection_functions()
         self.__number_threads = number_threads
-        self.__requests = None
-        self.__threads = []
+        self.__threads = Queue.Queue(number_threads)
         self.__is_running = True
         self.daemon = True
         self.__lock = threading.Condition()
 
-    def run(self):
-        """Call the main routine.
+    def register_command(self, command):
+        """Register a command with the server.
+
+        :param command: Command to be registered.
         """
-        self.serve_forever()
+        self.register_function(
+            command.execute, command.group_name + "." + command.command_name
+            )
+
+    def register_thread(self, thread):
+        """Register a reference to an idle thread that can used to
+        process incoming requests.
+        """
+        self.__threads.put(thread)
 
     def shutdown(self):
-        """Stop the server.
+        """Shutdown the server.
         """
-        # Avoid possible errors if different threads try to
-        # stop the server.
+        thread = SessionThread.get_reference()
+        assert(thread is not None)
+        thread.shutdown()
+
+    def shutdown_now(self):
+        """Shutdown the server immediately without waiting until any
+        ongoing activity finishes.
+        """
+        # Avoid possible errors if different threads try to stop the
+        # server.
         with self.__lock:
             if not self.__is_running:
                 return
+            self.server_close()
             self.__is_running = False
             self.__lock.notify_all()
-
-        for thread in self.__threads:
-            assert(self.__requests is not None)
-            self.__requests.put(None)
 
     def wait(self):
         """Wait until the server shuts down.
@@ -87,69 +101,127 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             while self.__is_running:
                 self.__lock.wait()
 
-        for thread in self.__threads:
-            thread.join()
-
-    def register_command(self, command):
-        """Register a command with the server.
-        """
-        self.register_function(
-            command.execute, command.group_name + "." + command.command_name
-            )
-
-    def server_bind(self):
-        """Manipulate the option reuse address and bind the socket to
-        the server.
-        """
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        SimpleXMLRPCServer.server_bind(self)
-
-    def process_request_thread(self):
-        """Obtain request from queue instead of directly from server socket.
-        """
-        _LOGGER.info("Started XML-RPC-Session.")
-        _persistence.init_thread()
-        while True:
-            assert(self.__requests is not None)
-            request = self.__requests.get()
-            if request is None:
-                break
-            ThreadingMixIn.process_request_thread(self, *request)
-        _persistence.deinit_thread()
-
-    def handle_request(self):
-        """Put requests into a queue for the dispatchers.
-        """
-        try:
-            request, client_address = self.get_request()
-        except socket.error:
-            return
-        if self.verify_request(request, client_address):
-            assert(self.__requests is not None)
-            self.__requests.put((request, client_address))
-
-    def serve_forever(self):
+    def run(self):
         """Main routine which handles one request at a time.
         """
-        self.__requests = Queue.Queue(self.__number_threads)
-
         _LOGGER.info(
             "XML-RPC protocol server %s started.", self.server_address
         )
+
+        self._create_sessions()
+        while self.__is_running:
+            try:
+                request, client_address = self.get_request()
+                self._process_request(request, client_address)
+            except Exception as error:
+                _LOGGER.warning("Error accessing request: (%s)." % (error, ))
+
+    def _process_request(self, request, client_address):
+        """Process a request by delegating it to an idle session thread.
+        """
+        if self.verify_request(request, client_address):
+            thread = self.__threads.get()
+            _LOGGER.debug(
+                "Enqueuing request (%s) from (%s) through thread (%s)." %
+                (request, client_address, thread)
+            )
+            thread.process_request(request, client_address)
+
+    def _create_sessions(self):
+        """Create session threads.
+        """
         _LOGGER.info("Setting %s XML-RPC session(s).", self.__number_threads)
 
         for nt in range(0, self.__number_threads):
-            thread = threading.Thread(
-                target = self.process_request_thread,
-                name="XML-RPC-Session-%s" % (nt, )
-            )
-            thread.daemon = True
-            thread.start()
-            self.__threads.append(thread)
+            thread = SessionThread("XML-RPC-Session-%s" % (nt, ), self)
+            try:
+                thread.start()
+            except Exception as error:
+                _LOGGER.error("Error starting thread: (%s)." % (error, ))
 
-        while self.__is_running:
-            self.handle_request()
-        self.server_close()
+
+class SessionThread(threading.Thread):
+    """Session thread which is responsible for handling incoming requests.
+
+    :param name: Thread's name.
+    :param server: Reference to server object which knows how to handle
+                   requests.
+    """
+    local_thread = threading.local()
+
+    def __init__(self, name, server):
+        """Create a SessionThread object.
+        """
+        threading.Thread.__init__(self, name=name)
+        self.__requests = Queue.Queue()
+        self.__server = server
+        self.__is_shutdown = False
+        self.daemon = True
+
+    @staticmethod
+    def get_reference():
+        """Get a reference to a SessionThread object associated
+        to the current thread or None.
+
+        :return: Reference to a SessionThread object associated
+                 to the current thread or None.
+        """
+        try:
+            return SessionThread.local_thread.thread
+        except AttributeError:
+            pass
+        return None
+
+    def process_request(self, request, client_address):
+        """Register a request to be processed by this SessionThread
+        object.
+        """
+        self.__requests.put((request, client_address))
+
+    def run(self):
+        """Process registered requests.
+        """
+        _LOGGER.info("Started XML-RPC-Session.")
+        try:
+            _persistence.init_thread()
+        except Exception as error:
+            _LOGGER.warning("Error connecting to backing store: (%s)." %
+                            (error, )
+            )
+
+        SessionThread.local_thread.thread = self
+        self.__server.register_thread(self)
+
+        while True:
+            request, client_address = self.__requests.get()
+            _LOGGER.debug(
+                "Processing request (%s) from (%s) through thread (%s)." %
+                (request, client_address, self)
+            )
+            # There is no need to catch exceptions here because the method
+            # process_request_thread already does so. It is the main entry
+            # point in the code which means that any uncaught exception
+            # in the code will be reported as xmlrpclib.Fault.
+            self.__server.process_request_thread(request, client_address)
+            _LOGGER.debug(
+                "Finishing request (%s) from (%s) through thread (%s)." %
+                (request, client_address, self)
+            )
+            if self.__is_shutdown:
+                self.__server.shutdown_now()
+            self.__server.register_thread(self)
+
+        try:
+            _persistence.deinit_thread()
+        except Exception as error:
+            _LOGGER.warning("Error connecting to backing store: (%s)." %
+                            (error, ))
+
+    def shutdown(self):
+        """Register that this thread is responsible for shutting down
+        the server.
+        """
+        self.__is_shutdown = True
 
 
 class MyClient(xmlrpclib.ServerProxy):

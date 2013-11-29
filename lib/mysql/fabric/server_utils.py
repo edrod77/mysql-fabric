@@ -172,8 +172,7 @@ def create_mysql_connection(**kwargs):
     """Create a connection.
     """
     try:
-        cnx = mysql.connector.Connect(**kwargs)
-        return cnx
+        return mysql.connector.Connect(**kwargs)
     except mysql.connector.Error as error:
         raise _errors.DatabaseError("Cannot connect to the server. "
             "Error %s" % (error, ), error.errno)

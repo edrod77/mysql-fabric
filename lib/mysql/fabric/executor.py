@@ -379,13 +379,15 @@ class Job(object):
             self._rollback_context(persister)
 
         except Exception as error:
-            # Report that something did not go as excepted and that
-            # something critical may have happened.
-            _LOGGER.exception(error)
+            # Report that something did not go as excepted and that something
+            # critical may have happened.
+            _LOGGER.error(
+                "Error in %s.", self.__action.__name__, exc_info=error
+            )
             self._rollback_context(persister)
 
         else:
-            # Everything went well.
+            # Everything went well so far.
             self._commit_context(persister, scheduler, queue)
 
     def _start_context(self, persister):
@@ -408,8 +410,12 @@ class Job(object):
         try:
             # Rollback the job transactional context.
             persister.rollback()
-        except _errors.DatabaseError as rollback_error:
-            _LOGGER.exception(rollback_error)
+
+        except _errors.DatabaseError as error:
+            _LOGGER.error(
+                "Error in %s rolling back job's context.",
+                self.__action.__name__, exc_info=error
+            )
 
         # Update the job status.
         self.__result = False
@@ -417,18 +423,21 @@ class Job(object):
             self.__action.__name__)
         self._add_status(Job.ERROR, Job.COMPLETE, message, True)
 
-        # Mark the job as complete.
-        self.__complete = True
-        # Update the job status within the procedure.
-        self.__procedure.add_executed_job(self)
+        # Finish context which means mark the job as finished
+        # and update procedure's information.
+        self._finish_context(False)
 
     def _commit_context(self, persister, scheduler, queue):
         """Commit transactional context.
         """
+        registered_jobs = False
         try:
             # Register information on jobs created within the context of the
             # current job.
             _checkpoint.register(self.__jobs, True)
+
+            # Register information on procedures created within the context
+            # of the current job.
             for procedure in self.__procedures:
                 assert(len(procedure.get_executed_jobs()) == 0)
                 _checkpoint.register(procedure.get_scheduled_jobs(), True)
@@ -437,24 +446,69 @@ class Job(object):
             if self.__is_recoverable:
                 self.__checkpoint.finish()
 
-            # Commit the job transactional context.
-            persister.commit()
+            registered_jobs = True
 
-            # Schedule jobs and procedures created within the context of
-            # the current job.
-            queue.schedule(self.__jobs)
-            scheduler.enqueue_procedures(self.__procedures)
-        except _errors.DatabaseError as commit_error:
-            _LOGGER.exception(commit_error)
+        except _errors.DatabaseError as error:
+            _LOGGER.error(
+                "Error in %s registering new jobs/procedures.",
+                self.__action.__name__, exc_info=error
+            )
 
-        # Update the job status.
-        message = "Executed action ({0}).".format(self.__action.__name__)
-        self._add_status(Job.SUCCESS, Job.COMPLETE, message)
+        if registered_jobs:
+            committed = False
 
-        # Mark the job as complete.
-        self.__complete = True
-        # Update the job status within the procedure.
-        self.__procedure.add_executed_job(self)
+            try:
+                # Commit the job transactional context.
+                # Currently, if the commit fails, we are not sure whether the
+                # changes have succeeded or not. This is something that needs
+                # to be improved in the near future.
+                persister.commit()
+
+                # Schedule jobs and procedures created within the context
+                # of the current job.
+                queue.schedule(self.__jobs)
+                scheduler.enqueue_procedures(self.__procedures)
+
+                committed = True
+
+            except _errors.DatabaseError as error:
+                _LOGGER.error(
+                    "Error in %s committing job's context.",
+                    self.__action.__name__, exc_info=error
+                )
+
+            if committed:
+                # Update the job status.
+                message = "Executed action ({0}).".format(self.__action.__name__)
+                self._add_status(Job.SUCCESS, Job.COMPLETE, message)
+
+                # Finish context which means mark the job as finished
+                # and update procedure's information.
+                self._finish_context(True)
+
+                return
+
+        # It was not possible to commit the current job.
+        self._rollback_context()
+
+    def _finish_context(self, success):
+        """Update information on 
+        """
+        try:
+            # Mark the job as complete.
+            self.__complete = True
+
+            # Update the job status within the procedure. Currently, if this
+            # fails, we are not sure whether the changes have succeeded or
+            # not. This is something that needs to be improved in the near
+            # future.
+            self.__procedure.add_executed_job(self)
+
+        except _errors.DatabaseError as error:
+            _LOGGER.error(
+                "Error in %s finishing job's context.",
+                self.__action.__name__, exc_info=error
+            )
 
     def __eq__(self,  other):
         """Two jobs are equal if they have the same uuid.
@@ -641,7 +695,10 @@ class Executor(Singleton):
                 executor = ExecutorThread(
                     self.__scheduler, "Executor-{0}".format(nw)
                 )
-                executor.start()
+                try:
+                    executor.start()
+                except Exception as error:
+                    _LOGGER.error("Error starting thread: (%s)." % (error, ))
                 self.__executors.append(executor)
 
             _LOGGER.info("Executor started.")
@@ -719,9 +776,9 @@ class Executor(Singleton):
         with self.__threads_lock:
             self._assert_running()
 
-        return self._do_enqueue_procedures(
-            within_procedure, actions, lockable_objects
-        )
+            return self._do_enqueue_procedures(
+                within_procedure, actions, lockable_objects
+            )
 
     def _do_enqueue_procedures(self, within_procedure, actions,
                                lockable_objects):
@@ -736,6 +793,9 @@ class Executor(Singleton):
                 )
             procedures, jobs = self._create_jobs(actions, lockable_objects)
             assert(len(set(procedures)) == len(set(jobs)))
+            # There is no need to catch exceptions at this point. They will
+            # be automatically caught by the caller which is usually the
+            # XML-RPC session thread.
             _checkpoint.register(jobs, False)
             self.__scheduler.enqueue_procedures(procedures)
         else:
@@ -775,9 +835,9 @@ class Executor(Singleton):
         with self.__threads_lock:
             self._assert_running()
 
-        return self._do_reschedule_procedure(
-            proc_uuid, actions, lockable_objects
-        )
+            return self._do_reschedule_procedure(
+                proc_uuid, actions, lockable_objects
+            )
 
     def _do_reschedule_procedure(self, proc_uuid, actions, lockable_objects):
         """Recovers a procedure after a failure by rescheduling it.

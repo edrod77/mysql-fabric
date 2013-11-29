@@ -90,7 +90,11 @@ class ServiceManager(Singleton):
     def start(self):
         """Start all services managed by the service manager.
         """
-        self.__rpc_server.start()
+        try:
+            self.__rpc_server.start()
+        except Exception as error:
+            _LOGGER.error("Error starting thread: (%s)." % (error, ))
+
 
     def shutdown(self):
         """Shut down all services managed by the service manager.

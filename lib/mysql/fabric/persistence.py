@@ -48,12 +48,15 @@ import functools
 import inspect
 import logging
 import threading
+import time
 import uuid as _uuid
 
 import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.errors as _errors
 
 DEFAULT_DATABASE = 'fabric'
+DEFAULT_CONNECT_ATTEMPTS = 0
+DEFAULT_CONNECT_DELAY = 0
 
 class PersistentMeta(type):
     """Metaclass for persistent classes.
@@ -71,9 +74,7 @@ class PersistentMeta(type):
     - Registering the class with the object store so that it will get
       an init() and deinit() call when the state store inits and
       deinits.
-
     """
-
     thread_local = threading.local() # Thread-local store
     classes = []                     # List of all persistent classes
 
@@ -294,6 +295,23 @@ class Persistable(object):
        print some_car.model
        Car.remove(some_car)
 
+    If the connection to the persistent store is temporarily lost because, for
+    example, it has been closed by the server after a period of inactivite, the
+    persister will try to automatically restablish it before a new transaction
+    is implicitly or explicitly started. Failures while executing a statement
+    within a transaction context are automatically reported to the caller.
+
+    The autocommit mode is enabled by default so that a new statement is always
+    executed within a new transaction context. If users want to explicitly
+    create a transaction context, they can do so as follows:: 
+
+       import mysql.fabric.persistence
+    
+       persister = mysql.fabric.persistence.current_persister()
+
+       persister.begin()
+       ...
+       persister.commit()
     """
 
     __metaclass__ = PersistentMeta
@@ -310,15 +328,11 @@ class MySQLPersister(object):
     object database for each :class:`MySQLPersister` instance created, set up
     the object database, and give each subclass of :class:`Persistable` a chance
     to set itself up by calling the class `init` method.
-
     """
-
-    # Information for connecting to the database
-    connection_info = None
-
     @classmethod
     def init(cls, host, user, password=None, port=None, database=None,
-             timeout=None):
+             connection_timeout=None, connection_attempts=None,
+             connection_delay=None):
         """Initialize the object persistance system.
 
         This function initializes the persistance system. The function
@@ -334,21 +348,36 @@ class MySQLPersister(object):
                          database server.
         :param database: Database where the persistance information is
                          stored. Default is :const:`DEFAULT_DATABASE`.
-        :param timeout: Timeout to connect to the database server.
+        :param connection_timeout: Timeout to connect to the database server.
+        :param connection_attempts: Number of attempts to connect or reconnect
+                                    to the database server. Default is
+                                    :const:`DEFAULT_CONNECT_ATTEMPTS`.
+        :param connection_delay: Delay after an atempt to connect or reconnect
+                                 to the database server. Default is
+                                 :const:`DEFAULT_CONNECT_DELAY`.
         """
         if port is None:
             port = _server_utils.MYSQL_DEFAULT_PORT
+
         if database is None:
             database = DEFAULT_DATABASE
+
+        if connection_attempts is None:
+            connection_attempts = DEFAULT_CONNECT_ATTEMPTS
+
+        if connection_delay is None:
+            connection_delay = DEFAULT_CONNECT_DELAY
 
         # Save away the connection information, it will be used by the
         # threads.
         cls.connection_info = {
             "host": host, "port": port,
             "user": user, "password": password,
-            "database": database,
-            "connection_timeout" : timeout,
+            "connection_timeout" : connection_timeout,
             }
+        cls.connection_attempts = connection_attempts
+        cls.connection_delay = connection_delay
+        cls.database = database
 
     @classmethod
     def setup(cls):
@@ -357,17 +386,13 @@ class MySQLPersister(object):
         Perform initialization, which in this case means creating
         the database if it does not exist.
         """
-        info = cls.connection_info
+        assert (cls.connection_info is not None)
         conn = _server_utils.create_mysql_connection(
-            host=info["host"], port=info["port"],
-            user=info["user"], password=info["password"],
-            connection_timeout=info["connection_timeout"],
-            autocommit=True, use_unicode=False
-            )
+            autocommit=True, use_unicode=False, **cls.connection_info
+        )
         conn.cursor().execute(
-            "CREATE DATABASE IF NOT EXISTS %s" %
-            (cls.connection_info["database"], )
-            )
+            "CREATE DATABASE IF NOT EXISTS %s" % (cls.database, )
+        )
 
     @classmethod
     def teardown(cls):
@@ -377,31 +402,34 @@ class MySQLPersister(object):
         be removed from the persistance server since it will delete
         all object tables.
         """
-        info = cls.connection_info
+        assert (cls.connection_info is not None)
         conn = _server_utils.create_mysql_connection(
-            host=info['host'], port=info['port'],
-            user=info['user'], password=info['password'],
-            connection_timeout=info["connection_timeout"],
-            autocommit=True, use_unicode=False)
+            autocommit=True, use_unicode=False, **cls.connection_info
+        )
         conn.cursor().execute(
-            "DROP DATABASE IF EXISTS %s" % (info['database'],)
-            )
+            "DROP DATABASE IF EXISTS %s" % (cls.database, )
+        )
 
     def __init__(self):
         """Constructor for MySQLPersister.
         """
-        assert self.connection_info is not None
-        info = self.connection_info
-        self.__cnx = _server_utils.create_mysql_connection(
-            host=info['host'], port=info['port'],
-            user=info['user'], password=info['password'],
-            connection_timeout=info["connection_timeout"],
-            database=info["database"], autocommit=True, use_unicode=False)
-        if self.uuid is None:
+        self.__cnx = None
+        self.__check_connection = True
+
+        assert (self.connection_info is not None)
+        try:
+            self.__cnx = _server_utils.create_mysql_connection(
+                autocommit=True, use_unicode=False, database=self.database,
+                **self.connection_info
+            )
+        except _errors.DatabaseError:
+            pass
+
+        if self.uuid is None and self.__cnx is not None:
             _LOGGER.warning(
-                "MySQLPersister does not support UUID or "
-                "it is not configured."
-                )
+                "Backing store does not support UUID (or not configured "
+                "with UUID)."
+            )
 
     def __del__(self):
         """Destructor for MySQLPersister.
@@ -416,16 +444,23 @@ class MySQLPersister(object):
         """Start a new transaction.
         """
         self.exec_stmt("BEGIN")
+        self.__check_connection = False
 
     def commit(self):
         """Commit an on-going transaction.
         """
-        self.exec_stmt("COMMIT")
+        try:
+            self.exec_stmt("COMMIT")
+        finally:
+            self.__check_connection = True
 
     def rollback(self):
         """Roll back an on-going transaction.
         """
-        self.exec_stmt("ROLLBACK")
+        try:
+            self.exec_stmt("ROLLBACK")
+        finally:
+            self.__check_connection = True
 
     @property
     def uuid(self):
@@ -444,21 +479,38 @@ class MySQLPersister(object):
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
 
+        If a new transaction is about to be started, this method checks whether
+        the connection is valid or not. If the connection is invalid, it tries
+        to restablish it as MySQL might disconnect inactive connections.
+
         See :meth:`~mysql.fabric.server_utils.exec_stmt`.
-
         """
-
         while True:
+            if self.__check_connection and \
+                not _server_utils.is_valid_mysql_connection(self.__cnx):
+                self._try_to_fix_connection()
+            return _server_utils.exec_mysql_stmt(
+                self.__cnx, stmt_str, options
+            )
+
+    def _try_to_fix_connection(self):
+        """Try to get a new connection if the current one is stale.
+        """
+        for attempt in range(0, self.connection_attempts):
             try:
-                return _server_utils.exec_mysql_stmt(
-                    self.__cnx, stmt_str, options
+                if self.__cnx:
+                    _server_utils.reestablish_mysql_connection(
+                        self.__cnx, attempt=1, delay=0
                     )
-            except _errors.DatabaseError:
-                if _server_utils.is_valid_mysql_connection(self.__cnx):
-                    raise
-                _server_utils.reestablish_mysql_connection(
-                    self.__cnx, attempt=1, delay=0
+                else:
+                    self.__cnx = _server_utils.create_mysql_connection(
+                        autocommit=True, use_unicode=False,
+                        database=self.database, **self.connection_info
                     )
+                return
+            except _errors.DatabaseError as error:
+                _LOGGER.debug("Error accessing backing store (%s).", error)
+            time.sleep(self.connection_delay)
 
 def current_persister():
     """Return the persister for the current thread.
@@ -477,7 +529,9 @@ def deinit_thread():
 
 _LOGGER = logging.getLogger(__name__)
 
-def init(host, user, password=None, port=None, database=None, timeout=None):
+def init(host, user, password=None, port=None, database=None,
+         connection_timeout=None, connection_attempts=None,
+         connection_delay=None):
     """Initialize the persistance system.
 
     This function is idempotent in the sense that it can be executed
@@ -492,18 +546,25 @@ def init(host, user, password=None, port=None, database=None, timeout=None):
     :param port: Port to connect to. Default to 3306.
     :param database: Database to store object data in. Default to
                      :const:`DEFAULT_DATABASE`.
+    :param connection_timeout: Timeout to connect to the database server.
+    :param connection_attempts: Number of attempts to connect or reconnect to
+                                the database server. Default is
+                                :const:`DEFAULT_CONNECT_ATTEMPTS`.
+    :param connection_delay: Delay after an atempt to connect or reconnect
+                             to the database server. Default is
+                             :const:`DEFAULT_CONNECT_DELAY`.
     """
-    if database is None:
-        database = DEFAULT_DATABASE
-
     _LOGGER.info(
         "Initializing persister: user (%s), server (%s:%d), database (%s).",
         user, host, port, database
     )
 
-    MySQLPersister.init(host=host, port=port,
-                        user=user, password=password,
-                        database=database, timeout=timeout)
+    MySQLPersister.init(
+        host=host, port=port, user=user, password=password, database=database,
+        connection_timeout=connection_timeout,
+        connection_attempts=connection_attempts,
+        connection_delay=connection_delay
+    )
 
 def setup():
     """ Setup the persistance system globally.

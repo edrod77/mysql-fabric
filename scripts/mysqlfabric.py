@@ -47,7 +47,6 @@ from mysql.fabric.errors import (
     Error, ConfigurationError,
 )
 
-# TODO: BOTH xxx-yyy and xxx_yyy should be possible.
 HELP_COMMANDS = ("help", "list-commands")
 
 PARSER = OptionParser(
@@ -58,7 +57,6 @@ PARSER = OptionParser(
 def check_connector():
     """Check if the connector is properly configured.
     """
-    # TODO: CHECK IF THIS SHOULD BE DONE IN RUNTIME OR SETUP.
     try:
         import mysql.connector
     except Exception as error:
@@ -137,7 +135,8 @@ def create_command(group_name, command_name):
         client = find_client()
         command.setup_client(client, options, config)
         return command, args
-    except KeyError:
+    except KeyError as error:
+        print "Error:", error
         PARSER.error(
             "Command (%s %s) was not found." % (group_name, command_name, )
             )
@@ -150,11 +149,11 @@ def fire_command(command, *args):
     """
     try:
         # Execute command by dispatching it on the client side.
-        # TODO: IMPROVE HOW RESULTS ARE PRESENTED.
         result = command.dispatch(*args)
         if result is not None:
             print result
-    except TypeError:
+    except TypeError as error:
+        print "Error:", error
         PARSER.error(
             "Wrong number of parameters were provided for command "
             "(%s %s)." % (command.group_name, command.command_name, )
@@ -175,5 +174,4 @@ if __name__ == '__main__':
         # Fire command.
         fire_command(command, *args)
     except Error as error:
-        # TODO: IMPROVE HOW ERRORS ARE PRESENTED.
-        print error
+        print "Error:", error

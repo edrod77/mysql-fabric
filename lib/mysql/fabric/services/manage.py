@@ -350,7 +350,6 @@ def _configure_connections(config):
     """Configure information on database connection and remote
     servers.
     """
-
     # Configure the number of concurrent executors.
     try:
         number_executors = config.get('executor', "executors")
@@ -375,28 +374,47 @@ def _configure_connections(config):
 
     # Fetch options to configure the state store.
     address = config.get('storage', 'address')
+
     try:
         host, port = address.split(':')
         port = int(port)
     except ValueError:
         host = address
         port = _MYSQL_PORT
+
     user = config.get('storage', 'user')
     database = config.get('storage', 'database')
+
     try:
         password = config.get('storage', 'password')
     except _config.NoOptionError:
         password = getpass.getpass()
+
     try:
-        timeout = config.get("storage", "connect_timeout")
-        timeout = float(timeout)
+        connection_timeout = config.get("storage", "connection_timeout")
+        connection_timeout = float(connection_timeout)
     except (_config.NoOptionError, _config.NoSectionError, ValueError):
-        timeout = None
+        connection_timeout = None
+
+    try:
+        connection_attempts = config.get("storage", "connection_attempts")
+        connection_attempts = int(connection_attempts)
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        connection_attempts = None
+
+    try:
+        connection_delay = config.get("storage", "connection_delay")
+        connection_delay = int(connection_delay)
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        connection_delay = None
 
     # Define state store configuration.
-    _persistence.init(host=host, port=port,
-                      user=user, password=password,
-                      database=database, timeout=timeout)
+    _persistence.init(
+        host=host, port=port, user=user, password=password, database=database,
+        connection_timeout=connection_timeout,
+        connection_attempts=connection_attempts,
+        connection_delay=connection_delay
+    )
 
 def _setup_TTL(config):
     """Read the configured TTL and set its value.

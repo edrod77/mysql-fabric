@@ -23,8 +23,10 @@ import uuid as _uuid
 import time
 import pickle as pickle
 import sys
+import logging
 
 import mysql.fabric.persistence as _persistence
+import mysql.fabric.errors as _errors
 
 
 class Checkpoint(_persistence.Persistable):
@@ -484,6 +486,8 @@ class Checkpoint(_persistence.Persistable):
         """
         return hash(self.__proc_uuid) ^ hash(self.__job_uuid)
 
+_LOGGER = logging.getLogger(__name__)
+
 def register(jobs, transaction):
     """Atomically register jobs.
 
@@ -496,9 +500,30 @@ def register(jobs, transaction):
     if not transaction:
         persister.begin()
 
-    for job in jobs:
-        if job.is_recoverable:
-            job.checkpoint.schedule()
+    try:
+        for job in jobs:
+            if job.is_recoverable:
+                job.checkpoint.schedule()
 
-    if not transaction:
-        persister.commit()
+    except _errors.DatabaseError:
+        try:
+            if not transaction:
+                persister.rollback()
+        except _errors.DatabaseError as error:
+            _LOGGER.error(
+                "Error rolling back registered jobs.", exc_info=error
+            )
+        raise
+
+    else:
+        try:
+            # Currently, if the commit fails, we are not sure whether the
+            # changes have succeeded or not. This is something that needs
+            # to be improved in the near future.
+            if not transaction:
+                persister.commit()
+        except _errors.DatabaseError as error:
+            _LOGGER.error(
+                "Error committing registered jobs.", exc_info=error
+            )
+            raise
