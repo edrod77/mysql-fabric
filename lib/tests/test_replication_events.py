@@ -68,16 +68,16 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up a group.
         group = self.proxy.group.lookup_groups("group_id-1")
-        self.assertEqual(group["success"], True)
-        self.assertEqual(group["message"], False)
-        self.assertEqual(group["return"], {"group_id": "group_id-1", "description":
+        self.assertEqual(group[0], True)
+        self.assertEqual(group[1], "")
+        self.assertEqual(group[2], {"group_id": "group_id-1", "description":
                                     "description..."})
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id-1")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
               _server.MySQLServer.PRIMARY],
@@ -118,16 +118,16 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up a group.
         group = self.proxy.group.lookup_groups("group_id-2")
-        self.assertEqual(group["success"], True)
-        self.assertEqual(group["message"], False)
-        self.assertEqual(group["return"], {"group_id": "group_id-2", "description":
+        self.assertEqual(group[0], True)
+        self.assertEqual(group[1], "")
+        self.assertEqual(group[2], {"group_id": "group_id-2", "description":
                                     "description..."})
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id-2")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
               _server.MySQLServer.PRIMARY],
@@ -210,9 +210,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
              _server.MySQLServer.PRIMARY],
@@ -235,9 +235,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, False,
              _server.MySQLServer.SECONDARY],
@@ -311,9 +311,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
 
         expected = \
             [[str(master.uuid), master.address, True,
@@ -339,9 +339,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         retrieved.sort()
         self.assertNotEqual(expected, retrieved)
 
@@ -388,9 +388,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, True,
               _server.MySQLServer.PRIMARY],
@@ -414,9 +414,9 @@ class TestReplicationServices(unittest.TestCase):
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers["success"], True)
-        self.assertEqual(servers["message"], False)
-        retrieved = servers["return"]
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
         expected = \
             [[str(master.uuid), master.address, False,
               _server.MySQLServer.SECONDARY],

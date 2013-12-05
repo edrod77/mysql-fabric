@@ -139,9 +139,9 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         #Perform the lookup
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
 
         #Ensure that the output of the lookup matches the expected list of
         #servers.
@@ -156,9 +156,9 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         #Lookup the global server and run some DDL statements
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -181,9 +181,9 @@ class TestShardingGlobalServer(unittest.TestCase):
 
         #Lookup and verify that the data is updated in the other shards.
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -197,9 +197,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                 self.assertEqual(rows[1][0], 'TEST 2')
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -218,9 +218,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         is redirected to replicate to all the other shards.
         """
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -247,9 +247,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(5)
 
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -292,9 +292,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(5)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -314,9 +314,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                 self.assertEqual(rows[7][0], 'TEST 8')
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -337,9 +337,9 @@ class TestShardingGlobalServer(unittest.TestCase):
 
     def test_global_update_propogation_failover(self):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -369,9 +369,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(5)
 
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -386,9 +386,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                                   "VALUES(404, 'TEST 4')")
 
         status = self.proxy.group.lookup_servers("GROUPID2")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
 
         for idx in range(0, 2):
             if not obtained_server_list[idx][2]:
@@ -409,9 +409,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                                   "VALUES(606, 'TEST 6')")
 
         status = self.proxy.group.lookup_servers("GROUPID3")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if not obtained_server_list[idx][2]:
                 slave_uuid = obtained_server_list[idx][0]
@@ -431,9 +431,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(5)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             shard_uuid = obtained_server_list[idx][0]
             shard_server = MySQLServer.fetch(shard_uuid)
@@ -452,9 +452,9 @@ class TestShardingGlobalServer(unittest.TestCase):
             self.assertEqual(rows[7][0], 'TEST 8')
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             shard_uuid = obtained_server_list[idx][0]
             shard_server = MySQLServer.fetch(shard_uuid)
@@ -474,9 +474,9 @@ class TestShardingGlobalServer(unittest.TestCase):
 
     def test_shard_disable(self):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -484,9 +484,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                 shard_server_1.connect()
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -499,9 +499,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(3)
 
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -551,9 +551,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(3)
 
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 global_master_uuid = obtained_server_list[idx][0]
@@ -574,9 +574,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         sleep(3)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
 
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
@@ -594,9 +594,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                 self.assertEqual(rows[1][0], 'TEST 2')
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -617,9 +617,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         self.proxy.sharding.enable_shard("2")
 
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -628,9 +628,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                 shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -639,9 +639,9 @@ class TestShardingGlobalServer(unittest.TestCase):
                 shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 shard_uuid = obtained_server_list[idx][0]
@@ -685,9 +685,9 @@ class TestShardingGlobalServer(unittest.TestCase):
         self.proxy.group.demote("GROUPID3")
         for group_id in ("GROUPID1", "GROUPID2", "GROUPID3"):
             status = self.proxy.group.lookup_servers(group_id)
-            self.assertEqual(status["success"], True)
-            self.assertEqual(status["message"], False)
-            obtained_server_list = status["return"]
+            self.assertEqual(status[0], True)
+            self.assertEqual(status[1], "")
+            obtained_server_list = status[2]
             status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)

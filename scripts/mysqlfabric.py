@@ -44,7 +44,7 @@ from mysql.fabric.config import (
 )
 
 from mysql.fabric.errors import (
-    Error, ConfigurationError,
+    ConfigurationError,
 )
 
 HELP_COMMANDS = ("help", "list-commands")
@@ -62,10 +62,9 @@ def check_connector():
     except Exception as error:
         import mysql
         path = os.path.dirname(mysql.__file__)
-        print "Tried to look for mysql.connector at (%s)" % (path, )
-        print "Error:", error
-        raise ConfigurationError("Connector not installed.")
-
+        raise ConfigurationError("Tried to look for mysql.connector "
+            "at (%s). Connector not installed. Error (%s)." % (path, error)
+            )
 
 def extract_command():
     """Extract group and command.
@@ -115,7 +114,7 @@ def create_command(group_name, command_name):
             try:
                 directory = os.path.dirname(__file__)
             except NameError:
-                directory = os.path.abspath(inspect.getfile(inspect.currentframe())) 
+                directory = os.path.abspath(inspect.getfile(inspect.currentframe()))
             prefix = os.path.realpath(os.path.join(directory, '..'))
             if os.name == 'posix' and prefix in ('/', '/usr'):
                 config_file = '/etc/mysql/fabric.cfg'
@@ -136,9 +135,9 @@ def create_command(group_name, command_name):
         command.setup_client(client, options, config)
         return command, args
     except KeyError as error:
-        print "Error:", error
         PARSER.error(
-            "Command (%s %s) was not found." % (group_name, command_name, )
+            "Error (%s). Command (%s %s) was not found." %
+            (error, group_name, command_name, )
             )
 
 
@@ -153,10 +152,9 @@ def fire_command(command, *args):
         if result is not None:
             print result
     except TypeError as error:
-        print "Error:", error
         PARSER.error(
-            "Wrong number of parameters were provided for command "
-            "(%s %s)." % (command.group_name, command.command_name, )
+            "Error (%s). Wrong number of parameters were provided for command "
+            "(%s %s)." % (error, command.group_name, command.command_name, )
             )
 
 
@@ -173,5 +171,5 @@ if __name__ == '__main__':
 
         # Fire command.
         fire_command(command, *args)
-    except Error as error:
+    except Exception as error:
         print "Error:", error

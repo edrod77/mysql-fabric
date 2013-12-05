@@ -249,8 +249,5 @@ class MyClient(xmlrpclib.ServerProxy):
             host = "localhost"
         uri = "http://%s:%s" % (host, port)
         xmlrpclib.ServerProxy.__init__(self, uri)
-        try:
-            reference = command.group_name + "." + command.command_name
-            return getattr(self, reference)(*args)
-        except xmlrpclib.Fault as error:
-            print >> sys.stderr, error
+        reference = command.group_name + "." + command.command_name
+        return getattr(self, reference)(*args)

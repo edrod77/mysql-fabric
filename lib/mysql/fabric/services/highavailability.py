@@ -354,7 +354,7 @@ class CheckHealth(Command):
         :param uuid: Group's id.
         """
         return Command.generate_output_pattern(
-            _check_group_availability, (group_id, ))
+            _check_group_availability, group_id)
 
 @_events.on_event(DISCOVER_TOPOLOGY)
 def _discover_topology(pattern_group_id, group_description,

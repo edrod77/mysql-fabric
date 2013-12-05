@@ -279,9 +279,9 @@ class TestShardingServices(unittest.TestCase):
                          "Executed action (_remove_shard_mapping).")
 
         status = self.proxy.sharding.lookup_mapping("db1.t1")
-        self.assertEqual(status["success"],True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], {"shard_mapping_id":"",
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], {"shard_mapping_id":"",
                                      "table_name":"",
                                      "column_name":"",
                                      "type_name":"",
@@ -321,9 +321,9 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard).")
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Invalid Key 500")
-        self.assertEqual(status["return"], False)
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2], True)
 
     def test_remove_sharding_specification_exception(self):
         status = self.proxy.sharding.remove_shard(1)
@@ -346,9 +346,9 @@ class TestShardingServices(unittest.TestCase):
                                      "column_name":"userID1",
                                      "type_name":"RANGE",
                                      "global_group":"GROUPID1"}
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], expected_output)
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], expected_output)
 
     def test_lookup_shard_mapping_empty(self):
         status = self.proxy.sharding.lookup_mapping("Wrong")
@@ -357,15 +357,15 @@ class TestShardingServices(unittest.TestCase):
                                      "column_name":"",
                                      "type_name":"",
                                      "global_group":""}
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], expected_output)
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], expected_output)
 
     def test_list(self):
         status = self.proxy.sharding.list_mappings("RANGE")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], [{"shard_mapping_id":1,
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], [{"shard_mapping_id":1,
                                      "table_name":"db1.t1",
                                      "column_name":"userID1",
                                      "type_name":"RANGE",
@@ -373,10 +373,9 @@ class TestShardingServices(unittest.TestCase):
 
     def test_list_exception(self):
         status = self.proxy.sharding.list_mappings("Wrong")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Invalid Sharding Type Wrong")
-        self.assertEqual(status["return"], False)
-
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2], True)
 
     def test_lookup(self):
         expected_server_list = [
@@ -388,9 +387,9 @@ class TestShardingServices(unittest.TestCase):
                          False]
                         ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         expected_uuid_list = [expected_server_list[0][0],
                               expected_server_list[1][0]]
         obtained_uuid_list = [obtained_server_list[0][0],
@@ -414,9 +413,9 @@ class TestShardingServices(unittest.TestCase):
                          False]
                         ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 1, "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         expected_uuid_list = [expected_server_list[0][0],
                               expected_server_list[1][0]]
         obtained_uuid_list = [obtained_server_list[0][0],
@@ -440,9 +439,9 @@ class TestShardingServices(unittest.TestCase):
                          False]
                         ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 1000, "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         expected_uuid_list = [expected_server_list[0][0],
                               expected_server_list[1][0]]
         obtained_uuid_list = [obtained_server_list[0][0],
@@ -466,9 +465,9 @@ class TestShardingServices(unittest.TestCase):
                          False]
                         ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 1001, "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         expected_uuid_list = [expected_server_list[0][0],
                               expected_server_list[1][0]]
         obtained_uuid_list = [obtained_server_list[0][0],
@@ -485,16 +484,15 @@ class TestShardingServices(unittest.TestCase):
     def test_lookup_disabled_exception(self):
         self.proxy.sharding.disable_shard(1)
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Shard not enabled")
-        self.assertEqual(status["return"], False)
-
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2], True)
 
     def test_lookup_wrong_table_exception(self):
         status = self.proxy.sharding.lookup_servers("Wrong", 500, "LOCAL")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Table name Wrong not found")
-        self.assertEqual(status["return"], False)
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2], True)
 
     def test_lookup_wrong_key_exception(self):
         expected_server_list = [
@@ -506,9 +504,9 @@ class TestShardingServices(unittest.TestCase):
                          False]
                         ]
         status = self.proxy.sharding.lookup_servers("db1.t1", 55500, "LOCAL")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_server_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
         expected_uuid_list = [expected_server_list[0][0],
                               expected_server_list[1][0]]
         obtained_uuid_list = [obtained_server_list[0][0],
@@ -525,9 +523,9 @@ class TestShardingServices(unittest.TestCase):
     def test_list_shard_mappings(self):
         expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID1"]
         status = self.proxy.sharding.list_definitions()
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        obtained_shard_mapping_list = status["return"]
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_shard_mapping_list = status[2]
         self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
 
     def test_enable_shard_exception(self):

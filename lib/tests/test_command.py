@@ -66,9 +66,12 @@ class NewRemoteCommand(_command.Command):
         super(NewRemoteCommand, self).__init__()
         self.execution = None
 
-    def execute(self):
+    def _do_execute(self):
         self.execution = "executed"
         return self.execution
+
+    def execute(self):
+        return _command.Command.generate_output_pattern(self._do_execute)
 
 NEW_PROCEDURE_COMMAND_0 = _events.Event()
 class ClassCommand_0(_command.ProcedureCommand):
@@ -248,7 +251,9 @@ class TestCommand(unittest.TestCase):
         local_cmd.setup_client(_xmlrpc.MyClient(), None, config)
 
         # Dispatch request through local command to remote command.
-        self.assertEqual(local_cmd.dispatch(), "Command :\n{ return = executed\n}")
+        self.assertEqual(local_cmd.dispatch(),
+            "Command :\n{ success     = True\n  return      "
+            "= executed\n  activities  = \n}")
         self.assertEqual(local_cmd.execution, None)
 
     def test_procedure_return(self):

@@ -43,9 +43,9 @@ class TestServerServices(unittest.TestCase):
     def test_create_group_events(self):
         # Look up groups.
         status = self.proxy.group.lookup_groups()
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], [])
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], [])
 
         # Insert a new group.
         status = self.proxy.group.create("group", "Testing group...")
@@ -63,22 +63,22 @@ class TestServerServices(unittest.TestCase):
 
         # Look up groups.
         status = self.proxy.group.lookup_groups()
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], [["group"]])
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], [["group"]])
 
         # Look up a group.
         status = self.proxy.group.lookup_groups("group")
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], {"group_id": "group", "description":
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], {"group_id": "group", "description":
                                      "Testing group..."})
 
         # Try to look up a group that does not exist.
         status = self.proxy.group.lookup_groups("group_1")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Group (group_1) does not exist.")
-        self.assertEqual(status["return"], False)
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2], True)
 
         # Update a group.
         status = self.proxy.group.description("group", "Test Test Test")
@@ -122,55 +122,56 @@ class TestServerServices(unittest.TestCase):
 
         # Look up servers.
         status_servers = self.proxy.group.lookup_servers("group_1")
-        self.assertEqual(status_servers["success"], True)
-        self.assertEqual(status_servers["message"], False)
-        obtained_server_list = status_servers["return"]
+        self.assertEqual(status_servers[0], True)
+        self.assertEqual(status_servers[1], "")
+        obtained_server_list = status_servers[2]
         status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "")
         self.assertEqual(
-            status_servers["return"],
-            [[status_uuid["return"], address, False,
+            status_servers[2],
+            [[status_uuid[2], address, False,
             _server.MySQLServer.SECONDARY]]
             )
 
         # Try to look up servers in a group that does not exist.
         status = self.proxy.group.lookup_servers("group_x")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Group (group_x) does not exist.")
-        self.assertEqual(status["return"],  False)
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2],  True)
 
         # Look up a server.
-        status = self.proxy.group.lookup_servers("group_1", status_uuid["return"])
-        self.assertEqual(status["success"], True)
-        self.assertEqual(status["message"], False)
-        self.assertEqual(status["return"], {"passwd": "", "address": address,
-                                     "user": "root", "uuid": status_uuid["return"]})
+        status = self.proxy.group.lookup_servers("group_1", status_uuid[2])
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(status[2], {"passwd": "", "address": address,
+                                     "user": "root", "uuid": status_uuid[2]})
 
         # Try to look up a server in a group that does not exist.
-        status = self.proxy.group.lookup_servers("group_x", status_uuid["return"])
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:Group (group_x) does not exist.")
-        self.assertEqual(status["return"],  False)
+        status = self.proxy.group.lookup_servers("group_x", status_uuid[2])
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2],  True)
 
         # Try to look up a server that does not exist.
         status = self.proxy.group.lookup_servers("group_1",
             "cc75b12c-98d1-414c-96af-9e9d4b179678")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], "Error:'NoneType' object has no attribute 'group_id'")
-        self.assertEqual(status["return"],  False)
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2],  True)
 
         # Try to look up a server that does not exist
         status = self.proxy.server.lookup_uuid("unknown:15000", "root", "")
-        self.assertEqual(status["success"], False)
-        self.assertEqual(status["message"], 'Error:("Cannot connect to the server. Error 2003: Can\'t connect to MySQL server on \'unknown:15000\' (-2 Name or service not known)", 2003)')
+        self.assertEqual(status[0], False)
+        self.assertNotEqual(status[1], "")
+        self.assertEqual(status[2],  True)
 
         # Add a server with a connection that does not have
         # root privileges.
         address = tests.utils.MySQLInstances().get_address(1)
         status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
         server = _server.MySQLServer(
-            _uuid.UUID(status_uuid["return"]), address, "root", ""
+            _uuid.UUID(status_uuid[2]), address, "root", ""
             )
         server.connect()
         server.exec_stmt(
@@ -184,7 +185,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        _server.ConnectionPool().purge_connections(_uuid.UUID(status_uuid["return"]))
+        _server.ConnectionPool().purge_connections(_uuid.UUID(status_uuid[2]))
 
         # Drop temporary user.
         server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
@@ -231,8 +232,8 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.create("group_1", "Testing group...")
         self.proxy.group.add("group_1", address, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "")
 
         # Try to remove a server from a non-existing group.
         status = self.proxy.group.remove(
@@ -265,8 +266,8 @@ class TestServerServices(unittest.TestCase):
         # Try to remove a server that is master within the group.
         group = _server.Group.fetch("group_1")
         tests.utils.configure_decoupled_master(group,
-                                               _uuid.UUID(status_uuid["return"]))
-        status = self.proxy.group.remove("group_1", status_uuid["return"])
+                                               _uuid.UUID(status_uuid[2]))
+        status = self.proxy.group.remove("group_1", status_uuid[2])
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -275,7 +276,7 @@ class TestServerServices(unittest.TestCase):
         # Remove a server.
         group = _server.Group.fetch("group_1")
         tests.utils.configure_decoupled_master(group, None)
-        status = self.proxy.group.remove("group_1", status_uuid["return"])
+        status = self.proxy.group.remove("group_1", status_uuid[2])
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -287,8 +288,8 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.create("group", "Testing group...")
         self.proxy.group.add("group", address, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "")
 
         # Try to activate a non-existing group.
         status = self.proxy.group.activate("group-1")
@@ -333,14 +334,14 @@ class TestServerServices(unittest.TestCase):
         address_2 = tests.utils.MySQLInstances().get_address(1)
         self.proxy.group.add("group", address_1, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
-        uuid_1 = status_uuid["return"]
-        error_uuid = status_uuid['message']
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "")
+        uuid_1 = status_uuid[2]
+        error_uuid = status_uuid[1]
         self.proxy.group.add("group", address_2, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "") 
 
         # Try to set the status when the server's id is invalid.
         status = self.proxy.server.set_status("INVALID", "SPARE")
@@ -483,10 +484,10 @@ class TestServerServices(unittest.TestCase):
         address_1 = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.add("group", address_1, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
-        uuid_1 = status_uuid["return"]
-        error_uuid = status_uuid['message']
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "")
+        uuid_1 = status_uuid[2]
+        error_uuid = status_uuid[1]
 
         # Try to set the weight when the server's id is invalid.
         status = self.proxy.server.set_weight("INVALID", "0.1")
@@ -548,10 +549,10 @@ class TestServerServices(unittest.TestCase):
         address_1 = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.add("group", address_1, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        self.assertEqual(status_uuid["success"], True)
-        self.assertEqual(status_uuid["message"], False)
-        uuid_1 = status_uuid["return"]
-        error_uuid = status_uuid['message']
+        self.assertEqual(status_uuid[0], True)
+        self.assertEqual(status_uuid[1], "")
+        uuid_1 = status_uuid[2]
+        error_uuid = status_uuid[1]
 
         # Try to set the mode when the server's id is invalid.
         status = self.proxy.server.set_mode("INVALID", "READ_WRITE")
@@ -729,11 +730,11 @@ class TestServerServices(unittest.TestCase):
         address_1 = tests.utils.MySQLInstances().get_address(1)
         address_2 = tests.utils.MySQLInstances().get_address(2)
         status_uuid = self.proxy.server.lookup_uuid(address_0, "root", "")
-        uuid_0 = status_uuid["return"]
+        uuid_0 = status_uuid[2]
         status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        uuid_1 = status_uuid["return"]
+        uuid_1 = status_uuid[2]
         status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
-        uuid_2 = status_uuid["return"]
+        uuid_2 = status_uuid[2]
         status = self.proxy.group.add("group", address_0, "root", "")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -749,7 +750,7 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.add("group", address_1, "root", "")
         self.proxy.group.add("group", address_2, "root", "")
         status =  self.proxy.group.lookup_servers("group")
-        retrieved = set(item for sublist in status["return"] for item in sublist)
+        retrieved = set(item for sublist in status[2] for item in sublist)
         expected = [
             [uuid_0, address_0, True, _server.MySQLServer.PRIMARY],
             [uuid_1, address_1, False, _server.MySQLServer.SECONDARY],
@@ -766,20 +767,20 @@ class TestServerServices(unittest.TestCase):
         address_2 = tests.utils.MySQLInstances().get_address(2)
         self.proxy.group.add("group", address_0, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_0, "root", "")
-        uuid_0 = status_uuid["return"]
+        uuid_0 = status_uuid[2]
         server_0 = _server.MySQLServer.fetch(uuid_0)
         self.proxy.group.add("group", address_1, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        uuid_1 = status_uuid["return"]
+        uuid_1 = status_uuid[2]
         server_1 = _server.MySQLServer.fetch(uuid_1)
         self.proxy.group.add("group", address_2, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
-        uuid_2 = status_uuid["return"]
+        uuid_2 = status_uuid[2]
         server_2 = _server.MySQLServer.fetch(uuid_2)
 
         # Fetch all servers in a group.
         server =  self.proxy.group.lookup_servers("group")
-        self.assertEqual(len(server["return"]), 3)
+        self.assertEqual(len(server[2]), 3)
 
         #
         # It it not possible to specify only some of the optional
@@ -795,32 +796,32 @@ class TestServerServices(unittest.TestCase):
         server =  self.proxy.group.lookup_servers(
             "group", _server.MySQLServer.SECONDARY
             )
-        self.assertEqual(len(server["return"]), 3)
+        self.assertEqual(len(server[2]), 3)
 
         # Fetch all offline servers in a group.
         server_1.status = _server.MySQLServer.FAULTY
         server =  self.proxy.group.lookup_servers(
             "group", _server.MySQLServer.FAULTY
             )
-        self.assertEqual(len(server["return"]), 1)
+        self.assertEqual(len(server[2]), 1)
 
         # Fetch all running servers in a group.
         server =  self.proxy.group.lookup_servers(
             "group", _server.MySQLServer.SECONDARY
             )
-        self.assertEqual(len(server["return"]), 2)
+        self.assertEqual(len(server[2]), 2)
 
         # Fetch all servers in a group.
         server =  self.proxy.group.lookup_servers("group")
-        self.assertEqual(len(server["return"]), 3)
+        self.assertEqual(len(server[2]), 3)
 
         # Try to fetch servers with a non-existing status.
         server =  self.proxy.group.lookup_servers(
             "group", 10
             )
-        self.assertEqual(server["success"], False)
-        self.assertEqual(server["message"], "")
-        self.assertEqual(server["return"],  False)
+        self.assertEqual(server[0], False)
+        self.assertNotEqual(server[1], "")
+        self.assertEqual(server[2],  True)
 
     def test_lookup_fabrics(self):
         from __main__ import xmlrpc_next_port

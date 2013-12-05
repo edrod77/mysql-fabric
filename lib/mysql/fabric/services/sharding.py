@@ -154,11 +154,11 @@ class LookupShardMapping(Command):
         :param table_name: The name of the table for which the sharding
                            specification is being queried.
 
-        :return: The a dictionary that contains the shard mapping information for
-                 the given table.
+        :return: The a dictionary that contains the shard mapping information
+                 for the given table.
         """
         return Command.generate_output_pattern(_lookup_shard_mapping,
-                                              (table_name, ))
+                                               table_name)
 
 class ListShardMappings(Command):
     """Returns all the shard mappings of a particular
@@ -181,8 +181,7 @@ class ListShardMappings(Command):
                      shard mapping definition is found
                      An error if the sharding type is invalid.
         """
-        return Command.generate_output_pattern(_list,
-                                                        (sharding_type, ))
+        return Command.generate_output_pattern(_list, sharding_type)
 
 class ListShardMappingDefinitions(Command):
     """Lists all the shard mapping definitions.
@@ -196,7 +195,7 @@ class ListShardMappingDefinitions(Command):
                     An Empty List if no shard mapping definition is found.
         """
         return Command.generate_output_pattern(
-                            ShardMapping.list_shard_mapping_defn, None)
+                            ShardMapping.list_shard_mapping_defn)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
 class AddShard(ProcedureShard):
@@ -302,10 +301,10 @@ class LookupShardServers(Command):
         :param key: The key value that needs to be looked up
         :param hint: A hint indicates if the query is LOCAL or GLOBAL
 
-        :return: The Group UUID that contains the range in which the key belongs.
+        :return: The Group UUID that contains the range in which the key
+                 belongs.
         """
-        return Command.generate_output_pattern(_lookup,
-                                              (table_name, key, hint, ))
+        return Command.generate_output_pattern(_lookup, table_name, key, hint)
 
 PRUNE_SHARD_TABLES = _events.Event("PRUNE_SHARD_TABLES")
 class PruneShardTables(ProcedureShard):

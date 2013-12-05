@@ -101,7 +101,7 @@ class GroupLookups(Command):
         :rtype: [[group], ....] or {group_id : ..., description : ...}.
         """
         return Command.generate_output_pattern(
-            _lookup_groups, (group_id, ))
+            _lookup_groups, group_id)
 
 CREATE_GROUP = _events.Event()
 class GroupCreate(ProcedureGroup):
@@ -192,7 +192,7 @@ class ServerLookups(Command):
           [[uuid, address, is_master, status], ...]
         """
         return Command.generate_output_pattern(_lookup_servers,
-                                              (group_id, uuid, status, mode))
+                                               group_id, uuid, status, mode)
 
 class ServerUuid(Command):
     """Return server's uuid.
@@ -210,7 +210,7 @@ class ServerUuid(Command):
         :return: uuid.
         """
         return Command.generate_output_pattern(_lookup_uuid,
-                                                        (address, user, passwd))
+                                               address, user, passwd)
 
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):

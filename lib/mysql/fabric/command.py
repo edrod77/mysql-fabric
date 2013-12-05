@@ -40,6 +40,7 @@ import re
 import inspect
 import logging
 import functools
+import traceback
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
@@ -292,21 +293,41 @@ class Command(object):
         return self.command_status(status)
 
     @staticmethod
-    def command_status(status):
+    def command_status(status, details=False):
         """Present the result reported by a command in a friendly-user way.
 
         :param status: The command status.
+        :param details: Whether details on failures should be printed or
+                        not.
         """
-        string = [
+        success = True
+        returned = ""
+        activities = ""
+
+        if not isinstance(status, list):
+            returned = status
+        elif not isinstance(status[0], bool):
+            returned = status
+        else: 
+            success = status[0]
+            if success:
+                returned = status[2]
+            else:
+                trace = status[1].split("\n")
+                returned = trace[-2]
+                if details:
+                    activities = "\n".join(trace)
+
+        return "\n".join([ 
             "Command :",
-            "{ return = %s",
+            "{ success     = %s" % (success, ),
+            "  return      = %s" % (returned, ),
+            "  activities  = %s" % (activities, ),
             "}"
-            ]
-        result = "\n".join(string)
-        return result % (status, )
+            ])
 
     @staticmethod
-    def generate_output_pattern(func, params):
+    def generate_output_pattern(func, *params):
         """Call the function with the input params and generate a output pattern
         of {success:True/False, message:<for example exception>,
         return:<return values>}.
@@ -318,21 +339,11 @@ class Command(object):
                 return:<return values>}.
         """
         try:
-            if params:
-                ret_value = func(*params)
-            else:
-                ret_value = func()
-        except Exception as e:
-            return {
-                    "success":False,
-                    "message":"Error:{0}".format(str(e)),
-                    "return":False
-                    }
-        return {
-                "success":True,
-                "message":False,
-                "return":ret_value
-                }
+            status = func(*params)
+        except Exception as error:
+            return [False, traceback.format_exc(), True]
+        return [True, "", status]
+
 
 class ProcedureCommand(Command):
     """Class used to implement commands that are built as procedures and
@@ -414,41 +425,42 @@ class ProcedureCommand(Command):
 
         :return: Return the detailed execution status as a string.
         """
-        string = [
-            "Procedure :",
-            "{ uuid        = %s,",
-            "  finished    = %s,",
-            "  success     = %s,",
-            "  return      = %s,",
-            "  activities  = %s",
-            "}"
-            ]
-        result = "\n".join(string)
+        proc_id = None
+        complete = ""
+        success = ""
+        returned = ""
+        activities = ""
 
         if isinstance(status, str):
-            return result % (status, "", "", "", "")
-
-        proc_id = status[0]
-        operation = status[1][-1]
-        returned = None
-        activities = ""
-        complete = (operation["state"] == _executor.Job.COMPLETE)
-        success = (operation["success"] == _executor.Job.SUCCESS)
-
-        if success:
-            returned = status[2]
-            if details:
-                steps = [step["description"] for step in status[1]]
-                activities = "\n  ".join(steps)
+            proc_id = status
         else:
-            trace = operation["diagnosis"].split("\n")
-            returned = trace[-2]
-            if details:
-                activities = "\n".join(trace)
+            proc_id = status[0]
+            operation = status[1][-1]
+            returned = None
+            activities = ""
+            complete = (operation["state"] == _executor.Job.COMPLETE)
+            success = (operation["success"] == _executor.Job.SUCCESS)
 
-        return result % (
-            proc_id, complete, success, returned, activities
-            )
+            if success:
+                returned = status[2]
+                if details:
+                    steps = [step["description"] for step in status[1]]
+                    activities = "\n  ".join(steps)
+            else:
+                trace = operation["diagnosis"].split("\n")
+                returned = trace[-2]
+                if details:
+                    activities = "\n".join(trace)
+
+        return "\n".join([
+            "Procedure :",
+            "{ uuid        = %s," % (proc_id, ),
+            "  finished    = %s," % (complete, ),
+            "  success     = %s," % (success, ),
+            "  return      = %s," % (returned, ),
+            "  activities  = %s"  % (activities, ),
+            "}"
+            ])
 
     def get_lockable_objects(self, variable=None, function=None):
         """Return the set of lockable objects by extracting information
