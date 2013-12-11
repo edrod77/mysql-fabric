@@ -492,7 +492,8 @@ class Job(object):
 
             if committed:
                 # Update the job status.
-                message = "Executed action ({0}).".format(self.__action.__name__)
+                message = \
+                    "Executed action ({0}).".format(self.__action.__name__)
                 self._add_status(Job.SUCCESS, Job.COMPLETE, message)
 
                 # Finish context which means mark the job as finished
@@ -502,10 +503,11 @@ class Job(object):
                 return
 
         # It was not possible to commit the current job.
-        self._rollback_context()
+        self._rollback_context(persister)
 
     def _finish_context(self, success):
-        """Update information on 
+        """Update job's outcome within the procedure's context in order
+        so that the next job(s) can be scheduled.
         """
         try:
             # Mark the job as complete.
@@ -605,6 +607,9 @@ class ExecutorThread(threading.Thread):
         _persistence.PersistentMeta.deinit_thread()
 
     def _next_procedure(self, prv_procedure):
+        """Remove the current procedure from the scheduler and get
+        the next one to be executed within a thread's context.
+        """
         assert(prv_procedure is None or prv_procedure.is_complete())
         self.__scheduler.done(prv_procedure)
         procedure = self.__scheduler.next_procedure()
@@ -655,7 +660,9 @@ class ExecutorQueue(object):
                         self.__lock.wait()
 
     def done(self):
-         self.__queue.task_done()
+        """Mark a job as executed in the queue.
+        """
+        self.__queue.task_done()
 
 class Executor(Singleton):
     """Class responsible for scheduling execution of procedures.
@@ -705,13 +712,14 @@ class Executor(Singleton):
 
             _LOGGER.info("Setting %s executor(s).", self.__number_executors)
             for nw in range(0, self.__number_executors):
-                executor = ExecutorThread(
-                    self.__scheduler, "Executor-{0}".format(nw)
-                )
+                thread_name = "Executor-{0}".format(nw)
+                executor = ExecutorThread(self.__scheduler, thread_name)
                 try:
                     executor.start()
                 except Exception as error:
-                    _LOGGER.error("Error starting thread: (%s)." % (error, ))
+                    _LOGGER.error("Error starting thread (%s): (%s).",
+                        thread_name, error
+                    )
                 self.__executors.append(executor)
 
             _LOGGER.info("Executor started.")
@@ -739,7 +747,6 @@ class Executor(Singleton):
     def wait(self):
         """Wait until the executor shuts down.
         """
-        scheduler = None
         executors = None
         with self.__threads_lock:
             executors = self.__executors
@@ -881,7 +888,7 @@ class Executor(Singleton):
                 procedure = self.__procedures[proc_uuid]
                 assert(procedure.is_complete())
                 del self.__procedures[proc_uuid]
-        except (KeyError, ValueError) as error:
+        except (KeyError, ValueError):
             pass
 
     def get_procedure(self, proc_uuid):
@@ -892,7 +899,7 @@ class Executor(Singleton):
             assert(isinstance(proc_uuid, _uuid.UUID))
             with self.__procedures_lock:
                 procedure = self.__procedures[proc_uuid]
-        except (KeyError, ValueError) as error:
+        except (KeyError, ValueError):
             procedure = None
 
         return procedure
@@ -921,7 +928,7 @@ class Executor(Singleton):
         not running.
         """
         if self.__executors:
-             raise _errors.ExecutorError("Executor is already running.")
+            raise _errors.ExecutorError("Executor is already running.")
 
     def _create_jobs(self, actions, lockable_objects, proc_uuid=None):
         """Create a set of jobs.

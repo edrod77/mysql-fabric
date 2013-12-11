@@ -29,10 +29,10 @@ of the slave groups that replicate from it. This information helps in performing
 clean up during the event of a "master changing operation" in the group.
 
 As a design alternative these methods could have have been moved into the
-mysql.fabric.server.py module or into the mysql.py.replication.py module. But this
-would have resulted in tight coupling between the HA and the Server layers and
-also would have resulted in a circular dependency, since the replication module
-already has a reference to the server module.
+mysql.fabric.server.py module or into the mysql.py.replication.py module. But
+this would have resulted in tight coupling between the HA and the Server layers
+and also would have resulted in a circular dependency, since the replication
+module already has a reference to the server module.
 """
 from mysql.fabric.server import Group,  MySQLServer
 import mysql.fabric.replication as _replication
@@ -145,9 +145,9 @@ def stop_group_slave(group_master_id,  group_slave_id,  clear_ref):
 
     slave_group_master = MySQLServer.fetch(slave_group.master)
     if slave_group_master is None:
-             raise _errors.GroupError \
-             (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR %
-               (slave_group.master, ))
+        raise _errors.GroupError \
+        (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR %
+          (slave_group.master, ))
 
     if not server_running(slave_group_master):
         #The server is already down. We cannot connect to it to stop
@@ -188,33 +188,33 @@ def setup_group_replication(group_master_id,  group_slave_id):
         (GROUP_REPLICATION_GROUP_NOT_FOUND_ERROR % (group_slave_id, ))
 
     if group_master.master is None:
-         raise _errors.GroupError \
-         (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % "")
+        raise _errors.GroupError \
+        (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % "")
 
     if group_slave.master is None:
-         raise _errors.GroupError \
-         (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % "")
+        raise _errors.GroupError \
+        (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % "")
 
     #Master is the master of the Global Group. We replicate from here to
     #the masters of all the shard Groups.
     master = MySQLServer.fetch(group_master.master)
     if master is None:
-         raise _errors.GroupError \
-         (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
-         (group_master.master, ))
+        raise _errors.GroupError \
+        (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
+        (group_master.master, ))
 
     #Get the master of the shard Group.
     slave = MySQLServer.fetch(group_slave.master)
     if slave is None:
-         raise _errors.GroupError \
-         (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
-         (group_slave.master, ))
+        raise _errors.GroupError \
+        (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
+        (group_slave.master, ))
 
     if not server_running(master):
         #The server is already down. We cannot connect to it to setup
         #replication.
-            raise _errors.GroupError \
-                (GROUP_MASTER_NOT_RUNNING % (group_master.group_id, ))
+        raise _errors.GroupError \
+        (GROUP_MASTER_NOT_RUNNING % (group_master.group_id, ))
 
     try:
         master.connect()

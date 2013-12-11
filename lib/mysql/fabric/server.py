@@ -190,14 +190,20 @@ class Group(_persistence.Persistable):
 
     @property
     def slave_group_ids(self):
+        """Property that gives access to the list of Groups that are
+        slaves to this group.
+        """
         return self.fetch_slave_group_ids()
 
     def fetch_slave_group_ids(self, persister=None):
         """Return the list of Groups that are slaves to this group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         ret = []
         rows = persister.exec_stmt(Group.QUERY_GROUP_REPLICATION_SLAVES,
-                                   {"fetch" : True, "params" : (self.__group_id,)})
+            {"fetch" : True, "params" : (self.__group_id,)})
         if not rows:
             return ret
 
@@ -207,24 +213,32 @@ class Group(_persistence.Persistable):
 
     @property
     def master_group_id(self):
+        """Property that returns the ID of the master group from which this
+        group replicates.
+        """
         return self.fetch_master_group_id()
 
     def fetch_master_group_id(self, persister=None):
         """Return the ID of the master group from which this group replicates.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         row = persister.exec_stmt(Group.QUERY_GROUP_REPLICATION_MASTER,
-                                   {"fetch" : True, "params" : (self.__group_id,)})
+            {"fetch" : True, "params" : (self.__group_id,)})
         if not row:
             return None
         return row[0][0]
 
 
     def add_slave_group_id(self,  slave_group_id, persister=None):
-        """Insert a slave group ID into the slave group ID list. Register a slave
-        to this group.
+        """Insert a slave group ID into the slave group ID list. Register a
+        slave to this group.
 
         :param slave_group_id: the group ID of the slave group that needs to
                                               be added.
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         persister.exec_stmt(Group.INSERT_MASTER_SLAVE_GROUP_MAPPING,
                             {"params": (self.__group_id, slave_group_id)})
@@ -235,6 +249,8 @@ class Group(_persistence.Persistable):
 
         :param slave_group_id: the group ID of the slave group that needs to
                                               be removed.
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         persister.exec_stmt(Group.DELETE_MASTER_SLAVE_GROUP_MAPPING,
                             {"params": (slave_group_id, )})
@@ -242,6 +258,9 @@ class Group(_persistence.Persistable):
     def remove_slave_group_ids(self, persister=None):
         """Remove slave group ids for a particular group. Unregisters
         all the slave of this group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         persister.exec_stmt(Group.DELETE_SLAVE_GROUPS,
                             {"params": (self.__group_id, )})
@@ -252,21 +271,24 @@ class Group(_persistence.Persistable):
 
         :param master_group_id: The group ID of the master that needs to be
                                                  added.
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         persister.exec_stmt(Group.INSERT_MASTER_SLAVE_GROUP_MAPPING,
                             {"params": (master_group_id, self.__group_id)})
 
     def remove_master_group_id(self, persister=None):
         """Remove the master group ID. Unregister a master group.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
         """
         persister.exec_stmt(Group.DELETE_MASTER_SLAVE_GROUP_MAPPING,
                             {"params": (self.__group_id, )})
 
-    def add_server(self, server, persister=None):
+    def add_server(self, server):
         """Add a server into this group.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
         :param server: The Server object that needs to be added to this
                        Group.
         """
@@ -274,11 +296,9 @@ class Group(_persistence.Persistable):
         assert(server.group_id == None)
         server.group_id = self.__group_id
 
-    def remove_server(self, server, persister=None):
+    def remove_server(self, server):
         """Remove a server from this group.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
         :param server: The Server object that needs to be removed from this
                        Group.
         """
@@ -330,11 +350,8 @@ class Group(_persistence.Persistable):
             {"params":(param_master, self.__group_id)})
         self.__master = master
 
-    def servers(self, persister=None):
+    def servers(self):
         """Return a list with the servers in this group.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
         """
         return MySQLServer.servers(self.__group_id)
 
@@ -439,8 +456,8 @@ class Group(_persistence.Persistable):
         try:
             persister.exec_stmt(Group.CREATE_GROUP_REPLICATION)
         except _errors.DatabaseError:
-             persister.exec_stmt(Group.DROP_GROUP)
-             raise
+            persister.exec_stmt(Group.DROP_GROUP)
+            raise
 
     @staticmethod
     def drop(persister=None):
@@ -1005,10 +1022,14 @@ class MySQLServer(_persistence.Persistable):
 
     @staticmethod
     def get_mode_idx(mode):
+        """Return the index associated to a mode.
+        """
         return MySQLServer.SERVER_MODE.index(mode)
 
     @staticmethod
     def get_mode(idx):
+        """Return the mode associated to an index.
+        """
         return MySQLServer.SERVER_MODE[idx]
 
     @property
@@ -1033,10 +1054,14 @@ class MySQLServer(_persistence.Persistable):
 
     @staticmethod
     def get_status_idx(status):
+        """Return the index associated to a status.
+        """
         return MySQLServer.SERVER_STATUS.index(status)
 
     @staticmethod
     def get_status(idx):
+        """Return the status associated to an index.
+        """
         return MySQLServer.SERVER_STATUS[idx]
 
     @property
@@ -1313,11 +1338,11 @@ class MySQLServer(_persistence.Persistable):
 
         #Iterate through the pattern list and fire a query for
         #each pattern.
-        for p in pattern_list:
-            if p == '':
+        for find in pattern_list:
+            if find == '':
                 like_pattern = '%%'
             else:
-                like_pattern = '%' + p + '%'
+                like_pattern = '%' + find + '%'
             rows = persister.exec_stmt(MySQLServer.DUMP_SERVERS,
                 {"raw" : False, "params":(like_pattern, "FAULTY")})
 

@@ -280,7 +280,7 @@ class Checkpoint(_persistence.Persistable):
         param_args, param_kwargs, lockable_objects = \
              Checkpoint.deserialize(param_args, param_kwargs, lockable_objects)
         checkpoint = Checkpoint(
-            _uuid.UUID(proc_uuid), lockable_objects, _uuid.UUID(job_uuid), 
+            _uuid.UUID(proc_uuid), lockable_objects, _uuid.UUID(job_uuid),
             sequence, action_fqn, param_args, param_kwargs,
             started, finished
             )

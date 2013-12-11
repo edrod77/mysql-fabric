@@ -80,7 +80,6 @@ from mysql.fabric import (
 
 from mysql.fabric.command import (
     ProcedureGroup,
-    ProcedureCommand,
     Command,
 )
 
@@ -615,7 +614,7 @@ def _set_server_status(uuid, status):
             )
 
 def _set_server_status_primary(server):
-    """Put the server in primary status.
+    """Set server's status to primary.
     """
     raise _errors.ServerError(
         "If you want to put a server (%s) to primary, please, use the "
@@ -623,7 +622,7 @@ def _set_server_status_primary(server):
     )
 
 def _set_server_status_faulty(server):
-    """Put the server in faulty status.
+    """Set server's status to faulty.
     """
     group = _server.Group.fetch(server.group_id)
     if group.status == _server.Group.ACTIVE:
@@ -651,7 +650,7 @@ def _set_server_status_faulty(server):
     )
 
 def _set_server_status_secondary(server):
-    """Put the server in secondary status.
+    """Set server's status to secondary.
     """
     allowed_status = (_server.MySQLServer.SPARE)
     status = _server.MySQLServer.SECONDARY
@@ -659,7 +658,7 @@ def _set_server_status_secondary(server):
     return _do_set_status(server, allowed_status, status, mode)
 
 def _set_server_status_spare(server):
-    """Put the server in spare status.
+    """Set server's status to spare.
     """
     allowed_status = (
         _server.MySQLServer.SECONDARY, _server.MySQLServer.FAULTY
@@ -669,7 +668,7 @@ def _set_server_status_spare(server):
     return _do_set_status(server, allowed_status, status, mode)
 
 def _do_set_status(server, allowed_status, status, mode):
-    """Put the server into a specific status.
+    """Set server's status.
     """
     server.connect()
     alive = server.is_alive()
@@ -694,7 +693,7 @@ def _do_set_status(server, allowed_status, status, mode):
 
 @_events.on_event(SET_SERVER_WEIGHT)
 def _set_server_weight(uuid, weight):
-    """Set a server's weight.
+    """Set server's weight.
     """
     server = _retrieve_server(uuid)
     weight = float(weight)
@@ -707,7 +706,7 @@ def _set_server_weight(uuid, weight):
 
 @_events.on_event(SET_SERVER_MODE)
 def _set_server_mode(uuid, mode):
-    """Set a server's mode.
+    """Set server's mode.
     """
     server = _retrieve_server(uuid)
 
@@ -726,32 +725,34 @@ def _set_server_mode(uuid, mode):
             )
 
 def _set_server_mode_primary(server, mode):
-    """Set the server's mode when it is a primary.
+    """Set server's mode when it is a primary.
     """
     allowed_mode = \
         (_server.MySQLServer.WRITE_ONLY, _server.MySQLServer.READ_WRITE)
     _do_set_server_mode(server, mode, allowed_mode)
 
 def _set_server_mode_secondary(server, mode):
-    """Set the server's mode when it is a secondary.
+    """Set server's mode when it is a secondary.
     """
     allowed_mode = \
         (_server.MySQLServer.OFFLINE, _server.MySQLServer.READ_ONLY)
     _do_set_server_mode(server, mode, allowed_mode)
 
 def _set_server_mode_spare(server, mode):
+    """Set server's mode when it is a spare.
+    """
     allowed_mode = \
         (_server.MySQLServer.OFFLINE, _server.MySQLServer.READ_ONLY)
     _do_set_server_mode(server, mode, allowed_mode)
 
 def _set_server_mode_faulty(server, mode):
-    """Set the server's mode when it is a faulty.
+    """Set server's mode when it is a faulty.
     """
     allowed_mode = ()
     _do_set_server_mode(server, mode, allowed_mode)
 
 def _do_set_server_mode(server, mode, allowed_mode):
-    """Set a server's mode.
+    """Set server's mode.
     """
     if mode not in allowed_mode:
         raise _errors.ServerError(
@@ -761,6 +762,8 @@ def _do_set_server_mode(server, mode, allowed_mode):
     server.mode = mode
 
 def _retrieve_server(uuid):
+    """Return a server object from a UUID.
+    """
     try:
         uuid = _uuid.UUID(uuid)
     except ValueError:

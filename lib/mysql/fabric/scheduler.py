@@ -289,7 +289,7 @@ class LockManager(object):
         # Dictionary that maps procedures to objects that it already
         # has acquired a lock on.
         head_procedures = {}
-        objects, thread, condition = self._procedure_enqueued(procedure)
+        objects, _, _ = self._procedure_enqueued(procedure)
 
         # Remove the information on the procedure from the procedures'
         # dictionary and from the free list if it is there.
@@ -331,7 +331,7 @@ class LockManager(object):
 
         try:
             # Verifying if a procedure is not already enqueued.
-            objects, thread, condition = self.__procedures[procedure]
+            objects, _, _ = self.__procedures[procedure]
             raise _errors.LockManagerError(
                 "The procedure (%s) is already enqueued." % (procedure, )
             )
@@ -375,7 +375,7 @@ class LockManager(object):
             if thread and threading.current_thread() != thread:
                 try:
                     _utils.async_raise(thread.ident, _errors.LockManagerError)
-                except ValueError, SystemError:
+                except (ValueError, SystemError):
                     _LOGGER.debug(
                         "Error trying to notify thread (%s) that holds locks "
                         "for procedure (%s).", thread, procedure

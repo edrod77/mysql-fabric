@@ -153,8 +153,8 @@ class BackupMethod(object):
         """Will be used in cases when the backup needs to be taken on a source
         and will be copied to the destination machine.
 
-        :param image: BackupImage object containning the location where the backup
-                                needs to be copied to.
+        :param image: BackupImage object containning the location where the
+                      backup needs to be copied to.
         """
         pass
 
@@ -169,7 +169,7 @@ class MySQLDump(BackupMethod):
     @staticmethod
     def backup(server, mysqldump_binary=None):
         """Perform the backup using mysqldump.
-        
+
         The backup results in creation a .sql file on the FABRIC server,
         this method needs to be optimized going forward. But for now
         this will suffice.
@@ -212,10 +212,10 @@ class MySQLDump(BackupMethod):
 
         #Run the backup command
         try:
-            with open(destination,"w") as f:
+            with open(destination,"w") as fd:
                 subprocess.check_call(
                     mysqldump_command,
-                    stdout=f,
+                    stdout=fd,
                     shell=False
                 )
         except subprocess.CalledProcessError as error:
@@ -224,6 +224,7 @@ class MySQLDump(BackupMethod):
                 .format(ERROR=str(error))
             )
         except OSError as error:
+            raise
             raise _errors.ShardingError(
                 "Error while doing backup {ERROR}"
                 .format(ERROR=str(error))
@@ -272,10 +273,9 @@ class MySQLDump(BackupMethod):
         #Fire the mysql client for the restore using the input image as
         #the restore source.
         try:
-            with open(image.path,"r") as f:
-                subprocess.check_call(mysqlclient_command,
-                                                     stdin=f,
-                                                     shell=False)
+            with open(image.path,"r") as fd:
+                subprocess.check_call(mysqlclient_command, stdin=fd,
+                                      shell=False)
         except subprocess.CalledProcessError as error:
             raise _errors.ShardingError(
                 "Error while doing backup {ERROR}"

@@ -164,9 +164,9 @@ class PromoteMaster(ProcedureGroup):
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
-        In what follows, one will find a figure that depicts the sequence of event
-        that happen during a promote operation. The figure is split in two pieces
-        and names are abbreviated in order to ease presentation:
+        In what follows, one will find a figure that depicts the sequence of
+        event that happen during a promote operation. The figure is split in
+        two pieces and names are abbreviated in order to ease presentation:
 
         .. seqdiag::
 
@@ -204,9 +204,9 @@ class PromoteMaster(ProcedureGroup):
             change_to_candidate <- executor;
           }
 
-        In what follows, one will find a figure that depicts the sequence of events
-        that happen during the switchover operation. The figure is split in two
-        pieces and names are abreviated in order to ease presentation:
+        In what follows, one will find a figure that depicts the sequence of
+        events that happen during the switchover operation. The figure is split
+        in two pieces and names are abreviated in order to ease presentation:
 
         .. seqdiag::
 
@@ -313,9 +313,9 @@ class DemoteMaster(ProcedureGroup):
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
-        In what follows, one will find a figure that depicts the sequence of event
-        that happen during the demote operation. To ease the presentation some
-        names are abbreivated:
+        In what follows, one will find a figure that depicts the sequence of
+        event that happen during the demote operation. To ease the presentation
+        some names are abbreivated:
 
         .. seqdiag::
 
@@ -884,7 +884,7 @@ def _check_group_availability(group_id):
         except _errors.DatabaseError:
             if status not in \
                 (_server.MySQLServer.FAULTY):
-                mode = _server.MySQLServer.FAULTY
+                status = _server.MySQLServer.FAULTY
         availability[str(server.uuid)] = {
             "is_alive" : alive,
             "is_master" : is_master,

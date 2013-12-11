@@ -21,7 +21,6 @@ consistent state after a crash.
 import logging
 
 import mysql.fabric.executor as _executor
-import mysql.fabric.persistence as _persistence
 
 from mysql.fabric.checkpoint import (
     Checkpoint,
@@ -68,7 +67,7 @@ def recovery():
 
         if procedure_uuid is not None and \
             procedure_uuid != checkpoint.proc_uuid:
-            procedures = _executor.Executor().reschedule_procedure(
+            _executor.Executor().reschedule_procedure(
                 procedure_uuid, actions, checkpoint.lockable_objects
             )
             procedure_uuid = None

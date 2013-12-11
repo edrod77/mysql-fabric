@@ -203,7 +203,7 @@ class Start(Command):
         _configure_connections(self.config)
 
         #Configure TTL
-        _setup_TTL(self.config)
+        _setup_ttl(self.config)
 
         # Daemonize ourselves.
         if self.options.daemonize:
@@ -233,7 +233,7 @@ class Setup(Command):
         _configure_connections(self.config)
 
         #Configure TTL
-        _setup_TTL(self.config)
+        _setup_ttl(self.config)
 
         # Create database and objects.
         _persistence.setup()
@@ -257,7 +257,7 @@ class Teardown(Command):
         _configure_connections(self.config)
 
         #Configure TTL
-        _setup_TTL(self.config)
+        _setup_ttl(self.config)
 
         # Drop database and objects.
         _persistence.teardown()
@@ -416,7 +416,7 @@ def _configure_connections(config):
         connection_delay=connection_delay
     )
 
-def _setup_TTL(config):
+def _setup_ttl(config):
     """Read the configured TTL and set its value.
     """
     #configure the TTL to be used for the connectors.

@@ -143,6 +143,8 @@ class CommandMeta(type):
         original = func
         @functools.wraps(func)
         def _wrap(*args, **kwrds):
+            """Inner wrapper function.
+            """
             _LOGGER.debug("Started command (%s).", cname)
             ret = original(*args, **kwrds)
             _LOGGER.debug("Finished command (%s).", cname)
@@ -308,7 +310,7 @@ class Command(object):
             returned = status
         elif not isinstance(status[0], bool):
             returned = status
-        else: 
+        else:
             success = status[0]
             if success:
                 returned = status[2]
@@ -318,7 +320,7 @@ class Command(object):
                 if details:
                     activities = "\n".join(trace)
 
-        return "\n".join([ 
+        return "\n".join([
             "Command :",
             "{ success     = %s" % (success, ),
             "  return      = %s" % (returned, ),
@@ -340,7 +342,7 @@ class Command(object):
         """
         try:
             status = func(*params)
-        except Exception as error:
+        except Exception:
             return [False, traceback.format_exc(), True]
         return [True, "", status]
 

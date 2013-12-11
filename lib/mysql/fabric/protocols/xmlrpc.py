@@ -18,8 +18,6 @@
 """Define a XML-RPC server and client.
 """
 import xmlrpclib
-import socket
-import sys
 import threading
 import Queue
 import logging
@@ -114,7 +112,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
                 request, client_address = self.get_request()
                 self._process_request(request, client_address)
             except Exception as error:
-                _LOGGER.warning("Error accessing request: (%s)." % (error, ))
+                _LOGGER.warning("Error accessing request: (%s).", error)
 
     def _process_request(self, request, client_address):
         """Process a request by delegating it to an idle session thread.
@@ -122,8 +120,8 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         if self.verify_request(request, client_address):
             thread = self.__threads.get()
             _LOGGER.debug(
-                "Enqueuing request (%s) from (%s) through thread (%s)." %
-                (request, client_address, thread)
+                "Enqueuing request (%s) from (%s) through thread (%s).",
+                request, client_address, thread
             )
             thread.process_request(request, client_address)
 
@@ -137,7 +135,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             try:
                 thread.start()
             except Exception as error:
-                _LOGGER.error("Error starting thread: (%s)." % (error, ))
+                _LOGGER.error("Error starting thread: (%s).", error)
 
 
 class SessionThread(threading.Thread):
@@ -185,9 +183,7 @@ class SessionThread(threading.Thread):
         try:
             _persistence.init_thread()
         except Exception as error:
-            _LOGGER.warning("Error connecting to backing store: (%s)." %
-                            (error, )
-            )
+            _LOGGER.warning("Error connecting to backing store: (%s).", error)
 
         SessionThread.local_thread.thread = self
         self.__server.register_thread(self)
@@ -195,8 +191,8 @@ class SessionThread(threading.Thread):
         while True:
             request, client_address = self.__requests.get()
             _LOGGER.debug(
-                "Processing request (%s) from (%s) through thread (%s)." %
-                (request, client_address, self)
+               "Processing request (%s) from (%s) through thread (%s).",
+               request, client_address, self
             )
             # There is no need to catch exceptions here because the method
             # process_request_thread already does so. It is the main entry
@@ -204,8 +200,8 @@ class SessionThread(threading.Thread):
             # in the code will be reported as xmlrpclib.Fault.
             self.__server.process_request_thread(request, client_address)
             _LOGGER.debug(
-                "Finishing request (%s) from (%s) through thread (%s)." %
-                (request, client_address, self)
+                "Finishing request (%s) from (%s) through thread (%s).",
+                request, client_address, self
             )
             if self.__is_shutdown:
                 self.__server.shutdown_now()
@@ -214,8 +210,8 @@ class SessionThread(threading.Thread):
         try:
             _persistence.deinit_thread()
         except Exception as error:
-            _LOGGER.warning("Error connecting to backing store: (%s)." %
-                            (error, ))
+            _LOGGER.warning("Error connecting to backing store: (%s).",
+                            error)
 
     def shutdown(self):
         """Register that this thread is responsible for shutting down

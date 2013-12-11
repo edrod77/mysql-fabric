@@ -194,7 +194,7 @@ def is_valid_mysql_connection(cnx):
     if cnx is not None and cnx.is_connected():
         return True
     return False
-         
+
 def reestablish_mysql_connection(cnx, attempt, delay):
     """Try to reconnect if it is not already connected.
     """

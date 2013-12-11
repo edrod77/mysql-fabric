@@ -59,7 +59,8 @@ def process_slave_backlog(slave, gtid_executed, gtid_retrieved):
     """
     _replication.stop_slave(slave, wait=True)
     _replication.start_slave(slave, threads=("SQL_THREAD", ), wait=True)
-    _replication.wait_for_slave_gtid(slave, gtid_executed + "," + gtid_retrieved)
+    _replication.wait_for_slave_gtid(slave, gtid_executed + "," + \
+                                     gtid_retrieved)
 
 
 def synchronize(slave, master):

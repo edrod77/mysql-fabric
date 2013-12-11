@@ -47,9 +47,9 @@ def find_commands():
     """
     for imp, name, ispkg in pkgutil.walk_packages(__path__, __name__ + "."):
         mod = imp.find_module(name).load_module(name)
-        _LOGGER.debug("%s %s has got __name__ %s" % (
-            "Package" if ispkg else "Module", name, mod.__name__))
-
+        _LOGGER.debug("%s %s has got __name__ %s",
+            "Package" if ispkg else "Module", name, mod.__name__
+         )
 
 def find_client():
     """Return a proxy to access the Fabric server.
@@ -93,7 +93,7 @@ class ServiceManager(Singleton):
         try:
             self.__rpc_server.start()
         except Exception as error:
-            _LOGGER.error("Error starting thread: (%s)." % (error, ))
+            _LOGGER.error("Error starting thread: (%s).", error)
 
 
     def shutdown(self):

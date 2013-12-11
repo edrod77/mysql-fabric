@@ -84,7 +84,7 @@ class ShardMapping(_persistence.Persistable):
                             "FROM "
                             "shard_tables "
                             "WHERE "
-                            "shard_mapping_id LIKE %s " 
+                            "shard_mapping_id LIKE %s "
                             "ORDER BY shard_mapping_id, table_name, column_name"
                          )
 
@@ -491,11 +491,11 @@ class ShardMapping(_persistence.Persistable):
 
         #Iterate through the pattern list and fire a query for
         #each pattern.
-        for p in pattern_list:
-            if p == '':
+        for find in pattern_list:
+            if find == '':
                 like_pattern = '%%'
             else:
-                like_pattern = '%' + p + '%'
+                like_pattern = '%' + find + '%'
             cur = persister.exec_stmt(ShardMapping.DUMP_SHARD_TABLES,
                                   {"fetch" : False, "params":(like_pattern,)})
             rows = cur.fetchall()
@@ -539,11 +539,11 @@ class ShardMapping(_persistence.Persistable):
 
         #Iterate through the pattern list and fire a query for
         #each pattern.
-        for p in pattern_list:
-            if not p:
+        for find in pattern_list:
+            if not find:
                 like_pattern = '%%'
             else:
-                like_pattern = p
+                like_pattern = find
             cur = persister.exec_stmt(ShardMapping.DUMP_SHARDING_INFORMATION,
                                   {"fetch" : False, "params":(like_pattern,)})
             rows = cur.fetchall()
@@ -591,11 +591,11 @@ class ShardMapping(_persistence.Persistable):
 
         #Iterate through the pattern list and fire a query for
         #each pattern.
-        for p in pattern_list:
-            if p == '':
+        for find in pattern_list:
+            if find == '':
                 like_pattern = '%%'
             else:
-                like_pattern = '%' + p + '%'
+                like_pattern = '%' + find + '%'
             cur = persister.exec_stmt(ShardMapping.DUMP_SHARD_MAPS,
                                   {"fetch" : False, "params":(like_pattern,)})
             rows = cur.fetchall()
@@ -856,11 +856,11 @@ class Shards(_persistence.Persistable):
 
         #Iterate through the pattern list and fire a query for
         #each pattern.
-        for p in pattern_list:
-            if p == '':
+        for find in pattern_list:
+            if find == '':
                 like_pattern = '%%'
             else:
-                like_pattern = '%' + p + '%'
+                like_pattern = '%' + find + '%'
             cur = persister.exec_stmt(Shards.DUMP_SHARD_INDEXES,
                                   {"fetch" : False, "params":(like_pattern,)})
             rows = cur.fetchall()
@@ -1335,6 +1335,12 @@ class RangeShardingSpecification(_persistence.Persistable):
             master.set_foreign_key_checks(True)
 
 class HashShardingSpecification(RangeShardingSpecification):
+    """Represents a HASH sharding specification. The class helps encapsulate
+    the representation of a typical HASH sharding implementation and is built
+    upon the RANGE implementation. They share the same table in the state
+    store.
+    """
+
     #Insert a HASH of keys and the server to which they belong.
     INSERT_HASH_SPECIFICATION = (
         "INSERT INTO shard_ranges("
@@ -1451,7 +1457,8 @@ class HashShardingSpecification(RangeShardingSpecification):
         :return: A dictionary of maximum values belonging to each of the tables
                 in the shard.
         """
-        #Store the list of max_keys from all the tables that belong to this shard.
+        #Store the list of max_keys from all the tables that belong to this
+        #shard.
         max_keys = []
 
         hash_sharding_spec = HashShardingSpecification.fetch(shard_id)
@@ -1552,7 +1559,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         :param shard_mapping_id: The unique identification for a shard mapping.
         :param shard_id: An unique identification, a logical representation
                          for a shard of a particular table.
-        :param lower_bound: The new lower_bound being inserted for the 
+        :param lower_bound: The new lower_bound being inserted.
         """
         shard = Shards.fetch(shard_id)
         persister.exec_stmt(

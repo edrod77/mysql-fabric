@@ -123,14 +123,14 @@ def split_database_table(fully_qualified_table_name):
     return fully_qualified_table_name.split('.')
 
 def _wrap_output(output):
-        """Used to wrap the the output in a standard format, viz,
-        (_utils.FABRIC_UUID, _utils.VERSION_TOKEN, _utils.TTL, <o/p>).
+    """Used to wrap the the output in a standard format, viz,
+    (_utils.FABRIC_UUID, _utils.VERSION_TOKEN, _utils.TTL, <o/p>).
 
-        :param output: The output that needs to be wrapped.
+    :param output: The output that needs to be wrapped.
 
-        :return: the "output" parameter is returned in the following four
-                     tuple format.
-        """
-        return (FABRIC_UUID, VERSION_TOKEN, TTL, output)
+    :return: the "output" parameter is returned in the following four
+             tuple format.
+    """
+    return (FABRIC_UUID, VERSION_TOKEN, TTL, output)
 
 

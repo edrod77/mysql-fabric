@@ -123,6 +123,8 @@ class PersistentMeta(type):
         original = func         # Create closure
         @functools.wraps(func)
         def _wrap(*args, **kwrds):
+            """Inner wrapper function. 
+            """
             # Check if an explicit persister were given to the call or
             # use the thread-assigned persister otherwise.
             if 'persister' not in kwrds or kwrds['persister'] is None:
@@ -303,10 +305,10 @@ class Persistable(object):
 
     The autocommit mode is enabled by default so that a new statement is always
     executed within a new transaction context. If users want to explicitly
-    create a transaction context, they can do so as follows:: 
+    create a transaction context, they can do so as follows::
 
        import mysql.fabric.persistence
-    
+
        persister = mysql.fabric.persistence.current_persister()
 
        persister.begin()
@@ -509,7 +511,8 @@ class MySQLPersister(object):
                     )
                 return
             except _errors.DatabaseError as error:
-                _LOGGER.debug("Error accessing backing store (%s).", error)
+                _LOGGER.debug("Error accessing backing store (%s). "
+                    "Attempt (%s).", error, attempt)
             time.sleep(self.connection_delay)
 
 def current_persister():
