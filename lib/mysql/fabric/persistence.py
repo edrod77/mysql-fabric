@@ -175,6 +175,7 @@ class PersistentMeta(type):
         """Add the class to the list of classes that should be called
         on init.
         """
+        type.__init__(cls, cname, cbases, cdict)
         PersistentMeta.classes.append(cls)
 
 class Persistable(object):

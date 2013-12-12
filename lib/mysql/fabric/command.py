@@ -121,6 +121,8 @@ class CommandMeta(type):
     def __init__(cls, cname, cbases, cdict):
         """Register command definitions.
         """
+        type.__init__(cls, cname, cbases, cdict)
+
         try:
             cls.group_name
         except AttributeError:
