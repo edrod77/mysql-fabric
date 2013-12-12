@@ -79,23 +79,23 @@ class PersistentMeta(type):
     classes = []                     # List of all persistent classes
 
     @classmethod
-    def init_thread(cls, persister):
+    def init_thread(mcs, persister):
         """Initialize thread-specific data.
 
         :param persister: Persister to use for the thread.
         """
 
-        cls.thread_local.persister = persister
+        mcs.thread_local.persister = persister
 
     @classmethod
-    def deinit_thread(cls):
+    def deinit_thread(mcs):
         """De-initialize thread-specific data.
         """
 
-        cls.thread_local.persister = None
+        mcs.thread_local.persister = None
 
     @classmethod
-    def wrapfunc(cls, func):
+    def wrapfunc(mcs, func):
         """Wrap the function to pass the persister for the thread.
 
         The function is wrapped by adding the argument 'persister' if
@@ -123,12 +123,12 @@ class PersistentMeta(type):
         original = func         # Create closure
         @functools.wraps(func)
         def _wrap(*args, **kwrds):
-            """Inner wrapper function. 
+            """Inner wrapper function.
             """
             # Check if an explicit persister were given to the call or
             # use the thread-assigned persister otherwise.
             if 'persister' not in kwrds or kwrds['persister'] is None:
-                kwrds['persister'] = cls.thread_local.persister
+                kwrds['persister'] = mcs.thread_local.persister
             return original(*args, **kwrds)
         return _wrap
 

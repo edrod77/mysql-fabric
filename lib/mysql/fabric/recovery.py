@@ -76,7 +76,7 @@ def recovery():
         procedure_uuid = checkpoint.proc_uuid
 
     if procedure_uuid is not None:
-        procedures = _executor.Executor().reschedule_procedure(
+        _executor.Executor().reschedule_procedure(
             procedure_uuid, actions, checkpoint.lockable_objects
         )
 

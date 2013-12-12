@@ -136,7 +136,7 @@ class CommandMeta(type):
             register_command(cls.group_name, cls.command_name, cls)
 
     @classmethod
-    def _wrapfunc(cls, func, cname):
+    def _wrapfunc(mcs, func, cname):
         """Wrap the a function in order to log when it started and
         finished its execution.
         """

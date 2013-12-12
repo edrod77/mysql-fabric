@@ -36,11 +36,11 @@ class SingletonMeta(type):
       ...
     """
     _instances = {}
-    def __call__(mcs, *args, **kwargs):
-        if mcs not in mcs._instances:
-            mcs._instances[mcs] = super(SingletonMeta, mcs).__call__(*args,
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(SingletonMeta, cls).__call__(*args,
                                                                      **kwargs)
-        return mcs._instances[mcs]
+        return cls._instances[cls]
 
 
 class Singleton(object):
@@ -122,7 +122,7 @@ def split_database_table(fully_qualified_table_name):
     """
     return fully_qualified_table_name.split('.')
 
-def _wrap_output(output):
+def wrap_output(output):
     """Used to wrap the the output in a standard format, viz,
     (_utils.FABRIC_UUID, _utils.VERSION_TOKEN, _utils.TTL, <o/p>).
 

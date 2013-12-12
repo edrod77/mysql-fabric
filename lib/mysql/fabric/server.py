@@ -1355,7 +1355,7 @@ class MySQLServer(_persistence.Persistable):
                     (row[0], row[1], host, port, row[3], row[4],
                     row[5])
                 )
-        return _utils._wrap_output(result_server_list)
+        return _utils.wrap_output(result_server_list)
 
     @staticmethod
     def create(persister=None):

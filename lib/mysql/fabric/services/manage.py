@@ -480,4 +480,4 @@ class FabricLookups(Command):
         :rtype: ["host:port", ...]
         """
         service = _services.ServiceManager()
-        return _utils._wrap_output([service.address])
+        return _utils.wrap_output([service.address])

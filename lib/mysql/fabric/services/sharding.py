@@ -783,7 +783,7 @@ def _disable_shard(shard_id):
     :return: True Placeholder return value
     :raises: ShardingError if the shard_id is not found.
     """
-    range_sharding_spec, shard, _, _ = _verify_and_fetch_shard(shard_id)
+    _, shard, _, _ = _verify_and_fetch_shard(shard_id)
     #When you disable a shard, disable replication with the global server
     #of the shard mapping associated with the shard.
     _stop_shard_group_replication(shard_id,  False)

@@ -711,8 +711,8 @@ class Executor(Singleton):
             _LOGGER.info("Starting Executor.")
 
             _LOGGER.info("Setting %s executor(s).", self.__number_executors)
-            for nw in range(0, self.__number_executors):
-                thread_name = "Executor-{0}".format(nw)
+            for thread_number in range(0, self.__number_executors):
+                thread_name = "Executor-{0}".format(thread_number)
                 executor = ExecutorThread(self.__scheduler, thread_name)
                 try:
                     executor.start()

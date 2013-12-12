@@ -212,10 +212,10 @@ class MySQLDump(BackupMethod):
 
         #Run the backup command
         try:
-            with open(destination,"w") as fd:
+            with open(destination,"w") as fd_file:
                 subprocess.check_call(
                     mysqldump_command,
-                    stdout=fd,
+                    stdout=fd_file,
                     shell=False
                 )
         except subprocess.CalledProcessError as error:
@@ -224,7 +224,6 @@ class MySQLDump(BackupMethod):
                 .format(ERROR=str(error))
             )
         except OSError as error:
-            raise
             raise _errors.ShardingError(
                 "Error while doing backup {ERROR}"
                 .format(ERROR=str(error))
@@ -273,8 +272,8 @@ class MySQLDump(BackupMethod):
         #Fire the mysql client for the restore using the input image as
         #the restore source.
         try:
-            with open(image.path,"r") as fd:
-                subprocess.check_call(mysqlclient_command, stdin=fd,
+            with open(image.path,"r") as fd_file:
+                subprocess.check_call(mysqlclient_command, stdin=fd_file,
                                       shell=False)
         except subprocess.CalledProcessError as error:
             raise _errors.ShardingError(

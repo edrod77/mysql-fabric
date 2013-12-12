@@ -130,8 +130,9 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         """
         _LOGGER.info("Setting %s XML-RPC session(s).", self.__number_threads)
 
-        for nt in range(0, self.__number_threads):
-            thread = SessionThread("XML-RPC-Session-%s" % (nt, ), self)
+        for thread_number in range(0, self.__number_threads):
+            thread = SessionThread("XML-RPC-Session-%s" % (thread_number, ),
+                                   self)
             try:
                 thread.start()
             except Exception as error:
