@@ -3,6 +3,23 @@ ChangeLog for Fabric
 ####################
 
 
+Release 0.4.0 (released December 16, 2013)
+------------------------------------------
+
+* Bug#71129: Binary data output from XML-RPC calls
+* Bug#70924: Server object does not have a clean design to represent scaling out servers
+* Bug#71126: Mysqlfabric script does not recognize commands on Windows
+* Bug#70694: Mysqlfabric is not executable on Windows
+* Bug#70512: Windows source installation fails in trying
+* Bug#71127: Checkpoint routines lead to deadlocks
+* Bug#71128: Mysqlfabric manage start hangs
+* Bug#71125: A server must belong to a single group
+* Bug#71155: test_promote (test_replication_events.py) is failing
+* WL#7489: Unification of the global server schemas
+* WL#7423: Use the Shard Mapping ID for GLOBAL server lookups.
+* WL#7401: Read only remote commands in Fabric should *NOT* pass through the executor
+
+
 Release 0.3.0 (released September 04, 2013)
 -------------------------------------------
 
