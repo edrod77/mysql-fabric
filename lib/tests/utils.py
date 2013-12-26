@@ -149,6 +149,9 @@ class MySQLInstances(_utils.Singleton):
             return master
 
 class ShardingUtils(object):
+    """Utility class for sharding.
+    """
+
     @staticmethod
     def compare_shard_mapping(shard_mapping_1, shard_mapping_2):
         """Compare two sharding mappings with each other. Two sharding
@@ -222,6 +225,8 @@ class ShardingUtils(object):
                     hash_specification_2.shard_id
 
 def cleanup_environment():
+    """Clean up the existing environment
+    """
     #Clean up information on instances.
     MySQLInstances().__instances = {}
 
@@ -251,7 +256,8 @@ def cleanup_environment():
 
     #Remove all the databases from the running MySQL instances
     #other than the standard ones
-    STANDARD_DB_LIST = ("information_schema", "mtr", "mysql", "performance_schema")
+    STANDARD_DB_LIST = ("information_schema", "mtr", "mysql",
+                        "performance_schema")
     server_count = MySQLInstances().get_number_addresses()
 
     for i in range(0, server_count):
@@ -273,7 +279,8 @@ def cleanup_environment():
                                 {"fetch" : True})
         for database in databases:
             if database[0] not in STANDARD_DB_LIST:
-                __server.exec_stmt("DROP DATABASE IF EXISTS %s" % (database[0], ))
+                __server.exec_stmt("DROP DATABASE IF EXISTS %s"
+                                   % (database[0], ))
         __server.set_foreign_key_checks(True)
 
         _replication.reset_master(__server)
@@ -283,6 +290,8 @@ def cleanup_environment():
         os.remove(__file)
 
 def setup_xmlrpc():
+    """Configure XML-RPC.
+    """
     from __main__ import xmlrpc_next_port
 
     # Set up the client
@@ -291,4 +300,6 @@ def setup_xmlrpc():
     return (None, proxy)
 
 def teardown_xmlrpc(manager, proxy):
+    """Clean up XML-RPC.
+    """
     pass

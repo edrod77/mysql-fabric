@@ -32,7 +32,8 @@ from mysql.fabric import server_utils
 from tests.utils import MySQLInstances
 
 class TestSharding(unittest.TestCase):
-
+    """Test dump interface associated to sharding.
+    """
     def setUp(self):
         """Configure the existing environment
         """
@@ -143,13 +144,18 @@ class TestSharding(unittest.TestCase):
         self.__shard_mapping_id_4 = ShardMapping.define("range", "GROUPID13")
         self.__shard_mapping_id_5 = ShardMapping.define("range", "GROUPID14")
 
-        self.__shard_mapping_1 = ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
-        self.__shard_mapping_2 = ShardMapping.add(self.__shard_mapping_id_2, "db2.t2", "userID2")
-        self.__shard_mapping_3 = ShardMapping.add(self.__shard_mapping_id_3, "db3.t3", "userID3")
-        self.__shard_mapping_4 = ShardMapping.add(self.__shard_mapping_id_4, "db4.t4", "userID4")
+        self.__shard_mapping_1 = \
+            ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
+        self.__shard_mapping_2 = \
+            ShardMapping.add(self.__shard_mapping_id_2, "db2.t2", "userID2")
+        self.__shard_mapping_3 = \
+            ShardMapping.add(self.__shard_mapping_id_3, "db3.t3", "userID3")
+        self.__shard_mapping_4 = \
+            ShardMapping.add(self.__shard_mapping_id_4, "db4.t4", "userID4")
 
-        self.__shard_mapping_5 = ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
-                                                  "userID")
+        self.__shard_mapping_5 = \
+            ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
+                             "userID")
 
         self.__shard_id_1 = Shards.add("GROUPID1")
         self.__shard_id_2 = Shards.add("GROUPID10")
@@ -221,12 +227,9 @@ class TestSharding(unittest.TestCase):
             201,
             self.__shard_id_11.shard_id)
 
-        OFFLINE = MySQLServer.get_mode_idx(MySQLServer.OFFLINE)
         READ_ONLY = MySQLServer.get_mode_idx(MySQLServer.READ_ONLY)
         READ_WRITE = MySQLServer.get_mode_idx(MySQLServer.READ_WRITE)
 
-        FAULTY = MySQLServer.get_status_idx(MySQLServer.FAULTY)
-        SPARE = MySQLServer.get_status_idx(MySQLServer.SPARE)
         SECONDARY = MySQLServer.get_status_idx(MySQLServer.SECONDARY)
         PRIMARY = MySQLServer.get_status_idx(MySQLServer.PRIMARY)
 
@@ -326,58 +329,60 @@ class TestSharding(unittest.TestCase):
                                     ['100', '5', '10', 'GROUPID2'],
                                     ['201', '5', '11', 'GROUPID3']]]
         self.__setofshardindexes_1 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                    ['1001', '1', '2', 'GROUPID10'],
-                                    ['2001', '1', '3', 'GROUPID11']]]
+                                      ['1001', '1', '2', 'GROUPID10'],
+                                      ['2001', '1', '3', 'GROUPID11']]]
         self.__setofshardindexes_3 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                          ['1001', '1', '2', 'GROUPID10'],
-                                          ['2001', '1', '3', 'GROUPID11'],
-                                          ['3001', '2', '4', 'GROUPID4'],
-                                          ['4001', '2', '5', 'GROUPID5'],
+                                      ['1001', '1', '2', 'GROUPID10'],
+                                      ['2001', '1', '3', 'GROUPID11'],
+                                      ['3001', '2', '4', 'GROUPID4'],
+                                      ['4001', '2', '5', 'GROUPID5'],
                                           ['6001', '3', '6', 'GROUPID6'],
                                           ['7001', '3', '7', 'GROUPID7']]]
         self.__setofshardindexes_5 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                              ['1001', '1', '2', 'GROUPID10'],
-                                              ['2001', '1', '3', 'GROUPID11'],
-                                              ['3001', '2', '4', 'GROUPID4'],
-                                              ['4001', '2', '5', 'GROUPID5'],
-                                              ['6001', '3', '6', 'GROUPID6'],
-                                              ['7001', '3', '7', 'GROUPID7'],
-                                              ['8001', '4', '8', 'GROUPID8'],
-                                              ['10001', '4', '9', 'GROUPID9'],
-                                              ['100', '5', '10', 'GROUPID2'],
-                                              ['201', '5', '11', 'GROUPID3']]]
+                                      ['1001', '1', '2', 'GROUPID10'],
+                                      ['2001', '1', '3', 'GROUPID11'],
+                                      ['3001', '2', '4', 'GROUPID4'],
+                                      ['4001', '2', '5', 'GROUPID5'],
+                                      ['6001', '3', '6', 'GROUPID6'],
+                                      ['7001', '3', '7', 'GROUPID7'],
+                                      ['8001', '4', '8', 'GROUPID8'],
+                                      ['10001', '4', '9', 'GROUPID9'],
+                                      ['100', '5', '10', 'GROUPID2'],
+                                      ['201', '5', '11', 'GROUPID3']]]
         self.__shardinginformation_1 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
-                                            '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
-                                            ['db1', 't1', 'userID1', '1001',
-                                            '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                            ['db1', 't1', 'userID1', '2001',
-                                            '3', 'RANGE', 'GROUPID11', 'GROUPID10']]]
+                                        '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
+                                        ['db1', 't1', 'userID1', '1001',
+                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
+                                        ['db1', 't1', 'userID1', '2001',
+                                        '3', 'RANGE', 'GROUPID11', 'GROUPID10']]]
         self.__shardinginformation_2 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
-                                            '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
-                                            ['db1', 't1', 'userID1', '1001',
-                                            '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                            ['db1', 't1', 'userID1', '2001',
-                                            '3', 'RANGE', 'GROUPID11', 'GROUPID10'],
-                                            ['db2', 't2', 'userID2', '3001',
-                                            '4', 'RANGE', 'GROUPID4', 'GROUPID11'],
-                                            ['db2', 't2', 'userID2', '4001',
-                                            '5', 'RANGE', 'GROUPID5', 'GROUPID11']]]
+                                        '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
+                                        ['db1', 't1', 'userID1', '1001',
+                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
+                                        ['db1', 't1', 'userID1', '2001',
+                                        '3', 'RANGE', 'GROUPID11', 'GROUPID10'],
+                                        ['db2', 't2', 'userID2', '3001',
+                                        '4', 'RANGE', 'GROUPID4', 'GROUPID11'],
+                                        ['db2', 't2', 'userID2', '4001',
+                                        '5', 'RANGE', 'GROUPID5', 'GROUPID11']]]
         self.__shardinginformation_3 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
-                                            '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
-                                            ['db1', 't1', 'userID1', '1001',
-                                            '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                            ['db1', 't1', 'userID1', '2001',
-                                            '3', 'RANGE', 'GROUPID11', 'GROUPID10'],
-                                            ['db2', 't2', 'userID2', '3001',
-                                            '4','RANGE', 'GROUPID4', 'GROUPID11'],
-                                            ['db2', 't2', 'userID2', '4001',
-                                            '5', 'RANGE', 'GROUPID5', 'GROUPID11'],
-                                            ['db3', 't3', 'userID3', '6001',
-                                            '6', 'RANGE', 'GROUPID6', 'GROUPID12'],
-                                            ['db3', 't3', 'userID3', '7001',
-                                            '7', 'RANGE', 'GROUPID7', 'GROUPID12']]]
+                                        '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
+                                        ['db1', 't1', 'userID1', '1001',
+                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
+                                        ['db1', 't1', 'userID1', '2001',
+                                        '3', 'RANGE', 'GROUPID11', 'GROUPID10'],
+                                        ['db2', 't2', 'userID2', '3001',
+                                        '4','RANGE', 'GROUPID4', 'GROUPID11'],
+                                        ['db2', 't2', 'userID2', '4001',
+                                        '5', 'RANGE', 'GROUPID5', 'GROUPID11'],
+                                        ['db3', 't3', 'userID3', '6001',
+                                        '6', 'RANGE', 'GROUPID6', 'GROUPID12'],
+                                        ['db3', 't3', 'userID3', '7001',
+                                        '7', 'RANGE', 'GROUPID7', 'GROUPID12']]]
 
     def test_dumps(self):
+        """Test dump interface associated to sharding.
+        """
         self.assertEqual(self.__setofservers,
             self.proxy.store.dump_servers(0))
 

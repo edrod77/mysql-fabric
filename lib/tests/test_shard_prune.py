@@ -420,7 +420,8 @@ class TestShardingPrune(unittest.TestCase):
             self.assertEqual(status[0], True)
             self.assertEqual(status[1], "")
             obtained_server_list = status[2]
-            status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
+            status = \
+                self.proxy.group.remove(group_id, obtained_server_list[0][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],

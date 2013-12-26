@@ -59,6 +59,8 @@ class TestMySQLMaster(unittest.TestCase):
         self.master.disconnect()
 
     def test_master_binary_log(self):
+        """Test the get_master_status() function.
+        """
         # Note this is only being tested with the binary log.
         master = self.master
 
@@ -73,6 +75,8 @@ class TestMySQLMaster(unittest.TestCase):
         self.assertEqual(int(ret[0][1]), 151) # Format descriptor event.
 
     def test_master_health(self):
+        """Test the check_master_issues() function.
+        """
         # Note this is only being tested with the binary log.
         master = self.master
 
@@ -116,6 +120,8 @@ class TestMySQLSlave(unittest.TestCase):
         self.master.disconnect()
 
     def test_switch_master(self):
+        """Test the switch_master() function.
+        """
         # Note this is only being tested with gtids.
 
         # Set up replication.
@@ -174,15 +180,9 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
         self.assertEqual(slave_has_master(slave), str(master.uuid))
 
-    def test_slave_binary_log(self):
-        # Note this is only being tested with the binary log.
-        # Set up replication.
-        master = self.master
-        slave = self.slave
-        switch_master(slave, master, "root")
-        start_slave(slave, wait=True)
-
     def test_start_stop(self):
+        """Test start/stop slave functions.
+        """
         # Set up replication.
         master = self.master
         slave = self.slave
@@ -213,6 +213,8 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertEqual(status[0].Slave_SQL_Running.upper(), "NO")
 
     def test_wait_for_slave(self):
+        """Test wait_for_slave_thread function.
+        """
         # Set up replication.
         master = self.master
         slave = self.slave
@@ -269,6 +271,8 @@ class TestMySQLSlave(unittest.TestCase):
                           gtid_executed, timeout=3)
 
     def test_check_rpl_health(self):
+        """Test check_slave_issues() function.
+        """
         # Set up replication.
         master = self.master
         slave = self.slave
@@ -304,6 +308,8 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertEqual(ret, {})
 
     def test_get_gtid_behind(self):
+        """Test get_gtid_behind() function.
+        """
         # Set up replication.
         master = self.master
         slave = self.slave

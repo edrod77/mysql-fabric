@@ -34,10 +34,10 @@ from mysql.fabric.server import (
 from tests.utils import MySQLInstances
 
 class TestShardingPrune(unittest.TestCase):
-    '''Contains unit tests for testing the shard move operation and for verifying
-    that the global server configuration remains constant after the shard move
-    configuration.
-    '''
+    """Contains unit tests for testing the shard move operation and for
+    verifying that the global server configuration remains constant after
+    the shard move configuration.
+    """
 
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
@@ -50,7 +50,7 @@ class TestShardingPrune(unittest.TestCase):
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
         self.__options_1 = {
-            "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uuid" : _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(0),
             "user" : "root"
         }
@@ -376,9 +376,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 70)
@@ -396,9 +396,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_after_move_db1_t1,
@@ -472,9 +472,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 200)
@@ -492,9 +492,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_after_move_db1_t1,
@@ -567,9 +567,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 200)
@@ -587,9 +587,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_after_move_db1_t1,
@@ -662,9 +662,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 400)
@@ -682,9 +682,9 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_after_move_db1_t1,
@@ -775,7 +775,8 @@ class TestShardingPrune(unittest.TestCase):
             self.assertEqual(status[0], True)
             self.assertEqual(status[1], "")
             obtained_server_list = status[2]
-            status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
+            status = \
+                self.proxy.group.remove(group_id, obtained_server_list[0][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],

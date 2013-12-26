@@ -26,6 +26,8 @@ import mysql.fabric.events as _events
 import mysql.fabric.executor as _executor
 
 class NewCommand(_command.Command):
+    """Emulates a local command that executes with success.
+    """
     command_options = [
         { 'options': [ '--daemonize'],
           'dest':  'daemonize',
@@ -35,14 +37,20 @@ class NewCommand(_command.Command):
         ]
 
     def __init__(self):
+        """Constructor for NewCommand object.
+        """
         super(NewCommand, self).__init__()
         self.execution = None
 
     def add_options(self, parser):
+        """Associates options to the command.
+        """
         super(NewCommand, self).add_options(parser)
         self.execution = "added_option"
 
 class NewErrorCommand(_command.Command):
+    """Emulates a local command that executes with issue.
+    """
     command_options = [
         { 'dest':  'daemonize',
           'default': False,
@@ -51,34 +59,50 @@ class NewErrorCommand(_command.Command):
         ]
 
     def __init__(self):
+        """Constructor for NewErrorCommand object.
+        """
         super(NewErrorCommand, self).__init__()
         self.execution = None
 
     def add_options(self, parser):
+        """Associates options to the command.
+        """
         super(NewErrorCommand, self).add_options(parser)
         self.execution = "added_option"
 
 class NewRemoteCommand(_command.Command):
+    """Emulates a remote command that executes with success.
+    """
     group_name = "test"
     command_name = "remote_command"
 
     def __init__(self):
+        """Constructor for NewRemoteCommand object.
+        """
         super(NewRemoteCommand, self).__init__()
         self.execution = None
 
     def _do_execute(self):
+        """Do something.
+        """
         self.execution = "executed"
         return self.execution
 
     def execute(self):
+        """Method that is remotely executed.
+        """
         return _command.Command.generate_output_pattern(self._do_execute)
 
 NEW_PROCEDURE_COMMAND_0 = _events.Event()
 class ClassCommand_0(_command.ProcedureCommand):
+    """Emulates a remote command that triggers a procedure with success.
+    """
     group_name = "test"
     command_name = "procedure_command_0"
 
     def execute(self, param, synchronous=True):
+        """Method that is remotely executed.
+        """
         procedures = _events.trigger(
             NEW_PROCEDURE_COMMAND_0, self.get_lockable_objects(), param
         )
@@ -86,14 +110,20 @@ class ClassCommand_0(_command.ProcedureCommand):
 
 @_events.on_event(NEW_PROCEDURE_COMMAND_0)
 def _new_command_procedure_0(param):
+    """Procedure triggered by ClassCommand_0.
+    """
     pass
 
 NEW_PROCEDURE_COMMAND_1 = _events.Event()
 class ClassCommand_1(_command.ProcedureCommand):
+    """Emulates a remote command that triggers a procedure with error.
+    """
     group_name = "test"
     command_name = "procedure_command_1"
 
     def execute(self, param, synchronous=True):
+        """Method that is remotely executed.
+        """
         procedures = _events.trigger(
             NEW_PROCEDURE_COMMAND_1, self.get_lockable_objects(), param
         )
@@ -101,14 +131,21 @@ class ClassCommand_1(_command.ProcedureCommand):
 
 @_events.on_event(NEW_PROCEDURE_COMMAND_1)
 def _new_command_procedure_1(param):
+    """Procedure triggered by ClassCommand_1.
+    """
     raise Exception("Error")
 
 NEW_PROCEDURE_GROUP_0 = _events.Event()
 class ClassGroup_0(_command.ProcedureGroup):
+    """Emulates a remote command that inherits from ProcedureGroup and
+    triggers a procedure with success.
+    """
     group_name = "test"
     command_name = "procedure_group_0"
 
     def execute(self, group_id, synchronous=True):
+        """Method that is remotely executed.
+        """
         procedures = _events.trigger(
             NEW_PROCEDURE_GROUP_0, self.get_lockable_objects(), group_id
         )
@@ -116,14 +153,21 @@ class ClassGroup_0(_command.ProcedureGroup):
 
 @_events.on_event(NEW_PROCEDURE_GROUP_0)
 def _new_procedure_group_0(group_id):
+    """Procedure triggered by ClassGroup_0.
+    """
     pass
 
 NEW_PROCEDURE_GROUP_1 = _events.Event()
 class ClassGroup_1(_command.ProcedureGroup):
+    """Emulates a remote command that inherits from ProcedureGroup and
+    triggers a procedure with success.
+    """
     group_name = "test"
     command_name = "procedure_group_1"
 
     def execute(self, param, synchronous=True):
+        """Method that is remotely executed.
+        """
         procedures = _events.trigger(
             NEW_PROCEDURE_GROUP_1, self.get_lockable_objects(), param
         )
@@ -131,14 +175,21 @@ class ClassGroup_1(_command.ProcedureGroup):
 
 @_events.on_event(NEW_PROCEDURE_GROUP_1)
 def _new_procedure_group_1(param):
+    """Procedure triggered by ClassGroup_1.
+    """
     pass
 
 NEW_PROCEDURE_SHARD_0 = _events.Event()
 class ClassShard_0(_command.ProcedureShard):
+    """Emulates a remote command that inherits from ProcedureShard and
+    triggers a procedure with success.
+    """
     group_name = "test"
     command_name = "procedure_shard_0"
 
     def execute(self, group_id, synchronous=True):
+        """Method that is remotely executed.
+        """
         lockable = self.get_lockable_objects("group_id")
         assert(lockable == set(['test']))
         procedures = _events.trigger(
@@ -148,15 +199,22 @@ class ClassShard_0(_command.ProcedureShard):
 
 @_events.on_event(NEW_PROCEDURE_SHARD_0)
 def _new_procedure_shard_0(group_id):
+    """Procedure triggered by ClassShard_0.
+    """
     pass
 
 NEW_PROCEDURE_SHARD_1 = _events.Event()
 class ClassShard_1(_command.ProcedureShard):
+    """Emulates a remote command that inherits from ProcedureShard and
+    triggers a procedure with success.
+    """
     group_name = "test"
     command_name = "procedure_shard_1"
 
     def execute(self, table_name, shard_mapping_id, shard_id,
                 synchronous=True):
+        """Method that is remotely executed.
+        """
         procedures = _events.trigger(
             NEW_PROCEDURE_SHARD_1, self.get_lockable_objects(),
             table_name, shard_mapping_id, shard_id
@@ -165,6 +223,8 @@ class ClassShard_1(_command.ProcedureShard):
 
 @_events.on_event(NEW_PROCEDURE_SHARD_1)
 def _new_procedure_shard_1(table_name, shard_mapping_id, shard_id):
+    """Procedure triggered by ClassShard_0.
+    """
     pass
 
 class TestCommand(unittest.TestCase):
@@ -240,7 +300,6 @@ class TestCommand(unittest.TestCase):
         """
         # Configure a local command.
         from __main__ import xmlrpc_next_port
-        from optparse import OptionParser
         params = {
             'protocol.xmlrpc': {
                 'address': 'localhost:%d' % (xmlrpc_next_port, ),

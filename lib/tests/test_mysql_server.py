@@ -22,7 +22,6 @@ import unittest
 import uuid as _uuid
 import tests.utils
 import mysql.fabric.errors as _errors
-import mysql.fabric.persistence as persistence
 import mysql.fabric.server_utils as _server_utils
 
 from mysql.fabric.server import (
@@ -56,6 +55,8 @@ class TestMySQLServer(unittest.TestCase):
         MySQLServer.remove(self.server)
 
     def test_wrong_uuid(self):
+        """Test what happens when a server has a wrong uuid.
+        """
         # Check wrong uuid.
         OPTIONS["uuid"] = _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5")
         server = MySQLServer(**OPTIONS)
@@ -64,6 +65,8 @@ class TestMySQLServer(unittest.TestCase):
         ConnectionPool().purge_connections(OPTIONS["uuid"])
 
     def test_properties(self):
+        """Test setting MySQLServer's properties.
+        """
         server = self.server
 
         # Check property user.
@@ -139,6 +142,8 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.read_only, False)
 
     def test_version(self):
+        """Check MySQLServer's version.
+        """
         server = self.server
         server.connect()
 
@@ -149,6 +154,8 @@ class TestMySQLServer(unittest.TestCase):
         # time a new release is created.
 
     def test_gtid(self):
+        """Check MySQLServer's GTIDs.
+        """
         server = self.server
         server.connect()
 
@@ -160,13 +167,17 @@ class TestMySQLServer(unittest.TestCase):
 
 
     def test_storage(self):
+        """Check MySQLServer's storage.
+        """
         server = self.server
         server.connect()
         self.assertTrue(server.has_storage_engine("Innodb"))
         self.assertTrue(server.has_storage_engine(""))
         self.assertFalse(server.has_storage_engine("Unknown"))
 
-    def test_connection_operations(self):
+    def test_session_properties(self):
+        """Test some session's properties.
+        """
         server = self.server
         server.connect()
 
@@ -181,6 +192,8 @@ class TestMySQLServer(unittest.TestCase):
         self.assertTrue(server.foreign_key_checks_enabled())
 
     def test_binlog(self):
+        """Test binary logging is supported.
+        """
         server = self.server
         server.connect()
 
@@ -190,6 +203,8 @@ class TestMySQLServer(unittest.TestCase):
         # Note this is only being tested with the binary log.
 
     def test_exec_stmt_options(self):
+        """Test statement's execution.
+        """
         server = self.server
         server.connect()
 
@@ -241,6 +256,8 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(int(ret[0].COUNT), 9)
 
     def test_is_alive(self):
+        """Check whether MySQLServer is alive or not.
+        """
         # Check if server is alive.
         server = self.server
         self.assertFalse(server.is_alive())
@@ -248,6 +265,8 @@ class TestMySQLServer(unittest.TestCase):
         self.assertTrue(server.is_alive())
 
     def test_utilities(self):
+        """Check MySQLServer's utilities module.
+        """
         # Test a function that gets host and port and returns
         # host:port
         address = _server_utils.combine_host_port(None, None, 3306)
@@ -285,6 +304,8 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(host_port, ("host", "port"))
 
     def test_server_id(self):
+        """Test MySQLServer's uuid.
+        """
         # Configure
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = _uuid.UUID(uuid)
@@ -302,6 +323,8 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(len(hash_info), 1)
 
     def test_persister_id(self):
+        """Test Persister's uuid.
+        """
         # Get persister'a address.
         from __main__ import options
         address = "%s:%s" % (options.host, options.port)
@@ -309,11 +332,14 @@ class TestMySQLServer(unittest.TestCase):
         passwd = options.password
 
         # Try to manage the MySQLPersister.
-        uuid = MySQLServer.discover_uuid(address=address, user=user, passwd=passwd)
+        uuid = MySQLServer.discover_uuid(address=address, user=user, 
+                                         passwd=passwd)
         server = MySQLServer(_uuid.UUID(uuid), address, None, None)
         self.assertRaises(_errors.ServerError, MySQLServer.add, server)
 
     def test_root_privileges(self):
+        """Test whether user's have the appropriate privileges.
+        """
         # Connect to server as root and create temporary user.
         server = self.server
         server.connect()
@@ -341,6 +367,8 @@ class TestMySQLServer(unittest.TestCase):
         server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
 
 class TestConnectionPool(unittest.TestCase):
+    """Unit test for testing Connection Pool.
+    """
     def setUp(self):
         """Configure the existing environment
         """
@@ -352,6 +380,8 @@ class TestConnectionPool(unittest.TestCase):
         tests.utils.cleanup_environment()
 
     def test_connection_pool(self):
+        """Test connection pool.
+        """
         # Configuration
         uuid = MySQLServer.discover_uuid(**OPTIONS)
         OPTIONS["uuid"] = uuid = _uuid.UUID(uuid)
@@ -388,6 +418,8 @@ class TestConnectionPool(unittest.TestCase):
 
 
 class TestGroup(unittest.TestCase):
+    """Unit test for testing Group.
+    """
     def setUp(self):
         """Configure the existing environment
         """
@@ -399,6 +431,8 @@ class TestGroup(unittest.TestCase):
         tests.utils.cleanup_environment()
 
     def test_properties(self):
+        """Test group's properties.
+        """
         group_1 = Group("mysql.com")
         Group.add(group_1)
         fetched_group_1 = Group.fetch(group_1.group_id)
@@ -438,6 +472,8 @@ class TestGroup(unittest.TestCase):
         self.assertEqual(len(set_of_groups), 2)
 
     def test_managment(self):
+        """Test adding server to a group.
+        """
         options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_1.mysql.com:3060",

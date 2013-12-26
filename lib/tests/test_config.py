@@ -26,6 +26,8 @@ import mysql.fabric.config as _config
 from mysql.fabric.options import OptionParser
 
 def _resolve_config(config_file):
+    """Return an absolute reference to a configuration file.
+    """
     return os.path.abspath(
         os.path.join(os.path.dirname(__file__), config_file))
 
@@ -95,7 +97,8 @@ class TestConfig(unittest.TestCase):
             ('file:///foo.log', '/foo.log'),
         ]
         for url, expect in urls:
-            handler = _create_file_handler(config, urlparse.urlparse(url), delay=1)
+            handler = \
+                _create_file_handler(config, urlparse.urlparse(url), delay=1)
             self.assertEqual(handler.baseFilename, expect)
 
         for url in ['file://mats@example.com/some/foo.log']:

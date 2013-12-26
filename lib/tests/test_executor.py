@@ -27,31 +27,43 @@ from mysql.fabric import (
     errors as _errors,
 )
 
-count = []
-other = None
+COUNT = []
+OTHER = None
 
 _LOGGER = logging.getLogger(__name__)
 
 def test1():
-    global count
+    """Function to be called by a trigger.
+    """
+    global COUNT
     for cnt in range(10, 1, -1):
-        count.append(cnt)
+        COUNT.append(cnt)
 
 def test2():
-    global other
-    other = 47
+    """Function to be called by a trigger.
+    """
+    global OTHER
+    OTHER = 47
 
 class Action(object):
+    """Callable class to be called by a trigger.
+    """
     def __init__(self, expect):
+        """Constructor for Action object.
+        """
         self.expect = expect
         self.descr = "{0}({1})".format(self.__class__.__name__, expect)
         self.__name__ = self.descr
         self.result = None
 
     def __call__(self, param):
+        """Callable method.
+        """
         self.result = param
 
     def verify(self, test_case):
+        """Function used to verify whether the callable was executed.
+        """
         test_case.assertEqual(self.result, self.expect)
 
 class TestExecutor(unittest.TestCase):
@@ -69,9 +81,13 @@ class TestExecutor(unittest.TestCase):
         tests.utils.cleanup_environment()
 
     def test_start_executor(self):
+        """Test the executor's start.
+        """
         self.assertRaises(_errors.ExecutorError, self.executor.start)
 
     def test_basic(self):
+        """Test the executor's and utilities' basic properties.
+        """
         # Scheduling actions to be executed.
         proc_1 = self.executor.enqueue_procedure(
             False, test1, "Enqueuing action test1()", set(["lock"])
@@ -103,14 +119,18 @@ class TestExecutor(unittest.TestCase):
         self.executor.shutdown()
 
         for cnt in range(10, 1, -1):
-            self.assertTrue(cnt in count)
-        self.assertEqual(other, 47)
+            self.assertTrue(cnt in COUNT)
+        self.assertEqual(OTHER, 47)
 
         # Start the executor and wait until its main thread returns.
         self.executor.start()
 
     def test_job_hashable(self):
+        """Test job's hasable property.
+        """
         def action():
+            """Inner function.
+            """
             pass
         proc_1 = _executor.Procedure()
         job_1 = _executor.Job(proc_1, action, "Test action.", (), {})

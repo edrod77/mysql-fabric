@@ -307,20 +307,20 @@ class TestShardingServices(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        status = self.proxy.sharding.disable_shard(1)
-        status = self.proxy.sharding.remove_shard(1)
+        self.proxy.sharding.disable_shard(1)
+        self.proxy.sharding.remove_shard(1)
 
-        status = self.proxy.sharding.disable_shard(2)
-        status = self.proxy.sharding.remove_shard(2)
+        self.proxy.sharding.disable_shard(2)
+        self.proxy.sharding.remove_shard(2)
 
-        status = self.proxy.sharding.disable_shard(3)
-        status = self.proxy.sharding.remove_shard(3)
+        self.proxy.sharding.disable_shard(3)
+        self.proxy.sharding.remove_shard(3)
 
-        status = self.proxy.sharding.disable_shard(4)
-        status = self.proxy.sharding.remove_shard(4)
+        self.proxy.sharding.disable_shard(4)
+        self.proxy.sharding.remove_shard(4)
 
-        status = self.proxy.sharding.disable_shard(5)
-        status = self.proxy.sharding.remove_shard(5)
+        self.proxy.sharding.disable_shard(5)
+        self.proxy.sharding.remove_shard(5)
 
         tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
@@ -329,10 +329,9 @@ class TestShardingServices(unittest.TestCase):
         '''Verify that after the prune the lookup of any pruned value in the
         shard results in looking up the same shard.
         '''
-        status = self.proxy.sharding.prune_shard("db1.t1")
-        rows =  self.__server_2.exec_stmt(
-                                            "SELECT userID1 FROM db1.t1",
-                                            {"fetch" : True})
+        self.proxy.sharding.prune_shard("db1.t1")
+        rows =  self.__server_2.exec_stmt("SELECT userID1 FROM db1.t1",
+                                          {"fetch" : True})
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1)
             self.assertEqual(
@@ -384,10 +383,9 @@ class TestShardingServices(unittest.TestCase):
         '''Verify that after the prune the lookup of any pruned value in the
         shard results in looking up the same shard.
         '''
-        status = self.proxy.sharding.prune_shard("db2.t2")
-        rows =  self.__server_2.exec_stmt(
-                                            "SELECT userID2 FROM db2.t2",
-                                            {"fetch" : True})
+        self.proxy.sharding.prune_shard("db2.t2")
+        rows =  self.__server_2.exec_stmt("SELECT userID2 FROM db2.t2",
+                                          {"fetch" : True})
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1)
             self.assertEqual(
@@ -439,10 +437,9 @@ class TestShardingServices(unittest.TestCase):
         '''Verify that after the prune the lookup of any pruned value in the
         shard results in looking up the same shard.
         '''
-        status = self.proxy.sharding.prune_shard("db3.t3")
-        rows =  self.__server_2.exec_stmt(
-                                            "SELECT userID3 FROM db3.t3",
-                                            {"fetch" : True})
+        self.proxy.sharding.prune_shard("db3.t3")
+        rows =  self.__server_2.exec_stmt("SELECT userID3 FROM db3.t3",
+                                          {"fetch" : True})
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1)
             self.assertEqual(
@@ -499,11 +496,12 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         obtained_shard_mapping_list = status[2]
-        self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
+        self.assertEqual(set(expected_shard_mapping_list1),
+                         set(obtained_shard_mapping_list[0]))
 
     def test_lookup_shard_mapping(self):
         status = self.proxy.sharding.lookup_mapping("db1.t1")
-        self.assertEqual(status[0],True)
+        self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(status[2], {"shard_mapping_id":1,
                                      "table_name":"db1.t1",
@@ -512,7 +510,7 @@ class TestShardingServices(unittest.TestCase):
                                      "global_group":"GROUPID1"})
 
         status = self.proxy.sharding.lookup_mapping("db2.t2")
-        self.assertEqual(status[0],True)
+        self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(status[2], {"shard_mapping_id":1,
                                      "table_name":"db2.t2",

@@ -45,6 +45,8 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
     def test_import_topology(self):
+        """Test importing topology by calling group.import_topology.
+        """
         # Create topology M1 --> S2
         user = "root"
         passwd = ""
@@ -276,7 +278,8 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_find_candidate_fail).")
 
-        # Try to use a group with an invalid candidate (simulating that a server went down).
+        # Try to use a group with an invalid candidate (simulating that a
+        # server went down).
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
             "unknown_host:8080", user, passwd
@@ -355,6 +358,8 @@ class TestReplicationServices(unittest.TestCase):
 
 
     def test_demote_master(self):
+        """Test demoting a master by calling group.demote.
+        """
         # Create topology: M1 ---> S2, M1 ---> S3
         user = "root"
         passwd = ""

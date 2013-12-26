@@ -27,20 +27,26 @@ from mysql.fabric import (
 )
 
 class TestServerServices(unittest.TestCase):
-    "Test server service interface"
-
+    """Test server service interface.
+    """
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
     def setUp(self):
+        """Configure the existing environment
+        """
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
     def tearDown(self):
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_create_group_events(self):
+        """Test creating a group by calling group.create().
+        """
         # Look up groups.
         status = self.proxy.group.lookup_groups()
         self.assertEqual(status[0], True)
@@ -97,6 +103,8 @@ class TestServerServices(unittest.TestCase):
            )
 
     def test_add_server_events(self):
+        """Test adding a server by calling group.add().
+        """
         # Insert a new server.
         address = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.create("group_1", "Testing group...")
@@ -191,6 +199,8 @@ class TestServerServices(unittest.TestCase):
         server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
 
     def test_destroy_group_events(self):
+        """Test destroying a group by calling group.destroy().
+        """
         # Prepare group and servers
         address = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.create("group", "Testing group...")
@@ -226,6 +236,8 @@ class TestServerServices(unittest.TestCase):
                          "Executed action (_destroy_group).")
 
     def test_remove_server_events(self):
+        """Test removing a server by calling group.remove().
+        """
         # Prepare group and servers
         address = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.create("group", "Testing group...")
@@ -283,6 +295,8 @@ class TestServerServices(unittest.TestCase):
                          "Executed action (_remove_server).")
 
     def test_group_status(self):
+        """Test group's status by calling group.activate()/group.deactive().
+        """
         # Prepare group and servers
         address = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.create("group", "Testing group...")
@@ -328,6 +342,8 @@ class TestServerServices(unittest.TestCase):
                          "Tried to execute action (_deactivate_group).")
 
     def test_server_status(self):
+        """Test server's status by calling server.status().
+        """
         # Prepare group and servers
         self.proxy.group.create("group", "Testing group...")
         address_1 = tests.utils.MySQLInstances().get_address(0)
@@ -479,6 +495,8 @@ class TestServerServices(unittest.TestCase):
                          "Tried to execute action (_set_server_status).")
 
     def test_server_weight(self):
+        """Test server's weight by calling server.weight().
+        """
         # Prepare group and servers
         self.proxy.group.create("group", "Testing group...")
         address_1 = tests.utils.MySQLInstances().get_address(0)
@@ -544,6 +562,8 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.weight, 0.1)
 
     def test_server_mode(self):
+        """Test server's mode by calling server.mode().
+        """
         # Prepare group and servers
         self.proxy.group.create("group", "Testing group...")
         address_1 = tests.utils.MySQLInstances().get_address(0)
@@ -689,41 +709,8 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
 
     def test_add_slave(self):
-        # Prepare group and servers
-        self.proxy.group.create("group", "Testing group...")
-        address_0 = tests.utils.MySQLInstances().get_address(0)
-        address_1 = tests.utils.MySQLInstances().get_address(1)
-        address_2 = tests.utils.MySQLInstances().get_address(2)
-        status_uuid = self.proxy.server.lookup_uuid(address_0, "root", "")
-        uuid_0 = status_uuid[-1]
-        status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        uuid_1 = status_uuid[-1]
-        status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
-        uuid_2 = status_uuid[-1]
-        status = self.proxy.group.add("group", address_0, "root", "")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
-        status = self.proxy.group.promote("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
-
-        # Add a servers and check that they are made slaves.
-        self.proxy.group.add("group", address_1, "root", "")
-        self.proxy.group.add("group", address_2, "root", "")
-        status =  self.proxy.group.lookup_servers("group")
-        retrieved = set(item for sublist in status[-1] for item in sublist)
-        expected = [
-            [uuid_0, address_0, True, _server.MySQLServer.PRIMARY],
-            [uuid_1, address_1, False, _server.MySQLServer.SECONDARY],
-            [uuid_2, address_2, False, _server.MySQLServer.SECONDARY]
-        ]
-        expected = set(item for sublist in expected for item in sublist)
-        self.assertEqual(retrieved, expected)
-    def test_add_slave(self):
+        """Test whether some servers are made slaves or not.
+        """
         # Prepare group and servers
         self.proxy.group.create("group", "Testing group...")
         address_0 = tests.utils.MySQLInstances().get_address(0)
@@ -760,23 +747,18 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(retrieved, expected)
 
     def test_lookup_servers(self):
+        """Test searching for servers by calling group.lookup_servers().
+        """
         # Prepare group and servers
         self.proxy.group.create("group", "Testing group...")
         address_0 = tests.utils.MySQLInstances().get_address(0)
         address_1 = tests.utils.MySQLInstances().get_address(1)
         address_2 = tests.utils.MySQLInstances().get_address(2)
         self.proxy.group.add("group", address_0, "root", "")
-        status_uuid = self.proxy.server.lookup_uuid(address_0, "root", "")
-        uuid_0 = status_uuid[2]
-        server_0 = _server.MySQLServer.fetch(uuid_0)
         self.proxy.group.add("group", address_1, "root", "")
-        status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
-        uuid_1 = status_uuid[2]
-        server_1 = _server.MySQLServer.fetch(uuid_1)
         self.proxy.group.add("group", address_2, "root", "")
-        status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
-        uuid_2 = status_uuid[2]
-        server_2 = _server.MySQLServer.fetch(uuid_2)
+        status_uuid = self.proxy.server.lookup_uuid(address_1, "root", "")
+        server_1 = _server.MySQLServer.fetch(status_uuid[2])
 
         # Fetch all servers in a group.
         server =  self.proxy.group.lookup_servers("group")
@@ -824,9 +806,14 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server[2],  True)
 
     def test_lookup_fabrics(self):
+        """Test searching for fabric instances by calling
+        store.lookup_fabrics().
+        """
         from __main__ import xmlrpc_next_port
         status = self.proxy.store.lookup_fabrics()
-        self.assertEqual(status, [0, 0, 0, ["localhost:%d" % (xmlrpc_next_port, )]])
+        self.assertEqual(
+            status, [0, 0, 0, ["localhost:%d" % (xmlrpc_next_port, )]]
+        )
 
 if __name__ == "__main__":
     unittest.main()

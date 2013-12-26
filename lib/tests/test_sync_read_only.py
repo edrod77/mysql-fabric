@@ -47,12 +47,16 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID1", MySQLInstances().get_address(0), "root","")
+        status = self.proxy.group.add(
+            "GROUPID1", MySQLInstances().get_address(0), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status = self.proxy.group.add("GROUPID1", MySQLInstances().get_address(1), "root","")
+        status = self.proxy.group.add(
+            "GROUPID1", MySQLInstances().get_address(1), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -63,12 +67,16 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID2", MySQLInstances().get_address(2), "root","")
+        status = self.proxy.group.add(
+            "GROUPID2", MySQLInstances().get_address(2), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status =  self.proxy.group.add("GROUPID2", MySQLInstances().get_address(3), "root","")
+        status =  self.proxy.group.add(
+            "GROUPID2", MySQLInstances().get_address(3), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -79,12 +87,16 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID3", MySQLInstances().get_address(4), "root","")
+        status = self.proxy.group.add(
+            "GROUPID3", MySQLInstances().get_address(4), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status = self.proxy.group.add("GROUPID3", MySQLInstances().get_address(5), "root","")
+        status = self.proxy.group.add(
+            "GROUPID3", MySQLInstances().get_address(5), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -178,10 +190,12 @@ class TestShardingPrune(unittest.TestCase):
         for idx in range(0, 2):
             if obtained_server_list[idx][2]:
                 slave_uuid = obtained_server_list[idx][0]
-                self.slave_server = MySQLServer.fetch(slave_uuid)
-                self.slave_server.connect()
+                slave_server = MySQLServer.fetch(slave_uuid)
+                slave_server.connect()
         _group_replication.setup_group_replication("GROUPID2", "GROUPID3")
-        _replication.synchronize_with_read_only(self.slave_server, self.shard_server, 3, 5)
+        _replication.synchronize_with_read_only(
+            slave_server, self.shard_server, 3, 5
+        )
         _group_replication.stop_group_slave("GROUPID2", "GROUPID3", True)
         try:
             rows = self.shard_server.exec_stmt(
@@ -242,12 +256,14 @@ class TestShardingPrune(unittest.TestCase):
             self.assertEqual(status[0], True)
             self.assertEqual(status[1], "")
             obtained_server_list = status[2]
-            status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
+            status = \
+                self.proxy.group.remove(group_id, obtained_server_list[0][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],
                              "Executed action (_remove_server).")
-            status = self.proxy.group.remove(group_id, obtained_server_list[1][0])
+            status = \
+                self.proxy.group.remove(group_id, obtained_server_list[1][0])
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],

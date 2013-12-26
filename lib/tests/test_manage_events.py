@@ -23,7 +23,7 @@ import mysql.fabric.services.manage as _manage
 from cStringIO import StringIO
 from mysql.fabric import command as _command
 
-some_commands = (
+SOME_COMMANDS = (
     "test non_doc_command_1\n"
     "test non_dot_command_1 New local command whose doc does not "
         "contain a period mark\n"
@@ -39,7 +39,7 @@ some_commands = (
         "requires argument(s).\n"
     )
 
-result_help = (
+RESULT_HELP = (
     "test non_doc_command_1(): \n"
     "test non_dot_command_1(): New local command whose doc does not "
         "contain a\nperiod mark\n\n"
@@ -60,6 +60,7 @@ result_help = (
     "Command (manage, unknown) was not found.\n"
     )
 
+# pylint: disable=C0111
 class NonDocCommand(_command.Command):
     group_name = "test"
     command_name = "non_doc_command_1"
@@ -86,6 +87,7 @@ class NewLocalCommandWithoutArgs(_command.Command):
     group_name = "test"
     command_name = "command_1"
 
+    # pylint: disable=C0111
     def dispatch(self):
         pass
 
@@ -97,6 +99,7 @@ class NewLocalCommandWithArgs(_command.Command):
     group_name = "test"
     command_name = "command_2"
 
+    # pylint: disable=C0111
     def dispatch(self, arg_1, arg_2):
         pass
 
@@ -108,6 +111,7 @@ class NewRemoteCommandWithoutArgs(_command.Command):
     group_name = "test"
     command_name = "remote_command_1"
 
+    # pylint: disable=C0111
     def execute(self):
         pass
 
@@ -119,6 +123,7 @@ class NewRemoteCommandWithArgs(_command.Command):
     group_name = "test"
     command_name = "remote_command_1"
 
+    # pylint: disable=C0111
     def execute(self, arg_1, arg_2):
         pass
 
@@ -173,7 +178,7 @@ class TestManageServices(unittest.TestCase):
         """
         _manage.List().dispatch()
         commands = sys.stderr.getvalue().replace(" ", "")
-        for command in some_commands.replace(" ", "").split("\n"):
+        for command in SOME_COMMANDS.replace(" ", "").split("\n"):
             self.assertTrue(command in commands)
 
     def test_help(self):
@@ -187,7 +192,7 @@ class TestManageServices(unittest.TestCase):
         _manage.Help().dispatch("test", "remote_command_1")
         _manage.Help().dispatch("test", "remote_command_2")
         _manage.Help().dispatch("manage", "unknown")
-        self.assertEqual(sys.stderr.getvalue(), result_help)
+        self.assertEqual(sys.stderr.getvalue(), RESULT_HELP)
 
 if __name__ == "__main__":
     unittest.main()
