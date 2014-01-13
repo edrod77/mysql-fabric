@@ -40,7 +40,7 @@ class TestConfig(unittest.TestCase):
 
         # Read from main-1.cfg file
         self.assertEqual(config.get('protocol.xmlrpc', 'address'),
-                         'my.example.com:8080')
+                         'my.example.com:32274')
 
     def test_override(self):
         "Check that configuration parameters can be overridden"

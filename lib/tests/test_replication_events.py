@@ -282,7 +282,7 @@ class TestReplicationServices(unittest.TestCase):
         # server went down).
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:8080", user, passwd
+            "unknown_host:32274", user, passwd
             )
         _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
@@ -304,7 +304,7 @@ class TestReplicationServices(unittest.TestCase):
         tests.utils.configure_decoupled_master(group, master)
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:8080", user, passwd
+            "unknown_host:32274", user, passwd
             )
         _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")

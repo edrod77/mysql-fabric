@@ -8,7 +8,7 @@ connection_attempts = 6
 connection_delay = 1
 
 [protocol.xmlrpc]
-address = localhost:8080
+address = localhost:32274
 threads = 5
 
 [executor]
