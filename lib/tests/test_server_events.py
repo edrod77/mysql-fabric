@@ -357,7 +357,7 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.add("group", address_2, "root", "")
         status_uuid = self.proxy.server.lookup_uuid(address_2, "root", "")
         self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "") 
+        self.assertEqual(status_uuid[1], "")
 
         # Try to set the status when the server's id is invalid.
         status = self.proxy.server.set_status("INVALID", "SPARE")
@@ -407,6 +407,27 @@ class TestServerServices(unittest.TestCase):
         # Set a spare server when the server is secondary.
         server.status = _server.MySQLServer.SECONDARY
         status = self.proxy.server.set_status(uuid_1, "SPARE")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_set_server_status).")
+        server = _server.MySQLServer.fetch(uuid_1)
+        self.assertEqual(server.status, _server.MySQLServer.SPARE)
+
+        # Try to set a status that does not exist.
+        # Note though that this uses idx.
+        status = self.proxy.server.set_status(uuid_1, 20)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_status).")
+
+        # Set a spare server when the server is secondary.
+        # Note though that this uses idx.
+        server = _server.MySQLServer.fetch(uuid_1)
+        server.status = _server.MySQLServer.FAULTY
+        status = self.proxy.server.set_status(uuid_1,
+            _server.MySQLServer.get_status_idx("SPARE"))
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

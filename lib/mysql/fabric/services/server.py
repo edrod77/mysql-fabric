@@ -597,9 +597,28 @@ def _remove_server(group_id, uuid):
 def _set_server_status(uuid, status):
     """Set a server's status.
     """
+    valid = False
+    try:
+        idx = int(status)
+        try:
+            status = _server.MySQLServer.get_status(idx)
+            valid = True
+        except IndexError:
+            pass
+    except ValueError:
+        try:
+            idx = _server.MySQLServer.get_status_idx(status)
+            valid = True
+        except ValueError:
+            pass
+
+    if not valid:
+        raise _errors.ServerError("Trying to set an invalid status (%s) "
+            "for server (%s)." % (status, uuid)
+            )
+
     server = _retrieve_server(uuid)
 
-    status = str(status).upper()
     if status == _server.MySQLServer.PRIMARY:
         _set_server_status_primary(server)
     elif status == _server.MySQLServer.SECONDARY:
@@ -608,10 +627,6 @@ def _set_server_status(uuid, status):
         _set_server_status_spare(server)
     elif status == _server.MySQLServer.FAULTY:
         _set_server_status_faulty(server)
-    else:
-        raise _errors.ServerError("Trying to set an invalid status (%s) "
-            "for server (%s)." % (status, uuid)
-            )
 
 def _set_server_status_primary(server):
     """Set server's status to primary.
