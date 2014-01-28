@@ -360,14 +360,14 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status_uuid[1], "")
 
         # Try to set the status when the server's id is invalid.
-        status = self.proxy.server.set_status("INVALID", "SPARE")
+        status = self.proxy.server.set_status("INVALID", "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_status).")
 
         # Try to set the status when the server does not exist.
-        status = self.proxy.server.set_status(error_uuid, "SPARE")
+        status = self.proxy.server.set_status(error_uuid, "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -376,7 +376,7 @@ class TestServerServices(unittest.TestCase):
         # Try to set the status when the server does not belong to a group.
         server = _server.MySQLServer.fetch(uuid_1)
         server.group_id = None
-        status = self.proxy.server.set_status(uuid_1, "SPARE")
+        status = self.proxy.server.set_status(uuid_1, "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -386,7 +386,7 @@ class TestServerServices(unittest.TestCase):
         # Try to set a spare server when the server is a master.
         group = _server.Group.fetch("group")
         tests.utils.configure_decoupled_master(group, _uuid.UUID(uuid_1))
-        status = self.proxy.server.set_status(uuid_1, "SPARE")
+        status = self.proxy.server.set_status(uuid_1, "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -396,7 +396,7 @@ class TestServerServices(unittest.TestCase):
         # Set a spare server when the server is faulty.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.FAULTY
-        status = self.proxy.server.set_status(uuid_1, "SPARE")
+        status = self.proxy.server.set_status(uuid_1, "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -406,7 +406,7 @@ class TestServerServices(unittest.TestCase):
 
         # Set a spare server when the server is secondary.
         server.status = _server.MySQLServer.SECONDARY
-        status = self.proxy.server.set_status(uuid_1, "SPARE")
+        status = self.proxy.server.set_status(uuid_1, "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -436,7 +436,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
 
         # Try to set a secondary server that does not exist.
-        status = self.proxy.server.set_status(error_uuid, "SECONDARY")
+        status = self.proxy.server.set_status(error_uuid, "secondary")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -445,7 +445,7 @@ class TestServerServices(unittest.TestCase):
         # Try to set a secondary server when the server is a master.
         group = _server.Group.fetch("group")
         tests.utils.configure_decoupled_master(group, _uuid.UUID(uuid_1))
-        status = self.proxy.server.set_status(uuid_1, "SECONDARY")
+        status = self.proxy.server.set_status(uuid_1, "secondary")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -455,7 +455,7 @@ class TestServerServices(unittest.TestCase):
         # Try to set a secondary server when the server is faulty.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.FAULTY
-        status = self.proxy.server.set_status(uuid_1, "SECONDARY")
+        status = self.proxy.server.set_status(uuid_1, "secondary")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -465,14 +465,14 @@ class TestServerServices(unittest.TestCase):
         server.status = _server.MySQLServer.SECONDARY
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
-        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        status = self.proxy.server.set_status(uuid_1, "faulty")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.FAULTY)
 
         # Set a faulty server twice (slave).
-        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        status = self.proxy.server.set_status(uuid_1, "faulty")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -483,7 +483,7 @@ class TestServerServices(unittest.TestCase):
         server.status = _server.MySQLServer.SECONDARY
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
-        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        status = self.proxy.server.set_status(uuid_1, "faulty")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         server = _server.MySQLServer.fetch(uuid_1)
@@ -494,7 +494,7 @@ class TestServerServices(unittest.TestCase):
         group = _server.Group.fetch("group")
         self.proxy.group.promote(group.group_id, str(server.uuid))
         group = _server.Group.fetch("group")
-        status = self.proxy.server.set_status(uuid_1, "FAULTY")
+        status = self.proxy.server.set_status(uuid_1, "faulty")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         group = _server.Group.fetch("group")
@@ -502,7 +502,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.status, _server.MySQLServer.FAULTY)
 
         # Try to set a primary server.
-        status = self.proxy.server.set_status(uuid_1, "PRIMARY")
+        status = self.proxy.server.set_status(uuid_1, "primary")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -596,14 +596,14 @@ class TestServerServices(unittest.TestCase):
         error_uuid = status_uuid[1]
 
         # Try to set the mode when the server's id is invalid.
-        status = self.proxy.server.set_mode("INVALID", "READ_WRITE")
+        status = self.proxy.server.set_mode("INVALID", "read_write")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_mode).")
 
         # Try to set the mode when the server does not exist.
-        status = self.proxy.server.set_mode(error_uuid, "READ_WRITE")
+        status = self.proxy.server.set_mode(error_uuid, "read_write")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -612,7 +612,7 @@ class TestServerServices(unittest.TestCase):
         # Try to set the mode when the server does not belong to a group.
         server = _server.MySQLServer.fetch(uuid_1)
         server.group_id = None
-        status = self.proxy.server.set_mode(uuid_1, "READ_WRITE")
+        status = self.proxy.server.set_mode(uuid_1, "read_write")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -622,14 +622,14 @@ class TestServerServices(unittest.TestCase):
         # Try to set the READ_WRITE mode when the server is a secondary.
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
-        status = self.proxy.server.set_mode(uuid_1, "READ_WRITE")
+        status = self.proxy.server.set_mode(uuid_1, "read_write")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_mode).")
 
         # Try to set the WRITE_ONLY mode when the server is a secondary.
-        status = self.proxy.server.set_mode(uuid_1, "WRITE_ONLY")
+        status = self.proxy.server.set_mode(uuid_1, "write_only")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -638,7 +638,7 @@ class TestServerServices(unittest.TestCase):
         # Set the OFFLINE mode when the server is a secondary.
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_ONLY)
-        status = self.proxy.server.set_mode(uuid_1, "OFFLINE")
+        status = self.proxy.server.set_mode(uuid_1, "offline")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -647,7 +647,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.mode, _server.MySQLServer.OFFLINE)
 
         # Set the READ_ONLY mode when the server is a secondary.
-        status = self.proxy.server.set_mode(uuid_1, "READ_ONLY")
+        status = self.proxy.server.set_mode(uuid_1, "read_only")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -659,14 +659,14 @@ class TestServerServices(unittest.TestCase):
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.SPARE
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
-        status = self.proxy.server.set_mode(uuid_1, "READ_WRITE")
+        status = self.proxy.server.set_mode(uuid_1, "read_write")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_mode).")
 
         # Try to set the WRITE_ONLY mode when the server is a spare.
-        status = self.proxy.server.set_mode(uuid_1, "WRITE_ONLY")
+        status = self.proxy.server.set_mode(uuid_1, "write_only")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -675,7 +675,7 @@ class TestServerServices(unittest.TestCase):
         # Set the OFFLINE mode when the server is a spare.
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_ONLY)
-        status = self.proxy.server.set_mode(uuid_1, "OFFLINE")
+        status = self.proxy.server.set_mode(uuid_1, "offline")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -684,7 +684,7 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.mode, _server.MySQLServer.OFFLINE)
 
         # Set the READ_ONLY mode when the server is a spare.
-        status = self.proxy.server.set_mode(uuid_1, "READ_ONLY")
+        status = self.proxy.server.set_mode(uuid_1, "read_only")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -698,21 +698,21 @@ class TestServerServices(unittest.TestCase):
         tests.utils.configure_decoupled_master(group, server)
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
         self.assertEqual(server.status, _server.MySQLServer.PRIMARY)
-        status = self.proxy.server.set_mode(uuid_1, "OFFLINE")
+        status = self.proxy.server.set_mode(uuid_1, "offline")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_mode).")
 
         # Try to set the READ_ONLY mode when the server is a primary.
-        status = self.proxy.server.set_mode(uuid_1, "READ_ONLY")
+        status = self.proxy.server.set_mode(uuid_1, "read_only")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_mode).")
 
         # Set the WRITE_ONLY mode when the server is a primary.
-        status = self.proxy.server.set_mode(uuid_1, "WRITE_ONLY")
+        status = self.proxy.server.set_mode(uuid_1, "write_only")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -721,13 +721,33 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.mode, _server.MySQLServer.WRITE_ONLY)
 
         # Set the READ_WRITE mode when the server is a primary.
-        status = self.proxy.server.set_mode(uuid_1, "READ_WRITE")
+        status = self.proxy.server.set_mode(uuid_1, "read_write")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_set_server_mode).")
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
+
+        # Trye to set an invalid mode using idx.
+        status = self.proxy.server.set_mode(uuid_1, 20)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_mode).")
+        server = _server.MySQLServer.fetch(uuid_1)
+        self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
+
+        # Set the WRITE_ONLY mode when the server is a primary.
+        # Note this uses idx
+        status = self.proxy.server.set_mode(uuid_1,
+            _server.MySQLServer.get_mode_idx("WRITE_ONLY"))
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_set_server_mode).")
+        server = _server.MySQLServer.fetch(uuid_1)
+        self.assertEqual(server.mode, _server.MySQLServer.WRITE_ONLY)
 
     def test_add_slave(self):
         """Test whether some servers are made slaves or not.

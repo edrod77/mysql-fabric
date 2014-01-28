@@ -484,24 +484,14 @@ def _lookup_servers(group_id, uuid=None, status=None, mode=None):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
-    status = str(status).upper() if status is not None else None
-    if status is not None and status not in _server.MySQLServer.SERVER_STATUS:
-        raise _errors.ServerError(
-            "Unknown server status (%s). Possible statuses are (%s)." %
-            (status,  _server.MySQLServer.SERVER_STATUS)
-            )
-    elif status is None:
+    status = _retrieve_server_status(status) if status is not None else None
+    if status is None:
         status = _server.MySQLServer.SERVER_STATUS
     else:
         status = [status]
 
-    mode = str(mode).upper() if mode is not None else None
-    if mode is not None and mode not in _server.MySQLServer.SERVER_MODE:
-        raise _errors.ServerError(
-            "Unknown server mode (%s). Possible modes are (%s)." %
-            (mode,  _server.MySQLServer.SERVER_MODE)
-            )
-    elif mode is None:
+    mode = _retrieve_server_mode(mode) if mode is not None else None
+    if mode is None:
         mode = _server.MySQLServer.SERVER_MODE
     else:
         mode = [mode]
@@ -597,26 +587,7 @@ def _remove_server(group_id, uuid):
 def _set_server_status(uuid, status):
     """Set a server's status.
     """
-    valid = False
-    try:
-        idx = int(status)
-        try:
-            status = _server.MySQLServer.get_status(idx)
-            valid = True
-        except IndexError:
-            pass
-    except ValueError:
-        try:
-            idx = _server.MySQLServer.get_status_idx(status)
-            valid = True
-        except ValueError:
-            pass
-
-    if not valid:
-        raise _errors.ServerError("Trying to set an invalid status (%s) "
-            "for server (%s)." % (status, uuid)
-            )
-
+    status = _retrieve_server_status(status)
     server = _retrieve_server(uuid)
 
     if status == _server.MySQLServer.PRIMARY:
@@ -627,6 +598,34 @@ def _set_server_status(uuid, status):
         _set_server_status_spare(server)
     elif status == _server.MySQLServer.FAULTY:
         _set_server_status_faulty(server)
+
+def _retrieve_server_status(status):
+    """Check whether the server's status is valid or not and
+    if an integer was provided retrieve the correspondent
+    string.
+    """
+    valid = False
+    try:
+        idx = int(status)
+        try:
+            status = _server.MySQLServer.get_status(idx)
+            valid = True
+        except IndexError:
+            pass
+    except ValueError:
+        try:
+            status = str(status).upper()
+            _server.MySQLServer.get_status_idx(status)
+            valid = True
+        except ValueError:
+            pass
+
+    if not valid:
+        raise _errors.ServerError("Trying to set an invalid status (%s) "
+            "for server (%s)." % (status, uuid)
+            )
+
+    return status
 
 def _set_server_status_primary(server):
     """Set server's status to primary.
@@ -723,9 +722,9 @@ def _set_server_weight(uuid, weight):
 def _set_server_mode(uuid, mode):
     """Set server's mode.
     """
+    mode = _retrieve_server_mode(mode)
     server = _retrieve_server(uuid)
 
-    mode = str(mode).upper()
     if server.status == _server.MySQLServer.PRIMARY:
         _set_server_mode_primary(server, mode)
     elif server.status == _server.MySQLServer.SECONDARY:
@@ -738,6 +737,34 @@ def _set_server_mode(uuid, mode):
         raise _errors.ServerError("Trying to set an invalid mode (%s) "
             "for server (%s)." % (mode, uuid)
             )
+
+def _retrieve_server_mode(mode):
+    """Check whether the server's mode is valid or not and
+    if an integer was provided retrieve the correspondent
+    string.
+    """
+    valid = False
+    try:
+        idx = int(mode)
+        try:
+            mode = _server.MySQLServer.get_mode(idx)
+            valid = True
+        except IndexError:
+            pass
+    except ValueError:
+        try:
+            mode = str(mode).upper()
+            _server.MySQLServer.get_mode_idx(mode)
+            valid = True
+        except ValueError:
+            pass
+
+    if not valid:
+        raise _errors.ServerError("Trying to set an invalid mode (%s) "
+            "for server (%s)." % (mode, uuid)
+            )
+
+    return mode
 
 def _set_server_mode_primary(server, mode):
     """Set server's mode when it is a primary.
