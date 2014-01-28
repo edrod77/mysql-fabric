@@ -855,7 +855,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             '97427AA63E300F56536710F5D73A35FA',
             '4', 'HASH', 'GROUPID5', 'GROUPID1']]]
         self.assertEqual(
-            self.proxy.store.dump_sharding_information(0, "db1.t1"),
+            self.proxy.dump.sharding_information(0, "db1.t1"),
             shardinginformation_1
         )
 

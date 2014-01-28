@@ -470,8 +470,8 @@ def _shutdown():
 class FabricLookups(Command):
     """Return a list of Fabric servers.
     """
-    group_name = "store"
-    command_name = "lookup_fabrics"
+    group_name = "dump"
+    command_name = "fabric_nodes"
 
     def execute(self):
         """Return a list with all the available Fabric Servers.

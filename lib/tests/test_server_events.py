@@ -846,12 +846,12 @@ class TestServerServices(unittest.TestCase):
         self.assertNotEqual(server[1], "")
         self.assertEqual(server[2],  True)
 
-    def test_lookup_fabrics(self):
+    def test_dump_fabric(self):
         """Test searching for fabric instances by calling
-        store.lookup_fabrics().
+        dump.fabric_nodes().
         """
         from __main__ import xmlrpc_next_port
-        status = self.proxy.store.lookup_fabrics()
+        status = self.proxy.dump.fabric_nodes()
         self.assertEqual(
             status, [0, 0, 0, ["localhost:%d" % (xmlrpc_next_port, )]]
         )

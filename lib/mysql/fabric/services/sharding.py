@@ -390,8 +390,8 @@ class DumpShardTables(Command):
     matching any of the provided patterns. If no patterns are provided,
     dump information about all tables.
     """
-    group_name = "store"
-    command_name = "dump_shard_tables"
+    group_name = "dump"
+    command_name = "shard_tables"
 
     def execute(self, version=None, patterns=""):
         """Return information about all tables belonging to mappings
@@ -406,8 +406,8 @@ class DumpShardingInformation(Command):
     """Return all the sharding information about the tables passed as patterns.
     If no patterns are provided, dump sharding information about all tables.
     """
-    group_name = "store"
-    command_name = "dump_sharding_information"
+    group_name = "dump"
+    command_name = "sharding_information"
 
     def execute(self, version=None, patterns=""):
         """Return all the sharding information about the tables passed as
@@ -424,8 +424,8 @@ class DumpShardMappings(Command):
     provided patterns. If no patterns are provided, dump information about
     all shard mappings.
     """
-    group_name = "store"
-    command_name = "dump_shard_maps"
+    group_name = "dump"
+    command_name = "shard_maps"
 
     def execute(self, version=None, patterns=""):
         """Return information about all shard mappings matching any of the
@@ -442,8 +442,8 @@ class DumpShardIndex(Command):
     entire index. The lower_bound that is returned is a string that is
     a md-5 hash of the group-id in which the data is stored.
     """
-    group_name = "store"
-    command_name = "dump_shard_index"
+    group_name = "dump"
+    command_name = "shard_index"
 
     def execute(self, version=None, patterns=""):
         """Return information about the index for all mappings matching

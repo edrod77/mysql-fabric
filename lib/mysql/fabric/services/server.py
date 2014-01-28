@@ -305,8 +305,8 @@ class DumpServers(Command):
     group that matches any of the provided patterns, or all servers if no
     patterns are provided.
     """
-    group_name = "store"
-    command_name = "dump_servers"
+    group_name = "dump"
+    command_name = "servers"
 
     def execute(self, version=None, patterns=""):
         """Return information about all servers.

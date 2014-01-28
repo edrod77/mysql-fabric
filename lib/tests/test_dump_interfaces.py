@@ -384,50 +384,50 @@ class TestSharding(unittest.TestCase):
         """Test dump interface associated to sharding.
         """
         self.assertEqual(self.__setofservers,
-            self.proxy.store.dump_servers(0))
+            self.proxy.dump.servers(0))
 
         self.assertEqual(self.__setofservers_1,
-            self.proxy.store.dump_servers(0, "GROUPID1"))
+            self.proxy.dump.servers(0, "GROUPID1"))
         self.assertEqual(self.__setofservers_2,
-            self.proxy.store.dump_servers(0, "GROUPID1,GROUPID2"))
+            self.proxy.dump.servers(0, "GROUPID1,GROUPID2"))
         self.assertEqual(self.__setofservers_3,
-            self.proxy.store.dump_servers(0, "GROUPID1,GROUPID2,GROUPID3"))
-        self.assertEqual(self.proxy.store.dump_shard_tables(0),
+            self.proxy.dump.servers(0, "GROUPID1,GROUPID2,GROUPID3"))
+        self.assertEqual(self.proxy.dump.shard_tables(0),
             self.__setoftables)
-        self.assertEqual(self.proxy.store.dump_shard_tables(0,  "1"),
+        self.assertEqual(self.proxy.dump.shard_tables(0,  "1"),
             self.__setoftables_1)
-        self.assertEqual(self.proxy.store.dump_shard_tables(0,  "1,  2"),
+        self.assertEqual(self.proxy.dump.shard_tables(0,  "1,  2"),
                         self.__setoftables_2)
-        self.assertEqual(self.proxy.store.dump_shard_tables(0,  "1,2,  3"),
+        self.assertEqual(self.proxy.dump.shard_tables(0,  "1,2,  3"),
                         self.__setoftables_3)
-        self.assertEqual(self.proxy.store.dump_shard_maps(0),
+        self.assertEqual(self.proxy.dump.shard_maps(0),
                         self.__setofshardmaps)
-        self.assertEqual(self.proxy.store.dump_shard_maps(0, '1'),
+        self.assertEqual(self.proxy.dump.shard_maps(0, '1'),
                         self.__setofshardmaps_1)
-        self.assertEqual(self.proxy.store.dump_shard_maps(0, '1,  2'),
+        self.assertEqual(self.proxy.dump.shard_maps(0, '1,  2'),
                         self.__setofshardmaps_2)
-        self.assertEqual(self.proxy.store.dump_shard_maps(0, '1,  2,  3'),
+        self.assertEqual(self.proxy.dump.shard_maps(0, '1,  2,  3'),
                         self.__setofshardmaps_3)
-        self.assertEqual(self.proxy.store.dump_shard_index(0),
+        self.assertEqual(self.proxy.dump.shard_index(0),
                         self.__setofshardindexes)
-        self.assertEqual(self.proxy.store.dump_shard_index(0,  "1"),
+        self.assertEqual(self.proxy.dump.shard_index(0,  "1"),
                         self.__setofshardindexes_1)
-        self.assertEqual(self.proxy.store.dump_shard_index(0,  "1, 2,   3"),
+        self.assertEqual(self.proxy.dump.shard_index(0,  "1, 2,   3"),
                         self.__setofshardindexes_3)
         self.assertEqual(
-                self.proxy.store.dump_shard_index(0,  "1, 2,   3,  4,    5"),
+                self.proxy.dump.shard_index(0,  "1, 2,   3,  4,    5"),
                 self.__setofshardindexes_5
         )
         self.assertEqual(
-            self.proxy.store.dump_sharding_information(0, "db1.t1"),
+            self.proxy.dump.sharding_information(0, "db1.t1"),
             self.__shardinginformation_1
         )
         self.assertEqual(
-            self.proxy.store.dump_sharding_information(0, "db1.t1,   db2.t2"),
+            self.proxy.dump.sharding_information(0, "db1.t1,   db2.t2"),
             self.__shardinginformation_2
         )
         self.assertEqual(
-            self.proxy.store.dump_sharding_information(0, "db1.t1,   db2.t2,db3.t3"),
+            self.proxy.dump.sharding_information(0, "db1.t1,   db2.t2,db3.t3"),
             self.__shardinginformation_3
         )
 
