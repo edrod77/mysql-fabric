@@ -168,26 +168,5 @@ class TestManageServices(unittest.TestCase):
         _command.unregister_command("test", "remote_command_1")
         _command.unregister_command("test", "remote_command_2")
 
-    def test_list_commands(self):
-        """Execute list-commands command.
-        """
-        _manage.List().dispatch()
-        commands = sys.stderr.getvalue().replace(" ", "")
-        for command in some_commands.replace(" ", "").split("\n"):
-            self.assertTrue(command in commands)
-
-    def test_help(self):
-        """Execute help command.
-        """
-        _manage.Help().dispatch("test", "non_doc_command_1")
-        _manage.Help().dispatch("test", "non_dot_command_1")
-        _manage.Help().dispatch("test", "dot_command_1")
-        _manage.Help().dispatch("test", "command_1")
-        _manage.Help().dispatch("test", "command_2")
-        _manage.Help().dispatch("test", "remote_command_1")
-        _manage.Help().dispatch("test", "remote_command_2")
-        _manage.Help().dispatch("manage", "unknown")
-        self.assertEqual(sys.stderr.getvalue(), result_help)
-
 if __name__ == "__main__":
     unittest.main()

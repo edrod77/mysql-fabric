@@ -330,6 +330,27 @@ class Command(object):
             "}"
             ])
 
+    @classmethod
+    def get_signature(cls):
+        """Get the signature of the command.
+
+        This is done by inspecting the arguments to the execute or
+        dispatch method.
+
+        :return string: The signature of the command as a string
+
+        """
+
+        try:
+            cargs = inspect.getargspec(cls.execute.original_function)[0]
+        except AttributeError:
+            cargs = inspect.getargspec(cls.dispatch)[0]
+        return "%s %s %s" % (
+            cls.group_name,
+            cls.command_name,
+            " ".join(arg.upper() for arg in cargs[1:])
+        )
+
     @staticmethod
     def generate_output_pattern(func, *params):
         """Call the function with the input params and generate a output pattern
