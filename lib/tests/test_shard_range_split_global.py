@@ -32,10 +32,10 @@ from mysql.fabric.server import (
 from tests.utils import MySQLInstances
 
 class TestShardingPrune(unittest.TestCase):
-    '''Contains unit tests for testing the shard split operation and for verifying
-    that the global server configuration remains constant after the shard split
-    configuration.
-    '''
+    """Contains unit tests for testing the shard split operation and for
+    verifying that the global server configuration remains constant after
+    the shard split configuration.
+    """
 
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
@@ -376,9 +376,9 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_before_split_db1_t1 =\
+        row_cnt_shard_before_split_db1_t1 = \
             int(row_cnt_shard_before_split_db1_t1[0][0])
-        row_cnt_shard_before_split_db2_t2 =\
+        row_cnt_shard_before_split_db2_t2 = \
             int(row_cnt_shard_before_split_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_split_db1_t1, 70)
@@ -394,7 +394,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_a =\
+        row_cnt_shard_after_split_db1_t1_a = \
             int(row_cnt_shard_after_split_db1_t1_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 35)
 
@@ -402,7 +402,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_a =\
+        row_cnt_shard_after_split_db2_t2_a = \
             int(row_cnt_shard_after_split_db2_t2_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 35)
 
@@ -410,7 +410,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_b =\
+        row_cnt_shard_after_split_db1_t1_b = \
             int(row_cnt_shard_after_split_db1_t1_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 35)
 
@@ -418,7 +418,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_b =\
+        row_cnt_shard_after_split_db2_t2_b = \
             int(row_cnt_shard_after_split_db2_t2_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 35)
 
@@ -484,9 +484,9 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_before_split_db1_t1 =\
+        row_cnt_shard_before_split_db1_t1 = \
             int(row_cnt_shard_before_split_db1_t1[0][0])
-        row_cnt_shard_before_split_db2_t2 =\
+        row_cnt_shard_before_split_db2_t2 = \
             int(row_cnt_shard_before_split_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_split_db1_t1, 200)
@@ -502,7 +502,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_a =\
+        row_cnt_shard_after_split_db1_t1_a = \
             int(row_cnt_shard_after_split_db1_t1_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 100)
 
@@ -510,7 +510,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_a =\
+        row_cnt_shard_after_split_db2_t2_a = \
             int(row_cnt_shard_after_split_db2_t2_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 100)
 
@@ -518,7 +518,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_b =\
+        row_cnt_shard_after_split_db1_t1_b = \
             int(row_cnt_shard_after_split_db1_t1_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 100)
 
@@ -526,7 +526,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_b =\
+        row_cnt_shard_after_split_db2_t2_b = \
             int(row_cnt_shard_after_split_db2_t2_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 100)
         #Enter data into the global server
@@ -591,9 +591,9 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_before_split_db1_t1 =\
+        row_cnt_shard_before_split_db1_t1 = \
             int(row_cnt_shard_before_split_db1_t1[0][0])
-        row_cnt_shard_before_split_db2_t2 =\
+        row_cnt_shard_before_split_db2_t2 = \
             int(row_cnt_shard_before_split_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_split_db1_t1, 200)
@@ -609,7 +609,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_a =\
+        row_cnt_shard_after_split_db1_t1_a = \
             int(row_cnt_shard_after_split_db1_t1_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 100)
 
@@ -617,7 +617,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_a =\
+        row_cnt_shard_after_split_db2_t2_a = \
             int(row_cnt_shard_after_split_db2_t2_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 100)
 
@@ -625,7 +625,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_b =\
+        row_cnt_shard_after_split_db1_t1_b = \
             int(row_cnt_shard_after_split_db1_t1_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 100)
 
@@ -633,7 +633,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_b =\
+        row_cnt_shard_after_split_db2_t2_b = \
             int(row_cnt_shard_after_split_db2_t2_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 100)
         #Enter data into the global server
@@ -698,9 +698,9 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_before_split_db1_t1 =\
+        row_cnt_shard_before_split_db1_t1 = \
             int(row_cnt_shard_before_split_db1_t1[0][0])
-        row_cnt_shard_before_split_db2_t2 =\
+        row_cnt_shard_before_split_db2_t2 = \
             int(row_cnt_shard_before_split_db2_t2[0][0])
 
         self.assertEqual(row_cnt_shard_before_split_db1_t1, 400)
@@ -716,7 +716,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_a =\
+        row_cnt_shard_after_split_db1_t1_a = \
             int(row_cnt_shard_after_split_db1_t1_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_a, 200)
 
@@ -724,7 +724,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_a =\
+        row_cnt_shard_after_split_db2_t2_a = \
             int(row_cnt_shard_after_split_db2_t2_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 200)
 
@@ -732,7 +732,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db1_t1_b =\
+        row_cnt_shard_after_split_db1_t1_b = \
             int(row_cnt_shard_after_split_db1_t1_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 200)
 
@@ -740,7 +740,7 @@ class TestShardingPrune(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_split_db2_t2_b =\
+        row_cnt_shard_after_split_db2_t2_b = \
             int(row_cnt_shard_after_split_db2_t2_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_b, 200)
         #Enter data into the global server
@@ -822,7 +822,9 @@ class TestShardingPrune(unittest.TestCase):
             self.assertEqual(status[0], True)
             self.assertEqual(status[1], "")
             obtained_server_list = status[2]
-            status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
+            status = self.proxy.group.remove(
+                group_id, obtained_server_list[0][0]
+            )
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],

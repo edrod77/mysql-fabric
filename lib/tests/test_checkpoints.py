@@ -16,7 +16,6 @@
 #
 
 """Unit tests for the checkpoint/recovery.
-
 """
 import unittest
 import uuid as _uuid
@@ -43,21 +42,31 @@ COUNT_1 = 0
 COUNT_2 = 0
 
 class MyTransAction(_persistence.Persistable):
+    """Define a class that inherits from Persitable.
+    """
     @staticmethod
     def create(persister=None):
+        """Create associated table.
+        """
         persister.exec_stmt("CREATE TABLE test_temporary(id TEXT)")
 
     @staticmethod
     def drop(persister=None):
+        """Drop associated table.
+        """
         persister.exec_stmt("DROP TABLE test_temporary")
 
     @staticmethod
     def insert(text, persister=None):
+        """Insert records into the table.
+        """
         persister.exec_stmt("INSERT INTO test_temporary VALUES(%s)",
                             {"params":(text, )})
 
     @staticmethod
     def count(persister=None):
+        """Return the number of records in the table.
+        """
         return len(persister.exec_stmt("SELECT * FROM test_temporary"))
 
 class TestPropertiesCheckpoint(unittest.TestCase):
@@ -135,14 +144,18 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             # Fetch and check all the properties.
             self.assertEqual(len(result), 1)
             for checkpoint in result:
-                self.assertEqual(checkpoint.param_args, ("PARAM 01", "PARAM 02"))
+                self.assertEqual(checkpoint.param_args, 
+                    ("PARAM 01", "PARAM 02")
+                )
                 self.assertEqual(checkpoint.param_kwargs, {})
                 self.assertNotEqual(checkpoint.started, None)
                 self.assertEqual(checkpoint.finished, None)
                 self.assertEqual(checkpoint.do_action, check_properties_1)
 
             # There should not be any entry for this procedure.
-            self.assertEqual(len(_checkpoint.Checkpoint.fetch(procedure.uuid)), 0)
+            self.assertEqual(
+                len(_checkpoint.Checkpoint.fetch(procedure.uuid)), 0
+            )
 
     def test_properties_2(self):
         """2 - Through a service or regular function, triggering a set
@@ -163,7 +176,9 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             # Fetch and check all the properties.
             self.assertEqual(len(result), 1)
             for checkpoint in result:
-                self.assertEqual(checkpoint.param_args, ("PARAM 01", "PARAM 02"))
+                self.assertEqual(checkpoint.param_args,
+                    ("PARAM 01", "PARAM 02")
+                )
                 self.assertEqual(checkpoint.param_kwargs, {})
                 self.assertNotEqual(checkpoint.started, None)
                 self.assertEqual(checkpoint.finished, None)
@@ -192,7 +207,9 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             # Fetch and check all the properties.
             self.assertEqual(len(result), 1)
             for checkpoint in result:
-                self.assertEqual(checkpoint.param_args, ("PARAM 01", "PARAM 02"))
+                self.assertEqual(checkpoint.param_args,
+                    ("PARAM 01", "PARAM 02")
+                )
                 self.assertEqual(checkpoint.param_kwargs, {})
                 self.assertNotEqual(checkpoint.started, None)
                 self.assertEqual(checkpoint.finished, None)
@@ -220,13 +237,17 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             self.assertEqual(len(result), 2)
             for checkpoint in result:
                 if checkpoint.do_action == check_properties_4:
-                    self.assertEqual(checkpoint.param_args, ("PARAM 01", "PARAM 02"))
+                    self.assertEqual(checkpoint.param_args,
+                        ("PARAM 01", "PARAM 02")
+                    )
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
                     self.assertNotEqual(checkpoint.finished, None)
 
                 if checkpoint.do_action == check_properties_1:
-                    self.assertEqual(checkpoint.param_args, ("NEW 01", "NEW 02"))
+                    self.assertEqual(checkpoint.param_args,
+                        ("NEW 01", "NEW 02")
+                    )
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
                     self.assertEqual(checkpoint.finished, None)
@@ -252,7 +273,9 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             # Fetch and check all the properties.
             self.assertEqual(len(result), 1)
             for checkpoint in result:
-                self.assertEqual(checkpoint.param_args, ("PARAM 01", "PARAM 02"))
+                self.assertEqual(checkpoint.param_args,
+                    ("PARAM 01", "PARAM 02")
+                )
                 self.assertEqual(checkpoint.param_kwargs, {})
                 self.assertNotEqual(checkpoint.started, None)
                 self.assertEqual(checkpoint.finished, None)
@@ -282,20 +305,26 @@ class TestPropertiesCheckpoint(unittest.TestCase):
             self.assertEqual(len(result), 3)
             for checkpoint in result:
                 if checkpoint.do_action == check_properties_6:
-                    self.assertEqual(checkpoint.param_args, ("PARAM 01", "PARAM 02"))
+                    self.assertEqual(checkpoint.param_args,
+                        ("PARAM 01", "PARAM 02")
+                    )
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
                     self.assertNotEqual(checkpoint.finished, None)
 
                 if checkpoint.do_action == check_properties_2_proc_1:
-                    self.assertEqual(checkpoint.param_args, ("NEW 01", "NEW 02"))
+                    self.assertEqual(checkpoint.param_args,
+                        ("NEW 01", "NEW 02")
+                    )
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
                     if checkpoint.finished:
                         assert(ctrl == False)
 
                 if checkpoint.do_action == check_properties_2_proc_2:
-                    self.assertEqual(checkpoint.param_args, ("NEW 01", "NEW 02"))
+                    self.assertEqual(checkpoint.param_args,
+                        ("NEW 01", "NEW 02")
+                    )
                     self.assertEqual(checkpoint.param_kwargs, {})
                     self.assertNotEqual(checkpoint.started, None)
                     if checkpoint.finished:
@@ -481,18 +510,22 @@ class TestRecoveryCheckpoint(unittest.TestCase):
         lockable_objects = set(["lock"])
         job_uuid = _uuid.UUID("e4e1ba17-ff1d-45e6-a83c-5655ea5bb646")
         job_sequence = 0
-        job_uuid_registered_1 = _uuid.UUID("aaa1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        job_uuid_registered_1 = \
+            _uuid.UUID("aaa1ba17-ff1d-45e6-a83c-5655ea5bb646")
         job_sequence_1 = 1
-        job_uuid_registered_2 = _uuid.UUID("bbb1ba17-ff1d-45e6-a83c-5655ea5bb646")
+        job_uuid_registered_2 = \
+            _uuid.UUID("bbb1ba17-ff1d-45e6-a83c-5655ea5bb646")
         job_sequence_2 = 2
         do_action = check_do_action
         do_action_registered_1 = check_do_action_registered_1
         do_action_registered_2 = check_do_action_registered_2
         do_action_fqn = do_action.__module__ + "." + do_action.__name__
         do_action_registered_1_fqn = \
-            do_action_registered_1.__module__ + "." + do_action_registered_1.__name__
+            do_action_registered_1.__module__ + "." + \
+            do_action_registered_1.__name__
         do_action_registered_2_fqn = \
-            do_action_registered_2.__module__ + "." + do_action_registered_2.__name__
+            do_action_registered_2.__module__ + "." + \
+            do_action_registered_2.__name__
         args = (count_1, count_2)
         kwargs = {}
 
@@ -542,24 +575,32 @@ class TestRecoveryCheckpoint(unittest.TestCase):
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_1)
 def check_properties_1(param_01, param_02):
+    """Check properties 1.
+    """
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_2)
 def check_properties_2_proc_1(param_01, param_02):
+    """Check properties 2.
+    """
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_2)
 def check_properties_2_proc_2(param_01, param_02):
+    """Check properties 2.
+    """
     job = _executor.ExecutorThread.executor_object().current_job
     checkpoint = _checkpoint.Checkpoint.fetch(job.procedure.uuid)
     return checkpoint
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_3)
 def check_properties_3(param_01, param_02):
+    """Check properties 3.
+    """
     _events.trigger(
         EVENT_CHECK_PROPERTIES_1, set(["lock"]), "NEW 01", "NEW 02"
         )
@@ -570,12 +611,16 @@ def check_properties_3(param_01, param_02):
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_4)
 def check_properties_4(param_01, param_02):
+    """Check properties 4.
+    """
     _events.trigger_within_procedure(
         EVENT_CHECK_PROPERTIES_1, "NEW 01", "NEW 02"
         )
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_5)
 def check_properties_5(param_01, param_02):
+    """Check properties 5.
+    """
     _events.trigger(
         EVENT_CHECK_PROPERTIES_2, set(["lock"]), "NEW 01", "NEW 02"
         )
@@ -586,11 +631,15 @@ def check_properties_5(param_01, param_02):
 
 @_events.on_event(EVENT_CHECK_PROPERTIES_6)
 def check_properties_6(param_01, param_02):
+    """Check properties 6.
+    """
     _events.trigger_within_procedure(
         EVENT_CHECK_PROPERTIES_2, "NEW 01", "NEW 02"
         )
 
 def non_trans_do_action(count_1, count_2):
+    """Non-transactional do action.
+    """
     global COUNT_1, COUNT_2
 
     COUNT_1 += count_1
@@ -602,30 +651,42 @@ def non_trans_do_action(count_1, count_2):
         raise Exception("Error")
 
 def non_trans_undo_action():
+    """Non-transactional undo action.
+    """
     global COUNT_1, COUNT_2
 
     COUNT_1 = 0
     COUNT_2 = 0
 
 def trans_do_action(text):
+    """Transactional do action.
+    """
     MyTransAction.insert(text)
 
 @_events.on_event(EVENT_CHECK_CHAIN)
 def check_do_action(count_1, count_2):
+    """Check do action.
+    """
     non_trans_do_action(count_1, count_2)
     trans_do_action("check_do_action")
 
 @check_do_action.undo
 def check_undo_action(count_1, count_2):
+    """Check undo action.
+    """
     non_trans_undo_action()
 
 def check_do_action_registered_1(count_1, count_2):
+    """Check action 1.
+    """
     global COUNT_1, COUNT_2
 
     COUNT_1 += count_1
     COUNT_2 += count_2
 
 def check_do_action_registered_2(count_1, count_2):
+    """Check action 2.
+    """
     global COUNT_1, COUNT_2
 
     COUNT_1 += count_1

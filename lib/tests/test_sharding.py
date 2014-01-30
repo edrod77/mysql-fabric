@@ -149,13 +149,18 @@ class TestSharding(unittest.TestCase):
         self.__shard_mapping_id_4 = ShardMapping.define("range", "GROUPID13")
         self.__shard_mapping_id_5 = ShardMapping.define("range", "GROUPID14")
 
-        self.__shard_mapping_1 = ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
-        self.__shard_mapping_2 = ShardMapping.add(self.__shard_mapping_id_2, "db2.t2", "userID2")
-        self.__shard_mapping_3 = ShardMapping.add(self.__shard_mapping_id_3, "db3.t3", "userID3")
-        self.__shard_mapping_4 = ShardMapping.add(self.__shard_mapping_id_4, "db4.t4", "userID4")
+        self.__shard_mapping_1 = \
+            ShardMapping.add(self.__shard_mapping_id_1, "db1.t1", "userID1")
+        self.__shard_mapping_2 = \
+            ShardMapping.add(self.__shard_mapping_id_2, "db2.t2", "userID2")
+        self.__shard_mapping_3 = \
+            ShardMapping.add(self.__shard_mapping_id_3, "db3.t3", "userID3")
+        self.__shard_mapping_4 = \
+            ShardMapping.add(self.__shard_mapping_id_4, "db4.t4", "userID4")
 
-        self.__shard_mapping_5 = ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
-                                                  "userID")
+        self.__shard_mapping_5 = \
+            ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
+                             "userID")
 
         self.__shard_id_1 = Shards.add("GROUPID1")
         self.__shard_id_2 = Shards.add("GROUPID10")
@@ -261,11 +266,14 @@ class TestSharding(unittest.TestCase):
             self.__range_sharding_specification_3))
 
     def test_lookup_sharding_scheme(self):
-        r_spec_1 = RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1)
+        r_spec_1 = \
+            RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1)
         self.assertEqual(r_spec_1.shard_id, self.__shard_id_1.shard_id)
-        r_spec_2 = RangeShardingSpecification.lookup(3500, self.__shard_mapping_id_2)
+        r_spec_2 = \
+            RangeShardingSpecification.lookup(3500, self.__shard_mapping_id_2)
         self.assertEqual(r_spec_2.shard_id, self.__shard_id_4.shard_id)
-        r_spec_3 = RangeShardingSpecification.lookup(6500, self.__shard_mapping_id_3)
+        r_spec_3 = \
+            RangeShardingSpecification.lookup(6500, self.__shard_mapping_id_3)
         self.assertEqual(r_spec_3.shard_id, self.__shard_id_6.shard_id)
 
     def test_shard_mapping_list_mappings(self):
@@ -317,15 +325,30 @@ class TestSharding(unittest.TestCase):
         self.assertEqual(self.__range_sharding_specification_1.shard_id, 1)
 
     def test_list_shard_mapping(self):
-        expected_shard_mapping_list1 =   [1, "RANGE", "GROUPID10"]
-        expected_shard_mapping_list2 =   [2, "RANGE", "GROUPID11"]
-        expected_shard_mapping_list3 =   [3, "RANGE", "GROUPID12"]
-        expected_shard_mapping_list4 =   [4, "RANGE", "GROUPID13"]
-        expected_shard_mapping_list5 =   [5, "RANGE", "GROUPID14"]
+        expected_shard_mapping_list1 = [1, "RANGE", "GROUPID10"]
+        expected_shard_mapping_list2 = [2, "RANGE", "GROUPID11"]
+        expected_shard_mapping_list3 = [3, "RANGE", "GROUPID12"]
+        expected_shard_mapping_list4 = [4, "RANGE", "GROUPID13"]
+        expected_shard_mapping_list5 = [5, "RANGE", "GROUPID14"]
 
         obtained_shard_mapping_list = ShardMapping.list_shard_mapping_defn()
-        self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
-        self.assertEqual(set(expected_shard_mapping_list2),  set(obtained_shard_mapping_list[1]))
-        self.assertEqual(set(expected_shard_mapping_list3),  set(obtained_shard_mapping_list[2]))
-        self.assertEqual(set(expected_shard_mapping_list4),  set(obtained_shard_mapping_list[3]))
-        self.assertEqual(set(expected_shard_mapping_list5),  set(obtained_shard_mapping_list[4]))
+        self.assertEqual(
+            set(expected_shard_mapping_list1),
+            set(obtained_shard_mapping_list[0])
+        )
+        self.assertEqual(
+            set(expected_shard_mapping_list2),
+            set(obtained_shard_mapping_list[1])
+        )
+        self.assertEqual(
+            set(expected_shard_mapping_list3),
+            set(obtained_shard_mapping_list[2])
+        )
+        self.assertEqual(
+            set(expected_shard_mapping_list4),
+            set(obtained_shard_mapping_list[3])
+        )
+        self.assertEqual(
+            set(expected_shard_mapping_list5),
+            set(obtained_shard_mapping_list[4])
+        )

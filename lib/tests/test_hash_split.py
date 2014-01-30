@@ -46,12 +46,16 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID1", MySQLInstances().get_address(0), "root","")
+        status = self.proxy.group.add(
+            "GROUPID1", MySQLInstances().get_address(0), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status = self.proxy.group.add("GROUPID1", MySQLInstances().get_address(1), "root","")
+        status = self.proxy.group.add(
+            "GROUPID1", MySQLInstances().get_address(1), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -62,12 +66,16 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID2", MySQLInstances().get_address(2), "root","")
+        status = self.proxy.group.add(
+            "GROUPID2", MySQLInstances().get_address(2), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status =  self.proxy.group.add("GROUPID2", MySQLInstances().get_address(3), "root","")
+        status = self.proxy.group.add(
+            "GROUPID2", MySQLInstances().get_address(3), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -78,12 +86,16 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
-        status = self.proxy.group.add("GROUPID3", MySQLInstances().get_address(4), "root","")
+        status = self.proxy.group.add(
+            "GROUPID3", MySQLInstances().get_address(4), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
-        status = self.proxy.group.add("GROUPID3", MySQLInstances().get_address(5), "root","")
+        status = self.proxy.group.add(
+            "GROUPID3", MySQLInstances().get_address(5), "root", ""
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -148,8 +160,10 @@ class TestShardSplit(unittest.TestCase):
         split_cnt_2 = 0
         shard_server_1 = None
         shard_server_2 = None
-        expected_address_list_1 = [MySQLInstances().get_address(2), MySQLInstances().get_address(3)]
-        expected_address_list_2 = [MySQLInstances().get_address(4), MySQLInstances().get_address(5)]
+        expected_address_list_1 = \
+            [MySQLInstances().get_address(2), MySQLInstances().get_address(3)]
+        expected_address_list_2 = \
+            [MySQLInstances().get_address(4), MySQLInstances().get_address(5)]
         status = self.proxy.sharding.split("1", "GROUPID3")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -166,12 +180,16 @@ class TestShardSplit(unittest.TestCase):
             obtained_address_list = [obtained_server_list[0][1],
                                     obtained_server_list[1][1]]
             try:
-                self.assertEqual(set(expected_address_list_1), set(obtained_address_list))
+                self.assertEqual(
+                    set(expected_address_list_1), set(obtained_address_list)
+                )
                 split_cnt_1 = split_cnt_1 + 1
                 if shard_server_1 is None:
                     shard_server_1 = MySQLServer.fetch(obtained_uuid_list[0])
             except AssertionError:
-                self.assertEqual(set(expected_address_list_2), set(obtained_address_list))
+                self.assertEqual(
+                    set(expected_address_list_2), set(obtained_address_list)
+                )
                 split_cnt_2 = split_cnt_2 + 1
                 if shard_server_2 is None:
                     shard_server_2 = MySQLServer.fetch(obtained_uuid_list[0])
@@ -280,13 +298,17 @@ class TestShardSplit(unittest.TestCase):
             self.assertEqual(status[0], True)
             self.assertEqual(status[1], "")
             obtained_server_list = status[2]
-            status = self.proxy.group.remove(group_id, obtained_server_list[0][0])
+            status = self.proxy.group.remove(
+                group_id, obtained_server_list[0][0]
+            )
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],
                              "Executed action (_remove_server).")
 
-            status = self.proxy.group.remove(group_id, obtained_server_list[1][0])
+            status = self.proxy.group.remove(
+                group_id, obtained_server_list[1][0]
+            )
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],

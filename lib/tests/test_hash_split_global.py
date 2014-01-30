@@ -31,10 +31,10 @@ from mysql.fabric.server import (
 from tests.utils import MySQLInstances
 
 class TestHashSplitGlobal(unittest.TestCase):
-    '''Contains unit tests for testing the shard split operation and for verifying
-    that the global server configuration remains constant after the shard split
-    configuration.
-    '''
+    """Contains unit tests for testing the shard split operation and for
+    verifying that the global server configuration remains constant after
+    the shard split configuration.
+    """
 
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
@@ -372,11 +372,11 @@ class TestHashSplitGlobal(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_after_split_1_db1_t1_b =\
+        row_cnt_shard_after_split_1_db1_t1_b = \
             int(row_cnt_shard_after_split_1_db1_t1_b[0][0])
-        row_cnt_shard_after_split_1_db2_t2_b =\
+        row_cnt_shard_after_split_1_db2_t2_b = \
             int(row_cnt_shard_after_split_1_db2_t2_b[0][0])
-        row_cnt_shard_after_split_1_db3_t3_b =\
+        row_cnt_shard_after_split_1_db3_t3_b = \
             int(row_cnt_shard_after_split_1_db3_t3_b[0][0])
 
         self.assertTrue(
@@ -505,11 +505,11 @@ class TestHashSplitGlobal(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_after_split_1_db1_t1_b =\
+        row_cnt_shard_after_split_1_db1_t1_b = \
             int(row_cnt_shard_after_split_1_db1_t1_b[0][0])
-        row_cnt_shard_after_split_1_db2_t2_b =\
+        row_cnt_shard_after_split_1_db2_t2_b = \
             int(row_cnt_shard_after_split_1_db2_t2_b[0][0])
-        row_cnt_shard_after_split_1_db3_t3_b =\
+        row_cnt_shard_after_split_1_db3_t3_b = \
             int(row_cnt_shard_after_split_1_db3_t3_b[0][0])
 
         self.assertTrue(
@@ -638,11 +638,11 @@ class TestHashSplitGlobal(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_after_split_1_db1_t1_b =\
+        row_cnt_shard_after_split_1_db1_t1_b = \
             int(row_cnt_shard_after_split_1_db1_t1_b[0][0])
-        row_cnt_shard_after_split_1_db2_t2_b =\
+        row_cnt_shard_after_split_1_db2_t2_b = \
             int(row_cnt_shard_after_split_1_db2_t2_b[0][0])
-        row_cnt_shard_after_split_1_db3_t3_b =\
+        row_cnt_shard_after_split_1_db3_t3_b = \
             int(row_cnt_shard_after_split_1_db3_t3_b[0][0])
 
         self.assertTrue(
@@ -771,11 +771,11 @@ class TestHashSplitGlobal(unittest.TestCase):
                     {"fetch" : True}
                 )
 
-        row_cnt_shard_after_split_1_db1_t1_b =\
+        row_cnt_shard_after_split_1_db1_t1_b = \
             int(row_cnt_shard_after_split_1_db1_t1_b[0][0])
-        row_cnt_shard_after_split_1_db2_t2_b =\
+        row_cnt_shard_after_split_1_db2_t2_b = \
             int(row_cnt_shard_after_split_1_db2_t2_b[0][0])
-        row_cnt_shard_after_split_1_db3_t3_b =\
+        row_cnt_shard_after_split_1_db3_t3_b = \
             int(row_cnt_shard_after_split_1_db3_t3_b[0][0])
 
         self.assertTrue(
@@ -841,7 +841,7 @@ class TestHashSplitGlobal(unittest.TestCase):
     def test_hash_dump(self):
         """Test the dump of the HASH sharding information for the table.
         """
-        self.__shardinginformation_1 = [0, 0, 0,
+        shardinginformation_1 = [0, 0, 0,
             [['db1', 't1', 'userID',
             'E2996A7B8509367020B55A4ACD2AE46A',
             '1', 'HASH', 'GROUPID2', 'GROUPID1'],
@@ -855,8 +855,8 @@ class TestHashSplitGlobal(unittest.TestCase):
             '97427AA63E300F56536710F5D73A35FA',
             '4', 'HASH', 'GROUPID5', 'GROUPID1']]]
         self.assertEqual(
-            self.proxy.store.dump_sharding_information(0, "db1.t1"),
-            self.__shardinginformation_1
+            self.proxy.dump.sharding_information(0, "db1.t1"),
+            shardinginformation_1
         )
 
     def tearDown(self):

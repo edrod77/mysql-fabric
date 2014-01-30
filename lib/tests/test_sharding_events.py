@@ -526,7 +526,9 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         obtained_shard_mapping_list = status[2]
-        self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
+        self.assertEqual(
+            set(expected_shard_mapping_list1), set(obtained_shard_mapping_list[0])
+        )
 
     def test_enable_shard_exception(self):
         status = self.proxy.sharding.enable_shard(25000)

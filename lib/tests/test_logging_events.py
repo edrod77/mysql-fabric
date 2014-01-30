@@ -35,6 +35,8 @@ class TestLoggingServices(unittest.TestCase):
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_set_logging(self):
+        """Test remotely setting logging configuration per file.
+        """
         self.assertFalse(
             self.proxy.manage.logging_level("unknown", "DEBUG")
         )

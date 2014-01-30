@@ -59,7 +59,7 @@ class OptionParser(optparse.OptionParser):
 
          {
             'protocol.xmlrpc': {
-               'address': 'localhost:8080',
+               'address': 'localhost:32274',
             },
             'logging': {
                'level': 'INFO',

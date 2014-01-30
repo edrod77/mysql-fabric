@@ -14,7 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
-
 """Unit tests for the scheduler module.
 """
 import unittest
@@ -31,13 +30,19 @@ from mysql.fabric import (
 _LOGGER = logging.getLogger(__name__)
 
 class Run(threading.Thread):
+    """Thread class.
+    """
     def __init__(self, scheduler, procedure):
+        """Constructor for Run class.
+        """
         threading.Thread.__init__(self)
         self.lock = threading.Condition()
         self.scheduler = scheduler
         self.procedure = procedure
 
     def run(self):
+        """Target method for thread class.
+        """
         try:
             procedure = self.scheduler.get(self.procedure)
             assert(procedure is not None)
@@ -50,6 +55,8 @@ class TestScheduler(unittest.TestCase):
     """Test scheduler.
     """
     def test_scheduler(self):
+        """Test scheduler.
+        """
         scheduler = _scheduler.Scheduler()
         procedure_1 = _executor.Procedure()
         objects_1 = set(["lock"])
@@ -78,6 +85,8 @@ class TestLockManager(unittest.TestCase):
     """Test LockManager.
     """
     def test_lock(self):
+        """Test LockManager.
+        """
         scheduler = _scheduler.LockManager()
         procedure_1 = _executor.Procedure()
         objects_1 = set(["a", "b", "c"])
@@ -113,6 +122,8 @@ class TestLockManager(unittest.TestCase):
         )
 
     def test_lock_priority(self):
+        """Test scheduling locks with different priorities.
+        """
         scheduler = _scheduler.LockManager()
 
         self.assertEqual(scheduler.objects, {})
@@ -144,6 +155,8 @@ class TestLockManager(unittest.TestCase):
         self.assertEqual(scheduler.free, free)
 
     def test_enqueue(self):
+        """Test enqueuing locks.
+        """
         scheduler = _scheduler.LockManager()
 
         self.assertEqual(scheduler.objects, {})
@@ -229,6 +242,8 @@ class TestLockManager(unittest.TestCase):
         self.assertEqual(set(scheduler.free), set(free))
 
     def test_check_conflicts(self):
+        """Test checking conflicts.
+        """
         scheduler = _scheduler.LockManager()
 
         # Enqueue procedures.
@@ -266,6 +281,8 @@ class TestLockManager(unittest.TestCase):
         self.assertEqual(set([procedure_4]), set(procedures))
 
     def test_break_conflicts_nothread(self):
+        """Test breaking locks when there is one thread.
+        """
         scheduler = _scheduler.LockManager()
 
         # Enqueue procedures.
@@ -304,6 +321,8 @@ class TestLockManager(unittest.TestCase):
         self.assertTrue(procedure_3 not in scheduler.procedures)
 
     def test_break_conflicts_thread(self):
+        """Test breaking locks when there are threads.
+        """
         scheduler = _scheduler.LockManager()
 
         # Enqueue procedures.

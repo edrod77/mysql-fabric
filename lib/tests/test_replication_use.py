@@ -14,7 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
-
 """Unit tests for checking some regular operations that use the
 highavailability module.
 """
@@ -28,7 +27,8 @@ from mysql.fabric import (
 )
 
 class TestReplicationUse(unittest.TestCase):
-
+    """Test promotion and demotion in different scenarios.
+    """
     def setUp(self):
         """Configure the existing environment
         """
@@ -139,6 +139,8 @@ class TestReplicationUse(unittest.TestCase):
                          "Executed action (_change_to_candidate).")
 
     def test_check_unhealthy_slave(self):
+        """Test promoting a there is an unhealthy slave.
+        """
         # Configure replication.
         user = "root"
         passwd = ""
@@ -262,6 +264,8 @@ class TestReplicationUse(unittest.TestCase):
         self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
 
     def test_check_no_healthy_slave(self):
+        """Test promoting when there is no healthy slave.
+        """
         # Configure replication.
         user = "root"
         passwd = ""

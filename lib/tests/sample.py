@@ -31,6 +31,8 @@ class SampleTest(unittest.TestCase):
         self.seq = range(10)
 
     def test_sample(self):
+        """Example test.
+        """
         self.assertRaises(ValueError,  random.sample,  self.seq,  20)
         for element in random.sample(self.seq, 5):
             self.assertTrue(element in self.seq)

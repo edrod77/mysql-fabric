@@ -34,10 +34,10 @@ from mysql.fabric.server import (
 from tests.utils import MySQLInstances
 
 class TestHashMoveGlobal(unittest.TestCase):
-    '''Contains unit tests for testing the shard move operation and for verifying
-    that the global server configuration remains constant after the shard move
-    configuration.
-    '''
+    """Contains unit tests for testing the shard move operation and for
+    verifying that the global server configuration remains constant after
+    the shard move configuration.
+    """
 
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
@@ -280,9 +280,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("1", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -298,9 +298,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
             row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
@@ -374,9 +374,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("2", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -392,9 +392,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
             row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
@@ -468,9 +468,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("3", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -486,9 +486,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
             row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1
@@ -562,9 +562,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_before_move_db1_t1 =\
+        row_cnt_shard_before_move_db1_t1 = \
             int(row_cnt_shard_before_move_db1_t1[0][0])
-        row_cnt_shard_before_move_db2_t2 =\
+        row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move("4", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -580,9 +580,9 @@ class TestHashMoveGlobal(unittest.TestCase):
                     "SELECT COUNT(*) FROM db2.t2",
                     {"fetch" : True}
                 )
-        row_cnt_shard_after_move_db1_t1 =\
+        row_cnt_shard_after_move_db1_t1 = \
             int(row_cnt_shard_after_move_db1_t1[0][0])
-        row_cnt_shard_after_move_db2_t2 =\
+        row_cnt_shard_after_move_db2_t2 = \
             int(row_cnt_shard_after_move_db2_t2[0][0])
         self.assertTrue(
             row_cnt_shard_before_move_db1_t1 == row_cnt_shard_after_move_db1_t1

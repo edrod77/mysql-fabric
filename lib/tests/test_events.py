@@ -28,6 +28,8 @@ from mysql.fabric import (
 _TEST1 = None
 
 def test1(param, ignored):
+    """A function acting as a callable.
+    """
     global _TEST1
     _TEST1 = param
 
@@ -35,10 +37,14 @@ class Callable(object):
     """A class acting as a callable.
     """
     def __init__(self, n=None):
+        """Constructor for Callable class.
+        """
         self.result = n
         self.__name__ = "Callable(%s)" % (n,)
 
     def __call__(self, param, ignored):
+        """Define a callable method.
+        """
         self.result += param
 
 
@@ -187,8 +193,8 @@ _PROMOTED = None
 _DEMOTED = None
 
 class TestDecorator(unittest.TestCase):
-    "Test the decorators related to events"
-
+    """Test the decorators related to events.
+    """
     handler = _events.Handler()
 
     def setUp(self):
@@ -202,6 +208,8 @@ class TestDecorator(unittest.TestCase):
         tests.utils.cleanup_environment()
 
     def test_decorator(self):
+        """Test decorator related to events.
+        """
         global _PROMOTED, _DEMOTED
         _PROMOTED = None
 
@@ -226,6 +234,8 @@ class TestDecorator(unittest.TestCase):
 # Testing that on_event decorator works as expected
 @_events.on_event(_events.SERVER_PROMOTED)
 def my_event(param, ignored):
+    """Function that is called by a trigger.
+    """
     global _PROMOTED
     _PROMOTED = param
 
@@ -234,18 +244,22 @@ _DEMOTED = None
 
 @_events.on_event(_events.SERVER_DEMOTED)
 def test2(param, ignored):
+    """Function that is called by a trigger.
+    """
     global _DEMOTED
     _DEMOTED = param
     raise NotImplementedError("Just not here")
 
 @test2.undo
 def test2_undo(param, ignored):
+    """Function that is called by a trigger.
+    """
     global _DEMOTED
     _DEMOTED = "Undone"
 
 class TestService(unittest.TestCase):
-    "Test the service interface"
-
+    """Test the service interface.
+    """
     def setUp(self):
         """Configure the existing environment
         """
@@ -258,8 +272,12 @@ class TestService(unittest.TestCase):
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_trigger(self):
+        """Test the trigger interface from the service perspective.
+        """
         promoted = [None]
         def _another_my_event(param, ignored):
+            """Decorator or Inner function.
+            """
             promoted[0] = param
         _events.Handler().register(_events.SERVER_PROMOTED, _another_my_event)
         jobs = self.proxy.event.trigger("SERVER_PROMOTED", "lock_a, lock_b",
@@ -273,6 +291,8 @@ class TestService(unittest.TestCase):
         _events.Handler().unregister(_events.SERVER_PROMOTED, _another_my_event)
 
     def test_procedures(self):
+        """Test the procedure interface from the service perspective.
+        """
         try:
             self.proxy.event.wait_for_procedures(
                 "e8ca0abe-cfdf-4699-a07d-8cb481f4670b"

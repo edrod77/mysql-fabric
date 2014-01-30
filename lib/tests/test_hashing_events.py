@@ -353,8 +353,8 @@ class TestShardingServices(unittest.TestCase):
         self.assertTrue(shard_5_hit_count > 0)
 
     def test_lookup_disabled_exception(self):
-        #Since inhashing it is difficult to guess which shard the value will fall
-        #into, disable both the shards.
+        #Since inhashing it is difficult to guess which shard the value will
+        #fall into, disable both the shards.
         self.proxy.sharding.disable_shard(1)
         self.proxy.sharding.disable_shard(2)
         self.proxy.sharding.disable_shard(3)
@@ -378,7 +378,10 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         obtained_shard_mapping_list = status[2]
-        self.assertEqual(set(expected_shard_mapping_list1),  set(obtained_shard_mapping_list[0]))
+        self.assertEqual(
+            set(expected_shard_mapping_list1),
+            set(obtained_shard_mapping_list[0])
+        )
 
     def test_enable_shard_exception(self):
         status = self.proxy.sharding.enable_shard(25000)
