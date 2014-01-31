@@ -784,12 +784,18 @@ class MySQLServer(_persistence.Persistable):
         return server_uuid
 
     def _do_connection(self):
-        """Get a connection.
+        """Get a connection from the pool provided there is one or create
+        a fresh connection.
         """
         cnx = self.__pool.get_connection(self.__uuid)
         if cnx:
             return cnx
 
+        return self._do_create_connection()
+
+    def _do_create_connection(self, connection_timeout=None):
+        """Create a new connection.
+        """
         host, port = _server_utils.split_host_port(self.address,
             _server_utils.MYSQL_DEFAULT_PORT)
         user = self.__user or None
@@ -798,7 +804,7 @@ class MySQLServer(_persistence.Persistable):
         return _server_utils.create_mysql_connection(
             autocommit=True, use_unicode=False, database="mysql",
             charset=self.__default_charset, host=host, port=port,
-            user=user, passwd=passwd)
+            user=user, passwd=passwd, connection_timeout=connection_timeout)
 
     def connect(self):
         """Connect to a MySQL Server instance.
@@ -807,6 +813,7 @@ class MySQLServer(_persistence.Persistable):
 
         # Set up an internal connection.
         self.__cnx = self._do_connection()
+        _LOGGER.debug("Using connection (%s).", self.__cnx)
 
         # Get server's uuid
         ret_uuid = self.get_variable("SERVER_UUID")
@@ -875,19 +882,27 @@ class MySQLServer(_persistence.Persistable):
             return True
         return False
 
-    def is_alive(self):
-        """Determine if connection to server is still alive.
+    def is_connected(self):
+        """Determine whether the proxy object (i.e. the server) is connected
+        to actual server.
+        """
+        return self.__cnx is not None
 
-        Ping and is_connected only work partially, try exec_stmt to make
-        sure connection is really alive.
+    def is_alive(self, connection_timeout=None):
+        """Determine whether the server is dead or alive by trying to create
+        a new connection.
+
+        :param connection_timeout: Timeout waiting for getting a new
+                                   connection.
         """
         res = False
         try:
-            if _server_utils.is_valid_mysql_connection(self.__cnx):
-                self.exec_stmt("SHOW DATABASES")
-                res = True
+            cnx = self._do_create_connection(connection_timeout)
+            res = True
+            _server_utils.destroy_mysql_connection(cnx)
         except _errors.DatabaseError:
             pass
+
         return res
 
     def _check_read_only(self):
@@ -1121,10 +1136,6 @@ class MySQLServer(_persistence.Persistable):
                 _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
                 mode=mode, status=status, weight=weight, group_id=group_id
             )
-            try:
-                server.connect()
-            except _errors.DatabaseError:
-                pass
             ret.append(server)
         return ret
 

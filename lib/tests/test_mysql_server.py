@@ -255,14 +255,15 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(int(ret[0][0]), 9)
         self.assertEqual(int(ret[0].COUNT), 9)
 
-    def test_is_alive(self):
+    def test_is_connected(self):
         """Check whether MySQLServer is alive or not.
         """
         # Check if server is alive.
         server = self.server
-        self.assertFalse(server.is_alive())
-        server.connect()
         self.assertTrue(server.is_alive())
+        self.assertFalse(server.is_connected())
+        server.connect()
+        self.assertTrue(server.is_connected())
 
     def test_utilities(self):
         """Check MySQLServer's utilities module.

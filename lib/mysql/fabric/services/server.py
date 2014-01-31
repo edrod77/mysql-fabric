@@ -460,18 +460,14 @@ def _destroy_group(group_id, force):
     #Remove the slave group IDs.
     group.remove_slave_group_ids()
 
-    servers_uuid = []
     servers = group.servers()
+    cnx_pool = _server.ConnectionPool()
     if servers and force:
         for server in servers:
-            servers_uuid.append(server.uuid)
             _server.MySQLServer.remove(server)
+            cnx_pool.purge_connections(server.uuid)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
-
-    cnx_pool = _server.ConnectionPool()
-    for uuid in servers_uuid:
-        cnx_pool.purge_connections(uuid)
 
     _detector.FailureDetector.unregister_group(group_id)
     _server.Group.remove(group)
@@ -685,10 +681,9 @@ def _do_set_status(server, allowed_status, status, mode):
     """Set server's status.
     """
     server.connect()
-    alive = server.is_alive()
     allowed_transition = server.status in allowed_status
 
-    if alive and allowed_transition:
+    if allowed_transition:
         if server.status == _server.MySQLServer.FAULTY:
             _check_requirements(server)
             group = _server.Group.fetch(server.group_id)

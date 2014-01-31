@@ -117,7 +117,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     :return: Either a result set as list of tuples (either named or unnamed)
              or a cursor.
     """
-    if cnx is None or not cnx.is_connected():
+    if cnx is None:
         raise _errors.DatabaseError("Invalid database connection.")
 
     options = options or {}
@@ -199,7 +199,6 @@ def reestablish_mysql_connection(cnx, attempt, delay):
     """Try to reconnect if it is not already connected.
     """
     try:
-        if cnx is not None and not cnx.is_connected():
-            cnx.reconnect(attempt, delay)
-    except mysql.connector.errors.InterfaceError:
+        cnx.reconnect(attempt, delay)
+    except (AttributeError, mysql.connector.errors.InterfaceError):
         raise _errors.DatabaseError("Invalid database connection.")

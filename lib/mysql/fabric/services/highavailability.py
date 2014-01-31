@@ -270,8 +270,7 @@ def _define_ha_operation(group_id, slave_uuid):
         try:
             master = _server.MySQLServer.fetch(group.master)
             master.connect()
-            if master.status != _server.MySQLServer.FAULTY and \
-                master.is_alive():
+            if master.status != _server.MySQLServer.FAULTY:
                 fail_over = False
         except _errors.DatabaseError:
             pass
@@ -538,6 +537,7 @@ def _do_find_candidate(group_id, event):
         if master_uuid != str(candidate.uuid) and \
             candidate.status not in forbidden_status:
             try:
+                candidate.connect()
                 gtid_status = candidate.get_gtid_status()
                 master_issues = \
                     _replication.check_master_issues(candidate)
@@ -698,6 +698,7 @@ def _do_wait_slaves_catch(group_id, master, skip_servers=None):
     for server in group.servers():
         if str(server.uuid) not in skip_servers:
             try:
+                server.connect()
                 used_master_uuid = _replication.slave_has_master(server)
                 if  str(master.uuid) == used_master_uuid:
                     _utils.synchronize(server, master)
@@ -733,6 +734,7 @@ def _change_to_candidate(group_id, master_uuid):
     for server in group.servers():
         if server.uuid != _uuid.UUID(master_uuid):
             try:
+                server.connect()
                 _utils.switch_master(server, master)
             except _errors.DatabaseError as error:
                 _LOGGER.debug(
@@ -785,12 +787,11 @@ def _check_candidate_fail(group_id, slave_uuid):
         try:
             server = _server.MySQLServer.fetch(group.master)
             server.connect()
-            if server.is_alive():
-                _LOGGER.warning(
-                    "Failover is being executed in group (%s) when previous "
-                    "master is apparently running and this may lead to "
-                    "consistency problems because some transactions may not "
-                    "be transfered to slaves.", group_id)
+            _LOGGER.warning(
+                "Failover is being executed in group (%s) when previous "
+                "master is apparently running and this may lead to "
+                "consistency problems because some transactions may not "
+                "be transfered to slaves.", group_id)
         except _errors.DatabaseError:
             _LOGGER.debug(
                 "Master (%s) cannot be reached.", server.uuid
@@ -846,6 +847,7 @@ def _wait_slaves_demote(group_id, master_uuid):
     group = _server.Group.fetch(group_id)
     for server in group.servers():
         try:
+            server.connect()
             _utils.stop_slave(server)
         except _errors.DatabaseError as error:
             _LOGGER.debug(
@@ -868,7 +870,8 @@ def _check_group_availability(group_id):
         thread_issues = {}
         status = server.status
         try:
-            alive = server.is_alive()
+            server.connect()
+            alive = True
             if not is_master:
                 slave_issues = \
                     _replication.check_slave_issues(server)

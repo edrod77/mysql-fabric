@@ -123,7 +123,7 @@ def check_master_issues(server):
     """
     status = {}
 
-    if not server.is_alive():
+    if not server.is_connected():
         status["is_running"] = False
         return status
 
@@ -495,7 +495,7 @@ def check_slave_issues(server):
     """
     status = {}
 
-    if not server.is_alive():
+    if not server.is_connected():
         status["is_running"] = False
         return status
 
@@ -542,7 +542,7 @@ def check_slave_delay(slave, master):
     """
     status = {}
 
-    if not slave.is_alive() or not master.is_alive():
+    if not slave.is_connected() or not master.is_connected():
         status["is_running"] = False
         return status
 
