@@ -10,41 +10,43 @@ You can install the MySQL Fabric from source code using:
 
     python setup.pt install
 
-This will install the 'mysql.fabric' package (and all sub-packages), a
-command-line script (i.e. mysqlfabric) that is used to administer the farm
-and a sample configuration file.
+This will install the `mysql.fabric` package (and all sub-packages), a
+command-line script (i.e. `mysqlfabric`) that is used to administer
+the farm and a sample configuration file.
 
-The location where the packages, command-line and configuration files will
-be installed depends on the operating system and distro being used. In Ubuntu
-12.04, for example, the "/usr/local" path is the base location.
+The location where the packages, command-line and configuration files
+will be installed depends on the operating system and distro being
+used. In Ubuntu 12.04, for example, the "/usr/local" path is the base
+location.
 
 Running
 -------
 
 After installing MySQL, one may execute commands as follows:
 
-mysqlfabric list-commands
+    mysqlfabric help commands
 
-On Windows though, a file without extension cannot be executed, so commands
-must be executed as follows:
+On Windows though, a file without extension cannot be executed, so
+commands must be executed as follows:
 
-python <script-dir>/mysqlfabric list-commands
+    python <script-dir>/mysqlfabric help commands
 
-The problem does not happen if you install Fabric through a Windows Installer.
-In this case, the script is created as "mysqlfabric.exe" which can be directly
-executed. The full path to the script must be specified as its directory is
-not automatically added to the "PATH" variable.
+The problem does not happen if you install Fabric through a Windows
+Installer.  In this case, the script is created as `mysqlfabric.exe`
+which can be directly executed. The full path to the script must be
+specified as its directory is not automatically added to the `PATH`
+variable.
 
 Installation Issues
 -------------------
 
-1 - Make sure that the python executable is in the path and points to the
-    correct version. Only python 2.6 and 2.7 are supported.
+1. Make sure that the python executable is in the path and points to
+   the correct version. Only python 2.6 and 2.7 are supported.
 
-2 - On non-windows platforms, make sure that the script location is in the
-    path. It will not be possible to call it directly otherwise.
+2. On non-windows platforms, make sure that the script location is in
+   the path. It will not be possible to call it directly otherwise.
 
-3 - On windows, make sure that the following associations are defined:
+3. On windows, make sure that the following associations are defined:
 
     H:\>assoc .py
     .py=Python.File
@@ -60,6 +62,7 @@ Installation Issues
 
     H:\>ftype Python.File
     Python.File="C:\Python27\python.exe" "%1" %*
+
 
 Documentation
 -------------

@@ -4,28 +4,29 @@
 Adding new commands
 -------------------
 
-One needs to inherits from either the Command or ProcedureCommand class
-to define a new command.
+One needs to inherits from either the `Command` or `ProcedureCommand`
+class to define a new command.
 
-In the former case, the command does not trigger any internal procedure and
-can be either local or remote. For example, the commands "start" and "stop"
-are defined upon the Command class where the "start" is local and "stop" is
-remote.
+In the former case, the command does not trigger any internal
+procedure and can be either local or remote. For example, the commands
+`manage start` and `manage stop` are defined upon the `Command` class
+where the `manage start` is local and `manage stop` is remote.
 
-Any command defined upon the ProcedureCommand class is remote and triggers
-a procedure which is scheduled through an internal event processing system.
-The "promote" and "demote" are examples of remote commands built upon the
-ProcedureCommand class.
+Any command defined upon the `ProcedureCommand` class is remote and
+triggers a procedure which is scheduled through an internal event
+processing system.  The `group promote` and `group demote` commands
+are examples of remote commands built upon the `ProcedureCommand`
+class.
 
 Running unit tests
 ------------------
 
 In order to run tests while developing, it is necessary to install the
-Connector/Python in the build directory avoiding conflicts on the "mysql"
-package location.
+Connector/Python in the build directory avoiding conflicts on the
+`mysql` package location.
 
 So something similar to this will install Connector/Python with the
-version of your choice into the build directory and allow you to run
+version of your choice into the `build` directory and allow you to run
 the unit tests:
 
       python setup.py build
@@ -43,13 +44,13 @@ the unit tests:
       --port=<port> --user=<user> --password=<password> \
       --servers="<servers' addresses>" --log-file=output.log
 
-Note that the "lib" directory name varies depending on the platform and
-that "MYSQLDUMP" and "MYSQLCLIENT" must point to a location where the
-mysql and mysqldump can be found.
+Note that the `lib/` directory name varies depending on the platform
+and that `MYSQLDUMP` and `MYSQLCLIENT` must point to a location where
+the `mysql` and `mysqldump` can be found.
 
 Information on tests' outcome is sent to terminal but logging messages
-from the different modules are omitted. If one wants to check the logging
-messages, the log-file option must be used.
+from the different modules are omitted. If one wants to check the
+logging messages, the `log-file` option must be used.
 
 Running commands
 ----------------
@@ -63,7 +64,7 @@ and print debug log messages to the terminal.
     export PATH=build/script:$PATH
     mysqlfabric manage start --config=data/main.cfg
 
-You can stop the MySQL Fabric using:
+You can stop the *MySQL Fabric* using:
 
     export PYTHONPATH=build/lib
     export PATH=build/script:$PATH
@@ -71,5 +72,5 @@ You can stop the MySQL Fabric using:
 
 The port used for these commands is stored in the configuration file.
 
-Note that the "lib" directory name and the "script" directory name
+Note that the `lib/` directory name and the `script/` directory name
 vary depending on the platform.
