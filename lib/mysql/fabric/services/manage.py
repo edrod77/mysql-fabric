@@ -19,11 +19,9 @@
 information on available commands.
 """
 import getpass
-import inspect
 import logging
 import logging.handlers
 import os.path
-import sys
 import urlparse
 
 from mysql.fabric import (
@@ -40,10 +38,7 @@ from mysql.fabric import (
 
 from mysql.fabric.command import (
     Command,
-    get_groups,
-    get_commands,
-    get_command,
-   )
+)
 
 _LOGGER = logging.getLogger(__name__)
 

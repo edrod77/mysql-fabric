@@ -19,11 +19,6 @@ import optparse
 
 import mysql.fabric.config as _config
 
-from mysql.fabric.command import (
-    get_commands,
-    get_command,
-)
-
 class OptionParser(optparse.OptionParser):
     """Option with default options for all tools.
 
@@ -82,9 +77,15 @@ class OptionParser(optparse.OptionParser):
             help="Read configuration from FILE.")
 
     def print_error(self, msg):
+        """Format and print an error message to the standard output.
+
+        :param msg: Error message.
+        """
         print "%s: %s\n" % (self.get_prog_name(), msg)
 
     def print_help(self):
+        """Print help information to the standard output.
+        """
         optparse.OptionParser.print_help(self)
         print "\n".join([
                 "",

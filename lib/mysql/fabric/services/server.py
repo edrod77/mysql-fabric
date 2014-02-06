@@ -617,9 +617,9 @@ def _retrieve_server_status(status):
             pass
 
     if not valid:
-        raise _errors.ServerError("Trying to set an invalid status (%s) "
-            "for server (%s)." % (status, uuid)
-            )
+        raise _errors.ServerError("Trying to set an invalid status (%s)."
+            % (status, )
+        )
 
     return status
 
@@ -690,10 +690,6 @@ def _do_set_status(server, allowed_status, status, mode):
             _configure_as_slave(group, server)
         server.status = status
         server.mode = mode
-    elif not alive:
-        raise _errors.ServerError(
-            "Cannot connect to server (%s)." % (server.uuid, )
-            )
     elif server.status not in allowed_status:
         raise _errors.ServerError(
             "Cannot put server (%s) whose status is (%s) in "
@@ -755,9 +751,9 @@ def _retrieve_server_mode(mode):
             pass
 
     if not valid:
-        raise _errors.ServerError("Trying to set an invalid mode (%s) "
-            "for server (%s)." % (mode, uuid)
-            )
+        raise _errors.ServerError("Trying to set an invalid mode (%s)."
+            % (mode, )
+        )
 
     return mode
 
