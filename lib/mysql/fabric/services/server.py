@@ -617,8 +617,10 @@ def _retrieve_server_status(status):
             pass
 
     if not valid:
-        raise _errors.ServerError("Trying to set an invalid status (%s)."
-            % (status, )
+        values = [ str((_server.MySQLServer.get_status_idx(value), value))
+                   for value in _server.MySQLServer.SERVER_STATUS ]
+        raise _errors.ServerError("Trying to set an invalid status (%s). "
+            "Possible values are %s." % (status, ", ".join(values))
         )
 
     return status
@@ -724,10 +726,6 @@ def _set_server_mode(uuid, mode):
         _set_server_mode_spare(server, mode)
     elif server.status == _server.MySQLServer.FAULTY:
         _set_server_mode_faulty(server, mode)
-    else:
-        raise _errors.ServerError("Trying to set an invalid mode (%s) "
-            "for server (%s)." % (mode, uuid)
-            )
 
 def _retrieve_server_mode(mode):
     """Check whether the server's mode is valid or not and
@@ -751,8 +749,10 @@ def _retrieve_server_mode(mode):
             pass
 
     if not valid:
-        raise _errors.ServerError("Trying to set an invalid mode (%s)."
-            % (mode, )
+        values = [ str((_server.MySQLServer.get_mode_idx(value), value))
+                   for value in _server.MySQLServer.SERVER_MODE ]
+        raise _errors.ServerError("Trying to set an invalid mode (%s). "
+            "Possible values are: %s." % (mode, ", ".join(values))
         )
 
     return mode
