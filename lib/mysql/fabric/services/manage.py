@@ -105,20 +105,11 @@ class Start(Command):
     group_name = "manage"
     command_name = "start"
 
-    command_options = [
-        { 'options': [ '--daemonize'],
-          'dest':  'daemonize',
-          'default': False,
-          'action' : "store_true",
-          'help': "Daemonize the manager"
-          },
-        ]
-
-    def dispatch(self):
+    def dispatch(self, daemonize=False):
         """Start the Fabric server.
         """
         # Configure logging.
-        _configure_logging(self.config, self.options.daemonize)
+        _configure_logging(self.config, daemonize)
 
         _LOGGER.info("Fabric node starting.")
         # Configure connections.
@@ -128,7 +119,7 @@ class Start(Command):
         _setup_ttl(self.config)
 
         # Daemonize ourselves.
-        if self.options.daemonize:
+        if daemonize:
             _utils.daemonize()
 
         # Start Fabric server.

@@ -93,6 +93,18 @@ class NewRemoteCommand(_command.Command):
         """
         return _command.Command.generate_output_pattern(self._do_execute)
 
+class NewErrorRemoteCommand(_command.Command):
+    """Emulates a remote command that throws a Fault because of
+    returning None.
+    """
+    group_name = "test"
+    command_name = "error_remote_command"
+
+    def execute(self):
+        """A remote command that returns None.
+        """
+        return None
+
 NEW_PROCEDURE_COMMAND_0 = _events.Event()
 class ClassCommand_0(_command.ProcedureCommand):
     """Emulates a remote command that triggers a procedure with success.
@@ -314,6 +326,26 @@ class TestCommand(unittest.TestCase):
             "Command :\n{ success     = True\n  return      "
             "= executed\n  activities  = \n}")
         self.assertEqual(local_cmd.execution, None)
+
+    def test_error_remote_command(self):
+        """Create a erroneous remote command and fire it.
+        """
+        # Configure a local command.
+        from __main__ import xmlrpc_next_port
+        params = {
+            'protocol.xmlrpc': {
+                'address': 'localhost:%d' % (xmlrpc_next_port, ),
+                },
+            }
+        config = _config.Config(None, params)
+        local_cmd = NewErrorRemoteCommand()
+        local_cmd.setup_client(_xmlrpc.MyClient(), None, config)
+        try:
+            local_cmd.dispatch()
+        except Exception as e:
+            self.assertTrue(e, TypeError)
+        import xmlrpclib
+        self.assertRaises(xmlrpclib.Fault, local_cmd.dispatch)
 
     def test_procedure_return(self):
         """Check returned values from a procedure.

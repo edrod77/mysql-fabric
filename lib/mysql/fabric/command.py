@@ -211,6 +211,54 @@ class Command(object):
         self.__server = None
         self.__options = None
         self.__config = None
+        #use the execute / dispatch method signature to build the
+        #optional argument list passed to the command line parser.
+        try:
+            spec = inspect.getargspec(self.execute.original_function)
+        except AttributeError:
+            spec = inspect.getargspec(self.dispatch)
+        #Extract the default values from the method signature and build
+        #the optional argument list.
+        if spec.defaults is not None:
+            self.command_options = []
+            action = ""
+            #Easier to build the default args and values pairs in reverse
+            for opt, value in zip(reversed(spec.args), reversed(spec.defaults)):
+                #set the action while parsing optional arguments by
+                #inspecting the defaults.
+                if type(value) is bool:
+                    if value:
+                        action = "store_false"
+                    else:
+                        action = "store_true"
+                else:
+                    action = "store"
+
+                command_option = {
+                    'options':["--" + opt],
+                    'dest':opt,
+                    'default':value,
+                    'action':action
+                }
+                self.command_options.append(command_option)
+            #Reverse the extracted list
+            self.command_options.reverse()
+
+    def append_options_to_args(self, args):
+        """Append the optional arguments and their values to the
+        argument list being passed to the remote server.
+
+        @param args: The list of compulsory arguments to the command.
+        """
+        args_list = []
+        if args:
+            args_list.extend(args)
+        if self.command_options:
+            #Get the optional parameters from the options object. Append these to
+            #the arguments list so that they can be passed to the execute method.
+            for option in self.command_options:
+                args_list.append(getattr(self.options, option['dest']))
+        return args_list
 
     @property
     def client(self):
@@ -341,14 +389,42 @@ class Command(object):
 
         """
 
+        #The signatures of the execute/dispatch methods are used to
+        #build the help string to be used in the commands.
         try:
-            cargs = inspect.getargspec(cls.execute.original_function)[0]
+            cargs = inspect.getargspec(cls.execute.original_function)
         except AttributeError:
-            cargs = inspect.getargspec(cls.dispatch)[0]
-        return "%s %s %s" % (
+            cargs = inspect.getargspec(cls.dispatch)
+
+        #Build the help text for the compulsory arguments of the command
+        help_positional_arguments = ""
+        if cargs.args is not None:
+            if cargs.defaults is not None:
+                default_len = len(cargs.defaults)
+            else:
+                default_len = 0
+            #Skip the name of the functio and iterate till the beginning of the
+            #default arguments.
+            for arg in cargs.args[1:len(cargs.args)-default_len]:
+                help_positional_arguments += (arg + " ")
+
+        #Build the help text for the optional arguments for the command
+        help_default_arguments = ""
+        if cargs.defaults is not None:
+            default_params = []
+            #Iterate through the default arguments building a key value pair
+            for opt, value in zip(reversed(cargs.args), reversed(cargs.defaults)):
+                tmp = "[--" + str(opt).upper() + "=" + str(value).upper() + "]"
+                default_params.append(tmp)
+            default_params.reverse()
+            for param in default_params:
+                help_default_arguments += (param + " ")
+
+        return "%s %s %s %s" % (
             cls.group_name,
             cls.command_name,
-            " ".join(arg.upper() for arg in cargs[1:])
+            help_positional_arguments,
+            help_default_arguments
         )
 
     @staticmethod

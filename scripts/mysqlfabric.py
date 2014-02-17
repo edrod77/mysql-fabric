@@ -272,8 +272,9 @@ def fire_command(command, *args):
     :param arg: Arguments used by the command.
     """
     try:
-        # Execute command by dispatching it on the client side.
-        result = command.dispatch(*args)
+        # Execute command by dispatching it on the client side. Append the
+        #optional arguments passed by the user to the argument list.
+        result = command.dispatch(*(command.append_options_to_args(args)))
         if result is not None:
             print result
     except TypeError as error:
