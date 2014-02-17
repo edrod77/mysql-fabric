@@ -58,7 +58,8 @@ class TestSharding(unittest.TestCase):
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(0),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
         uuid_server3 = MySQLServer.discover_uuid(**self.__options_3)
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
@@ -89,7 +90,8 @@ class TestSharding(unittest.TestCase):
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{ee75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(2),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
         uuid_server5 = MySQLServer.discover_uuid(**self.__options_5)
         self.__options_5["uuid"] = _uuid.UUID(uuid_server5)

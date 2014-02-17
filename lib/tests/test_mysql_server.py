@@ -33,7 +33,8 @@ from mysql.fabric.server import (
 OPTIONS = {
     "uuid" : None,
     "address"  : tests.utils.MySQLInstances().get_address(0),
-    "user" : "root"
+    "user" : tests.utils.MySQLInstances().user,
+    "passwd" : tests.utils.MySQLInstances().passwd,
 }
 
 class TestMySQLServer(unittest.TestCase):
@@ -70,17 +71,17 @@ class TestMySQLServer(unittest.TestCase):
         server = self.server
 
         # Check property user.
-        self.assertEqual(server.user, "root")
+        self.assertEqual(server.user, tests.utils.MySQLInstances().user)
         server.user = "user"
         self.assertEqual(server.user, "user")
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.user, fetched_server.user)
-        server.user = "root"
+        server.user = "new_user"
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.user, fetched_server.user)
 
         # Check property passwd.
-        self.assertEqual(server.passwd, None)
+        self.assertEqual(server.passwd, tests.utils.MySQLInstances().passwd)
         server.passwd = "passwd"
         self.assertEqual(server.passwd, "passwd")
         fetched_server = MySQLServer.fetch(server.uuid)
@@ -333,39 +334,93 @@ class TestMySQLServer(unittest.TestCase):
         passwd = options.password
 
         # Try to manage the MySQLPersister.
-        uuid = MySQLServer.discover_uuid(address=address, user=user, 
+        uuid = MySQLServer.discover_uuid(address=address, user=user,
                                          passwd=passwd)
         server = MySQLServer(_uuid.UUID(uuid), address, None, None)
         self.assertRaises(_errors.ServerError, MySQLServer.add, server)
 
-    def test_root_privileges(self):
+    def test_privileges(self):
         """Test whether user's have the appropriate privileges.
         """
+        # Some privileges
+        MINIMUM_PRIVILEGES = [
+            "REPLICATION SLAVE", "REPLICATION CLIENT", "SUPER",
+            "SHOW DATABASES", "RELOAD"
+        ]
+
         # Connect to server as root and create temporary user.
-        server = self.server
-        server.connect()
-        server.exec_stmt(
-            "CREATE USER 'jeffrey'@'localhost' IDENTIFIED BY 'mypass'"
-            )
-        server.exec_stmt(
-            "GRANT ALL ON mysql.* TO 'jeffrey'@'localhost'"
-            )
-
-        # Check if root really has root privileges.
-        self.assertTrue(server.has_root_privileges())
-
-        # Check if jeffrey (temporary user) has root privileges.
         uuid = MySQLServer.discover_uuid(**OPTIONS)
+        server = MySQLServer(
+            _uuid.UUID(uuid), OPTIONS["address"],
+            tests.utils.MySQLInstances().root_user,
+            tests.utils.MySQLInstances().root_passwd
+        )
+        ConnectionPool().purge_connections(_uuid.UUID(uuid))
+        server.connect()
+        server.set_session_binlog(False)
+        server.exec_stmt(
+            "CREATE USER 'jeffrey'@'%%' IDENTIFIED BY 'mypass'"
+        )
+
+        # Check if jeffrey (temporary user) has the appropriate privileges.
+        # There is not privilege associate to jeffrey.
         new_server = MySQLServer(
             _uuid.UUID(uuid), OPTIONS["address"], "jeffrey", "mypass"
-            )
+        )
         new_server.connect()
-        self.assertFalse(new_server.has_root_privileges())
-        new_server.disconnect()
-        ConnectionPool().purge_connections(_uuid.UUID(uuid))
+        self.assertFalse(
+            new_server.has_privileges(MINIMUM_PRIVILEGES)
+        )
+
+        # Check if jeffrey (temporary user) has the appropriate privileges.
+        # Grant required privileges except RELOAD
+        # There is no RELOAD on a global level.
+        privileges=", ".join([priv for priv in MINIMUM_PRIVILEGES
+             if priv != "RELOAD"]
+        )
+        server.exec_stmt(
+            "GRANT {privileges} ON *.* TO 'jeffrey'@'%%'".format(
+            privileges=privileges)
+        )
+        server.exec_stmt("FLUSH PRIVILEGES")
+        self.assertFalse(
+            new_server.has_privileges(MINIMUM_PRIVILEGES)
+        )
+
+        # Check if jeffrey (temporary user) has the appropriate privileges.
+        # The RELOAD on a global level was granted.
+        server.exec_stmt("GRANT RELOAD ON *.* TO 'jeffrey'@'%%'")
+        server.exec_stmt("FLUSH PRIVILEGES")
+        self.assertTrue(
+            new_server.has_privileges(MINIMUM_PRIVILEGES)
+        )
+
+        # Check if jeffrey (temporary user) has the appropriate privileges.
+        # Revoke privilegs from temporary user.
+        # There is no ALL on a global level.
+        server.exec_stmt("REVOKE ALL PRIVILEGES, GRANT OPTION FROM "
+                         "'jeffrey'@'%%'"
+        )
+        server.exec_stmt("GRANT ALL ON fabric.* TO 'jeffrey'@'%%'")
+        server.exec_stmt("FLUSH PRIVILEGES")
+        self.assertFalse(
+            new_server.has_privileges(MINIMUM_PRIVILEGES)
+        )
+
+        # Check if jeffrey (temporary user) has the appropriate privileges.
+        # The ALL on a global level was granted.
+        server.exec_stmt("GRANT ALL ON *.* TO 'jeffrey'@'%%'")
+        server.exec_stmt("FLUSH PRIVILEGES")
+        self.assertTrue(
+            new_server.has_privileges(MINIMUM_PRIVILEGES)
+        )
 
         # Drop temporary user.
-        server.exec_stmt("DROP USER 'jeffrey'@'localhost'")
+        server.exec_stmt("DROP USER 'jeffrey'@'%%'")
+        server.set_session_binlog(True)
+        server.disconnect()
+        new_server.disconnect()
+        ConnectionPool().purge_connections(_uuid.UUID(uuid))
 
 class TestConnectionPool(unittest.TestCase):
     """Unit test for testing Connection Pool.

@@ -37,8 +37,9 @@ class TestBackupMySQLDump(unittest.TestCase):
 
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
-            "address":MySQLInstances().get_address(0),
-            "user" : "root"
+            "address": MySQLInstances().get_address(0),
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
 
         uuid_server1 = MySQLServer.discover_uuid(**self.__options_1)
@@ -49,10 +50,9 @@ class TestBackupMySQLDump(unittest.TestCase):
 
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa45b12b-98d1-414c-96af-9e9d4b179678}"),
-            #Using localhost causes problems while connecting to running MySQL
-            #server.
             "address":MySQLInstances().get_address(1),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
 
         uuid_server2 = MySQLServer.discover_uuid(**self.__options_2)
@@ -88,8 +88,7 @@ class TestBackupMySQLDump(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.__server_1.exec_stmt("DROP DATABASE backup_db")
-        self.__server_2.exec_stmt("DROP DATABASE backup_db")
+        self.__server_1.exec_stmt("DROP DATABASE IF EXISTS backup_db")
 
         tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)

@@ -49,9 +49,9 @@ class TestReplicationUse(unittest.TestCase):
         information on GTIDs.
         """
         # Configure replication.
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -97,9 +97,9 @@ class TestReplicationUse(unittest.TestCase):
         previous master was removed from the system.
         """
         # Configure replication.
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -142,9 +142,9 @@ class TestReplicationUse(unittest.TestCase):
         """Test promoting a there is an unhealthy slave.
         """
         # Configure replication.
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -267,9 +267,9 @@ class TestReplicationUse(unittest.TestCase):
         """Test promoting when there is no healthy slave.
         """
         # Configure replication.
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)

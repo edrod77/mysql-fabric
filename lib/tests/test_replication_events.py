@@ -48,9 +48,9 @@ class TestReplicationServices(unittest.TestCase):
         """Test importing topology by calling group.import_topology.
         """
         # Create topology M1 --> S2
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave = instances.get_instance(1)
@@ -143,9 +143,9 @@ class TestReplicationServices(unittest.TestCase):
 
     def test_promote_to(self):
         # Create topology: M1 ---> S2, M1 ---> S3
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)
@@ -253,9 +253,9 @@ class TestReplicationServices(unittest.TestCase):
 
     def test_promote(self):
         # Create topology: M1 ---> S2, M1 ---> S3, M1 ---> S4
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}, {3 : []}]},
                                       user, passwd)
         master = instances.get_instance(0)
@@ -361,9 +361,9 @@ class TestReplicationServices(unittest.TestCase):
         """Test demoting a master by calling group.demote.
         """
         # Create topology: M1 ---> S2, M1 ---> S3
-        user = "root"
-        passwd = ""
         instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
         instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
         master = instances.get_instance(0)
         slave_1 = instances.get_instance(1)

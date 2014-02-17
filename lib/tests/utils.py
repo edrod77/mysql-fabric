@@ -71,6 +71,10 @@ class MySQLInstances(_utils.Singleton):
         super(MySQLInstances, self).__init__()
         self.__addresses = []
         self.__instances = {}
+        self.user = None
+        self.passwd = None
+        self.root_user = None
+        self.root_passwd = None
 
     def add_address(self, address):
         """Add the address of a MySQL Instance that can be used in the test
@@ -121,7 +125,9 @@ class MySQLInstances(_utils.Singleton):
 
           topology = {1 : [{2 : []}, {3 : []}]}
           instances = _test_utils.MySQLInstances()
-          instances.configure_instances(topology, "root", "")
+          user = instances.user
+          passwd = instances.passwd
+          instances.configure_instances(topology, user, passwd)
 
         Each instance in the topology is represented as a dictionary whose
         keys are references to addresses that will be retrieved through
@@ -256,15 +262,14 @@ def cleanup_environment():
 
     #Remove all the databases from the running MySQL instances
     #other than the standard ones
-    STANDARD_DB_LIST = ("information_schema", "mtr", "mysql",
-                        "performance_schema")
     server_count = MySQLInstances().get_number_addresses()
 
     for i in range(0, server_count):
         __options = {
             "uuid" :  None,
             "address"  : MySQLInstances().get_address(i),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
 
         __uuid_server = _server.MySQLServer.discover_uuid(**__options )
@@ -278,7 +283,7 @@ def cleanup_environment():
                                 "SHOW DATABASES",
                                 {"fetch" : True})
         for database in databases:
-            if database[0] not in STANDARD_DB_LIST:
+            if database[0] not in _server.MySQLServer.NO_USER_DATABASES:
                 __server.exec_stmt("DROP DATABASE IF EXISTS %s"
                                    % (database[0], ))
         __server.set_foreign_key_checks(True)

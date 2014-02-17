@@ -535,12 +535,15 @@ def _add_server(group_id, address, user, passwd):
 
     server = _server.MySQLServer(uuid=uuid, address=address, user=user,
                                  passwd=passwd)
-    _server.MySQLServer.add(server)
     server.connect()
 
     # Check if the server fulfils the necessary requirements to become
     # a member.
+
     _check_requirements(server)
+
+    # Add server to the state store.
+    _server.MySQLServer.add(server)
 
     # Add server as a member in the group.
     server.group_id = group_id
@@ -823,11 +826,13 @@ def _check_requirements(server):
             "is required." % (server.uuid, server.version)
             )
 
-    if not server.has_root_privileges():
-        _LOGGER.warning(
-            "User (%s) needs root privileges on Server (%s, %s).",
-            server.user, server.address, server.uuid
-            )
+    if not server.has_required_privileges():
+        raise _errors.ServerError(
+            "User (%s) does not have appropriate privileges (%s) on server "
+            "(%s, %s)." % (server.user,
+            " ON ".join([_server.MySQLServer.ALL_PRIVILEGES, "*.*"]),
+            server.address, server.uuid)
+        )
 
     if not server.gtid_enabled or not server.binlog_enabled:
         raise _errors.ServerError(

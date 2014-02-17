@@ -20,22 +20,28 @@
 import re
 import unittest
 import uuid as _uuid
-import tests.utils
 
 from mysql.fabric import errors as _errors
 from mysql.fabric.server import MySQLServer
 from mysql.fabric.replication import *
 
+from tests.utils import (
+    MySQLInstances,
+    cleanup_environment,
+)
+
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),
-    "address"  : tests.utils.MySQLInstances().get_address(0),
-    "user" : "root"
+    "address"  : MySQLInstances().get_address(0),
+    "user" : MySQLInstances().user,
+    "passwd": MySQLInstances().passwd,
 }
 
 OPTIONS_SLAVE = {
     "uuid" :  _uuid.UUID("811f03ff-08ed-11e2-b7bd-f0def124dcc5"),
-    "address"  : tests.utils.MySQLInstances().get_address(1),
-    "user" : "root"
+    "address"  : MySQLInstances().get_address(1),
+    "user" : MySQLInstances().user,
+    "passwd": MySQLInstances().passwd,
 }
 
 class TestMySQLMaster(unittest.TestCase):
@@ -55,7 +61,7 @@ class TestMySQLMaster(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        tests.utils.cleanup_environment()
+        cleanup_environment()
         self.master.disconnect()
 
     def test_master_binary_log(self):
@@ -114,7 +120,7 @@ class TestMySQLSlave(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        tests.utils.cleanup_environment()
+        cleanup_environment()
         stop_slave(self.slave, wait=True)
         self.slave.disconnect()
         self.master.disconnect()
@@ -133,7 +139,8 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertNotEqual(slave_has_master(slave), str(master.uuid))
 
         # Switch to a master.
-        switch_master(slave, master, "root", "")
+        switch_master(slave, master, MySQLInstances().user,
+                      MySQLInstances().passwd)
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
         # The IO_THREAD status and the UUID are not atomically updated.
@@ -144,12 +151,15 @@ class TestMySQLSlave(unittest.TestCase):
 
         # It is not possible to switch when replication is running.
         self.assertRaises(_errors.DatabaseError, switch_master, slave,
-                          master, "root")
+            master, MySQLInstances().user, MySQLInstances().passwd
+        )
 
         # Reset and try to reconnect master and slave.
         stop_slave(slave, wait=True)
         reset_slave(slave, clean=True)
-        switch_master(slave, master, "root", "")
+        switch_master(slave, master, MySQLInstances().user,
+            MySQLInstances().passwd
+        )
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
         self.assertEqual(slave_has_master(slave), str(master.uuid))
@@ -159,10 +169,11 @@ class TestMySQLSlave(unittest.TestCase):
         stop_slave(slave, wait=True)
         master.set_session_binlog(False)
         master.exec_stmt(
-            "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('foobar')"
-            )
+            "SET PASSWORD FOR '{user}'@'%%' = PASSWORD('foobar')".format(
+            user=MySQLInstances().user)
+        )
         master.set_session_binlog(True)
-        switch_master(slave, master, "root", "foobar")
+        switch_master(slave, master, MySQLInstances().user, "foobar")
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
         self.assertEqual(slave_has_master(slave), str(master.uuid))
@@ -172,10 +183,14 @@ class TestMySQLSlave(unittest.TestCase):
         stop_slave(slave, wait=True)
         master.set_session_binlog(False)
         master.exec_stmt(
-            "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('')"
-            )
+            "SET PASSWORD FOR '{user}'@'%%' = "
+            "PASSWORD('{passwd}')".format(user=MySQLInstances().user,
+           passwd=MySQLInstances().passwd)
+        )
         master.set_session_binlog(True)
-        switch_master(slave, master, "root", "")
+        switch_master(slave, master, MySQLInstances().user,
+            MySQLInstances().passwd
+        )
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
         self.assertEqual(slave_has_master(slave), str(master.uuid))
@@ -186,7 +201,9 @@ class TestMySQLSlave(unittest.TestCase):
         # Set up replication.
         master = self.master
         slave = self.slave
-        switch_master(slave, master, "root")
+        switch_master(slave, master, MySQLInstances().user,
+            MySQLInstances().passwd
+        )
 
         # Start SQL Thread.
         start_slave(slave, wait=True, threads=(SQL_THREAD, ))
@@ -218,7 +235,9 @@ class TestMySQLSlave(unittest.TestCase):
         # Set up replication.
         master = self.master
         slave = self.slave
-        switch_master(slave, master, "root")
+        switch_master(slave, master, MySQLInstances().user,
+            MySQLInstances().passwd
+        )
 
         # Wait for SQL Thread and IO Thread to stop. This times out.
         start_slave(slave, wait=True)
@@ -288,7 +307,9 @@ class TestMySQLSlave(unittest.TestCase):
         self.assertEqual(ret, {'is_configured': False})
 
         # Try to check the health after executing change master.
-        switch_master(slave, master, "root")
+        switch_master(slave, master, MySQLInstances().user,
+            MySQLInstances().passwd
+        )
         ret = check_slave_issues(slave)
         self.assertEqual(ret, {'io_running': False, 'sql_running': False})
 
@@ -313,7 +334,9 @@ class TestMySQLSlave(unittest.TestCase):
         # Set up replication.
         master = self.master
         slave = self.slave
-        switch_master(slave, master, "root")
+        switch_master(slave, master, MySQLInstances().user,
+            MySQLInstances().passwd
+        )
 
         # Check gtid that has no information on server_uuid.
         self.assertRaises(_errors.ProgrammingError, get_num_gtid, "1")

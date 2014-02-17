@@ -44,7 +44,8 @@ class TestShardingPrune(unittest.TestCase):
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{aa75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(0),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd
         }
 
         uuid_server1 = MySQLServer.discover_uuid(**self.__options_1)
@@ -60,7 +61,8 @@ class TestShardingPrune(unittest.TestCase):
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa45b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(1),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd
         }
 
         uuid_server2 = MySQLServer.discover_uuid(**self.__options_2)
@@ -97,7 +99,8 @@ class TestShardingPrune(unittest.TestCase):
         self.__options_3 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(2),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd
         }
 
         uuid_server3 = MySQLServer.discover_uuid(**self.__options_3)
@@ -133,7 +136,8 @@ class TestShardingPrune(unittest.TestCase):
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{bb45b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(3),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd
         }
 
         uuid_server4 = MySQLServer.discover_uuid(**self.__options_4)
@@ -169,7 +173,8 @@ class TestShardingPrune(unittest.TestCase):
         self.__options_5 = {
             "uuid" :  _uuid.UUID("{cc75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(4),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd
         }
 
         uuid_server5 = MySQLServer.discover_uuid(**self.__options_5)
@@ -205,7 +210,8 @@ class TestShardingPrune(unittest.TestCase):
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{cc45b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : MySQLInstances().get_address(5),
-            "user" : "root"
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd
         }
 
         uuid_server6 = MySQLServer.discover_uuid(**self.__options_6)

@@ -60,21 +60,10 @@ def reset_master(server):
     server.exec_stmt("RESET MASTER")
 
 @_server.server_logging
-def get_master_rpl_users(server, options=None):
-    """Return users that have the `REPLICATION SLAVE PRIVILEGE`. In order
-    to ease the navigation through the result set, a named tuple is always
-    returned.
-
-    :param options: Define how the result is formatted and retrieved.
-                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
-    :return:  List of users that have the `REPLICATION SLAVE PRIVILEGE`.
-    :rtype: user, host, password = (0, 1).
+def has_appropriate_privileges(server):
+    """Check whether the current user has the `REPLICATION SLAVE PRIVILEGE`.
     """
-    if options is None:
-        options = {}
-    options["columns"] = True
-    options["raw"] = False
-    return server.exec_stmt(_RPL_USER_QUERY, options)
+    return server.has_privileges(["REPLICATION SLAVE"])
 
 @_server.server_logging
 def get_master_slaves(server, options=None):
@@ -109,7 +98,7 @@ def check_master_issues(server):
       status["is_binlog_enabled"] = False
       status["is_gtid_enabled"] = False
       status["is_slave_updates_enabled"] = False
-      status["rpl_user_exists"] = False
+      status["rpl_user"] = False
 
     :param server: MySQL Server.
     :return: A dictionary with issues, if there is any.
@@ -140,8 +129,8 @@ def check_master_issues(server):
         status["is_slave_updates_enabled"] = False
 
     # See if there is at least one user with rpl privileges
-    if not get_master_rpl_users(server):
-        status["rpl_user_exists"] = False
+    if not has_appropriate_privileges(server):
+        status["rpl_user"] = False
 
     return status
 

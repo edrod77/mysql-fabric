@@ -21,6 +21,8 @@ import os.path
 import sys
 import xmlrpclib
 
+import uuid as _uuid
+
 from distutils.util import get_platform
 
 from logging import (
@@ -70,13 +72,14 @@ def get_options():
     parser.add_option("--user",
                       action="store", dest="user",
                       default=getpass.getuser(),
-                      help=("User to use when connecting to the persistance "
-                            " database. Default to the current user."))
+                      help=("User to use to manage MySQL Server instances and "
+                            "access persistence database. Default to current "
+                            "user."))
     parser.add_option("--password",
                       action="store", dest="password", default=None,
-                      help=("Password to use when connecting to the"
-                            " persistance database. Default to the"
-                            " empty string."))
+                      help=("Password to use to manage MySQL Server instances "
+                            "and access persistence database. Default to the "
+                            "empty string."))
     parser.add_option("--port",
                       action="store", dest="port", default=3306, type=int,
                       help=("Port to use when connecting to persistance"
@@ -89,20 +92,47 @@ def get_options():
                       help="Set of servers' addresses that can be used.")
     return parser.parse_args()
 
-def configure_servers(set_of_servers):
+def configure_servers(set_of_addresses, user, password):
     """Check if some MySQL's addresses were specified and the number is
     greater than NUMBER_OF_SERVERS.
     """
-    # TODO: Check if the servers exist and are alive.
     import tests.utils as _test_utils
-    servers = _test_utils.MySQLInstances()
-    if set_of_servers:
-        for server in set_of_servers.split():
-            servers.add_address(server)
-    if servers.get_number_addresses() < NUMBER_OF_SERVERS:
-        print "<<<<<<<<<< Some unit tests need %s MySQL Instances. " \
+    from mysql.fabric.server import MySQLServer
+    # The shard-subsystem needs ALL *.*.
+    try:
+        servers = _test_utils.MySQLInstances()
+        servers.user = "mats"
+        servers.passwd = ""
+        servers.root_user = user
+        servers.root_passwd = password
+        if set_of_addresses:
+            for address in set_of_addresses.split():
+                servers.add_address(address)
+                uuid = MySQLServer.discover_uuid(
+                    address=address, user=servers.root_user,
+                    passwd=servers.root_passwd
+                )
+                server = MySQLServer(
+                    _uuid.UUID(uuid), address=address,
+                    user=servers.root_user,
+                    passwd=servers.root_passwd
+                )
+                server.connect()
+                server.set_session_binlog(False)
+                server.exec_stmt(
+                    "GRANT {privileges} ON *.* TO '{user}'@'%%'".format(
+                    privileges=", ".join(MySQLServer.ALL_PRIVILEGES),
+                    user=servers.user)
+                )
+                server.set_session_binlog(True)
+        if servers.get_number_addresses() < NUMBER_OF_SERVERS:
+            print "<<<<<<<<<< Some unit tests need %s MySQL Instances. " \
               ">>>>>>>>>> " % (NUMBER_OF_SERVERS, )
+            return False
+    except Exception as error:
+        print "Error configuring servers:", error
         return False
+
     return True
 
 def check_connector():
@@ -138,7 +168,8 @@ def run_tests(pkg, options, args, env_options):
         args = tests.__all__
 
     # Find out which MySQL Instances can be used for the tests.
-    if not check_connector() or not configure_servers(options.servers):
+    if not check_connector() or not configure_servers(options.servers, \
+        options.user, options.password):
         return None
 
     # Load the test cases and run them.

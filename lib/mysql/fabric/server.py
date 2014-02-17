@@ -34,6 +34,7 @@ import threading
 import uuid as _uuid
 import logging
 import functools
+import re
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.persistence as _persistence
@@ -552,8 +553,8 @@ class MySQLServer(_persistence.Persistable):
       OPTIONS = {
         "uuid" : _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
         "address"  : "localhost:13000",
-        "user" : "root",
-        "passwd" : ""
+        "user" : "user",
+        "passwd" : "passwd"
       }
       uuid = MySQLServer.discover_uuid(**OPTIONS)
       OPTIONS["uuid"] = _uuid.UUID(uuid)
@@ -723,6 +724,10 @@ class MySQLServer(_persistence.Persistable):
     # Set of possible statuses.
     SERVER_STATUS = [FAULTY, SPARE, SECONDARY, PRIMARY]
 
+    ALL_PRIVILEGES = [ "ALL PRIVILEGES" ]
+
+    NO_USER_DATABASES = ["performance_schema", "information_schema", "mysql"]
+
     def __init__(self, uuid, address, user=None, passwd=None, mode=DEFAULT_MODE,
                  status=DEFAULT_STATUS, weight=DEFAULT_WEIGHT, group_id=None,
                  default_charset="latin1"):
@@ -802,9 +807,10 @@ class MySQLServer(_persistence.Persistable):
         passwd = self.__passwd or None
 
         return _server_utils.create_mysql_connection(
-            autocommit=True, use_unicode=False, database="mysql",
-            charset=self.__default_charset, host=host, port=port,
-            user=user, passwd=passwd, connection_timeout=connection_timeout)
+            autocommit=True, use_unicode=False, charset=self.__default_charset,
+            host=host, port=port, user=user, passwd=passwd,
+            connection_timeout=connection_timeout
+        )
 
     def connect(self):
         """Connect to a MySQL Server instance.
@@ -868,19 +874,48 @@ class MySQLServer(_persistence.Persistable):
             self.__gtid_enabled = None
             self.__binlog_enabled = None
 
-    def has_root_privileges(self):
-        """Check if the current user has root privileges.
+    def user_databases(self):
+        """Return user databases.
         """
-        host, _ = _server_utils.split_host_port(self.__address,
-            _server_utils.MYSQL_DEFAULT_PORT)
+        exc_dbs = MySQLServer.NO_USER_DATABASES
+        dbs = self.exec_stmt("SHOW DATABASES")
+        dbs = [db[0] for db in dbs if db[0] not in exc_dbs]
+        return dbs
 
-        ret = self.exec_stmt(
-            "SELECT user FROM mysql.user WHERE user = %s "
-            "AND host = %s AND grant_priv = 'Y' AND super_priv = 'Y'",
-            {"params" : (self.__user, host)})
-        if ret:
-            return True
+    def has_privileges(self, required_privileges, level=None):
+        """Check whether the current user has the required privileges.
+
+        :param required_privileges: List or tuple of required privileges
+        a user who is connected to the current server must have.
+        :param level: Level of the set of privileges.
+        """
+        assert(isinstance(required_privileges, list) or \
+               isinstance(required_privileges, tuple))
+
+        required_privileges = set(required_privileges)
+        required_level = level or "*.*"
+        all_privileges = "ALL PRIVILEGES"
+        all_level = "*.*"
+        ret = self.exec_stmt("SHOW GRANTS")
+        check = re.compile("GRANT (?P<privileges>.*?) ON (?P<level>.*?) TO")
+        for row in ret:
+            res = check.match(row[0])
+            if res:
+                privileges = [ privilege.strip() \
+                      for privilege in res.group("privileges").split(",")
+                ]
+                level = res.group("level").replace('`', "")
+                if (all_privileges in privileges and all_level == level) or \
+                    (required_privileges.issubset(set(privileges)) and \
+                    required_level == level):
+                    return True
         return False
+
+    def has_required_privileges(self):
+        """Check whether the current user has a minimum set of privileges:
+        MySQLServer.ALL_PRIVILEGES on *.*.
+        """
+        return self.has_privileges(MySQLServer.ALL_PRIVILEGES)
 
     def is_connected(self):
         """Determine whether the proxy object (i.e. the server) is connected
