@@ -76,7 +76,7 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.user, "user")
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.user, fetched_server.user)
-        server.user = "new_user"
+        server.user = tests.utils.MySQLInstances().user
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.user, fetched_server.user)
 
@@ -86,7 +86,7 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.passwd, "passwd")
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.passwd, fetched_server.passwd)
-        server.passwd = None
+        server.passwd = tests.utils.MySQLInstances().passwd
         fetched_server = MySQLServer.fetch(server.uuid)
         self.assertEqual(server.passwd, fetched_server.passwd)
 

@@ -486,7 +486,7 @@ class ConnectionPool(_utils.Singleton):
         self.__pool = {}
         self.__lock = threading.RLock()
 
-    def get_connection(self, uuid):
+    def get_connection(self, uuid, user):
         """Get a connection.
 
         The method gets a connection from a pool if there is any.
@@ -496,6 +496,7 @@ class ConnectionPool(_utils.Singleton):
             try:
                 while len(self.__pool[uuid]):
                     cnx = self.__pool[uuid].pop()
+                    assert(user != None and cnx.user == user)
                     if _server_utils.is_valid_mysql_connection(cnx):
                         return cnx
             except (KeyError, IndexError):
@@ -792,7 +793,7 @@ class MySQLServer(_persistence.Persistable):
         """Get a connection from the pool provided there is one or create
         a fresh connection.
         """
-        cnx = self.__pool.get_connection(self.__uuid)
+        cnx = self.__pool.get_connection(self.__uuid, self.user)
         if cnx:
             return cnx
 
@@ -885,8 +886,9 @@ class MySQLServer(_persistence.Persistable):
     def has_privileges(self, required_privileges, level=None):
         """Check whether the current user has the required privileges.
 
-        :param required_privileges: List or tuple of required privileges
-        a user who is connected to the current server must have.
+        :param required_privileges: List or tuple of required privileges which
+                                    a user who is connected to the current
+                                    server must have.
         :param level: Level of the set of privileges.
         """
         assert(isinstance(required_privileges, list) or \

@@ -97,7 +97,10 @@ def configure_servers(set_of_addresses, user, password):
     greater than NUMBER_OF_SERVERS.
     """
     import tests.utils as _test_utils
-    from mysql.fabric.server import MySQLServer
+    from mysql.fabric.server import (
+        MySQLServer,
+        ConnectionPool,
+    )
     # The shard-subsystem needs ALL *.*.
     try:
         servers = _test_utils.MySQLInstances()
@@ -124,7 +127,10 @@ def configure_servers(set_of_addresses, user, password):
                     privileges=", ".join(MySQLServer.ALL_PRIVILEGES),
                     user=servers.user)
                 )
+                server.exec_stmt("FLUSH PRIVILEGES")
                 server.set_session_binlog(True)
+                server.disconnect()
+                ConnectionPool().purge_connections(server.uuid)
         if servers.get_number_addresses() < NUMBER_OF_SERVERS:
             print "<<<<<<<<<< Some unit tests need %s MySQL Instances. " \
               ">>>>>>>>>> " % (NUMBER_OF_SERVERS, )
