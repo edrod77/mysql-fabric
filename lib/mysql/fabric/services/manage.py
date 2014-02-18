@@ -29,11 +29,13 @@ from mysql.fabric import (
     errors as _errors,
     events as _events,
     executor as _executor,
-    failure_detector as _detector,
+    failure_detector as _failure_detector,
     persistence as _persistence,
     recovery as _recovery,
     services as _services,
     utils as _utils,
+    server as _server,
+    error_log as _error_log,
 )
 
 from mysql.fabric.command import (
@@ -343,9 +345,10 @@ def _setup_ttl(config):
 def _start(options, config):
     """Start Fabric server.
     """
-    # Configure modules.
-    import mysql.fabric.server
-    mysql.fabric.server.configure(config)
+    # Configure modules that are not dynamic loaded.
+    _server.configure(config)
+    _error_log.configure(config)
+    _failure_detector.configure(config)
 
     # Load all services into the service manager
     _services.ServiceManager().load_services(options, config)
@@ -358,7 +361,7 @@ def _start(options, config):
     # executor and before starting the service manager.
     _events.Handler().start()
     _recovery.recovery()
-    _detector.FailureDetector.register_groups()
+    _failure_detector.FailureDetector.register_groups()
     _services.ServiceManager().start()
 
 
@@ -378,7 +381,7 @@ class Stop(Command):
 def _shutdown():
     """Shutdown Fabric server.
     """
-    _detector.FailureDetector.unregister_groups()
+    _failure_detector.FailureDetector.unregister_groups()
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
     _events.Handler().wait()

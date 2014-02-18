@@ -485,6 +485,7 @@ class TestGroup(unittest.TestCase):
         fetched_group_1 = Group.fetch(group_1.group_id)
         self.assertEqual(group_1.group_id, "mysql.com")
         self.assertEqual(fetched_group_1.group_id, "mysql.com")
+        self.assertEqual(fetched_group_1.master_defined, None)
 
         group_2 = Group("oracle.com", "First description.")
         Group.add(group_2)

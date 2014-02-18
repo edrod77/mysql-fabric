@@ -25,6 +25,8 @@ from mysql.fabric import (
     events as _events,
 )
 
+_NEW_SERVER_LOST = _events.Event("_NEW_SERVER_LOST")
+
 _TEST1 = None
 
 def test1(param, ignored):
@@ -70,51 +72,51 @@ class TestHandler(unittest.TestCase):
         "Test event registration functions."
         callables = [Callable(), Callable(), Callable()]
 
-        self.assertFalse(self.handler.is_registered(_events.SERVER_LOST, test1))
+        self.assertFalse(self.handler.is_registered(_NEW_SERVER_LOST, test1))
 
         # Check registration of a function
-        self.handler.register(_events.SERVER_LOST, test1)
-        self.assertTrue(self.handler.is_registered(_events.SERVER_LOST, test1))
+        self.handler.register(_NEW_SERVER_LOST, test1)
+        self.assertTrue(self.handler.is_registered(_NEW_SERVER_LOST, test1))
 
         # Check registration of a callable that is not a function
-        self.handler.register(_events.SERVER_LOST, callables[0])
+        self.handler.register(_NEW_SERVER_LOST, callables[0])
 
         # Check registration of a list of callables
-        self.handler.register(_events.SERVER_LOST, callables[1:])
+        self.handler.register(_NEW_SERVER_LOST, callables[1:])
 
         # Check registration of an object that is not callable or iterable.
         self.assertRaises(
             _errors.NotCallableError,
-            self.handler.register, _events.SERVER_LOST, None
+            self.handler.register, _NEW_SERVER_LOST, None
             )
 
         # Check that all callables are now registered
         for obj in callables:
             self.assertTrue(
-                self.handler.is_registered(_events.SERVER_LOST, obj)
+                self.handler.is_registered(_NEW_SERVER_LOST, obj)
                 )
 
         # Check unregistration of a function
-        self.handler.unregister(_events.SERVER_LOST, test1)
+        self.handler.unregister(_NEW_SERVER_LOST, test1)
         self.assertFalse(
-            self.handler.is_registered(_events.SERVER_LOST, test1)
+            self.handler.is_registered(_NEW_SERVER_LOST, test1)
             )
         self.assertRaises(
             _errors.UnknownCallableError,
-            self.handler.unregister, _events.SERVER_LOST, test1
+            self.handler.unregister, _NEW_SERVER_LOST, test1
             )
 
         # Check unregistration of callables that are not functions
         for obj in callables:
             self.assertRaises(
                 _errors.UnknownCallableError,
-                self.handler.unregister, _events.SERVER_LOST, obj
+                self.handler.unregister, _NEW_SERVER_LOST, obj
                 )
 
         # Check that they are indeed gone
         for obj in callables:
             self.assertFalse(
-                self.handler.is_registered(_events.SERVER_LOST, obj)
+                self.handler.is_registered(_NEW_SERVER_LOST, obj)
                 )
 
         # Check that passing a non-event raises an exception
@@ -127,11 +129,11 @@ class TestHandler(unittest.TestCase):
 
         # Check that passing non-callables raise an exception
         self.assertRaises(_errors.NotCallableError, self.handler.register,
-                          _events.SERVER_LOST, callables + [5])
+                          _NEW_SERVER_LOST, callables + [5])
         self.assertRaises(_errors.NotCallableError, self.handler.is_registered,
-                          _events.SERVER_LOST, callables + [5])
+                          _NEW_SERVER_LOST, callables + [5])
         self.assertRaises(_errors.NotCallableError, self.handler.unregister,
-                          _events.SERVER_LOST, callables + [5])
+                          _NEW_SERVER_LOST, callables + [5])
 
     def test_trigger(self):
         "Test that triggering an event dispatches jobs."
@@ -139,7 +141,7 @@ class TestHandler(unittest.TestCase):
         global _TEST1
 
         # Register a function that we can check if it was called
-        self.handler.register(_events.SERVER_LOST, test1)
+        self.handler.register(_NEW_SERVER_LOST, test1)
 
         # Register a function and trigger it to see that the executor
         # really executed it.  When triggering the event, a list of
@@ -147,7 +149,7 @@ class TestHandler(unittest.TestCase):
         # list and wait until all jobs have been executed.
         _TEST1 = 0
         jobs = self.handler.trigger(
-            False, _events.SERVER_LOST, set(["lock"]), 3, ""
+            False, _NEW_SERVER_LOST, set(["lock"]), 3, ""
         )
         self.assertEqual(len(jobs), 1)
         for job in jobs:
@@ -157,7 +159,7 @@ class TestHandler(unittest.TestCase):
         # Check that triggering an event by name works.
         _TEST1 = 0
         jobs = self.handler.trigger(
-            False, "SERVER_LOST", set(["lock"]), 4, ""
+            False, "_NEW_SERVER_LOST", set(["lock"]), 4, ""
         )
         self.assertEqual(len(jobs), 1)
         for job in jobs:
@@ -188,10 +190,6 @@ class TestHandler(unittest.TestCase):
 #
 # Testing the decorator to see that it works
 #
-
-_PROMOTED = None
-_DEMOTED = None
-
 class TestDecorator(unittest.TestCase):
     """Test the decorators related to events.
     """
@@ -216,7 +214,7 @@ class TestDecorator(unittest.TestCase):
         # Test decorator
         _PROMOTED = None
         jobs = self.handler.trigger(
-            False, _events.SERVER_PROMOTED, set(["lock"]), "Testing", ""
+            False, _NEW_SERVER_PROMOTED, set(["lock"]), "Testing", ""
         )
         for job in jobs:
             job.wait()
@@ -225,14 +223,18 @@ class TestDecorator(unittest.TestCase):
         # Test undo action for decorator
         _DEMOTED = None
         jobs = self.handler.trigger(
-            False, _events.SERVER_DEMOTED, set(["lock"]), "Executing", ""
+            False, _NEW_SERVER_DEMOTED, set(["lock"]), "Executing", ""
         )
         for job in jobs:
             job.wait()
         self.assertEqual(_DEMOTED, "Undone")
 
+
 # Testing that on_event decorator works as expected
-@_events.on_event(_events.SERVER_PROMOTED)
+_PROMOTED = None
+_NEW_SERVER_PROMOTED = _events.Event("_NEW_SERVER_PROMOTED")
+
+@_events.on_event(_NEW_SERVER_PROMOTED)
 def my_event(param, ignored):
     """Function that is called by a trigger.
     """
@@ -241,8 +243,9 @@ def my_event(param, ignored):
 
 # Testing that undo actions are really executed
 _DEMOTED = None
+_NEW_SERVER_DEMOTED = _events.Event("_NEW_SERVER_DEMOTED")
 
-@_events.on_event(_events.SERVER_DEMOTED)
+@_events.on_event(_NEW_SERVER_DEMOTED)
 def test2(param, ignored):
     """Function that is called by a trigger.
     """
@@ -279,16 +282,17 @@ class TestService(unittest.TestCase):
             """Decorator or Inner function.
             """
             promoted[0] = param
-        _events.Handler().register(_events.SERVER_PROMOTED, _another_my_event)
-        jobs = self.proxy.event.trigger("SERVER_PROMOTED", "lock_a, lock_b",
-                                        "my.example.com", "")
+        _events.Handler().register(_NEW_SERVER_PROMOTED, _another_my_event)
+        jobs = self.proxy.event.trigger(
+            "_NEW_SERVER_PROMOTED", "lock_a, lock_b", "my.example.com", ""
+        )
         try:
             self.proxy.event.wait_for_procedures(", ".join(jobs))
             self.assertEqual(promoted[0], "my.example.com")
         except Exception as error:
             if str(error).find("was not found") == -1:
                 raise
-        _events.Handler().unregister(_events.SERVER_PROMOTED, _another_my_event)
+        _events.Handler().unregister(_NEW_SERVER_PROMOTED, _another_my_event)
 
     def test_procedures(self):
         """Test the procedure interface from the service perspective.

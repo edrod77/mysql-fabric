@@ -39,11 +39,6 @@ if sys.version_info[0:2] < (2,7):
 else:
     from logging import NullHandler
 
-# Compute the directory where this script is. We have to do this
-# fandango since the script may be called from another directory than
-# the repository top directory.
-script_dir = os.path.dirname(os.path.realpath(__file__))
-
 from unittest import (
     TestLoader,
     TextTestRunner,
@@ -95,6 +90,67 @@ def get_options():
     parser.add_option("--servers", action="store", dest="servers",
                       help="Set of servers' addresses that can be used.")
     return parser.parse_args()
+
+def get_config(options, env_options):
+    from mysql.fabric import (
+        config as _config,
+    )
+
+    # Configure parameters.
+    params = {
+        'protocol.xmlrpc': {
+            'address': 'localhost:%d' % (env_options["xmlrpc_next_port"], ),
+            'threads': '5',
+            },
+        'executor': {
+            'executors': '5',
+            },
+        'storage': {
+            'address': options.host + ":" + str(options.port),
+            'user': options.user,
+            'password': options.password,
+            'database': 'fabric',
+            'connection_timeout': 'None',
+            },
+        'servers': {
+            'user': options.db_user,
+            },
+        'sharding': {
+            'mysqldump_program': env_options["mysqldump_path"],
+            'mysqlclient_program': env_options["mysqlclient_path"],
+            },
+        'failure_tracking': {
+            'notifications' : '1',
+            'notification_clients' : '1',
+            'notification_interval' : '60',
+            'failover_interval' : '0',
+            'detections' : '3',
+            'detection_interval' : '6',
+            'detection_timeout' : '1',
+            'prune_time' :  '60',
+            },
+        }
+    return _config.Config(None, params)
+
+def configure_path(options):
+    # Compute the directory where this script is. We have to do this
+    # fandango since the script may be called from another directory than
+    # the repository top directory.
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+
+    # Set up path correctly. We need the build directory in the path
+    # and the directory with the tests (which are in 'lib/tests').  We
+    # put this first in the path since there can be modules installed
+    # under 'mysql' and 'tests'.
+    if options.build_dir is None:
+        options.build_dir = 'build'
+    sys.path[0:1] = [
+        os.path.join(
+            script_dir, options.build_dir,
+            "lib.%s-%s" % (get_platform(), sys.version[0:3]),
+            ),
+        os.path.join(script_dir, 'lib'),
+        ]
 
 def configure_servers(options):
     """Check if some MySQL's addresses were specified and the number is
@@ -159,21 +215,7 @@ def check_connector():
         return False
     return True
 
-def run_tests(pkg, options, args, env_options):
-    # Set up path correctly. We need the build directory in the path
-    # and the directory with the tests (which are in 'lib/tests').  We
-    # put this first in the path since there can be modules installed
-    # under 'mysql' and 'tests'.
-    if options.build_dir is None:
-        options.build_dir = 'build'
-    sys.path[0:1] = [
-        os.path.join(
-            script_dir, options.build_dir,
-            "lib.%s-%s" % (get_platform(), sys.version[0:3]),
-            ),
-        os.path.join(script_dir, 'lib'),
-        ]
-
+def run_tests(pkg, options, args, config):
     import tests
     if len(args) == 0:
         args = tests.__all__
@@ -184,42 +226,14 @@ def run_tests(pkg, options, args, env_options):
 
     # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
-    proxy = setup_xmlrpc(options, env_options)
+    proxy = setup_xmlrpc(options, config)
     ret = TextTestRunner(verbosity=options.verbosity).run(suite)
     teardown_xmlrpc(proxy)
     return ret
 
-def setup_xmlrpc(options, env_options):
-    from mysql.fabric import (
-        config as _config,
-        persistence as _persistence,
-    )
-
-    # Configure parameters.
-    params = {
-        'protocol.xmlrpc': {
-            'address': 'localhost:%d' % (env_options["xmlrpc_next_port"], ),
-            'threads': '5',
-            },
-        'executor': {
-            'executors': '5',
-            },
-        'servers': {
-            'user': options.db_user,
-            },
-        'storage': {
-            'address': options.host + ":" + str(options.port),
-            'user': options.user,
-            'password': options.password,
-            'database': 'fabric',
-            'connection_timeout': 'None',
-            },
-            'sharding': {
-                'mysqldump_program': env_options["mysqldump_path"],
-                'mysqlclient_program': env_options["mysqlclient_path"],
-            },
-        }
-    config = _config.Config(None, params)
+def setup_xmlrpc(options, config):
+    # Set up the persistence.
+    from mysql.fabric import persistence
 
     # Set up the manager.
     from mysql.fabric.services.manage import (
@@ -228,8 +242,8 @@ def setup_xmlrpc(options, env_options):
     )
 
     _configure_connections(config)
-    _persistence.setup()
-    _persistence.init_thread()
+    persistence.setup()
+    persistence.init_thread()
     _start(options, config)
 
     # Set up the client.
@@ -246,19 +260,19 @@ def setup_xmlrpc(options, env_options):
     return proxy
 
 def teardown_xmlrpc(proxy):
-    from mysql.fabric import (
-        persistence as _persistence,
-    )
+    from mysql.fabric import persistence
 
     proxy.manage.stop()
-    _persistence.deinit_thread()
-    _persistence.teardown()
+    persistence.deinit_thread()
+    persistence.teardown()
+
 
 if __name__ == '__main__':
     # Note: do not change the names of the set of variables found below, e.g
     # "options" and "args". They are used in the test modules to pull in user
     # options.
     options, args = get_options()
+    configure_path(options)
     xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
     mysqldump_path = os.getenv("MYSQLDUMP", "")
     mysqlclient_path = os.getenv("MYSQLCLIENT", "")
@@ -267,6 +281,7 @@ if __name__ == '__main__':
         "mysqldump_path" : mysqldump_path,
         "mysqlclient_path" : mysqlclient_path,
     }
+    config = get_config(options, env_options)
 
     handler = None
     formatter = logging.Formatter(
@@ -320,5 +335,5 @@ if __name__ == '__main__':
         logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
 
-    result = run_tests('tests', options, args, env_options)
+    result = run_tests('tests', options, args, config)
     sys.exit(result is None or not result.wasSuccessful())

@@ -23,6 +23,7 @@ import socket
 import logging
 import pkgutil
 import os
+import inspect
 
 import mysql.fabric.protocols.xmlrpc as _protocol
 
@@ -42,14 +43,18 @@ from mysql.fabric.command import (
 
 _LOGGER = logging.getLogger(__name__)
 
-def find_commands():
+def find_commands(config=None):
     """Find which are the available commands.
     """
     for imp, name, ispkg in pkgutil.walk_packages(__path__, __name__ + "."):
         mod = imp.find_module(name).load_module(name)
         _LOGGER.debug("%s %s has got __name__ %s",
             "Package" if ispkg else "Module", name, mod.__name__
-         )
+        )
+        if config is not None:
+            for (mem_name, mem_value) in inspect.getmembers(mod):
+                if mem_name == "configure" and inspect.isfunction(mem_value):
+                    mem_value(config)
 
 def find_client():
     """Return a proxy to access the Fabric server.
@@ -116,7 +121,7 @@ class ServiceManager(Singleton):
         """
         _LOGGER.info("Loading Services.")
 
-        find_commands()
+        find_commands(config)
 
         for group_name in get_groups():
             for command_name in get_commands(group_name):

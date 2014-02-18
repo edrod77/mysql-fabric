@@ -36,13 +36,18 @@ import logging
 import functools
 import re
 
+from datetime import (
+    datetime,
+)
+
 from mysql.fabric import (
     errors as _errors,
     persistence as _persistence,
     server_utils as _server_utils,
     utils as _utils,
     failure_detector as _detector,
-    config as _config
+    error_log as _error_log,
+    config as _config,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,7 +89,8 @@ class Group(_persistence.Persistable):
                     "(group_id VARCHAR(64) NOT NULL, "
                     "description VARCHAR(256), "
                     "master_uuid VARCHAR(40), "
-                    "status BIT(1) NOT NULL,"
+                    "master_defined TIMESTAMP(6) NULL, "
+                    "status BIT(1) NOT NULL, "
                     "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
 
     #Create the table that stores the group replication relationship.
@@ -147,11 +153,12 @@ class Group(_persistence.Persistable):
              " VALUES(%s, %s)")
 
     #SQL Statement to retrieve a specific group from the state_store.
-    QUERY_GROUP = ("SELECT group_id, description, master_uuid, status "
-                   "FROM groups WHERE group_id = %s")
+    QUERY_GROUP = ("SELECT group_id, description, master_uuid, "
+                   "master_defined, status FROM groups WHERE group_id = %s")
 
     #SQL Statement to update the group's master.
-    UPDATE_MASTER = ("UPDATE groups SET master_uuid = %s WHERE group_id = %s")
+    UPDATE_MASTER = ("UPDATE groups SET master_uuid = %s, master_defined = %s "
+                     "WHERE group_id = %s")
 
     #SQL Statement to update the group's status.
     UPDATE_STATUS = ("UPDATE groups SET status = %s WHERE group_id = %s")
@@ -162,17 +169,23 @@ class Group(_persistence.Persistable):
     #List with Group's statuses
     GROUP_STATUS = [INACTIVE, ACTIVE]
 
+    #Failover interval
+    _FAILOVER_INTERVAL = _DEFAULT_FAILOVER_INTERVAL = 3600
+
     def __init__(self, group_id, description=None, master=None,
-                 status=INACTIVE):
+                 master_defined=None, status=INACTIVE):
         """Constructor for the Group.
         """
         assert(isinstance(group_id, basestring))
+        assert(description is None or isinstance(description, basestring))
         assert(master is None or isinstance(master, _uuid.UUID))
+        assert(master_defined is None or isinstance(master_defined, datetime))
         assert(status in Group.GROUP_STATUS)
         super(Group, self).__init__()
         self.__group_id = group_id
         self.__description = description
         self.__master = master
+        self.__master_defined = master_defined
         self.__status = status
 
     def __eq__(self,  other):
@@ -336,6 +349,12 @@ class Group(_persistence.Persistable):
         """
         return self.__master
 
+    @property
+    def master_defined(self):
+        """Return the last time the master has changed.
+        """
+        return self.__master_defined
+
     @master.setter
     def master(self, master, persister=None):
         """Set the master for this group.
@@ -345,13 +364,13 @@ class Group(_persistence.Persistable):
         :param master: The master for the group that needs to be updated.
         """
         assert(master is None or isinstance(master, _uuid.UUID))
-        if not master:
+        if master is None:
             param_master = None
         else:
             param_master = str(master)
 
         persister.exec_stmt(Group.UPDATE_MASTER,
-            {"params":(param_master, self.__group_id)})
+            {"params":(param_master, _utils.get_time(), self.__group_id)})
         self.__master = master
 
     def servers(self):
@@ -377,6 +396,24 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(Group.UPDATE_STATUS,
             {"params":(status, self.__group_id)})
         self.__status = status
+
+    def can_set_server_faulty(self, server, now):
+        """Check whether is ipossible to set a new master.
+
+        If `now - master_defined` > Group._FAILOVER_INTERVAL, it is safe
+        to set a new master without making the system unstable.
+        """
+        if self.__master_defined is None:
+            return True
+
+        diff = now - self.__master_defined
+        interval = _utils.get_time_delta(Group._FAILOVER_INTERVAL)
+
+        if (self.__master == server.uuid and diff > interval) or \
+            self.__master != server.uuid:
+            return True
+
+        return False
 
     @staticmethod
     def groups_by_status(status, persister=None):
@@ -426,12 +463,12 @@ class Group(_persistence.Persistable):
             )
         row = cur.fetchone()
         if row:
-            group_id, description, master, status = row
+            group_id, description, master, master_defined, status = row
             if master:
                 master = _uuid.UUID(master)
             group = Group(
                 group_id=group_id, description=description, master=master,
-                status=status
+                master_defined=master_defined, status=status
                 )
         return group
 
@@ -1293,6 +1330,8 @@ class MySQLServer(_persistence.Persistable):
         :param server: A reference to a server.
         :param persister: Persister to persist the object to.
         """
+        ConnectionPool().purge_connections(server.uuid)
+        _error_log.ErrorLog.remove(server)
         persister.exec_stmt(
             MySQLServer.REMOVE_SERVER, {"params": (str(server.uuid), )}
             )
@@ -1444,7 +1483,6 @@ class MySQLServer(_persistence.Persistable):
             format(self.__uuid, self.__address, self.__mode, self.__status)
         return ret
 
-
 def configure(config):
     """Set configuration values.
     """
@@ -1452,5 +1490,11 @@ def configure(config):
 
     try:
         MySQLServer.PASSWD = config.get("servers", "password")
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        pass
+
+    try:
+        failover_interval = config.get("failure_tracking", "failover_interval")
+        Group._FAILOVER_INTERVAL = int(failover_interval)
     except (_config.NoOptionError, _config.NoSectionError, ValueError):
         pass

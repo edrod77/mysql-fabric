@@ -14,7 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
-
 """This module provides the necessary interfaces for performing administrative
 tasks on groups and servers, specifically MySQL Servers.
 
@@ -81,6 +80,10 @@ from mysql.fabric import (
 from mysql.fabric.command import (
     ProcedureGroup,
     Command,
+)
+
+from mysql.fabric.utils import (
+    get_time,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -443,11 +446,9 @@ def _destroy_group(group_id, force):
     group.remove_slave_group_ids()
 
     servers = group.servers()
-    cnx_pool = _server.ConnectionPool()
     if servers and force:
         for server in servers:
             _server.MySQLServer.remove(server)
-            cnx_pool.purge_connections(server.uuid)
     elif servers:
         raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
 
@@ -540,6 +541,7 @@ def _remove_server(group_id, uuid):
         )
 
     _server.MySQLServer.remove(server)
+    server.disconnect()
     _server.ConnectionPool().purge_connections(server.uuid)
 
 @_events.on_event(SET_SERVER_STATUS)
@@ -582,8 +584,8 @@ def _retrieve_server_status(status):
     if not valid:
         values = [ str((_server.MySQLServer.get_status_idx(value), value))
                    for value in _server.MySQLServer.SERVER_STATUS ]
-        raise _errors.ServerError("Trying to access/set an invalid status "
-            "(%s). Possible values are %s." % (status, ", ".join(values))
+        raise _errors.ServerError("Trying to use an invalid status (%s). "
+            "Possible values are %s." % (status, ", ".join(values))
         )
 
     return status
@@ -592,36 +594,14 @@ def _set_server_status_primary(server):
     """Set server's status to primary.
     """
     raise _errors.ServerError(
-        "If you want to put a server (%s) to primary, please, use the "
+        "If you want to set a server (%s) to primary, please, use the "
         "promote interface." % (server.uuid, )
     )
 
 def _set_server_status_faulty(server):
-    """Set server's status to faulty.
-    """
-    group = _server.Group.fetch(server.group_id)
-    if group.status == _server.Group.ACTIVE:
-        raise _errors.ServerError(
-            "Group (%s) has the failure detector activate so that "
-            "one cannot manually set a server (%s) as faulty."
-            % (group.group_id, server.uuid)
-        )
-
-    if server.status ==  _server.MySQLServer.FAULTY:
-        raise _errors.ServerError(
-            "Server (%s) was already set to faulty." % (server.uuid, )
-        )
-
-    server.status = _server.MySQLServer.FAULTY
-    _server.ConnectionPool().purge_connections(server.uuid)
-
-    if group.master == server.uuid:
-        _LOGGER.info("Master (%s) in group (%s) has "
-                     "been lost.", server.uuid, group.group_id)
-        _events.trigger_within_procedure("FAIL_OVER", group.group_id)
-
-    _events.trigger_within_procedure(
-        "SERVER_LOST", group.group_id, server.uuid
+    raise _errors.ServerError(
+        "If you want to set a server (%s) to faulty, please, use the "
+        "threat interface." % (server.uuid, )
     )
 
 def _set_server_status_secondary(server):
@@ -666,7 +646,12 @@ def _set_server_weight(uuid, weight):
     """Set server's weight.
     """
     server = _retrieve_server(uuid)
-    weight = float(weight)
+
+    try:
+        weight = float(weight)
+    except ValueError:
+        raise _errors.ServerError("Value (%s) must be a float." % (weight, ))
+
     if weight <= 0.0:
         raise _errors.ServerError(
             "Cannot set the server's weight (%s) to a value lower "
@@ -714,7 +699,7 @@ def _retrieve_server_mode(mode):
     if not valid:
         values = [ str((_server.MySQLServer.get_mode_idx(value), value))
                    for value in _server.MySQLServer.SERVER_MODE ]
-        raise _errors.ServerError("Trying to access/set an invalid mode (%s). "
+        raise _errors.ServerError("Trying to use an invalid mode (%s). "
             "Possible values are: %s." % (mode, ", ".join(values))
         )
 

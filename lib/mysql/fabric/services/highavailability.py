@@ -265,13 +265,9 @@ def _define_ha_operation(group_id, slave_uuid):
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
     if group.master:
-        try:
-            master = _server.MySQLServer.fetch(group.master)
-            master.connect()
-            if master.status != _server.MySQLServer.FAULTY:
-                fail_over = False
-        except _errors.DatabaseError:
-            pass
+        master = _server.MySQLServer.fetch(group.master)
+        if master.status != _server.MySQLServer.FAULTY:
+            fail_over = False
 
     if fail_over:
         if not slave_uuid:
@@ -504,11 +500,11 @@ def _find_candidate_switch(group_id):
                                      slave_uuid)
 
 def _do_find_candidate(group_id, event):
-    """Find out the best candidate in a group that may be used to replace a
-    master.
+    """Find the best candidate in a group that may be used to replace the
+    current master if there is any.
 
     It chooses the slave that has processed more transactions and may become a
-    master, i.e. has the binary log enabled. This function does not consider
+    master, e.g. has the binary log enabled. This function does not consider
     purged transactions and delays in the slave while picking up a slave.
 
     :param group_id: Group's id from where a candidate will be chosen.
@@ -711,6 +707,7 @@ def _do_wait_slaves_catch(group_id, master, skip_servers=None):
 def _change_to_candidate(group_id, master_uuid):
     """Switch to candidate slave.
     """
+    forbidden_status = (_server.MySQLServer.FAULTY, )
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
     _utils.reset_slave(master)
@@ -723,7 +720,8 @@ def _change_to_candidate(group_id, master_uuid):
     _set_group_master_replication(group,  master.uuid,  False)
 
     for server in group.servers():
-        if server.uuid != _uuid.UUID(master_uuid):
+        if server.uuid != _uuid.UUID(master_uuid) and \
+            server.status not in forbidden_status:
             try:
                 server.connect()
                 _utils.switch_master(server, master)
@@ -760,6 +758,10 @@ def _check_candidate_fail(group_id, slave_uuid):
             )
 
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
+    if slave is None:
+        raise _errors.ServerError(
+            "Candidate slave (%s) was not found." % (slave_uuid, )
+        )
     slave.connect()
 
     if group_id != slave.group_id:
@@ -772,20 +774,6 @@ def _check_candidate_fail(group_id, slave_uuid):
             "Server (%s) is not a valid candidate slave "
             "due to the following reason(s): (%s)." %
             (slave.uuid, master_issues)
-            )
-
-    if group.master:
-        try:
-            server = _server.MySQLServer.fetch(group.master)
-            server.connect()
-            _LOGGER.warning(
-                "Failover is being executed in group (%s) when previous "
-                "master is apparently running and this may lead to "
-                "consistency problems because some transactions may not "
-                "be transfered to slaves.", group_id)
-        except _errors.DatabaseError:
-            _LOGGER.debug(
-                "Master (%s) cannot be reached.", server.uuid
             )
 
     if slave.status not in allowed_status:

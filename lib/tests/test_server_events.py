@@ -459,45 +459,12 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_status).")
 
-        # Set a faulty server (slave).
-        server.status = _server.MySQLServer.SECONDARY
-        server = _server.MySQLServer.fetch(uuid_1)
-        self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
-        status = self.proxy.server.set_status(uuid_1, "faulty")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        server = _server.MySQLServer.fetch(uuid_1)
-        self.assertEqual(server.status, _server.MySQLServer.FAULTY)
-
-        # Set a faulty server twice (slave).
+        # Try to set a faulty server.
         status = self.proxy.server.set_status(uuid_1, "faulty")
         self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_set_server_status).")
-
-        # Try to set a faulty server while the group is activate.
-        group.status = _server.Group.ACTIVE
-        server.status = _server.MySQLServer.SECONDARY
-        server = _server.MySQLServer.fetch(uuid_1)
-        self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
-        status = self.proxy.server.set_status(uuid_1, "faulty")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        server = _server.MySQLServer.fetch(uuid_1)
-        self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
-
-        # Try to set a faulty server (master).
-        group.status = _server.Group.INACTIVE
-        group = _server.Group.fetch("group")
-        self.proxy.group.promote(group.group_id, str(server.uuid))
-        group = _server.Group.fetch("group")
-        status = self.proxy.server.set_status(uuid_1, "faulty")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        group = _server.Group.fetch("group")
-        server = _server.MySQLServer.fetch(uuid_1)
-        self.assertEqual(server.status, _server.MySQLServer.FAULTY)
 
         # Try to set a primary server.
         status = self.proxy.server.set_status(uuid_1, "primary")

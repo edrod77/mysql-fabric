@@ -14,38 +14,41 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
-
-"""This modules contais a simple failure detector which is used by Fabric
+"""This modules contains a simple failure detector which is used by Fabric
 to monitor the availability of servers within groups.
 
-If a master cannot be accessed through the method
-:meth:`~mysql.fabric.server.MySQLServer.is_alive`, one must consider
-that it has failed and proceed with the election of a new master if
-there is any candidate slave that can become one. In particular, the
-failure detector does not choose any new master but only triggers some
-events (:const:`~mysql.fabric.events.SERVER_LOST` and
-:const:`~mysql.fabric.events.FAIL_OVER`) and registered listener(s) will
-take the necessary and appropriate actions.
+If a master cannot be accessed through the
+:meth:`~mysql.fabric.server.MySQLServer.is_alive` method after `n` consecutive
+attempts, the failure detector considers that it has failed and proceeds with
+the election of a new master. The failure detector does not choose any new
+master but only triggers the :const:`~mysql.fabric.events.REPORT_FAILURE` event
+which responsible for doing so.
 
-Similar to a master, if a slave has failed, an event
-(:const:`~mysql.fabric.events.SERVER_LOST`) is triggered and registered
-listener(s) will take the necessary and appropriate actions.
+If a slave cannot be accessed either the same event is triggered but in this
+case the server is only marked as faulty.
 
 See :meth:`~mysql.fabric.server.MySQLServer.is_alive`.
-See :class:`~mysql.fabric.services.highavailability.CheckHealth`.
-See :class:`~mysql.fabric.services.highavailability.FailOver`.
-See :const:`~mysql.fabric.events.SERVER_LOST`.
+See :class:`~mysql.fabric.services.highavailability.PromoteMaster`.
+See :class:`~mysql.fabric.services.servers.ReportFailure`.
 """
 import threading
 import time
 import logging
 
-import mysql.fabric.errors as _errors
-import mysql.fabric.persistence as _persistence
+from mysql.fabric import (
+    errors as _errors,
+    persistence as _persistence,
+    config as _config,
+    executor as _executor,
+)
 
 from mysql.fabric.events import (
     trigger,
-    )
+)
+
+from mysql.fabric.utils import (
+    get_time,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,9 +61,15 @@ class FailureDetector(object):
     """
     LOCK = threading.Condition()
     GROUPS = {}
-    # By default, every second the failure detector checks if the servers
-    # within a group are alive.
-    CHECK_PERIOD = 1
+
+    _MIN_DETECTION_INTERVAL = 2.0
+    _DETECTION_INTERVAL = _DEFAULT_DETECTION_INTERVAL = 5.0
+
+    _MIN_DETECTIONS = 1
+    _DETECTIONS = _DEFAULT_DETECTIONS = 2
+
+    _MIN_DETECTION_TIMEOUT = 1
+    _DETECTION_TIMEOUT = _DEFAULT_DETECTION_TIMEOUT = 1
 
     @staticmethod
     def register_groups():
@@ -107,13 +116,12 @@ class FailureDetector(object):
                 detector.shutdown()
             FailureDetector.GROUPS = {}
 
-    def __init__(self, group_id, sleep=None):
+    def __init__(self, group_id):
         """Constructor for FailureDetector.
         """
         self.__group_id = group_id
         self.__thread = None
         self.__check = False
-        self.__sleep = sleep or FailureDetector.CHECK_PERIOD
 
     def start(self):
         """Start the failure detector.
@@ -133,37 +141,109 @@ class FailureDetector(object):
         """Function that verifies servers' availabilities.
         """
         from mysql.fabric.server import (
-            Group, MySQLServer
+            Group,
+            MySQLServer,
         )
+
         ignored_status = [MySQLServer.FAULTY]
+        quarantine = {}
+        interval = FailureDetector._DETECTION_INTERVAL
+        detections = FailureDetector._DETECTIONS
+        detection_timeout = FailureDetector._DETECTION_TIMEOUT
 
         _persistence.init_thread()
+
         while self.__check:
             try:
+                unreachable = set()
                 group = Group.fetch(self.__group_id)
                 if group is not None:
                     for server in group.servers():
                         if server.status in ignored_status or \
-                            server.is_alive():
+                            server.is_alive(detection_timeout):
                             continue
-                        _LOGGER.info("Server (%s) in group (%s) has "
-                            "been lost.", server.uuid, self.__group_id)
-                        if group.master == server.uuid:
-                            _LOGGER.info("Master (%s) in group (%s) has "
-                                "been lost.", server.uuid, self.__group_id)
-                            trigger(
-                                "FAIL_OVER", set([self.__group_id]),
-                                self.__group_id
-                            )
+
+                        unreachable.add(server.uuid)
+
+                        _LOGGER.warning(
+                            "Server (%s) in group (%s) is unreachable.",
+                            server.uuid, self.__group_id
+                        )
+
+                        unstable = False
+                        failed_attempts = 0
+                        if server.uuid not in quarantine:
+                            quarantine[server.uuid] = failed_attempts = 1
                         else:
-                            trigger(
-                                "SERVER_LOST", set([self.__group_id]),
-                                self.__group_id, server.uuid
+                            failed_attempts = quarantine[server.uuid] + 1
+                            quarantine[server.uuid] = failed_attempts
+                        if failed_attempts >= detections:
+                            unstable = True
+
+                        can_set_faulty = group.can_set_server_faulty(
+                            server, get_time()
+                        )
+                        if unstable and can_set_faulty:
+                            procedures = trigger("REPORT_FAILURE",
+                                set([self.__group_id]), str(server.uuid),
+                                threading.current_thread().name,
+                                MySQLServer.FAULTY
                             )
-                        server.status = MySQLServer.FAULTY
+                            executor = _executor.Executor()
+                            for procedure in procedures:
+                                executor.wait_for_procedure(procedure)
+
+                for uuid in quarantine.keys():
+                    if uuid not in unreachable:
+                        del quarantine[uuid]
+
             except (_errors.ExecutorError, _errors.DatabaseError):
                 pass
             except Exception as error:
                 _LOGGER.exception(error)
-            time.sleep(self.__sleep)
+
+            time.sleep(interval / detections)
+
         _persistence.deinit_thread()
+
+
+def configure(config):
+    """Set configuration values.
+    """
+    try:
+        detection_interval = \
+            float(config.get("failure_tracking", "detection_interval"))
+        if detection_interval < FailureDetector._MIN_DETECTION_INTERVAL:
+            _LOGGER.warning(
+                "Detection interval cannot be lower than %s.",
+                FailureDetector._MIN_DETECTION_INTERVAL
+            )
+            detection_interval = FailureDetector._MIN_DETECTION_INTERVAL
+        FailureDetector._DETECTION_INTERVAL = float(detection_interval)
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        pass
+
+    try:
+        detections = int(config.get("failure_tracking", "detections"))
+        if detections < FailureDetector._MIN_DETECTIONS:
+            _LOGGER.warning(
+                "Detections cannot be lower than %s.",
+                FailureDetector._MIN_DETECTIONS
+            )
+            detections = FailureDetector._MIN_DETECTIONS
+        FailureDetector._DETECTIONS = int(detections)
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        pass
+
+    try:
+        detection_timeout = \
+            int(config.get("failure_tracking", "detection_timeout"))
+        if detection_timeout < FailureDetector._MIN_DETECTION_TIMEOUT:
+            _LOGGER.warning(
+                "Detection timeout cannot be lower than %s.",
+                FailureDetector._MIN_DETECTION_TIMEOUT
+            )
+            detection_interval = FailureDetector._MIN_DETECTION_TIMEOUT
+        FailureDetector._DETECTION_TIMEOUT = int(detection_timeout)
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        pass

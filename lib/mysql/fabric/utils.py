@@ -22,6 +22,7 @@ import sys
 import inspect
 import ctypes
 import re
+import datetime
 
 TTL = 0
 VERSION_TOKEN = 0
@@ -133,4 +134,17 @@ def wrap_output(output):
     """
     return (FABRIC_UUID, VERSION_TOKEN, TTL, output)
 
+
+def get_time():
+    """Get current time using datetime.utcnow().
+    """
+    return datetime.datetime.utcnow()
+
+def get_time_delta(delta):
+    """Transform a value provided through the parameter delta into a
+    timedelta object.
+
+    :param delta: Delta value in seconds.
+    """
+    return datetime.timedelta(seconds=delta)
 
