@@ -44,16 +44,14 @@ class TestShardMove(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
         status = self.proxy.group.add(
-            "GROUPID1", MySQLInstances().get_address(0),
-            MySQLInstances().user, MySQLInstances().passwd,
+            "GROUPID1", MySQLInstances().get_address(0)
         )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
         status = self.proxy.group.add(
-            "GROUPID1", MySQLInstances().get_address(1),
-            MySQLInstances().user, MySQLInstances().passwd,
+            "GROUPID1", MySQLInstances().get_address(1)
         )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -66,16 +64,14 @@ class TestShardMove(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
         status = self.proxy.group.add(
-            "GROUPID2", MySQLInstances().get_address(2),
-            MySQLInstances().user, MySQLInstances().passwd,
+            "GROUPID2", MySQLInstances().get_address(2)
         )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
         status =  self.proxy.group.add(
-            "GROUPID2", MySQLInstances().get_address(3),
-            MySQLInstances().user, MySQLInstances().passwd,
+            "GROUPID2", MySQLInstances().get_address(3)
         )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -88,16 +84,14 @@ class TestShardMove(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_create_group).")
         status = self.proxy.group.add(
-            "GROUPID3", MySQLInstances().get_address(4),
-            MySQLInstances().user, MySQLInstances().passwd,
+            "GROUPID3", MySQLInstances().get_address(4)
         )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_server).")
         status = self.proxy.group.add(
-            "GROUPID3", MySQLInstances().get_address(5),
-            MySQLInstances().user, MySQLInstances().passwd,
+            "GROUPID3", MySQLInstances().get_address(5)
         )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -319,14 +313,18 @@ class TestShardMove(unittest.TestCase):
             self.assertEqual(status[1], "")
             obtained_server_list = status[2]
             status = \
-                self.proxy.group.remove(group_id, obtained_server_list[0][0])
+                self.proxy.group.remove(
+                    group_id, obtained_server_list[0]["server_uuid"]
+                )
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],
                              "Executed action (_remove_server).")
 
             status = \
-                self.proxy.group.remove(group_id, obtained_server_list[1][0])
+                self.proxy.group.remove(
+                    group_id, obtained_server_list[1]["server_uuid"]
+                )
             self.assertStatus(status, _executor.Job.SUCCESS)
             self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
             self.assertEqual(status[1][-1]["description"],

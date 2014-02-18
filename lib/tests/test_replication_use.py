@@ -58,9 +58,9 @@ class TestReplicationUse(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         self.proxy.group.create("group_id", "")
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
         self.proxy.group.promote("group_id", str(master.uuid))
 
         # Create some data.
@@ -106,9 +106,9 @@ class TestReplicationUse(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         self.proxy.group.create("group_id", "")
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
 
         # Promote a master.
         status = self.proxy.group.promote("group_id", str(master.uuid))
@@ -151,9 +151,9 @@ class TestReplicationUse(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         self.proxy.group.create("group_id", "")
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
 
         # Promote a master.
         status = self.proxy.group.promote("group_id", str(master.uuid))
@@ -276,9 +276,9 @@ class TestReplicationUse(unittest.TestCase):
         slave_2 = instances.get_instance(2)
 
         self.proxy.group.create("group_id", "")
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
 
         # Promote a master.
         status = self.proxy.group.promote("group_id", str(master.uuid))

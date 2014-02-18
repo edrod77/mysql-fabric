@@ -53,7 +53,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server1 = MySQLServer.discover_uuid(**self.__options_1)
+        uuid_server1 = MySQLServer.discover_uuid(self.__options_1["address"])
         self.__options_1["uuid"] = _uuid.UUID(uuid_server1)
         self.__server_1 = MySQLServer(**self.__options_1)
         MySQLServer.add(self.__server_1)
@@ -71,7 +71,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server2 = MySQLServer.discover_uuid(**self.__options_2)
+        uuid_server2 = MySQLServer.discover_uuid(self.__options_2["address"])
         self.__options_2["uuid"] = _uuid.UUID(uuid_server2)
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)
@@ -114,7 +114,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server3 = MySQLServer.discover_uuid(**self.__options_3)
+        uuid_server3 = MySQLServer.discover_uuid(self.__options_3["address"])
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
         self.__server_3 = MySQLServer(**self.__options_3)
         MySQLServer.add( self.__server_3)
@@ -156,7 +156,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server4 = MySQLServer.discover_uuid(**self.__options_4)
+        uuid_server4 = MySQLServer.discover_uuid(self.__options_4["address"])
         self.__options_4["uuid"] = _uuid.UUID(uuid_server4)
         self.__server_4 = MySQLServer(**self.__options_4)
         MySQLServer.add(self.__server_4)
@@ -198,7 +198,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server5 = MySQLServer.discover_uuid(**self.__options_5)
+        uuid_server5 = MySQLServer.discover_uuid(self.__options_5["address"])
         self.__options_5["uuid"] = _uuid.UUID(uuid_server5)
         self.__server_5 = MySQLServer(**self.__options_5)
         MySQLServer.add(self.__server_5)
@@ -240,7 +240,7 @@ class TestHashSplitGlobal(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server6 = MySQLServer.discover_uuid(**self.__options_6)
+        uuid_server6 = MySQLServer.discover_uuid(self.__options_6["address"])
         self.__options_6["uuid"] = _uuid.UUID(uuid_server6)
         self.__server_6 = MySQLServer(**self.__options_6)
         MySQLServer.add(self.__server_6)

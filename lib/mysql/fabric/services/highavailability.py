@@ -60,8 +60,8 @@ class ImportTopology(ProcedureGroup):
     group_name = "group"
     command_name = "import_topology"
 
-    def execute(self, pattern_group_id, group_description, address, user=None,
-                passwd=None, synchronous=True):
+    def execute(self, pattern_group_id, group_description, address,
+                synchronous=True):
         """Try to figure out the replication topology and import it into the
         state store.
 
@@ -72,8 +72,6 @@ class ImportTopology(ProcedureGroup):
                             into. If more than one group is created, they will
                             share the same description.
         :param address: Server's address.
-        :param user: Server's user.
-        :param passwd: Server's passwd.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: A dictionary with information on the discovered topology.
@@ -101,7 +99,7 @@ class ImportTopology(ProcedureGroup):
         """
         procedures = _events.trigger(
             DISCOVER_TOPOLOGY, self.get_lockable_objects(),
-            pattern_group_id, group_description, address, user, passwd
+            pattern_group_id, group_description, address
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -356,24 +354,18 @@ class CheckHealth(Command):
             _check_group_availability, group_id)
 
 @_events.on_event(DISCOVER_TOPOLOGY)
-def _discover_topology(pattern_group_id, group_description,
-                       address, user, passwd):
+def _discover_topology(pattern_group_id, group_description, address):
     """Discover topology and right after schedule a job to import it.
     """
-    user = user or "root"
-    passwd = passwd or ""
-    topology = _do_discover_topology(address, user, passwd)
+    topology = _do_discover_topology(address)
     _events.trigger_within_procedure(
-        IMPORT_TOPOLOGY, pattern_group_id, group_description,
-        topology, user, passwd
-        )
+        IMPORT_TOPOLOGY, pattern_group_id, group_description, topology
+    )
 
-def _do_discover_topology(address, user, passwd, discovered_servers=None):
+def _do_discover_topology(address, discovered_servers=None):
     """Discover topology.
 
     :param address: Server's address.
-    :param user: Servers' user
-    :param passwd: Servers' passwd.
     :param discovered_servers: List of servers already verified to avoid
                                cycles.
     """
@@ -382,14 +374,14 @@ def _do_discover_topology(address, user, passwd, discovered_servers=None):
 
     # Check server's uuid. If the server is not found, an exception is
     # raised.
-    str_uuid = _server.MySQLServer.discover_uuid(address=address, user=user,
-                                                 passwd=passwd)
+    str_uuid = _server.MySQLServer.discover_uuid(address=address)
+
     if str_uuid in discovered_servers:
         return discovered_mapping
 
     # Create a server object and connect to it.
     uuid = _uuid.UUID(str_uuid)
-    server = _server.MySQLServer(uuid, address, user, passwd)
+    server = _server.MySQLServer(uuid, address)
     server.connect()
 
     # Store the server in the discovered set and create a map.
@@ -413,14 +405,17 @@ def _do_discover_topology(address, user, passwd, discovered_servers=None):
             # does not exist, this will raise an exception and the discover
             # will abort without importing anything.
             slave_str_uuid = _server.MySQLServer.discover_uuid(
-                address=slave_address, user=user, passwd=passwd)
+                address=slave_address
+            )
             slave = _server.MySQLServer(_uuid.UUID(slave_str_uuid),
-                                        slave_address, user, passwd)
+                slave_address
+            )
             slave.connect()
             if str_uuid == _replication.slave_has_master(slave):
                 _LOGGER.debug("Found slave (%s).", slave_address)
                 slave_discovery = _do_discover_topology(slave_address,
-                    user, passwd, discovered_servers)
+                    discovered_servers
+                )
                 if slave_discovery:
                     # A server cannot belong to more than one group.
                     for chains in slave_discovery.values():
@@ -430,19 +425,16 @@ def _do_discover_topology(address, user, passwd, discovered_servers=None):
     return discovered_mapping
 
 @_events.on_event(IMPORT_TOPOLOGY)
-def _import_topology(pattern_group_id, group_description, topology, user,
-                     passwd):
+def _import_topology(pattern_group_id, group_description, topology):
     """Import topology.
     """
-    groups = _do_import_topology(pattern_group_id, group_description,
-                                 topology, user, passwd)
+    groups = _do_import_topology(pattern_group_id, group_description, topology)
     for group in groups:
         _detector.FailureDetector.register_group(group)
 
     return topology
 
-def _do_import_topology(pattern_group_id, group_description,
-                        topology, user, passwd):
+def _do_import_topology(pattern_group_id, group_description, topology):
     """Import topology.
     """
     master_uuid = topology.keys()[0]
@@ -470,7 +462,6 @@ def _do_import_topology(pattern_group_id, group_description,
     master_address = topology[master_uuid]["address"]
     server = _server.MySQLServer(
         uuid=_uuid.UUID(master_uuid), address=master_address,
-        user=user, passwd=passwd,
         mode=_server.MySQLServer.READ_WRITE,
         status=_server.MySQLServer.PRIMARY
     )
@@ -490,14 +481,14 @@ def _do_import_topology(pattern_group_id, group_description,
             slave_address = slave[slave_uuid]["address"]
             server = _server.MySQLServer(
                 uuid=_uuid.UUID(slave_uuid), address=slave_address,
-                user=user, passwd=passwd,
                 mode=_server.MySQLServer.READ_ONLY,
                 status=_server.MySQLServer.SECONDARY
             )
             _server.MySQLServer.add(server)
         else:
-            groups.union(_do_import_topology(group_id, group_description,
-                                             slave, user, passwd))
+            groups.union(
+                _do_import_topology(group_id, group_description, slave)
+            )
             server = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
         group.add_server(server)
         _LOGGER.debug("Added server (%s) as slave to group (%s).", server,
@@ -568,7 +559,7 @@ def _do_find_candidate(group_id, event):
                     chosen_uuid = str(candidate.uuid)
                     can_become_master = True
                 if not can_become_master:
-                    _LOGGER.debug(
+                    _LOGGER.warning(
                         "Candidate (%s) cannot become a master due to the "
                         "following reasons: issues to become a "
                         "master (%s), prerequistes as a slave (%s), valid "
@@ -576,7 +567,7 @@ def _do_find_candidate(group_id, event):
                         slave_issues, has_valid_master
                         )
             except _errors.DatabaseError as error:
-                _LOGGER.debug(
+                _LOGGER.warning(
                     "Error accessing candidate (%s).", candidate.uuid,
                     exc_info=error
                 )

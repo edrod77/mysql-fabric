@@ -43,7 +43,7 @@ class TestMySQLServer(unittest.TestCase):
     def setUp(self):
         """Configure the existing environment
         """
-        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        uuid = MySQLServer.discover_uuid(OPTIONS["address"])
         OPTIONS["uuid"] = _uuid.UUID(uuid)
         self.server = MySQLServer(**OPTIONS)
         MySQLServer.add(self.server)
@@ -74,21 +74,13 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.user, tests.utils.MySQLInstances().user)
         server.user = "user"
         self.assertEqual(server.user, "user")
-        fetched_server = MySQLServer.fetch(server.uuid)
-        self.assertEqual(server.user, fetched_server.user)
         server.user = tests.utils.MySQLInstances().user
-        fetched_server = MySQLServer.fetch(server.uuid)
-        self.assertEqual(server.user, fetched_server.user)
 
         # Check property passwd.
         self.assertEqual(server.passwd, tests.utils.MySQLInstances().passwd)
         server.passwd = "passwd"
         self.assertEqual(server.passwd, "passwd")
-        fetched_server = MySQLServer.fetch(server.uuid)
-        self.assertEqual(server.passwd, fetched_server.passwd)
         server.passwd = tests.utils.MySQLInstances().passwd
-        fetched_server = MySQLServer.fetch(server.uuid)
-        self.assertEqual(server.passwd, fetched_server.passwd)
 
         # Check property status.
         self.assertEqual(server.status, MySQLServer.SECONDARY)
@@ -126,7 +118,6 @@ class TestMySQLServer(unittest.TestCase):
         self.assertEqual(server.gtid_enabled, None)
         self.assertEqual(server.binlog_enabled, None)
         self.assertEqual(server.version, None)
-        self.assertEqual(server.default_charset, "latin1")
 
         # Bind instance to a server.
         server.connect()
@@ -134,7 +125,6 @@ class TestMySQLServer(unittest.TestCase):
         self.assertNotEqual(server.server_id, 0)
         self.assertEqual(server.gtid_enabled, True)
         self.assertEqual(server.binlog_enabled, True)
-        self.assertEqual(server.default_charset, "latin1")
 
         # Check read_only property.
         server.read_only = True
@@ -309,7 +299,7 @@ class TestMySQLServer(unittest.TestCase):
         """Test MySQLServer's uuid.
         """
         # Configure
-        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        uuid = MySQLServer.discover_uuid(OPTIONS["address"])
         OPTIONS["uuid"] = _uuid.UUID(uuid)
         server_1 = MySQLServer(**OPTIONS)
         server_2 = MySQLServer(**OPTIONS)
@@ -328,15 +318,16 @@ class TestMySQLServer(unittest.TestCase):
         """Test Persister's uuid.
         """
         # Get persister'a address.
-        from __main__ import options
-        address = "%s:%s" % (options.host, options.port)
-        user = options.user
-        passwd = options.password
+        instances = tests.utils.MySQLInstances()
+        address = instances.state_store_address
+        user = instances.root_user
+        passwd = instances.root_passwd
 
         # Try to manage the MySQLPersister.
-        uuid = MySQLServer.discover_uuid(address=address, user=user,
-                                         passwd=passwd)
-        server = MySQLServer(_uuid.UUID(uuid), address, None, None)
+        uuid = MySQLServer.discover_uuid(
+            address=address, user=user, passwd=passwd
+        )
+        server = MySQLServer(_uuid.UUID(uuid), address, user, passwd)
         self.assertRaises(_errors.ServerError, MySQLServer.add, server)
 
     def test_privileges(self):
@@ -349,7 +340,7 @@ class TestMySQLServer(unittest.TestCase):
         ]
 
         # Connect to server as root and create temporary user.
-        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        uuid = MySQLServer.discover_uuid(OPTIONS["address"])
         server = MySQLServer(
             _uuid.UUID(uuid), OPTIONS["address"],
             tests.utils.MySQLInstances().root_user,
@@ -439,7 +430,7 @@ class TestConnectionPool(unittest.TestCase):
         """Test connection pool.
         """
         # Configuration
-        uuid = MySQLServer.discover_uuid(**OPTIONS)
+        uuid = MySQLServer.discover_uuid(OPTIONS["address"])
         OPTIONS["uuid"] = uuid = _uuid.UUID(uuid)
         server_1 = MySQLServer(**OPTIONS)
         server_2 = MySQLServer(**OPTIONS)

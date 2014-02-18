@@ -42,7 +42,7 @@ class TestBackupMySQLDump(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server1 = MySQLServer.discover_uuid(**self.__options_1)
+        uuid_server1 = MySQLServer.discover_uuid(self.__options_1["address"])
         self.__options_1["uuid"] = _uuid.UUID(uuid_server1)
         self.__server_1 = MySQLServer(**self.__options_1)
         MySQLServer.add(self.__server_1)
@@ -55,7 +55,7 @@ class TestBackupMySQLDump(unittest.TestCase):
             "passwd" : MySQLInstances().passwd,
         }
 
-        uuid_server2 = MySQLServer.discover_uuid(**self.__options_2)
+        uuid_server2 = MySQLServer.discover_uuid(self.__options_2["address"])
         self.__options_2["uuid"] = _uuid.UUID(uuid_server2)
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)

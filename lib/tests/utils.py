@@ -75,6 +75,7 @@ class MySQLInstances(_utils.Singleton):
         self.passwd = None
         self.root_user = None
         self.root_passwd = None
+        self.state_store_address = None
 
     def add_address(self, address):
         """Add the address of a MySQL Instance that can be used in the test
@@ -141,7 +142,8 @@ class MySQLInstances(_utils.Singleton):
             master_address = self.get_address(number)
 
             master_uuid = _server.MySQLServer.discover_uuid(
-                address=master_address, user=user, passwd=passwd)
+                address=master_address
+            )
             master = _server.MySQLServer(
                 _uuid.UUID(master_uuid), master_address, user, passwd)
             master.connect()
@@ -237,59 +239,50 @@ def cleanup_environment():
     MySQLInstances().__instances = {}
 
     #Clean up information in the state store.
-    from __main__ import options
-    __options = {
-        "uuid" :  None,
-        "address"  : options.host + ":" + str(options.port),
-        "user" : options.user,
-        "passwd" : options.password,
-    }
+    uuid_server = _server.MySQLServer.discover_uuid(
+        MySQLInstances().state_store_address, MySQLInstances().root_user,
+        MySQLInstances().root_passwd
+    )
+    server = _server.MySQLServer(_uuid.UUID(uuid_server),
+        MySQLInstances().state_store_address, MySQLInstances().root_user,
+        MySQLInstances().root_passwd
+    )
+    server.connect()
 
-    __uuid_server = _server.MySQLServer.discover_uuid(**__options )
-
-    __options ["uuid"] = _uuid.UUID(__uuid_server)
-    __server = _server.MySQLServer(**__options )
-    __server.connect()
-
-    __server.set_foreign_key_checks(False)
-    tables = __server.exec_stmt(
+    server.set_foreign_key_checks(False)
+    tables = server.exec_stmt(
         "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE "
         "TABLE_SCHEMA = 'fabric'"
     )
     for table in tables:
-        __server.exec_stmt("TRUNCATE fabric.%s" % (table[0], ))
-    __server.set_foreign_key_checks(True)
+        server.exec_stmt("TRUNCATE fabric.%s" % (table[0], ))
+    server.set_foreign_key_checks(True)
 
     #Remove all the databases from the running MySQL instances
     #other than the standard ones
     server_count = MySQLInstances().get_number_addresses()
 
     for i in range(0, server_count):
-        __options = {
-            "uuid" :  None,
-            "address"  : MySQLInstances().get_address(i),
-            "user" : MySQLInstances().user,
-            "passwd" : MySQLInstances().passwd,
-        }
+        uuid_server = _server.MySQLServer.discover_uuid(
+            MySQLInstances().get_address(i)
+        )
+        server = _server.MySQLServer( 
+            _uuid.UUID(uuid_server), MySQLInstances().get_address(i)
+        )
+        server.connect()
+        _replication.stop_slave(server, wait=True)
 
-        __uuid_server = _server.MySQLServer.discover_uuid(**__options )
-        __options ["uuid"] = _uuid.UUID(__uuid_server)
-        __server = _server.MySQLServer(**__options )
-        __server.connect()
-        _replication.stop_slave(__server, wait=True)
-
-        __server.set_foreign_key_checks(False)
-        databases = __server.exec_stmt(
-                                "SHOW DATABASES",
-                                {"fetch" : True})
+        server.set_foreign_key_checks(False)
+        databases = server.exec_stmt("SHOW DATABASES", {"fetch" : True})
         for database in databases:
             if database[0] not in _server.MySQLServer.NO_USER_DATABASES:
-                __server.exec_stmt("DROP DATABASE IF EXISTS %s"
-                                   % (database[0], ))
-        __server.set_foreign_key_checks(True)
+                server.exec_stmt(
+                    "DROP DATABASE IF EXISTS %s" % (database[0], )
+                )
+        server.set_foreign_key_checks(True)
 
-        _replication.reset_master(__server)
-        _replication.reset_slave(__server, clean=True)
+        _replication.reset_master(server)
+        _replication.reset_slave(server, clean=True)
 
     for __file in glob.glob(os.path.join(os.getcwd(), "*.sql")):
         os.remove(__file)

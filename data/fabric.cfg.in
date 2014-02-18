@@ -7,6 +7,10 @@ connection_timeout = 6
 connection_attempts = 6
 connection_delay = 1
 
+[servers]
+user = fabric
+password =
+
 [protocol.xmlrpc]
 address = localhost:32274
 threads = 5

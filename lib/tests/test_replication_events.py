@@ -57,7 +57,8 @@ class TestReplicationServices(unittest.TestCase):
 
         # Import topology.
         topology = self.proxy.group.import_topology(
-            "group_id-0", "description...", master.address, user, passwd)
+            "group_id-0", "description...", master.address
+        )
 
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
@@ -72,8 +73,10 @@ class TestReplicationServices(unittest.TestCase):
         group = self.proxy.group.lookup_groups("group_id-1")
         self.assertEqual(group[0], True)
         self.assertEqual(group[1], "")
-        self.assertEqual(group[2], {"group_id": "group_id-1", "description":
-                                    "description..."})
+        self.assertEqual(group[2],
+            [{"group_id" : "group_id-1", "description" : "description...",
+            "master_uuid" : str(master.uuid), "failure_detector" : False}]
+        )
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id-1")
@@ -81,10 +84,14 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1], "")
         retrieved = servers[2]
         expected = \
-            [[str(master.uuid), master.address, True,
-              _server.MySQLServer.PRIMARY],
-            [str(slave.uuid), slave.address, False,
-              _server.MySQLServer.SECONDARY]]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+            {"server_uuid" : str(slave.uuid), "address" : slave.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" :_server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -105,7 +112,8 @@ class TestReplicationServices(unittest.TestCase):
 
         # Import topology.
         topology = self.proxy.group.import_topology(
-            "group_id-1", "description...", master.address, user, passwd)
+            "group_id-1", "description...", master.address
+        )
         self.assertStatus(topology, _executor.Job.SUCCESS)
         self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(topology[1][-1]["description"],
@@ -122,8 +130,10 @@ class TestReplicationServices(unittest.TestCase):
         group = self.proxy.group.lookup_groups("group_id-2")
         self.assertEqual(group[0], True)
         self.assertEqual(group[1], "")
-        self.assertEqual(group[2], {"group_id": "group_id-2", "description":
-                                    "description..."})
+        self.assertEqual(group[2],
+            [{"group_id" : "group_id-2", "description" : "description...",
+            "master_uuid" : str(master.uuid), "failure_detector" : False}]
+        )
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id-2")
@@ -131,12 +141,18 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1], "")
         retrieved = servers[2]
         expected = \
-            [[str(master.uuid), master.address, True,
-              _server.MySQLServer.PRIMARY],
-            [str(slave_1.uuid), slave_1.address, False,
-              _server.MySQLServer.SECONDARY],
-            [str(slave_2.uuid), slave_2.address, False,
-              _server.MySQLServer.SECONDARY]]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" :_server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -171,9 +187,9 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_check_candidate_fail).")
 
         # Try to use a server that is already a master.
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
         group = _server.Group.fetch("group_id")
         tests.utils.configure_decoupled_master(group, slave_1)
 
@@ -216,12 +232,18 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1], "")
         retrieved = servers[2]
         expected = \
-            [[str(master.uuid), master.address, True,
-             _server.MySQLServer.PRIMARY],
-            [str(slave_1.uuid), slave_1.address, False,
-             _server.MySQLServer.SECONDARY],
-            [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.SECONDARY]]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" :_server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -241,12 +263,18 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1], "")
         retrieved = servers[2]
         expected = \
-            [[str(master.uuid), master.address, False,
-             _server.MySQLServer.SECONDARY],
-            [str(slave_1.uuid), slave_1.address, True,
-             _server.MySQLServer.PRIMARY],
-            [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.SECONDARY]]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" : _server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -282,7 +310,7 @@ class TestReplicationServices(unittest.TestCase):
         # server went down).
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:32274", user, passwd
+            "unknown_host:32274"
             )
         _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
@@ -297,10 +325,10 @@ class TestReplicationServices(unittest.TestCase):
 
         # Configure master, an invalid candidate and make a slave point to
         # a different master.
-        self.proxy.group.add("group_id", master.address, user, passwd)
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
-        self.proxy.group.add("group_id", slave_3.address, user, passwd)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
+        self.proxy.group.add("group_id", slave_3.address)
         tests.utils.configure_decoupled_master(group, master)
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
@@ -319,16 +347,27 @@ class TestReplicationServices(unittest.TestCase):
         retrieved = servers[2]
 
         expected = \
-            [[str(master.uuid), master.address, True,
-             _server.MySQLServer.PRIMARY],
-            [str(slave_1.uuid), slave_1.address, False,
-             _server.MySQLServer.SECONDARY],
-            [str(slave_2.uuid), slave_2.address, False,
-             _server.MySQLServer.SECONDARY],
-            [str(slave_3.uuid), slave_3.address, False,
-             _server.MySQLServer.SECONDARY],
-            [str(invalid_server.uuid), invalid_server.address, False,
-             _server.MySQLServer.SECONDARY]]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_3.uuid), "address" : slave_3.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(invalid_server.uuid),
+             "address" : invalid_server.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(expected, retrieved)
@@ -385,9 +424,9 @@ class TestReplicationServices(unittest.TestCase):
                          "Tried to execute action (_block_write_demote).")
 
         # Configure masters and slaves.
-        self.proxy.group.add("group_id", slave_1.address, user, passwd)
-        self.proxy.group.add("group_id", slave_2.address, user, passwd)
-        self.proxy.group.add("group_id", master.address, user, passwd)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
+        self.proxy.group.add("group_id", master.address)
         group = _server.Group.fetch("group_id")
         tests.utils.configure_decoupled_master(group, master)
 
@@ -397,13 +436,18 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1], "")
         retrieved = servers[2]
         expected = \
-            [[str(master.uuid), master.address, True,
-              _server.MySQLServer.PRIMARY],
-             [str(slave_1.uuid), slave_1.address, False,
-              _server.MySQLServer.SECONDARY],
-             [str(slave_2.uuid), slave_2.address, False,
-              _server.MySQLServer.SECONDARY]
-            ]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)
@@ -423,13 +467,18 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(servers[1], "")
         retrieved = servers[2]
         expected = \
-            [[str(master.uuid), master.address, False,
-              _server.MySQLServer.SECONDARY],
-             [str(slave_1.uuid), slave_1.address, False,
-              _server.MySQLServer.SECONDARY],
-             [str(slave_2.uuid), slave_2.address, False,
-              _server.MySQLServer.SECONDARY]
-            ]
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
         retrieved.sort()
         expected.sort()
         self.assertEqual(retrieved, expected)

@@ -50,7 +50,7 @@ class TestMySQLMaster(unittest.TestCase):
     def setUp(self):
         """Configure the existing environment
         """
-        uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
+        uuid = MySQLServer.discover_uuid(OPTIONS_MASTER["address"])
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         self.master = MySQLServer(**OPTIONS_MASTER)
         self.master.connect()
@@ -103,13 +103,13 @@ class TestMySQLSlave(unittest.TestCase):
     def setUp(self):
         """Configure the existing environment
         """
-        uuid = MySQLServer.discover_uuid(**OPTIONS_MASTER)
+        uuid = MySQLServer.discover_uuid(OPTIONS_MASTER["address"])
         OPTIONS_MASTER["uuid"] = _uuid.UUID(uuid)
         self.master = MySQLServer(**OPTIONS_MASTER)
         self.master.connect()
         reset_master(self.master)
 
-        uuid = MySQLServer.discover_uuid(**OPTIONS_SLAVE)
+        uuid = MySQLServer.discover_uuid(OPTIONS_SLAVE["address"])
         OPTIONS_SLAVE["uuid"] = _uuid.UUID(uuid)
         self.slave = MySQLServer(**OPTIONS_SLAVE)
         self.slave.connect()
@@ -125,7 +125,7 @@ class TestMySQLSlave(unittest.TestCase):
         self.slave.disconnect()
         self.master.disconnect()
 
-    def test_switch_master(self):
+    def test_switch_master_(self):
         """Test the switch_master() function.
         """
         # Note this is only being tested with gtids.
@@ -143,7 +143,8 @@ class TestMySQLSlave(unittest.TestCase):
                       MySQLInstances().passwd)
         start_slave(slave, wait=True)
         self.assertTrue(is_slave_thread_running(slave, (IO_THREAD, )))
-        # The IO_THREAD status and the UUID are not atomically updated.
+        # The IO_THREAD status and the UUID are not atomically updated
+        # for that reason master_uuid can be None.
         master_uuid = slave_has_master(slave)
         self.assertTrue(
             master_uuid == None or master_uuid == str(master.uuid)
@@ -172,6 +173,7 @@ class TestMySQLSlave(unittest.TestCase):
             "SET PASSWORD FOR '{user}'@'%%' = PASSWORD('foobar')".format(
             user=MySQLInstances().user)
         )
+        master.exec_stmt("FLUSH PRIVILEGES")
         master.set_session_binlog(True)
         switch_master(slave, master, MySQLInstances().user, "foobar")
         start_slave(slave, wait=True)
@@ -185,8 +187,9 @@ class TestMySQLSlave(unittest.TestCase):
         master.exec_stmt(
             "SET PASSWORD FOR '{user}'@'%%' = "
             "PASSWORD('{passwd}')".format(user=MySQLInstances().user,
-           passwd=MySQLInstances().passwd)
+           passwd=MySQLInstances().passwd or "")
         )
+        master.exec_stmt("FLUSH PRIVILEGES")
         master.set_session_binlog(True)
         switch_master(slave, master, MySQLInstances().user,
             MySQLInstances().passwd

@@ -343,6 +343,10 @@ def _setup_ttl(config):
 def _start(options, config):
     """Start Fabric server.
     """
+    # Configure modules.
+    import mysql.fabric.server
+    mysql.fabric.server.configure(config)
+
     # Load all services into the service manager
     _services.ServiceManager().load_services(options, config)
 

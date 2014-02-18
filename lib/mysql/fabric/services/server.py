@@ -96,8 +96,8 @@ class GroupLookups(Command):
 
         :param group_id: None if one wants to list the existing groups or
                          group's id if one wants information on a group.
-        :return: List with existing groups or detailed information on group.
-        :rtype: [[group], ....] or {group_id : ..., description : ...}.
+        :return: List with {"group_id" : group_id, "failure_detector": ON/OFF,
+                 "description" : description}.
         """
         return Command.generate_output_pattern(
             _lookup_groups, group_id)
@@ -178,17 +178,10 @@ class ServerLookups(Command):
         :param uuid: None if one wants to list the existing servers
                      in a group or server's id if one wants information
                      on a server in a group.
-        :param status: Server's mode one is searching for.
-        :return: List with existing severs in a group or detailed information
-                 on a server in a group.
-        :rtype: [server_uuid, ....] or  {"uuid" : uuid, "address": address,
-                "user": user, "passwd": passwd}
-
-        If the group does not exist, the
-        :class:`~mysqly.fabric.errors.GroupError` exception is thrown. The
-        information returned has the following format::
-
-          [[uuid, address, is_master, status], ...]
+        :param status: Server's status one is searching for.
+        :param mode: Server's mode one is searching for.
+        :return: Information on servers.
+        :rtype: List with [uuid, address, status, mode, weight]
         """
         return Command.generate_output_pattern(_lookup_servers,
                                                group_id, uuid, status, mode)
@@ -199,17 +192,15 @@ class ServerUuid(Command):
     group_name = "server"
     command_name = "lookup_uuid"
 
-    def execute(self, address, user, passwd):
+    def execute(self, address):
         """Return server's uuid.
 
         :param address: Server's address.
         :param user: Server's user.
         :param passwd: Server's passwd.
-
-        :return: uuid.
+        :return: UUID.
         """
-        return Command.generate_output_pattern(_lookup_uuid,
-                                               address, user, passwd)
+        return Command.generate_output_pattern(_lookup_uuid, address)
 
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
@@ -218,19 +209,17 @@ class ServerAdd(ProcedureGroup):
     group_name = "group"
     command_name = "add"
 
-    def execute(self, group_id, address, user, passwd, synchronous=True):
+    def execute(self, group_id, address, synchronous=True):
         """Add a server into a group.
 
         :param group_id: Group's id.
         :param address: Server's address.
-        :param user: Server's user.
-        :param passwd: Server's passwd.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(ADD_SERVER, self.get_lockable_objects(),
-            group_id, address, user, passwd
+            group_id, address
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -377,26 +366,33 @@ class SetServerMode(ProcedureGroup):
         return self.wait_for_procedures(procedures, synchronous)
 
 def _lookup_groups(group_id=None):
-    """Return a list of existing groups or fetch information on a group
-    identified by group_id.
+    """Return a list of existing group(s).
     """
+    info = []
     if group_id is None:
-        return _server.Group.groups()
+        for group_id in _server.Group.groups():
+            _group_information(_server.Group.fetch(group_id[0]), info)
+    else:
+        group = _retrieve_group(group_id)
+        _group_information(group, info)
+    return info
 
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
-
-    return {"group_id" : group.group_id,
-            "description": group.description if group.description else ""}
+def _group_information(group, info):
+    """Get information on group and append it into to a list.
+    """
+    master = str(group.master) if group.master else ""
+    info.append({
+        "group_id" : group.group_id,
+        "description" : group.description,
+        "failure_detector" : True if group.status else False,
+        "master_uuid" : master
+    })
 
 @_events.on_event(CREATE_GROUP)
 def _create_group(group_id, description):
     """Create a group.
     """
-    group = _server.Group.fetch(group_id)
-    if group:
-        raise _errors.GroupError("Group (%s) already exists." % (group_id, ))
+    _check_group_exists(group_id)
 
     group = _server.Group(group_id=group_id, description=description,
                           status=_server.Group.INACTIVE)
@@ -407,9 +403,7 @@ def _create_group(group_id, description):
 def _activate_group(group_id):
     """Activate a group.
     """
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    group = _retrieve_group(group_id)
     group.status = _server.Group.ACTIVE
 
     _detector.FailureDetector.register_group(group_id)
@@ -419,26 +413,16 @@ def _activate_group(group_id):
 def _deactivate_group(group_id):
     """Deactivate a group.
     """
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    group = _retrieve_group(group_id)
     group.status = _server.Group.INACTIVE
     _detector.FailureDetector.unregister_group(group_id)
-    #Since the Group is being deactivated, stop all the slaves
-    #associated with this group. Although the slave groups are
-    #being stopped do not remove the references to the slave
-    #groups. When the group is activated again the slaves need
-    #to be restarted again.
-    _group_replication.stop_group_slaves(group_id, True)
     _LOGGER.debug("Group (%s) is active.", str(group))
 
 @_events.on_event(UPDATE_GROUP)
 def _update_group_description(group_id, description):
     """Update a group description.
     """
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id))
+    group = _retrieve_group(group_id)
     group.description = description
     _LOGGER.debug("Updated group (%s).", group)
 
@@ -446,9 +430,7 @@ def _update_group_description(group_id, description):
 def _destroy_group(group_id, force):
     """Destroy a group.
     """
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    group = _retrieve_group(group_id)
 
     #Since the group is being destroyed stop all the slaves associated
     #with this group would have been removed. If the group had been
@@ -476,9 +458,7 @@ def _destroy_group(group_id, force):
 def _lookup_servers(group_id, uuid=None, status=None, mode=None):
     """Return existing servers in a group or information on a server.
     """
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    group = _retrieve_group(group_id)
 
     status = _retrieve_server_status(status) if status is not None else None
     if status is None:
@@ -492,54 +472,47 @@ def _lookup_servers(group_id, uuid=None, status=None, mode=None):
     else:
         mode = [mode]
 
+    info = []
     if uuid is None:
-        ret = []
         for server in group.servers():
             if server.status in status and server.mode in mode:
-                ret.append(
-                    [str(server.uuid), server.address,
-                    (group.master == server.uuid), server.status]
-                    )
-        return ret
+                _server_information(server, info)
+    else:
+        server = _retrieve_server(uuid, group_id)
+        _server_information(server, info)
 
-    server = _server.MySQLServer.fetch(uuid)
+    return info
 
-    if group_id != server.group_id:
-        raise _errors.GroupError("Group (%s) does not contain server (%s)."
-                                 % (group_id, uuid))
+def _server_information(server, info):
+    """Get information on server and append it into to a list.
+    """
+    info.append({
+        "server_uuid" : str(server.uuid),
+        "address" : server.address,
+        "status" : server.status,
+        "mode" : server.mode,
+        "weight" : server.weight,
+    })
 
-    return {"uuid": str(server.uuid), "address": server.address,
-            "user": server.user, "passwd": server.passwd}
-
-def _lookup_uuid(address, user, passwd):
+def _lookup_uuid(address):
     """Return server's uuid.
     """
-    return _server.MySQLServer.discover_uuid(address=address, user=user,
-                                             passwd=passwd)
+    return _server.MySQLServer.discover_uuid(address=address)
 
 @_events.on_event(ADD_SERVER)
-def _add_server(group_id, address, user, passwd):
+def _add_server(group_id, address):
     """Add a server into a group.
     """
-    uuid = _server.MySQLServer.discover_uuid(address=address, user=user,
-                                             passwd=passwd)
-    uuid = _uuid.UUID(uuid)
-    group = _server.Group.fetch(group_id)
+    group = _retrieve_group(group_id)
 
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    uuid = _server.MySQLServer.discover_uuid(address=address)
+    _check_server_exists(uuid)
 
-    server = _server.MySQLServer.fetch(uuid)
-    if server:
-        raise _errors.ServerError("Server (%s) already exists." % (uuid, ))
-
-    server = _server.MySQLServer(uuid=uuid, address=address, user=user,
-                                 passwd=passwd)
+    server = _server.MySQLServer(uuid=_uuid.UUID(uuid), address=address)
     server.connect()
 
     # Check if the server fulfils the necessary requirements to become
     # a member.
-
     _check_requirements(server)
 
     # Add server to the state store.
@@ -557,30 +530,17 @@ def _add_server(group_id, address, user, passwd):
 def _remove_server(group_id, uuid):
     """Remove a server from a group.
     """
-    try:
-        uuid = _uuid.UUID(uuid)
-    except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
+    group = _retrieve_group(group_id)
+    server = _retrieve_server(uuid, group_id)
 
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
-
-    if group.master == uuid:
-        raise _errors.ServerError("Cannot remove server (%s), which is master "
-                                  "in group (%s). Please, demote it first."
-                                  % (uuid, group_id))
-
-    server = _server.MySQLServer.fetch(uuid)
-
-    if server and group_id != server.group_id:
-        raise _errors.GroupError("Group (%s) does not contain server (%s)."
-                                 % (group_id, uuid))
-    elif not server:
-        raise _errors.ServerError("Server (%s) does not exist." % (uuid, ))
+    if group.master == server.uuid:
+        raise _errors.ServerError(
+            "Cannot remove server (%s), which is master in group (%s). "
+            "Please, demote it first." % (server.uuid, group_id)
+        )
 
     _server.MySQLServer.remove(server)
-    _server.ConnectionPool().purge_connections(uuid)
+    _server.ConnectionPool().purge_connections(server.uuid)
 
 @_events.on_event(SET_SERVER_STATUS)
 def _set_server_status(uuid, status):
@@ -622,8 +582,8 @@ def _retrieve_server_status(status):
     if not valid:
         values = [ str((_server.MySQLServer.get_status_idx(value), value))
                    for value in _server.MySQLServer.SERVER_STATUS ]
-        raise _errors.ServerError("Trying to set an invalid status (%s). "
-            "Possible values are %s." % (status, ", ".join(values))
+        raise _errors.ServerError("Trying to access/set an invalid status "
+            "(%s). Possible values are %s." % (status, ", ".join(values))
         )
 
     return status
@@ -754,7 +714,7 @@ def _retrieve_server_mode(mode):
     if not valid:
         values = [ str((_server.MySQLServer.get_mode_idx(value), value))
                    for value in _server.MySQLServer.SERVER_MODE ]
-        raise _errors.ServerError("Trying to set an invalid mode (%s). "
+        raise _errors.ServerError("Trying to access/set an invalid mode (%s). "
             "Possible values are: %s." % (mode, ", ".join(values))
         )
 
@@ -797,13 +757,10 @@ def _do_set_server_mode(server, mode, allowed_mode):
             )
     server.mode = mode
 
-def _retrieve_server(uuid):
-    """Return a server object from a UUID.
+def _retrieve_server(uuid, group_id=None):
+    """Return a MySQLServer object from a UUID.
     """
-    try:
-        uuid = _uuid.UUID(uuid)
-    except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
+    uuid = _retrieve_uuid_object(uuid)
 
     server = _server.MySQLServer.fetch(uuid)
     if not server:
@@ -815,7 +772,45 @@ def _retrieve_server(uuid):
         raise _errors.GroupError(
             "Server (%s) does not belong to a group." % (uuid, )
             )
+
+    if group_id is not None and group_id != server.group_id:
+        raise _errors.GroupError(
+            "Group (%s) does not contain server (%s)." % (group_id, uuid)
+        )
     return server
+
+def _check_server_exists(uuid):
+    """Check whether a MySQLServer instance exists or not.
+    """
+    uuid = _retrieve_uuid_object(uuid)
+
+    server = _server.MySQLServer.fetch(uuid)
+    if server:
+        raise _errors.ServerError("Server (%s) already exists." % (uuid, ))
+
+def _retrieve_group(group_id):
+    """Return a Group object from an identifier.
+    """
+    group = _server.Group.fetch(group_id)
+    if not group:
+        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+    return group
+
+def _check_group_exists(group_id):
+    """Check whether a group exists or not.
+    """
+    group = _server.Group.fetch(group_id)
+    if group:
+        raise _errors.GroupError("Group (%s) already exists." % (group_id, ))
+
+def _retrieve_uuid_object(uuid):
+    """Transform an input string into a UUID object.
+    """
+    try:
+        assert(isinstance(uuid, basestring))
+        return _uuid.UUID(uuid)
+    except ValueError:
+        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
 
 def _check_requirements(server):
     """Check if the server fulfils some requirements.

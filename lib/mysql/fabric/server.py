@@ -36,11 +36,14 @@ import logging
 import functools
 import re
 
-import mysql.fabric.errors as _errors
-import mysql.fabric.persistence as _persistence
-import mysql.fabric.server_utils as _server_utils
-import mysql.fabric.utils as _utils
-import mysql.fabric.failure_detector as _detector
+from mysql.fabric import (
+    errors as _errors,
+    persistence as _persistence,
+    server_utils as _server_utils,
+    utils as _utils,
+    failure_detector as _detector,
+    config as _config
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -544,23 +547,15 @@ class MySQLServer(_persistence.Persistable):
     """Proxy class that provides an interface to access a MySQL Server
     Instance.
 
-    To create a MySQLServer object, one needs to provide at least three
-    parameters: uuid, address (i.e., host:port) and user's name. Most likely,
-    a password is also necessary. If the uuid is not known beforehand,
-    one can find this out as follows::
+    To create a MySQLServer object, one needs to provide at least two
+    parameters: uuid and address (i.e., host:port). If the uuid is not known
+    beforehand, one can find it out as follows::
 
-      import uuid as _uuid
+      address = "localhost:13000"
+      uuid = MySQLServer.discover_uuid(address)
+      uuid = _uuid.UUID(uuid)
 
-      OPTIONS = {
-        "uuid" : _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-        "address"  : "localhost:13000",
-        "user" : "user",
-        "passwd" : "passwd"
-      }
-      uuid = MySQLServer.discover_uuid(**OPTIONS)
-      OPTIONS["uuid"] = _uuid.UUID(uuid)
-
-      server = MySQLServer(**OPTIONS)
+      server = MySQLServer(uuid=uuid, address=address)
 
     After creating the object, it is necessary to connect it to the MySQL
     Server by explicitly calling connect(). This is required because all the
@@ -582,7 +577,6 @@ class MySQLServer(_persistence.Persistable):
     :param address:  The address of the server.
     :param user: The username used to access the server.
     :param passwd: The password used to access the server.
-    :param default_charset: The default charset that will be used.
     :param mode: Server's mode.
     :type mode: OFFLINE, READ_ONLY, READ_WRITE.
     :param status: Server's status.
@@ -598,7 +592,6 @@ class MySQLServer(_persistence.Persistable):
         "CREATE TABLE servers "
         "(server_uuid VARCHAR(40) NOT NULL, "
         "server_address VARCHAR(128) NOT NULL, "
-        "user CHAR(16), passwd TEXT, "
         "mode INTEGER NOT NULL, "
         "status INTEGER NOT NULL, "
         "weight FLOAT NOT NULL, "
@@ -623,17 +616,8 @@ class MySQLServer(_persistence.Persistable):
     )
 
     #SQL statement for inserting a new server into the table
-    INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_address, user, "
-                     "passwd, mode, status, weight, group_id) values(%s, %s, "
-                     "%s, %s, %s, %s, %s, %s)")
-
-    #SQL statement for updating the server table identified by the server id.
-    UPDATE_SERVER_USER = ("UPDATE servers SET user = %s WHERE server_uuid = %s")
-
-    #SQL statement for updating the server table identified by the server id.
-    UPDATE_SERVER_PASSWD = (
-        "UPDATE servers SET passwd = %s WHERE server_uuid = %s"
-        )
+    INSERT_SERVER = ("INSERT INTO servers(server_uuid, server_address, mode, "
+                     "status, weight, group_id) values(%s, %s, %s, %s, %s, %s)")
 
     #SQL statement for updating the server table identified by the server id.
     UPDATE_SERVER_MODE = (
@@ -660,14 +644,14 @@ class MySQLServer(_persistence.Persistable):
 
     #SQL Statement to retrieve the server from the state_store.
     QUERY_SERVER = (
-        "SELECT server_uuid, server_address, user, passwd, mode, status, "
-        "weight, group_id FROM servers WHERE server_uuid = %s"
+        "SELECT server_uuid, server_address, mode, status, weight, group_id "
+        "FROM servers WHERE server_uuid = %s"
         )
 
     #SQL Statement to retrieve a set of servers in a group from the state_store.
     QUERY_SERVER_GROUP_ID = (
-        "SELECT server_uuid, server_address, user, passwd, mode, status, "
-        "weight FROM servers WHERE group_id = %s"
+        "SELECT server_uuid, server_address, mode, status, weight "
+        "FROM servers WHERE group_id = %s"
         )
 
     #SQL Statement to retrieve the servers belonging to a group.
@@ -725,13 +709,16 @@ class MySQLServer(_persistence.Persistable):
     # Set of possible statuses.
     SERVER_STATUS = [FAULTY, SPARE, SECONDARY, PRIMARY]
 
+    USER = None
+
+    PASSWD = None
+
     ALL_PRIVILEGES = [ "ALL PRIVILEGES" ]
 
     NO_USER_DATABASES = ["performance_schema", "information_schema", "mysql"]
 
     def __init__(self, uuid, address, user=None, passwd=None, mode=DEFAULT_MODE,
-                 status=DEFAULT_STATUS, weight=DEFAULT_WEIGHT, group_id=None,
-                 default_charset="latin1"):
+                 status=DEFAULT_STATUS, weight=DEFAULT_WEIGHT, group_id=None):
         """Constructor for MySQLServer.
         """
         super(MySQLServer, self).__init__()
@@ -745,7 +732,6 @@ class MySQLServer(_persistence.Persistable):
         self.__pool = ConnectionPool()
         self.__user = user
         self.__passwd = passwd
-        self.__default_charset = default_charset
         self.__mode = mode
         self.__status = status
         self.__weight = weight
@@ -757,29 +743,24 @@ class MySQLServer(_persistence.Persistable):
 
     @staticmethod
     @server_logging
-    def discover_uuid(**kwargs):
+    def discover_uuid(address, user=None, passwd=None):
         """Retrieve the uuid from a server.
 
         :param kwargs: Dictionary with parmaters to connect to a server.
         """
-        host = port = None
-        params = kwargs.copy()
-        keys = params.keys()
 
-        params.setdefault("autocommit", True)
-        params.setdefault("use_unicode", False)
+        host, port = _server_utils.split_host_port(
+            address,  _server_utils.MYSQL_DEFAULT_PORT
+        )
+        port = int(port)
 
-        if "address" in keys:
-            host, port = _server_utils.split_host_port(params["address"],
-                _server_utils.MYSQL_DEFAULT_PORT)
-            params.setdefault("host", host)
-            params.setdefault("port", int(port))
-            del params["address"]
+        user = user or MySQLServer.USER
+        passwd = passwd or MySQLServer.PASSWD
+        cnx = _server_utils.create_mysql_connection(
+            user=user, passwd=passwd, host=host, port=port, autocommit=True,
+            use_unicode=False
+        )
 
-        if "uuid" in keys:
-            del params["uuid"]
-
-        cnx = _server_utils.create_mysql_connection(**params)
         try:
             row = _server_utils.exec_mysql_stmt(cnx,
                 "SELECT @@GLOBAL.SERVER_UUID")
@@ -804,12 +785,10 @@ class MySQLServer(_persistence.Persistable):
         """
         host, port = _server_utils.split_host_port(self.address,
             _server_utils.MYSQL_DEFAULT_PORT)
-        user = self.__user or None
-        passwd = self.__passwd or None
 
         return _server_utils.create_mysql_connection(
-            autocommit=True, use_unicode=False, charset=self.__default_charset,
-            host=host, port=port, user=user, passwd=passwd,
+            autocommit=True, use_unicode=False, host=host, port=port,
+            user=self.user, passwd=self.passwd,
             connection_timeout=connection_timeout
         )
 
@@ -828,9 +807,9 @@ class MySQLServer(_persistence.Persistable):
         if ret_uuid != self.uuid:
             self.disconnect()
             raise _errors.UuidError(
-                "Uuids do not match (stored (%s), read (%s))." %
+                "UUIDs do not match (stored (%s), read (%s))." %
                 (self.uuid, ret_uuid)
-                )
+            )
 
         # Get server's id.
         self.__server_id = int(self.get_variable("SERVER_ID"))
@@ -848,7 +827,6 @@ class MySQLServer(_persistence.Persistable):
         ret_binlog = self.get_variable("LOG_BIN")
         self.__binlog_enabled = not ret_binlog in ("OFF", "0")
 
-        # Read read_only.
         self._check_read_only()
 
         _LOGGER.debug("Connected to server with uuid (%s), server_id (%d), "
@@ -1004,30 +982,19 @@ class MySQLServer(_persistence.Persistable):
         return self.__binlog_enabled
 
     @property
-    def default_charset(self):
-        """Return the defualt character set.
-        """
-        return self.__default_charset
-
-    @property
     def user(self):
         """Return user's name who is used to connect to a server.
         """
-        return self.__user
+        return self.__user or MySQLServer.USER
 
     @user.setter
-    def user(self, user, persister=None):
-        """Set user's name who is used to connect to a server. Persist the
-        user information in the state store.
+    def user(self, user):
+        """Set user's name who is used to connect to a server.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
-        :param user: The user name.
+        :param user: User's name.
         """
         if self.__user != user:
             self.disconnect()
-            persister.exec_stmt(MySQLServer.UPDATE_SERVER_USER,
-                                {"params":(user, str(self.uuid))})
             self.__user = user
 
     @property
@@ -1035,21 +1002,16 @@ class MySQLServer(_persistence.Persistable):
         """Return user's password who is used to connect to a server. Load
         the server information from the state store and return the password.
         """
-        return self.__passwd
+        return self.__passwd or MySQLServer.PASSWD
 
     @passwd.setter
-    def passwd(self, passwd, persister=None):
-        """Set user's passord who is used to connect to a server. Persist the
-        password information in the state store.
+    def passwd(self, passwd):
+        """Set user's passord who is used to connect to a server.
 
-        :param persister: The DB server that can be used to access the
-                          state store.
-        :param passwd: The password that needs to be set.
+        :param passwd: User's password.
         """
         if self.__passwd != passwd:
             self.disconnect()
-            persister.exec_stmt(MySQLServer.UPDATE_SERVER_PASSWD,
-                                {"params":(passwd, str(self.uuid))})
             self.__passwd = passwd
 
     @property
@@ -1166,12 +1128,12 @@ class MySQLServer(_persistence.Persistable):
             {"raw" : False, "params" : (group_id, )}
         )
         for row in rows:
-            uuid, address, user, passwd, idx_mode, idx_status, weight = row
+            uuid, address, idx_mode, idx_status, weight = row
             mode = MySQLServer.get_mode(idx_mode)
             status = MySQLServer.get_status(idx_status)
             server = MySQLServer(
-                _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
-                mode=mode, status=status, weight=weight, group_id=group_id
+                _uuid.UUID(uuid), address=address, mode=mode, status=status,
+                weight=weight, group_id=group_id
             )
             ret.append(server)
         return ret
@@ -1350,13 +1312,12 @@ class MySQLServer(_persistence.Persistable):
         )
         row = cur.fetchone()
         if row:
-            uuid, address, user, passwd, idx_mode, idx_status, \
-                weight, group_id = row
+            uuid, address, idx_mode, idx_status, weight, group_id = row
             mode = MySQLServer.get_mode(idx_mode)
             status = MySQLServer.get_status(idx_status)
             return MySQLServer(
-                _uuid.UUID(uuid), address=address, user=user, passwd=passwd,
-                mode=mode, status=status, weight=weight, group_id=group_id
+                _uuid.UUID(uuid), address=address, mode=mode, status=status,
+                weight=weight, group_id=group_id
             )
 
     @staticmethod
@@ -1462,8 +1423,8 @@ class MySQLServer(_persistence.Persistable):
         idx_mode = MySQLServer.get_mode_idx(server.mode)
         idx_status = MySQLServer.get_status_idx(server.status)
         persister.exec_stmt(MySQLServer.INSERT_SERVER,
-            {"params":(str(server.uuid), server.address, server.user,
-            server.passwd, idx_mode, idx_status, server.weight,
+            {"params":(str(server.uuid), server.address, idx_mode, idx_status,
+            server.weight,
             server.group_id)}
         )
 
@@ -1482,3 +1443,14 @@ class MySQLServer(_persistence.Persistable):
         ret = "<server(uuid={0}, address={1}, mode={2}, status={3}>".\
             format(self.__uuid, self.__address, self.__mode, self.__status)
         return ret
+
+
+def configure(config):
+    """Set configuration values.
+    """
+    MySQLServer.USER = config.get("servers", "user")
+
+    try:
+        MySQLServer.PASSWD = config.get("servers", "password")
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        pass

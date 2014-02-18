@@ -61,7 +61,7 @@ class TestSharding(unittest.TestCase):
             "user" : MySQLInstances().user,
             "passwd" : MySQLInstances().passwd,
         }
-        uuid_server3 = MySQLServer.discover_uuid(**self.__options_3)
+        uuid_server3 = MySQLServer.discover_uuid(self.__options_3["address"])
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
         self.__server_3 = MySQLServer(**self.__options_3)
         MySQLServer.add(self.__server_3)
@@ -93,7 +93,7 @@ class TestSharding(unittest.TestCase):
             "user" : MySQLInstances().user,
             "passwd" : MySQLInstances().passwd,
         }
-        uuid_server5 = MySQLServer.discover_uuid(**self.__options_5)
+        uuid_server5 = MySQLServer.discover_uuid(self.__options_5["address"])
         self.__options_5["uuid"] = _uuid.UUID(uuid_server5)
         self.__server_5 = MySQLServer(**self.__options_5)
         MySQLServer.add(self.__server_5)

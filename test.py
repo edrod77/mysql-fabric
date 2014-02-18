@@ -68,31 +68,35 @@ def get_options():
     parser.add_option("--host",
                       action="store", dest="host",
                       default="localhost",
-                      help="Host to use for the persistance database.")
+                      help="Host to use for the state store.")
     parser.add_option("--user",
                       action="store", dest="user",
                       default=getpass.getuser(),
                       help=("User to use to manage MySQL Server instances and "
-                            "access persistence database. Default to current "
+                            "access the state store. Default to current "
                             "user."))
     parser.add_option("--password",
                       action="store", dest="password", default=None,
                       help=("Password to use to manage MySQL Server instances "
-                            "and access persistence database. Default to the "
+                            "and access the state store. Default to the "
                             "empty string."))
+    parser.add_option("--db-user",
+                      action="store", dest="db_user", default="mats",
+                      help=("User created to accesss the MySQL Server instances" 
+                            "while running the test cases "))
     parser.add_option("--port",
-                      action="store", dest="port", default=3306, type=int,
-                      help=("Port to use when connecting to persistance"
-                            " database. Default to 3306."))
+                      action="store", dest="port", default=32274, type=int,
+                      help=("Port to use when connecting to the state store. "
+                            "Default to 32274."))
     parser.add_option("--database",
                       action="store", dest="database", default='fabric',
-                      help=("Database name to use for persistance database."
+                      help=("Database name to use for the state store."
                             " Default to 'fabric'."))
     parser.add_option("--servers", action="store", dest="servers",
                       help="Set of servers' addresses that can be used.")
     return parser.parse_args()
 
-def configure_servers(set_of_addresses, user, password):
+def configure_servers(options):
     """Check if some MySQL's addresses were specified and the number is
     greater than NUMBER_OF_SERVERS.
     """
@@ -101,23 +105,24 @@ def configure_servers(set_of_addresses, user, password):
         MySQLServer,
         ConnectionPool,
     )
-    # The shard-subsystem needs ALL *.*.
     try:
         servers = _test_utils.MySQLInstances()
-        servers.user = "mats"
-        servers.passwd = ""
-        servers.root_user = user
-        servers.root_passwd = password
-        if set_of_addresses:
-            for address in set_of_addresses.split():
+        servers.state_store_address = "{host}:{port}".format(
+            host=options.host, port=options.port
+        )
+        servers.user = options.db_user
+        servers.passwd = None
+        servers.root_user = options.user
+        servers.root_passwd = options.password
+        if options.servers:
+            for address in options.servers.split():
                 servers.add_address(address)
                 uuid = MySQLServer.discover_uuid(
                     address=address, user=servers.root_user,
                     passwd=servers.root_passwd
                 )
                 server = MySQLServer(
-                    _uuid.UUID(uuid), address=address,
-                    user=servers.root_user,
+                    _uuid.UUID(uuid), address=address, user=servers.root_user,
                     passwd=servers.root_passwd
                 )
                 server.connect()
@@ -174,8 +179,7 @@ def run_tests(pkg, options, args, env_options):
         args = tests.__all__
 
     # Find out which MySQL Instances can be used for the tests.
-    if not check_connector() or not configure_servers(options.servers, \
-        options.user, options.password):
+    if not check_connector() or not configure_servers(options):
         return None
 
     # Load the test cases and run them.
@@ -199,6 +203,9 @@ def setup_xmlrpc(options, env_options):
             },
         'executor': {
             'executors': '5',
+            },
+        'servers': {
+            'user': options.db_user,
             },
         'storage': {
             'address': options.host + ":" + str(options.port),
