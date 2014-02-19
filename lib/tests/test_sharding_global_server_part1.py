@@ -117,14 +117,14 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID1")
+        status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID1")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -371,11 +371,17 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard).")
 
-        status = self.proxy.sharding.remove_mapping("db1.t1")
+        status = self.proxy.sharding.remove_table("db1.t1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard_mapping).")
+
+        status = self.proxy.sharding.remove_definition("1")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_remove_shard_mapping_defn).")
 
         #self.proxy.sharding.disable_shard("3")
         self.proxy.group.demote("GROUPID1")

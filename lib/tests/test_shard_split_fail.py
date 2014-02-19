@@ -113,14 +113,14 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID1")
+        status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -162,7 +162,7 @@ class TestShardSplit(unittest.TestCase):
                                   "VALUES(704, 'TEST 7')")
 
     def test_shard_split_invalid_split_range_failed(self):
-        status = self.proxy.sharding.split("1", "GROUPID3", "ABCEDFGH")
+        status = self.proxy.sharding.split_shard("1", "GROUPID3", "ABCEDFGH")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(
@@ -217,11 +217,17 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard).")
 
-        status = self.proxy.sharding.remove_mapping("db1.t1")
+        status = self.proxy.sharding.remove_table("db1.t1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard_mapping).")
+
+        status = self.proxy.sharding.remove_definition("1")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_remove_shard_mapping_defn).")
 
         self.proxy.group.demote("GROUPID1")
         self.proxy.group.demote("GROUPID2")

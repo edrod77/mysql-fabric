@@ -220,20 +220,20 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.__group_6.add_server(self.__server_6)
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
-        status = self.proxy.sharding.define("HASH", "GROUPID1")
+        status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_mapping(1, "db2.t2", "userID")
+        status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -290,7 +290,7 @@ class TestHashMoveGlobal(unittest.TestCase):
             int(row_cnt_shard_before_move_db1_t1[0][0])
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
-        status = self.proxy.sharding.move("1", "GROUPID6")
+        status = self.proxy.sharding.move_shard("1", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -384,7 +384,7 @@ class TestHashMoveGlobal(unittest.TestCase):
             int(row_cnt_shard_before_move_db1_t1[0][0])
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
-        status = self.proxy.sharding.move("2", "GROUPID6")
+        status = self.proxy.sharding.move_shard("2", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -478,7 +478,7 @@ class TestHashMoveGlobal(unittest.TestCase):
             int(row_cnt_shard_before_move_db1_t1[0][0])
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
-        status = self.proxy.sharding.move("3", "GROUPID6")
+        status = self.proxy.sharding.move_shard("3", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -572,7 +572,7 @@ class TestHashMoveGlobal(unittest.TestCase):
             int(row_cnt_shard_before_move_db1_t1[0][0])
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
-        status = self.proxy.sharding.move("4", "GROUPID6")
+        status = self.proxy.sharding.move_shard("4", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

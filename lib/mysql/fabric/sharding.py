@@ -196,7 +196,7 @@ class ShardMapping(_persistence.Persistable):
 
     #Delete the sharding specification to table mapping for a given table.
     DELETE_SHARD_MAPPING = ("DELETE FROM shard_tables "
-                            "WHERE shard_mapping_id = %s")
+                            "WHERE table_name = %s")
 
     #Delete the shard mapping definition
     DELETE_SHARD_MAPPING_DEFN = ("DELETE FROM shard_maps "
@@ -290,12 +290,21 @@ class ShardMapping(_persistence.Persistable):
         #Remove the shard mapping
         persister.exec_stmt(
             ShardMapping.DELETE_SHARD_MAPPING,
-            {"params":(self.__shard_mapping_id,)})
+            {"params":(self.__table_name,)})
 
+    @staticmethod
+    def remove_sharding_definition(shard_mapping_id, persister=None):
+        """Remove the shard mapping definition identified uniquely by the given
+        shard_mapping_id.
+
+        :param shard_mapping_id: The shard mapping ID of the sharding defn.
+        :param persister: Represents a valid handle to the state
+                          store.
+        """
         #Remove the shard mapping definition.
         persister.exec_stmt(
             ShardMapping.DELETE_SHARD_MAPPING_DEFN,
-            {"params":(self.__shard_mapping_id,)})
+            {"params":(shard_mapping_id,)})
 
     @staticmethod
     def create(persister=None):

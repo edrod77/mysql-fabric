@@ -139,14 +139,14 @@ class TestShardingServices(unittest.TestCase):
         self.__group_6.add_server(self.__server_6)
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
-        status = self.proxy.sharding.define("HASH", "GROUPID1")
+        status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID1")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -226,12 +226,13 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_add_shard).")
 
-    def test_remove_shard_mapping_shards_exist_exception(self):
-        status = self.proxy.sharding.remove_mapping("db1.t1")
-        self.assertStatus(status, _executor.Job.ERROR)
+    def test_remove_shard_mapping_shards_exist(self):
+        #It is not an error to remove tables from a shard mapping.
+        status = self.proxy.sharding.remove_table("db1.t1")
+        self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_remove_shard_mapping).")
+                         "Executed action (_remove_shard_mapping).")
 
     def test_remove_sharding_specification(self):
         status = self.proxy.sharding.disable_shard(1)
@@ -297,7 +298,7 @@ class TestShardingServices(unittest.TestCase):
                          "Tried to execute action (_remove_shard).")
 
     def test_lookup_shard_mapping(self):
-        status = self.proxy.sharding.lookup_mapping("db1.t1")
+        status = self.proxy.sharding.lookup_table("db1.t1")
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(status[2], {"shard_mapping_id":1,
@@ -307,7 +308,7 @@ class TestShardingServices(unittest.TestCase):
                                      "global_group":"GROUPID1"})
 
     def test_list(self):
-        status = self.proxy.sharding.list_mappings("HASH")
+        status = self.proxy.sharding.list_tables("HASH")
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(status[2], [{"shard_mapping_id":1,
@@ -317,7 +318,7 @@ class TestShardingServices(unittest.TestCase):
                                      "global_group":"GROUPID1"}])
 
     def test_list_exception(self):
-        status = self.proxy.sharding.list_mappings("Wrong")
+        status = self.proxy.sharding.list_tables("Wrong")
         self.assertEqual(status[0], False)
         self.assertNotEqual(status[1], "")
         self.assertEqual(status[2], True)

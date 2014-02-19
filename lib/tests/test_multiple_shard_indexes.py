@@ -158,40 +158,40 @@ class TestShardingServices(unittest.TestCase):
         self.__group_6.add_server(self.__server_6)
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
-        status = self.proxy.sharding.define("HASH", "GROUPID1")
+        status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID1")
+        status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 2)
 
-        status = self.proxy.sharding.define("HASH", "GROUPID1")
+        status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 3)
 
-        status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID1")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_mapping(2, "db2.t2", "userID2")
+        status = self.proxy.sharding.add_table(2, "db2.t2", "userID2")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_mapping(3, "db3.t3", "userID3")
+        status = self.proxy.sharding.add_table(3, "db3.t3", "userID3")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -245,7 +245,7 @@ class TestShardingServices(unittest.TestCase):
                          set(obtained_shard_mapping_list[2]))
 
     def test_list_shard_mappings(self):
-        status = self.proxy.sharding.list_mappings("HASH")
+        status = self.proxy.sharding.list_tables("HASH")
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(status[2], [
@@ -260,7 +260,7 @@ class TestShardingServices(unittest.TestCase):
                                      "type_name":"HASH",
                                      "global_group":"GROUPID1"}
                                 ])
-        status = self.proxy.sharding.list_mappings("RANGE")
+        status = self.proxy.sharding.list_tables("RANGE")
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(status[2], [

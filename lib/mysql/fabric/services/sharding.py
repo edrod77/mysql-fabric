@@ -79,7 +79,7 @@ class DefineShardMapping(ProcedureShard):
     """Define a shard mapping.
     """
     group_name = "sharding"
-    command_name = "define"
+    command_name = "create_definition"
     def execute(self, type_name, group_id, synchronous=True):
         """Define a shard mapping.
 
@@ -100,7 +100,7 @@ class AddShardMapping(ProcedureShard):
     """Add a table to a shard mapping.
     """
     group_name = "sharding"
-    command_name = "add_mapping"
+    command_name = "add_table"
     def execute(self, shard_mapping_id, table_name, column_name,
                 synchronous=True):
         """Add a table to a shard mapping.
@@ -125,9 +125,9 @@ class RemoveShardMapping(ProcedureShard):
     """Remove the shard mapping represented by the Shard Mapping object.
     """
     group_name = "sharding"
-    command_name = "remove_mapping"
+    command_name = "remove_table"
     def execute(self, table_name, synchronous=True):
-        """Remove the shard mapping represented by the Shard Mapping object.
+        """Remove the shard mapping corresponding to the table passed as input.
         This method is exposed through the XML-RPC framework and creates a job
         and enqueues it in the executor.
 
@@ -141,11 +141,33 @@ class RemoveShardMapping(ProcedureShard):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
+REMOVE_SHARD_MAPPING_DEFN = _events.Event("REMOVE_SHARD_MAPPING_DEFN")
+class RemoveShardMappingDefn(ProcedureShard):
+    """Remove the shard mapping definition represented by the Shard Mapping
+    ID.
+    """
+    group_name = "sharding"
+    command_name = "remove_definition"
+    def execute(self, shard_mapping_id, synchronous=True):
+        """Remove the shard mapping definition represented by the Shard Mapping
+        ID. This method is exposed through the XML-RPC framework and creates a
+        job and enqueues it in the executor.
+
+        :param shard_mapping_id: The shard mapping ID of the shard mapping
+                                definition that needs to be removed.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
+        """
+        procedures = _events.trigger(
+            REMOVE_SHARD_MAPPING_DEFN, self.get_lockable_objects(), shard_mapping_id
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
 class LookupShardMapping(Command):
     """Fetch the shard specification mapping for the given table
     """
     group_name = "sharding"
-    command_name = "lookup_mapping"
+    command_name = "lookup_table"
     def execute(self, table_name):
         """Fetch the shard specification mapping for the given table
 
@@ -163,7 +185,7 @@ class ListShardMappings(Command):
     sharding_type.
     """
     group_name = "sharding"
-    command_name = "list_mappings"
+    command_name = "list_tables"
     def execute(self, sharding_type):
         """The method returns all the shard mappings (names) of a
         particular sharding_type. For example if the method is called
@@ -336,7 +358,7 @@ class MoveShardServer(ProcedureShard):
     """Move the shard represented by the shard_id to the destination group.
     """
     group_name = "sharding"
-    command_name = "move"
+    command_name = "move_shard"
     def execute(self,  shard_id,  group_id,  synchronous=True):
         """Move the shard represented by the shard_id to the destination group.
 
@@ -361,7 +383,7 @@ class SplitShardServer(ProcedureShard):
     """Split the shard represented by the shard_id into the destination group.
     """
     group_name = "sharding"
-    command_name = "split"
+    command_name = "split_shard"
     def execute(self, shard_id,  group_id,  split_value = None,
                 synchronous=True):
         """Split the shard represented by the shard_id into the destination
@@ -501,21 +523,16 @@ def _remove_shard_mapping(table_name):
     shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is None:
         raise _errors.ShardingError(TABLE_NAME_NOT_FOUND % (table_name, ))
-    if shard_mapping.type_name in Shards.VALID_SHARDING_TYPES:
-        if not RangeShardingSpecification.list(shard_mapping.shard_mapping_id):
-            shard_mapping.remove()
-            _LOGGER.debug("Removed Shard Mapping (%s, %s, %s, %s, %s).",
-                          shard_mapping.shard_mapping_id,
-                          shard_mapping.table_name,
-                          shard_mapping.column_name,
-                          shard_mapping.type_name,
-                          shard_mapping.global_group)
-        else:
-            raise _errors.ShardingError(CANNOT_REMOVE_SHARD_MAPPING)
-    else:
-        #This can happen only if there is a state store anomaly.
-        raise _errors.ShardingError(INVALID_SHARDING_TYPE %
-                                     (shard_mapping.type_name, ))
+    shard_mapping.remove()
+
+@_events.on_event(REMOVE_SHARD_MAPPING_DEFN)
+def _remove_shard_mapping_defn(shard_mapping_id):
+    """Remove the shard mapping definition of the given table.
+
+    :param shard_mapping_id: The shard mapping ID of the shard mapping
+                            definition that needs to be removed.
+    """
+    ShardMapping.remove_sharding_definition(shard_mapping_id)
 
 def _lookup_shard_mapping(table_name):
     """Fetch the shard specification mapping for the given table

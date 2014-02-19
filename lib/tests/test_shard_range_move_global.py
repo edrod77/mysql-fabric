@@ -317,19 +317,19 @@ class TestShardingPrune(unittest.TestCase):
         self.__group_6.add_server(self.__server_6)
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
-        status = self.proxy.sharding.define("RANGE", "GROUPID1")
+        status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_define_shard_mapping).")
         self.assertEqual(status[2], 1)
 
-        status = self.proxy.sharding.add_mapping(1, "db1.t1", "userID")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
-        status = self.proxy.sharding.add_mapping(1, "db2.t2", "userID")
+        status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -389,7 +389,7 @@ class TestShardingPrune(unittest.TestCase):
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 70)
         self.assertEqual(row_cnt_shard_before_move_db2_t2, 70)
-        status = self.proxy.sharding.move("1", "GROUPID6")
+        status = self.proxy.sharding.move_shard("1", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -485,7 +485,7 @@ class TestShardingPrune(unittest.TestCase):
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 200)
         self.assertEqual(row_cnt_shard_before_move_db2_t2, 200)
-        status = self.proxy.sharding.move("2", "GROUPID6")
+        status = self.proxy.sharding.move_shard("2", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -580,7 +580,7 @@ class TestShardingPrune(unittest.TestCase):
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 200)
         self.assertEqual(row_cnt_shard_before_move_db2_t2, 200)
-        status = self.proxy.sharding.move("3", "GROUPID6")
+        status = self.proxy.sharding.move_shard("3", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -675,7 +675,7 @@ class TestShardingPrune(unittest.TestCase):
 
         self.assertEqual(row_cnt_shard_before_move_db1_t1, 400)
         self.assertEqual(row_cnt_shard_before_move_db2_t2, 400)
-        status = self.proxy.sharding.move("4", "GROUPID6")
+        status = self.proxy.sharding.move_shard("4", "GROUPID6")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -762,11 +762,24 @@ class TestShardingPrune(unittest.TestCase):
         status = self.proxy.sharding.remove_shard("5")
         status = self.proxy.sharding.remove_shard("6")
 
-        status = self.proxy.sharding.remove_mapping("db1.t1")
+        status = self.proxy.sharding.remove_table("db1.t1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_remove_shard_mapping).")
+
+        status = self.proxy.sharding.remove_table("db2.t2")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_remove_shard_mapping).")
+
+        status = self.proxy.sharding.remove_definition("1")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_remove_shard_mapping_defn).")
+
 
         self.proxy.group.demote("GROUPID1")
         self.proxy.group.demote("GROUPID2")
