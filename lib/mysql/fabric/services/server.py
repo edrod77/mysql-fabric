@@ -75,6 +75,7 @@ from mysql.fabric import (
     errors as _errors,
     failure_detector as _detector,
     group_replication as _group_replication,
+    sharding as _sharding,
 )
 
 from mysql.fabric.command import (
@@ -435,15 +436,7 @@ def _destroy_group(group_id, force):
     """
     group = _retrieve_group(group_id)
 
-    #Since the group is being destroyed stop all the slaves associated
-    #with this group would have been removed. If the group had been
-    #a slave to another group, this would also have been stopped by the
-    #demote or the deactivate command. But we need to clear the ref
-    #to the other groups that is part of this group object.
-    #Remove the master group ID.
-    group.remove_master_group_id()
-    #Remove the slave group IDs.
-    group.remove_slave_group_ids()
+    _check_shard_exists(group_id)
 
     servers = group.servers()
     if servers and force:
@@ -787,6 +780,23 @@ def _check_group_exists(group_id):
     group = _server.Group.fetch(group_id)
     if group:
         raise _errors.GroupError("Group (%s) already exists." % (group_id, ))
+
+def _check_shard_exists(group_id):
+    """Check whether there is a shard associated with the group.
+    """
+    shard_id = _sharding.Shards.lookup_shard_id(group_id)
+    if shard_id:
+        raise _errors.GroupError(
+            "Cannot erase a group (%s) which is associated to a shard (%s)." % 
+            (group_id, shard_id)
+        )
+
+    shard_mapping_id = _sharding.ShardMapping.lookup_shard_mapping_id(group_id)
+    if shard_mapping_id:
+        raise _errors.GroupError(
+            "Cannot erase a group (%s) which is used as a global group in a "
+            "shard definition (%s)." % (group_id, shard_mapping_id)
+        )
 
 def _retrieve_uuid_object(uuid):
     """Transform an input string into a UUID object.

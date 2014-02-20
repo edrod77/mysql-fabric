@@ -202,6 +202,10 @@ class ShardMapping(_persistence.Persistable):
     DELETE_SHARD_MAPPING_DEFN = ("DELETE FROM shard_maps "
                                  "WHERE shard_mapping_id = %s")
 
+    QUERY_SHARD_MAPPING_PER_GROUP = ("SELECT shard_mapping_id "
+        "FROM shard_maps WHERE global_group = %s"
+    )
+
     def __init__(self, shard_mapping_id, table_name, column_name, type_name,
                  global_group):
         """Initialize the Shard Specification Mapping for a given table.
@@ -425,8 +429,9 @@ class ShardMapping(_persistence.Persistable):
     @staticmethod
     def list_shard_mapping_defn(persister=None):
         """Fetch all the shard mapping definitions.
-            :param persister: A valid handle to the state store.
-            :return: A list containing the shard mapping definitions.
+
+        :param persister: A valid handle to the state store.
+        :return: A list containing the shard mapping definitions.
         """
         rows = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPING_DEFN,
                                   {"raw" : False,
@@ -435,6 +440,20 @@ class ShardMapping(_persistence.Persistable):
             return rows
 
         return []
+
+    @staticmethod
+    def lookup_shard_mapping_id(group_id, persister=None):
+      """Return the shard mapping associated with a group.
+
+      :group_id: Group identification.
+      :param persister: A valid handle to the state store.
+      :return: Shard mapping associated to a group..
+      """
+      rows = persister.exec_stmt(ShardMapping.QUERY_SHARD_MAPPING_PER_GROUP, 
+          {"params": (group_id, ), "raw" : False, "fetch" : True}
+      )
+      if rows:
+          return rows[0][0]
 
     @staticmethod
     def define(type_name, global_group_id, persister=None):

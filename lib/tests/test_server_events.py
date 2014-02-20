@@ -194,9 +194,8 @@ class TestServerServices(unittest.TestCase):
         """Test destroying a group by calling group.destroy().
         """
         # Prepare group and servers
-        address = tests.utils.MySQLInstances().get_address(0)
-        user = tests.utils.MySQLInstances().user
-        passwd = tests.utils.MySQLInstances().passwd
+        address = address_1 = tests.utils.MySQLInstances().get_address(0)
+        address = address_2 = tests.utils.MySQLInstances().get_address(1)
         self.proxy.group.create("group", "Testing group...")
         self.proxy.group.create("group_1", "Testing group...")
         self.proxy.group.add("group_1", address)
@@ -228,6 +227,28 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_destroy_group).")
+
+        # Try to remove a group that is used by shards.
+        self.proxy.group.create("group_global")
+        self.proxy.group.add("group_global", address_1)
+        self.proxy.group.promote("group_global")
+        status = self.proxy.sharding.create_definition("RANGE", "group_global")
+        shard_mapping_id = status[2]
+        status = self.proxy.group.destroy("group_global", True)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_destroy_group).")
+        self.proxy.group.create("group")
+        self.proxy.group.add("group", address_2)
+        self.proxy.group.promote("group")
+        self.proxy.sharding.add_table(shard_mapping_id, "db1.t1", "user")
+        self.proxy.sharding.add_shard(shard_mapping_id, "group", "ENABLED", 0)
+        status = self.proxy.group.destroy("group", True)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_destroy_group).")
 
     def test_remove_server_events(self):
         """Test removing a server by calling group.remove().
