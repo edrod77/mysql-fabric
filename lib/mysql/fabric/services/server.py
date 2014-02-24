@@ -197,11 +197,9 @@ class ServerUuid(Command):
     command_name = "lookup_uuid"
 
     def execute(self, address):
-        """Return server's uuid.
+        """Return server's UUID.
 
         :param address: Server's address.
-        :param user: Server's user.
-        :param passwd: Server's passwd.
         :return: UUID.
         """
         return Command.generate_output_pattern(_lookup_uuid, address)
@@ -209,21 +207,29 @@ class ServerUuid(Command):
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
     """Add a server into group.
+
+    If users just want to update the state store and skip provisioning steps
+    such as configuring replication, the update_only parameter must be set to
+    true.
+
+    Note that the current implementation has a simple provisioning step that
+    makes the server point to the master if there is any.
     """
     group_name = "group"
     command_name = "add"
 
-    def execute(self, group_id, address, synchronous=True):
+    def execute(self, group_id, address, update_only=False, synchronous=True):
         """Add a server into a group.
 
         :param group_id: Group's id.
         :param address: Server's address.
+        :update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(ADD_SERVER, self.get_lockable_objects(),
-            group_id, address
+            group_id, address, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -250,9 +256,9 @@ class ServerRemove(ProcedureGroup):
 
 ACTIVATE_GROUP = _events.Event()
 class ActivateGroup(ProcedureGroup):
-    """Activate a group.
+    """Activate failure detector for server(s) in a group.
 
-    This means that it will be monitored and faulty servers will be detected.
+    By default the failure detector is disabled.
     """
     group_name = "group"
     command_name = "activate"
@@ -272,10 +278,9 @@ class ActivateGroup(ProcedureGroup):
 
 DEACTIVATE_GROUP = _events.Event()
 class DeactivateGroup(ProcedureGroup):
-    """Deactivate a group.
+    """Deactivate failure detector for server(s) in a group.
 
-    This means that it will not be monitored and faulty servers will not be
-    detected. By default groups are inactive right after being created.
+    By default the failure detector is disabled.
     """
     group_name = "group"
     command_name = "deactivate"
@@ -294,9 +299,10 @@ class DeactivateGroup(ProcedureGroup):
         return self.wait_for_procedures(procedures, synchronous)
 
 class DumpServers(Command):
-    """Return information about all servers. The servers might belong to any
-    group that matches any of the provided patterns, or all servers if no
-    patterns are provided.
+    """Return information about servers.
+
+    The servers might belong to any group that matches any of the provided
+    patterns, or all servers if no patterns are provided.
     """
     group_name = "dump"
     command_name = "servers"
@@ -313,40 +319,57 @@ SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):
     """Set a server's status.
 
-    Any server added into a group has to be alive and kicking and is added
-    as Secondary. A server will have its status automatically changed to
-    FAULTY, if the failure detector is not able to reach it.
+    Any server added into a group has to be alive and kicking and its status
+    is automatically set to SECONDARY. If the failure detector is activate
+    and the server is not reachable, it is automatically set to FAULTY.
 
-    Users can also manually change the server's status. Usually, a user
-    may change a slave's mode to SPARE to avoid write and read access
-    and guarantee that it is not choosen when a failover or swithover
-    routine is executed.
+    Users can also manually change the server's status. Usually, a user may
+    change a slave's mode to SPARE to avoid write and read access and
+    guarantee that it is not choosen when a failover or swithover routine is
+    executed.
+
+    By default replication is automatically configured when a server has its
+    status changed. In order to skip this, users must set the update_only
+    parameter to true. If done so, only the state store will be updated with
+    information on the new status.
     """
     group_name = "server"
     command_name = "set_status"
 
-    def execute(self, uuid, status, synchronous=True):
+    def execute(self, uuid, status, update_only=False, synchronous=True):
         """Set a server's status.
+
+        :param uuid: Servers's UUID.
+        :param status: Server's status.
+        :update_only: Only update the state store and skip provisioning.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
         """
         procedures = _events.trigger(
-            SET_SERVER_STATUS, self.get_lockable_objects(), uuid, status
+            SET_SERVER_STATUS, self.get_lockable_objects(), uuid, status,
+            update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 SET_SERVER_WEIGHT = _events.Event()
 class SetServerWeight(ProcedureGroup):
-    """Set a server's weight which determines the likelihood of a server
-    being choseen by a connector to process transactions or by the high
-    availability service to replace a failed master.
+    """Set a server's weight.
 
-    From the connector's perspective, a server whose weight is 2.0 will
-    receive 2 times more more requests than a server whose weight is 1.0.
+    The weight determines the likelihood of a server being choseen by a
+    connector to process transactions. For example, a server whose weight
+    is 2.0 may receive 2 times more requests than a server whose weight is
+    1.0.
     """
     group_name = "server"
     command_name = "set_weight"
 
     def execute(self, uuid, weight, synchronous=True):
         """Set a server's weight.
+
+        :param uuid: Servers's UUID.
+        :param weight: Server's weight.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
         """
         procedures = _events.trigger(
             SET_SERVER_WEIGHT, self.get_lockable_objects(), uuid, weight
@@ -355,14 +378,21 @@ class SetServerWeight(ProcedureGroup):
 
 SET_SERVER_MODE = _events.Event()
 class SetServerMode(ProcedureGroup):
-    """Set a server's mode which determines whether it can process
-    read-only, read-write or both transaction types.
+    """Set a server's mode.
+
+    The mode determines whether a server can process read-only, read-write
+    or both transaction types.
     """
     group_name = "server"
     command_name = "set_mode"
 
     def execute(self, uuid, mode, synchronous=True):
         """Set a server's mode.
+
+        :param uuid: Servers's UUID.
+        :param weight: Server's weight.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
         """
         procedures = _events.trigger(
             SET_SERVER_MODE, self.get_lockable_objects(), uuid, mode
@@ -494,16 +524,13 @@ def _lookup_uuid(address):
     return _server.MySQLServer.discover_uuid(address=address)
 
 @_events.on_event(ADD_SERVER)
-def _add_server(group_id, address):
+def _add_server(group_id, address, update_only):
     """Add a server into a group.
     """
     group = _retrieve_group(group_id)
-
     uuid = _server.MySQLServer.discover_uuid(address=address)
     _check_server_exists(uuid)
-
     server = _server.MySQLServer(uuid=_uuid.UUID(uuid), address=address)
-    server.connect()
 
     # Check if the server fulfils the necessary requirements to become
     # a member.
@@ -515,8 +542,9 @@ def _add_server(group_id, address):
     # Add server as a member in the group.
     server.group_id = group_id
 
-    # Configure the server as a slave if there is a master.
-    _configure_as_slave(group, server)
+    if not update_only:
+        # Configure the server as a slave if there is a master.
+        _configure_as_slave(group, server)
 
     _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
@@ -538,20 +566,20 @@ def _remove_server(group_id, uuid):
     _server.ConnectionPool().purge_connections(server.uuid)
 
 @_events.on_event(SET_SERVER_STATUS)
-def _set_server_status(uuid, status):
+def _set_server_status(uuid, status, update_only):
     """Set a server's status.
     """
     status = _retrieve_server_status(status)
     server = _retrieve_server(uuid)
 
     if status == _server.MySQLServer.PRIMARY:
-        _set_server_status_primary(server)
-    elif status == _server.MySQLServer.SECONDARY:
-        _set_server_status_secondary(server)
-    elif status == _server.MySQLServer.SPARE:
-        _set_server_status_spare(server)
+        _set_server_status_primary(server, update_only)
     elif status == _server.MySQLServer.FAULTY:
-        _set_server_status_faulty(server)
+        _set_server_status_faulty(server, update_only)
+    elif status == _server.MySQLServer.SECONDARY:
+        _set_server_status_secondary(server, update_only)
+    elif status == _server.MySQLServer.SPARE:
+        _set_server_status_spare(server, update_only)
 
 def _retrieve_server_status(status):
     """Check whether the server's status is valid or not and
@@ -583,56 +611,67 @@ def _retrieve_server_status(status):
 
     return status
 
-def _set_server_status_primary(server):
+def _set_server_status_primary(server, update_only):
     """Set server's status to primary.
     """
     raise _errors.ServerError(
-        "If you want to set a server (%s) to primary, please, use the "
-        "promote interface." % (server.uuid, )
+        "If you want to make a server (%s) primary, please, use the "
+        "group.promote function." % (server.uuid, )
     )
 
-def _set_server_status_faulty(server):
+def _set_server_status_faulty(server, update_only):
     raise _errors.ServerError(
         "If you want to set a server (%s) to faulty, please, use the "
-        "threat interface." % (server.uuid, )
+        "threat.report_faulty interface." % (server.uuid, )
     )
 
-def _set_server_status_secondary(server):
+def _set_server_status_secondary(server, update_only):
     """Set server's status to secondary.
     """
-    allowed_status = (_server.MySQLServer.SPARE)
+    allowed_status = [_server.MySQLServer.SPARE]
     status = _server.MySQLServer.SECONDARY
     mode = _server.MySQLServer.READ_ONLY
-    return _do_set_status(server, allowed_status, status, mode)
+    _do_set_status(server, allowed_status, status, mode, update_only)
 
-def _set_server_status_spare(server):
+def _set_server_status_spare(server, update_only):
     """Set server's status to spare.
     """
-    allowed_status = (
+    allowed_status = [
         _server.MySQLServer.SECONDARY, _server.MySQLServer.FAULTY
-    )
+    ]
     status = _server.MySQLServer.SPARE
     mode = _server.MySQLServer.OFFLINE
-    return _do_set_status(server, allowed_status, status, mode)
+    previous_status = server.status
+    _do_set_status(server, allowed_status, status, mode, update_only)
 
-def _do_set_status(server, allowed_status, status, mode):
+    if previous_status == _server.MySQLServer.FAULTY:
+        # Check whether the server is really alive or not.
+        _check_requirements(server)
+
+        # Configure replication
+        if not update_only:
+             group = _server.Group.fetch(server.group_id)
+             _configure_as_slave(group, server)
+
+def _do_set_status(server, allowed_status, status, mode, update_only):
     """Set server's status.
     """
-    server.connect()
     allowed_transition = server.status in allowed_status
-
+    previous_status = server.status
     if allowed_transition:
-        if server.status == _server.MySQLServer.FAULTY:
-            _check_requirements(server)
-            group = _server.Group.fetch(server.group_id)
-            _configure_as_slave(group, server)
         server.status = status
         server.mode = mode
-    elif server.status not in allowed_status:
+    else:
         raise _errors.ServerError(
-            "Cannot put server (%s) whose status is (%s) in "
-            "(%s) status." % (server.uuid, server.status, status)
-            )
+            "Cannot change server's status from (%s) to (%s)." %
+            (server.uuid, server.status, status)
+        )
+
+    _LOGGER.debug(
+        "Changed server's status (%s) from (%s) to (%s). Update-only "
+        "state store parameter is (%s).", str(server.uuid), previous_status,
+        server.status, update_only
+    )
 
 @_events.on_event(SET_SERVER_WEIGHT)
 def _set_server_weight(uuid, weight):
@@ -669,9 +708,8 @@ def _set_server_mode(uuid, mode):
         _set_server_mode_faulty(server, mode)
 
 def _retrieve_server_mode(mode):
-    """Check whether the server's mode is valid or not and
-    if an integer was provided retrieve the correspondent
-    string.
+    """Check whether the server's mode is valid or not and if an integer was
+    provided retrieve the correspondent string.
     """
     valid = False
     try:
@@ -732,7 +770,7 @@ def _do_set_server_mode(server, mode, allowed_mode):
         raise _errors.ServerError(
             "Cannot set mode to (%s) when the server's (%s) status is (%s)."
             % (mode, server.uuid, server.status)
-            )
+        )
     server.mode = mode
 
 def _retrieve_server(uuid, group_id=None):
@@ -810,6 +848,9 @@ def _retrieve_uuid_object(uuid):
 def _check_requirements(server):
     """Check if the server fulfils some requirements.
     """
+    # Being able to connect to the server is the first requirment.
+    server.connect()
+
     if not server.check_version_compat((5, 6, 8)):
         raise _errors.ServerError(
             "Server (%s) has an outdated version (%s). 5.6.8 or greater "
@@ -837,7 +878,6 @@ def _configure_as_slave(group, server):
         if group.master:
             master = _server.MySQLServer.fetch(group.master)
             master.connect()
-            server.read_only = True
             _utils.switch_master(server, master)
     except _errors.DatabaseError as error:
         _LOGGER.debug(

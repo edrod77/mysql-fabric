@@ -98,10 +98,10 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.add("group", address_1)
         self.proxy.group.add("group", address_2)
         status_uuid = self.proxy.server.lookup_uuid(address_1)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
-        error_uuid = status_uuid[1]
         uuid_1 = status_uuid[2]
+        status_uuid = self.proxy.server.lookup_uuid(address_2)
+        uuid_2 = status_uuid[2]
+        error_uuid = status_uuid[1]
 
         # Try to report instability of a server does not exist.
         status = self.proxy.threat.report_error(error_uuid)
@@ -121,7 +121,7 @@ class TestFailureEvents(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_report_error).")
 
-        # Report instability of a server that is secondary.
+        # Report instability of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.PRIMARY
         status = self.proxy.threat.report_error(uuid_1)
@@ -129,8 +129,49 @@ class TestFailureEvents(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_1]["status"], _server.MySQLServer.FAULTY
+        )
+        self.assertEqual(
+            status[2][uuid_2]["status"], _server.MySQLServer.PRIMARY
+        )
+
+    def test_report_error_update_only(self):
+        """Test the mechanism used to report server's issues (i.e. errors).
+        """
+        _failure_tracker.ReportError._NOTIFICATIONS = 1
+        _failure_tracker.ReportError._NOTIFICATION_CLIENTS = 1
+
+        # Prepare group and servers
+        self.proxy.group.create("group", "Testing group...")
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(1)
+        self.proxy.group.add("group", address_1)
+        self.proxy.group.add("group", address_2)
+        status_uuid = self.proxy.server.lookup_uuid(address_1)
+        uuid_1 = status_uuid[2]
+        status_uuid = self.proxy.server.lookup_uuid(address_2)
+        uuid_2 = status_uuid[2]
+        error_uuid = status_uuid[1]
+
+        # Report instability of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
-        self.assertEqual(server.status, _server.MySQLServer.FAULTY)
+        server.status = _server.MySQLServer.PRIMARY
+        status = self.proxy.threat.report_error(
+            uuid_1, "unknown", "unknown", True
+        )
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_report_error).")
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_1]["status"], _server.MySQLServer.FAULTY
+        )
+        self.assertEqual(
+            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
+        )
 
     def test_report_failure(self):
         """Test the mechanism used to report server's issues (i.e. failures).
@@ -175,6 +216,39 @@ class TestFailureEvents(unittest.TestCase):
         self.assertEqual(server.status, _server.MySQLServer.FAULTY)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
+
+    def test_report_failure_update_only(self):
+        """Test the mechanism used to report server's issues (i.e. failures).
+        """
+        # Prepare group and servers
+        self.proxy.group.create("group", "Testing group...")
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(1)
+        self.proxy.group.add("group", address_1)
+        self.proxy.group.add("group", address_2)
+        status_uuid = self.proxy.server.lookup_uuid(address_1)
+        uuid_1 = status_uuid[2]
+        status_uuid = self.proxy.server.lookup_uuid(address_2)
+        uuid_2 = status_uuid[2]
+        error_uuid = status_uuid[1]
+
+        # Report failure of a server that is primary.
+        server = _server.MySQLServer.fetch(uuid_1)
+        server.status = _server.MySQLServer.PRIMARY
+        status = self.proxy.threat.report_failure(
+            uuid_1, "unknown", "unknown", True
+        )
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_report_failure).")
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_1]["status"], _server.MySQLServer.FAULTY
+        )
+        self.assertEqual(
+            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
+        )
 
 if __name__ == "__main__":
     unittest.main()

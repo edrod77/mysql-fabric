@@ -24,3 +24,4 @@ Contents
    scheduler
    command
    protocol_xmlrpc
+   health

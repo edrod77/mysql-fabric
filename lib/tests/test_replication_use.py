@@ -24,6 +24,7 @@ from mysql.fabric import (
     executor as _executor,
     replication as _repl,
     errors as _errors,
+    server as _server,
 )
 
 class TestReplicationUse(unittest.TestCase):
@@ -163,12 +164,15 @@ class TestReplicationUse(unittest.TestCase):
                          "Executed action (_change_to_candidate).")
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
         # Inject some events that makes a slave break.
         slave_1.set_session_binlog(False)
@@ -197,16 +201,19 @@ class TestReplicationUse(unittest.TestCase):
         _repl.sync_slave_with_master(slave_2, master, timeout=0)
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
         # Try to do a switch over to the faulty replica.
         status = self.proxy.group.promote("group_id", str(slave_1.uuid))
@@ -228,16 +235,19 @@ class TestReplicationUse(unittest.TestCase):
         _repl.sync_slave_with_master(master, slave_2, timeout=0)
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
         self.assertEqual(status[2][str(master.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
 
         # Choose a new master.
         status = self.proxy.group.promote("group_id")
@@ -252,16 +262,19 @@ class TestReplicationUse(unittest.TestCase):
         _repl.sync_slave_with_master(slave_2, master, timeout=0)
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
     def test_check_no_healthy_slave(self):
         """Test promoting when there is no healthy slave.
@@ -288,12 +301,15 @@ class TestReplicationUse(unittest.TestCase):
                          "Executed action (_change_to_candidate).")
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
         # Inject some events that make slaves break.
         slave_1.set_session_binlog(False)
@@ -324,20 +340,23 @@ class TestReplicationUse(unittest.TestCase):
                           slave_2, master, timeout=0)
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"],
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
         # Try to choose a new master through switch over.
         status = self.proxy.group.promote("group_id")
@@ -364,20 +383,23 @@ class TestReplicationUse(unittest.TestCase):
                           slave_1, master, timeout=0)
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertTrue(status[2][str(slave_1.uuid)]["threads"] ==
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"],
             {"sql_running": False, "sql_error": "Error 'Table 'test' "
             "already exists' on query. Default database: 'test'. Query: "
             "'CREATE TABLE test (id INTEGER)'"}
             )
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
         # Try to drop the table on the slave.
         _repl.stop_slave(slave_1, wait=True)
@@ -398,13 +420,15 @@ class TestReplicationUse(unittest.TestCase):
         _repl.sync_slave_with_master(slave_2, master, timeout=0)
 
         # Check replication.
-        status = self.proxy.group.check_group_availability("group_id")
+        status = self.proxy.group.health("group_id")
         self.assertEqual(status[2][str(slave_1.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_1.uuid)]["is_master"], False)
+        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
         self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_2.uuid)]["is_master"], False)
-        self.assertEqual(status[2][str(master.uuid)]["is_master"], True)
-
+        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
+                         _server.MySQLServer.SECONDARY)
+        self.assertEqual(status[2][str(master.uuid)]["status"],
+                         _server.MySQLServer.PRIMARY)
 
 if __name__ == "__main__":
     unittest.main()

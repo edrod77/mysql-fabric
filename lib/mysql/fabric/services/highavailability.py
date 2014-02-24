@@ -41,68 +41,6 @@ from mysql.fabric.command import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Discover the replication topology.
-DISCOVER_TOPOLOGY = _events.Event()
-# Import the replication topology outputed in the previous step.
-IMPORT_TOPOLOGY = _events.Event()
-
-class ImportTopology(ProcedureGroup):
-    """Try to figure out the replication topology and import it into the
-    state store.
-
-    The function tries to find out which servers are connected to a given
-    server and, for each server found, it repeats the process recursively.
-    It assumes that it can connect to all MySQL Instances using the same
-    user and password and that slaves report their host and port through
-    --report-host and --report-port.
-
-    """
-    group_name = "group"
-    command_name = "import_topology"
-
-    def execute(self, pattern_group_id, group_description, address,
-                synchronous=True):
-        """Try to figure out the replication topology and import it into the
-        state store.
-
-        :param pattern_group_id: Pattern group's id which is used to generate
-                                 the groups ids that will be used to create the
-                                 groups where servers will be imported into.
-        :param description: Group's description where servers will be imported
-                            into. If more than one group is created, they will
-                            share the same description.
-        :param address: Server's address.
-        :param synchronous: Whether one should wait until the execution
-                            finishes or not.
-        :return: A dictionary with information on the discovered topology.
-
-        In what follows, one will find a figure that depicts the sequence of
-        events that happen during the import operation. To ease the presentation
-        some names are abbreivated:
-
-        .. seqdiag::
-
-          diagram {
-          activation = none;
-          === Schedule "discover_topology" ===
-          import_topology --> executor [ label = "schedule(discover)" ];
-          import_topology <-- executor;
-          === Execute "discover_topology" and schedule "import_topology" ===
-          executor -> discover [ label = "execute(discover)" ];
-          discover --> executor [ label = "schedule(import)" ];
-          discover <-- executor;
-          executor <- discover;
-          === Execute "import_topology" ===
-          executor -> import [ label = "execute(import)" ];
-          executor <- import;
-          }
-        """
-        procedures = _events.trigger(
-            DISCOVER_TOPOLOGY, self.get_lockable_objects(),
-            pattern_group_id, group_description, address
-        )
-        return self.wait_for_procedures(procedures, synchronous)
-
 # Find out which operation should be executed.
 DEFINE_HA_OPERATION = _events.Event()
 # Find a slave that was not failing to keep with the master's pace.
@@ -123,6 +61,10 @@ WAIT_SLAVES_SWITCH = _events.Event()
 CHANGE_TO_CANDIDATE = _events.Event()
 class PromoteMaster(ProcedureGroup):
     """Promote a server into master.
+
+    If users just want to update the state store and skip provisioning steps
+    such as configuring replication, the update_only parameter must be set to
+    true. Otherwise, the following happens.
 
     If the master within a group fails, a new master is either automatically
     or manually selected among the slaves in the group. The process of
@@ -154,11 +96,13 @@ class PromoteMaster(ProcedureGroup):
     group_name = "group"
     command_name = "promote"
 
-    def execute(self, group_id, slave_uuid=None, synchronous=True):
+    def execute(self, group_id, slave_uuid=None, update_only=False,
+                synchronous=True):
         """Promote a new master.
 
         :param uuid: Group's id.
         :param slave_uuid: Candidate's UUID.
+        :param update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
@@ -249,12 +193,12 @@ class PromoteMaster(ProcedureGroup):
         """
         procedures = _events.trigger(
             DEFINE_HA_OPERATION, self.get_lockable_objects(), group_id,
-            slave_uuid
+            slave_uuid, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DEFINE_HA_OPERATION)
-def _define_ha_operation(group_id, slave_uuid):
+def _define_ha_operation(group_id, slave_uuid, update_only):
     """Define which operation must be called based on the master's status
     and whether the candidate slave is provided or not.
     """
@@ -264,10 +208,22 @@ def _define_ha_operation(group_id, slave_uuid):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
+    if update_only and not slave_uuid:
+        raise _errors.ServerError(
+            "The new master must be specified through --slave-uuid if "
+            "--update-only is set."
+        )
+
     if group.master:
         master = _server.MySQLServer.fetch(group.master)
         if master.status != _server.MySQLServer.FAULTY:
+            if update_only:
+                _do_block_write_master(group_id, str(group.master), update_only)
             fail_over = False
+
+    if update_only:
+        _change_to_candidate(group_id, slave_uuid, update_only)
+        return
 
     if fail_over:
         if not slave_uuid:
@@ -291,18 +247,20 @@ WAIT_SLAVES_DEMOTE = _events.Event()
 class DemoteMaster(ProcedureGroup):
     """Demote the current master if there is one.
 
-    In this case, the group must have a valid and operational master. Any write
-    access to the master is blocked, slaves are synchronized with the master,
-    stopped and their replication configuration reset. Note that no slave is
-    promoted as master.
+    If users just want to update the state store and skip provisioning steps
+    such as configuring replication, the update_only parameter must be set to
+    true. Otherwise any write access to the master is blocked, slaves are
+    synchronized with the master, stopped and their replication configuration
+    reset. Note that no slave is promoted as master.
     """
     group_name = "group"
     command_name = "demote"
 
-    def execute(self, group_id, synchronous=True):
+    def execute(self, group_id, update_only=False, synchronous=True):
         """Demote the current master if there is one.
 
         :param uuid: Group's id.
+        :param update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
@@ -330,166 +288,10 @@ class DemoteMaster(ProcedureGroup):
           }
         """
         procedures = _events.trigger(
-            BLOCK_WRITE_DEMOTE, self.get_lockable_objects(), group_id
+            BLOCK_WRITE_DEMOTE, self.get_lockable_objects(), group_id,
+            update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
-
-class CheckHealth(Command):
-    """Check if any server within a group has failed and report health
-    information.
-    """
-    group_name = "group"
-    command_name = "check_group_availability"
-
-    def execute(self, group_id):
-        """Check if any server within a group has failed.
-
-        :param uuid: Group's id.
-        """
-        return Command.generate_output_pattern(
-            _check_group_availability, group_id)
-
-@_events.on_event(DISCOVER_TOPOLOGY)
-def _discover_topology(pattern_group_id, group_description, address):
-    """Discover topology and right after schedule a job to import it.
-    """
-    topology = _do_discover_topology(address)
-    _events.trigger_within_procedure(
-        IMPORT_TOPOLOGY, pattern_group_id, group_description, topology
-    )
-
-def _do_discover_topology(address, discovered_servers=None):
-    """Discover topology.
-
-    :param address: Server's address.
-    :param discovered_servers: List of servers already verified to avoid
-                               cycles.
-    """
-    discovered_mapping = {}
-    discovered_servers = discovered_servers or set()
-
-    # Check server's uuid. If the server is not found, an exception is
-    # raised.
-    str_uuid = _server.MySQLServer.discover_uuid(address=address)
-
-    if str_uuid in discovered_servers:
-        return discovered_mapping
-
-    # Create a server object and connect to it.
-    uuid = _uuid.UUID(str_uuid)
-    server = _server.MySQLServer(uuid, address)
-    server.connect()
-
-    # Store the server in the discovered set and create a map.
-    discovered_mapping[str_uuid] = {"address" : address, "slaves": []}
-    discovered_servers.add(str_uuid)
-    _LOGGER.debug("Found server (%s, %s).", address, str_uuid)
-
-    # Check if the server has slaves and call _do_discover_topology
-    # for each slave.
-    _LOGGER.debug("Checking slaves for server (%s, %s).", address, str_uuid)
-    slaves = _replication.get_master_slaves(server)
-    for slave in slaves:
-        # If the slave does not report its host and port, the master
-        # reports an empty value and zero, respectively. In these cases,
-        # we skip the slave.
-        if slave.Host and slave.Port:
-            slave_address = _server_utils.combine_host_port(
-                slave.Host, slave.Port, _server_utils.MYSQL_DEFAULT_PORT)
-            # The master may sometimes report stale information. So we
-            # check it before trying to use it. Note that if the server
-            # does not exist, this will raise an exception and the discover
-            # will abort without importing anything.
-            slave_str_uuid = _server.MySQLServer.discover_uuid(
-                address=slave_address
-            )
-            slave = _server.MySQLServer(_uuid.UUID(slave_str_uuid),
-                slave_address
-            )
-            slave.connect()
-            if str_uuid == _replication.slave_has_master(slave):
-                _LOGGER.debug("Found slave (%s).", slave_address)
-                slave_discovery = _do_discover_topology(slave_address,
-                    discovered_servers
-                )
-                if slave_discovery:
-                    # A server cannot belong to more than one group.
-                    for chains in slave_discovery.values():
-                        assert(chains["slaves"] == [])
-                    discovered_mapping[str_uuid]["slaves"].\
-                        append(slave_discovery)
-    return discovered_mapping
-
-@_events.on_event(IMPORT_TOPOLOGY)
-def _import_topology(pattern_group_id, group_description, topology):
-    """Import topology.
-    """
-    groups = _do_import_topology(pattern_group_id, group_description, topology)
-    for group in groups:
-        _detector.FailureDetector.register_group(group)
-
-    return topology
-
-def _do_import_topology(pattern_group_id, group_description, topology):
-    """Import topology.
-    """
-    master_uuid = topology.keys()[0]
-    slaves = topology[master_uuid]["slaves"]
-    groups = set()
-
-    # Define group's id from pattern_group_id.
-    check = re.compile('\w+-\d+')
-    matched = check.match(pattern_group_id)
-    if not matched or matched.end() != len(pattern_group_id):
-        raise _errors.GroupError("Group pattern's id (%s) is not valid." %
-                                 (pattern_group_id, ))
-    base_group_id, number_group_id = pattern_group_id.split("-", 1)
-    number_group_id = int(number_group_id) + 1
-    group_id = base_group_id + "-" + str(number_group_id)
-
-    # Create group.
-    group = _server.Group(group_id=group_id, description=group_description,
-                          status=_server.Group.INACTIVE)
-    _server.Group.add(group)
-    groups.add(group_id)
-    _LOGGER.debug("Added group (%s).", group)
-
-    # Create master of the group.
-    master_address = topology[master_uuid]["address"]
-    server = _server.MySQLServer(
-        uuid=_uuid.UUID(master_uuid), address=master_address,
-        mode=_server.MySQLServer.READ_WRITE,
-        status=_server.MySQLServer.PRIMARY
-    )
-    _server.MySQLServer.add(server)
-
-    # Added created master to the group.
-    group.add_server(server)
-    group.master = server.uuid
-    _LOGGER.debug("Added server (%s) as master to group (%s).", str(server),
-                  str(group))
-
-    # Process slaves.
-    for slave in slaves:
-        slave_uuid = slave.keys()[0]
-        new_slaves = slave[slave_uuid]["slaves"]
-        if not new_slaves:
-            slave_address = slave[slave_uuid]["address"]
-            server = _server.MySQLServer(
-                uuid=_uuid.UUID(slave_uuid), address=slave_address,
-                mode=_server.MySQLServer.READ_ONLY,
-                status=_server.MySQLServer.SECONDARY
-            )
-            _server.MySQLServer.add(server)
-        else:
-            groups.union(
-                _do_import_topology(group_id, group_description, slave)
-            )
-            server = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
-        group.add_server(server)
-        _LOGGER.debug("Added server (%s) as slave to group (%s).", server,
-                      group)
-    return groups
 
 @_events.on_event(FIND_CANDIDATE_SWITCH)
 def _find_candidate_switch(group_id):
@@ -641,22 +443,29 @@ def _block_write_switch(group_id, master_uuid, slave_uuid):
         master_uuid, slave_uuid
         )
 
-def _do_block_write_master(group_id, master_uuid):
+def _do_block_write_master(group_id, master_uuid, update_only=False):
     """Block and disable write access to the current master.
 
     Note that connections are not killed and blocking the master
     may take some time.
     """
-    group = _server.Group.fetch(group_id)
+    master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
+    assert(master.status == _server.MySQLServer.PRIMARY)
+    master.mode = _server.MySQLServer.READ_ONLY
+    master.status = _server.MySQLServer.SECONDARY
+
+    if not update_only:
+        master.connect()
+        _utils.set_read_only(master, True)
 
     # Temporarily unset the master in this group.
-    _set_group_master_replication(group, None,  False)
+    group = _server.Group.fetch(group_id)
+    _set_group_master_replication(group, None)
 
-    server = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
-    server.connect()
-    _utils.set_read_only(server, True)
-    server.mode = _server.MySQLServer.READ_ONLY
-    server.status = _server.MySQLServer.SECONDARY
+    # At the end, we notify that a server was demoted.
+    _events.trigger("SERVER_DEMOTED", set([group_id]),
+        group_id, str(master.uuid)
+    )
 
 @_events.on_event(WAIT_SLAVES_SWITCH)
 def _wait_slaves_switch(group_id, master_uuid, slave_uuid):
@@ -698,38 +507,37 @@ def _do_wait_slaves_catch(group_id, master, skip_servers=None):
                     exc_info=error
                 )
 
-    # At the end, we notify that a server was demoted.
-    _events.trigger("SERVER_DEMOTED", set([group_id]),
-        group_id, str(master.uuid)
-    )
-
 @_events.on_event(CHANGE_TO_CANDIDATE)
-def _change_to_candidate(group_id, master_uuid):
+def _change_to_candidate(group_id, master_uuid, update_only=False):
     """Switch to candidate slave.
     """
     forbidden_status = (_server.MySQLServer.FAULTY, )
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
-    master.connect()
-    _utils.reset_slave(master)
-    _utils.set_read_only(master, False)
     master.mode = _server.MySQLServer.READ_WRITE
     master.status = _server.MySQLServer.PRIMARY
 
+    if not update_only:
+        # Prepare the server to be the master
+        master.connect()
+        _utils.reset_slave(master)
+        _utils.set_read_only(master, False)
+
     group = _server.Group.fetch(group_id)
+    _set_group_master_replication(group, master.uuid, update_only)
 
-    _set_group_master_replication(group,  master.uuid,  False)
-
-    for server in group.servers():
-        if server.uuid != _uuid.UUID(master_uuid) and \
-            server.status not in forbidden_status:
-            try:
-                server.connect()
-                _utils.switch_master(server, master)
-            except _errors.DatabaseError as error:
-                _LOGGER.debug(
-                    "Error configuring slave (%s).", server.uuid,
-                    exc_info=error
-                )
+    if not update_only:
+        # Make slaves point to the master.
+        for server in group.servers():
+            if server.uuid != _uuid.UUID(master_uuid) and \
+                server.status not in forbidden_status:
+                try:
+                    server.connect()
+                    _utils.switch_master(server, master)
+                except _errors.DatabaseError as error:
+                    _LOGGER.debug(
+                        "Error configuring slave (%s).", server.uuid,
+                        exc_info=error
+                    )
 
     # At the end, we notify that a server was promoted.
     _events.trigger("SERVER_PROMOTED", set([group_id]),
@@ -797,7 +605,7 @@ def _wait_slave_fail(group_id, slave_uuid):
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 
 @_events.on_event(BLOCK_WRITE_DEMOTE)
-def _block_write_demote(group_id):
+def _block_write_demote(group_id, update_only):
     """Block and disable write access to the current master.
     """
     group = _server.Group.fetch(group_id)
@@ -808,11 +616,23 @@ def _block_write_demote(group_id):
         raise _errors.GroupError("Group (%s) does not have a master." %
                                  (group_id, ))
 
-    master_uuid = str(group.master)
-    _do_block_write_master(group_id, master_uuid)
+    master = _server.MySQLServer.fetch(group.master)
+    assert(master.status in \
+        (_server.MySQLServer.PRIMARY, _server.MySQLServer.FAULTY)
+    )
 
-    _events.trigger_within_procedure(WAIT_SLAVES_DEMOTE, group_id,
-                                     master_uuid)
+    if master.status == _server.MySQLServer.PRIMARY:
+        master.connect()
+        master.mode = _server.MySQLServer.READ_ONLY
+        master.status = _server.MySQLServer.SECONDARY
+        _utils.set_read_only(master, True)
+
+        if not update_only:
+            _events.trigger_within_procedure(
+                WAIT_SLAVES_DEMOTE, group_id, str(master.uuid)
+            )
+
+    _set_group_master_replication(group, None, update_only)
 
 @_events.on_event(WAIT_SLAVES_DEMOTE)
 def _wait_slaves_demote(group_id, master_uuid):
@@ -821,8 +641,10 @@ def _wait_slaves_demote(group_id, master_uuid):
     master = _server.MySQLServer.fetch(_uuid.UUID(master_uuid))
     master.connect()
 
+    # Synchronize slaves.
     _do_wait_slaves_catch(group_id, master)
 
+    # Stop replication threads at all slaves.
     group = _server.Group.fetch(group_id)
     for server in group.servers():
         try:
@@ -834,49 +656,7 @@ def _wait_slaves_demote(group_id, master_uuid):
                 exc_info=error
             )
 
-def _check_group_availability(group_id):
-    """Check which servers in a group are up and down.
-    """
-    availability = {}
-
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
-
-    for server in group.servers():
-        alive = False
-        is_master = (group.master == server.uuid)
-        thread_issues = {}
-        status = server.status
-        try:
-            server.connect()
-            alive = True
-            if not is_master:
-                slave_issues = \
-                    _replication.check_slave_issues(server)
-                str_master_uuid = _replication.slave_has_master(server)
-                if (group.master is None or str(group.master) != \
-                    str_master_uuid) and not slave_issues:
-                    thread_issues = \
-                        "Group has master (%s) and server is connect " \
-                        "to master (%s)." % \
-                        (group.master, str_master_uuid)
-                elif slave_issues:
-                    thread_issues = slave_issues
-        except _errors.DatabaseError:
-            if status not in \
-                (_server.MySQLServer.FAULTY):
-                status = _server.MySQLServer.FAULTY
-        availability[str(server.uuid)] = {
-            "is_alive" : alive,
-            "is_master" : is_master,
-            "status" : status,
-            "threads" : thread_issues
-            }
-
-    return availability
-
-def _set_group_master_replication(group,  server_id,  clear_ref):
+def _set_group_master_replication(group, server_id, update_only=False):
     """Set the master for the given group and also reset the
     replication with the other group masters. Any change of master
     for a group will be initiated through this method. The method also
@@ -895,19 +675,20 @@ def _set_group_master_replication(group,  server_id,  clear_ref):
     - Start the slaves with the new master
 
     :param group: The group whose master needs to be changed.
-    :param server_id: The server id of the server that is becoming
-                                the master.
-    :param clear_ref: When the master is None this flag is used to
-                                determine if we will be deleting the refences
-                                to a slave.
+    :param server_id: The server id of the server that is becoming the master.
+    :param update_only: Only update the state store and skip provisioning.
     """
+    # Set the new master if update-only is true.
+    if update_only:
+        group.master = server_id
+        return
 
-    #Stop the slave running on the current master
+    #Otherwise, stop the slave running on the current master
     if group.master_group_id is not None and group.master is not None:
         _group_replication.stop_group_slave(group.master_group_id,
-                                            group.group_id, clear_ref)
+                                            group.group_id, False)
     #Stop the Groups replicating from the current group.
-    _group_replication.stop_group_slaves(group.group_id,  clear_ref)
+    _group_replication.stop_group_slaves(group.group_id, False)
 
     #set the new master
     group.master = server_id

@@ -167,7 +167,7 @@ class TestShardSplit(unittest.TestCase):
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(
             status[1][-1]["description"],
-            "Tried to execute action (_backup_source_shard)."
+            "Tried to execute action (_check_shard_information)."
         )
 
     def tearDown(self):

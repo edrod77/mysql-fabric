@@ -44,119 +44,6 @@ class TestReplicationServices(unittest.TestCase):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
-    def test_import_topology(self):
-        """Test importing topology by calling group.import_topology.
-        """
-        # Create topology M1 --> S2
-        instances = tests.utils.MySQLInstances()
-        user = instances.user
-        passwd = instances.passwd
-        instances.configure_instances({0 : [{1 : []}]}, user, passwd)
-        master = instances.get_instance(0)
-        slave = instances.get_instance(1)
-
-        # Import topology.
-        topology = self.proxy.group.import_topology(
-            "group_id-0", "description...", master.address
-        )
-
-        self.assertStatus(topology, _executor.Job.SUCCESS)
-        self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(topology[1][-1]["description"],
-                         "Executed action (_import_topology).")
-        expected_topology = {str(master.uuid): {"address": master.address,
-                             "slaves": [{str(slave.uuid):
-                             {"address": slave.address, "slaves": []}}]}}
-        self.assertEqual(topology[2], expected_topology)
-
-        # Look up a group.
-        group = self.proxy.group.lookup_groups("group_id-1")
-        self.assertEqual(group[0], True)
-        self.assertEqual(group[1], "")
-        self.assertEqual(group[2],
-            [{"group_id" : "group_id-1", "description" : "description...",
-            "master_uuid" : str(master.uuid), "failure_detector" : False}]
-        )
-
-        # Look up servers.
-        servers = self.proxy.group.lookup_servers("group_id-1")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-            {"server_uuid" : str(slave.uuid), "address" : slave.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" :_server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
-
-        # Create topology: M1 ---> S2, M1 ---> S3
-        group_ = Group.fetch("group_id-1")
-        tests.utils.configure_decoupled_master(group_, None)
-        _server.MySQLServer.remove(master)
-        master = None
-        _server.MySQLServer.remove(slave)
-        slave = None
-        instances = tests.utils.MySQLInstances()
-        instances.destroy_instances()
-        instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
-        master = instances.get_instance(0)
-        slave_1 = instances.get_instance(1)
-        slave_2 = instances.get_instance(2)
-
-        # Import topology.
-        topology = self.proxy.group.import_topology(
-            "group_id-1", "description...", master.address
-        )
-        self.assertStatus(topology, _executor.Job.SUCCESS)
-        self.assertEqual(topology[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(topology[1][-1]["description"],
-                         "Executed action (_import_topology).")
-        expected_topology = {
-            str(master.uuid): {"address": master.address, "slaves": [
-            {str(slave_1.uuid): {"address": slave_1.address, "slaves": []}},
-            {str(slave_2.uuid): {"address": slave_2.address, "slaves": []}}]}}
-        topology[2][str(master.uuid)]["slaves"].sort()
-        expected_topology[str(master.uuid)]["slaves"].sort()
-        self.assertEqual(topology[2], expected_topology)
-
-        # Look up a group.
-        group = self.proxy.group.lookup_groups("group_id-2")
-        self.assertEqual(group[0], True)
-        self.assertEqual(group[1], "")
-        self.assertEqual(group[2],
-            [{"group_id" : "group_id-2", "description" : "description...",
-            "master_uuid" : str(master.uuid), "failure_detector" : False}]
-        )
-
-        # Look up servers.
-        servers = self.proxy.group.lookup_servers("group_id-2")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" :_server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
-
     def test_promote_to(self):
         # Create topology: M1 ---> S2, M1 ---> S3
         instances = tests.utils.MySQLInstances()
@@ -395,8 +282,60 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
 
+    def test_promote_update_only(self):
+        """Test promoting a master by calling group.promote.
+        """
+        # Create topology: M1 ---> S2, M1 ---> S3
+        instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
+        instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
+        master = instances.get_instance(0)
+        slave_1 = instances.get_instance(1)
+        slave_2 = instances.get_instance(2)
+        self.proxy.group.create("group_id")
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.promote("group_id", str(master.uuid))
 
-    def test_demote_master(self):
+        # Try to promote a master, i.e. --update-only = True.
+        status = self.proxy.group.promote("group_id", None, True)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_define_ha_operation).")
+
+        # Execute promote a master, i.e. --update-only = True.
+        status = self.proxy.group.promote("group_id", str(slave_2.uuid), True)
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_define_ha_operation).")
+        status = self.proxy.group.health("group_id")
+        self.assertEqual(
+            status[2][str(master.uuid)]["status"],
+            _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][str(master.uuid)]["threads"], {"is_configured": False}
+        )
+        self.assertEqual(
+            status[2][str(slave_1.uuid)]["status"],
+            _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][str(slave_1.uuid)]["threads"],
+            "Group has master (%s) but server is connected to master (%s)." %
+            (slave_2.uuid, master.uuid, )
+        )
+        self.assertEqual(
+            status[2][str(slave_2.uuid)]["status"],
+            _server.MySQLServer.PRIMARY
+        )
+        self.assertEqual(status[2][str(slave_2.uuid)]["threads"], { })
+
+    def test_demote(self):
         """Test demoting a master by calling group.demote.
         """
         # Create topology: M1 ---> S2, M1 ---> S3
@@ -484,6 +423,56 @@ class TestReplicationServices(unittest.TestCase):
         self.assertEqual(retrieved, expected)
         self.assertFalse(_repl.is_slave_thread_running(slave_1))
         self.assertFalse(_repl.is_slave_thread_running(slave_2))
+
+    def test_demote_update_only(self):
+        """Test demoting a master by calling group.demote.
+        """
+        # Create topology: M1 ---> S2, M1 ---> S3
+        instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
+        instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
+        master = instances.get_instance(0)
+        slave_1 = instances.get_instance(1)
+        slave_2 = instances.get_instance(2)
+        self.proxy.group.create("group_id")
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.promote("group_id", str(master.uuid))
+
+        # Demote a master, i.e. --update-only = True.
+        status = self.proxy.group.demote("group_id", True)
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_block_write_demote).")
+        status = self.proxy.group.health("group_id")
+        self.assertEqual(
+            status[2][str(master.uuid)]["status"],
+            _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][str(master.uuid)]["threads"], {"is_configured": False}
+        )
+        self.assertEqual(
+            status[2][str(slave_1.uuid)]["status"],
+            _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][str(slave_1.uuid)]["threads"],
+            "Group has master (None) but server is connected to master (%s)." %
+            (master.uuid, )
+        )
+        self.assertEqual(
+            status[2][str(slave_2.uuid)]["status"],
+            _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][str(slave_2.uuid)]["threads"],
+            "Group has master (None) but server is connected to master (%s)." %
+            (master.uuid, )
+        )
 
 if __name__ == "__main__":
     unittest.main()

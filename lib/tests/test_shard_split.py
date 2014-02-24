@@ -25,6 +25,7 @@ from tests.utils import (
     ShardingUtils,
 )
 from mysql.fabric.sharding import RangeShardingSpecification
+from mysql.fabric.errors import DatabaseError
 
 class TestShardSplit(unittest.TestCase):
 
@@ -284,6 +285,36 @@ class TestShardSplit(unittest.TestCase):
         self.assertTrue(ShardingUtils.compare_range_specifications(
             range_sharding_specifications[1],
             RangeShardingSpecification.fetch(3)))
+
+    def test_update_only(self):
+        """Test the shard split but without provisioning.
+        """
+        # Get group information before the shard_move operation
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
+        local_list_before = status[2]
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
+        global_list_before = status[2]
+
+        # Do the shard split and compare group information.
+        status = self.proxy.sharding.split_shard("1", "GROUPID3", "600", True)
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_setup_resharding_switch).")
+        status = self.proxy.sharding.lookup_servers("db1.t1", 601,  "LOCAL")
+        local_list_after = status[2]
+        self.assertNotEqual(local_list_before, local_list_after)
+        status = self.proxy.sharding.lookup_servers("1", 601,  "GLOBAL")
+        global_list_after = status[2]
+        self.assertEqual(global_list_before, global_list_after)
+
+        # The group has changed but no data was transfered.
+        shard_server = MySQLServer.fetch(local_list_after[0][0])
+        shard_server.connect()
+        self.assertRaises(
+            DatabaseError, shard_server.exec_stmt,
+            "SELECT NAME FROM db1.t1", {"fetch" : True}
+        )
 
     def tearDown(self):
         self.proxy.sharding.enable_shard("2")

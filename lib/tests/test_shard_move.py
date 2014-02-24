@@ -22,6 +22,7 @@ from time import sleep
 from mysql.fabric import executor as _executor
 from mysql.fabric.server import MySQLServer
 from tests.utils import MySQLInstances
+from mysql.fabric.errors import DatabaseError
 
 class TestShardMove(unittest.TestCase):
 
@@ -163,7 +164,6 @@ class TestShardMove(unittest.TestCase):
                                   "VALUES(1004, 'TEST 7')")
 
     def test_shard_move(self):
-        pass
         status = self.proxy.sharding.move_shard("1", "GROUPID3")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -261,6 +261,36 @@ class TestShardMove(unittest.TestCase):
                 self.assertEqual(rows[3][0], 'TEST 4')
                 self.assertEqual(rows[4][0], 'TEST 5')
                 self.assertEqual(rows[5][0], 'TEST 6')
+
+    def test_update_only(self):
+        """Test the shard move but without provisioning.
+        """
+        # Get group information before the shard_move operation
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
+        local_list_before = status[2]
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
+        global_list_before = status[2]
+
+        # Do the shard move and compare group information.
+        status = self.proxy.sharding.move_shard("1", "GROUPID3", True)
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_setup_resharding_switch).")
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
+        local_list_after = status[2]
+        self.assertNotEqual(local_list_before, local_list_after)
+        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
+        global_list_after = status[2]
+        self.assertEqual(global_list_before, global_list_after)
+
+        # The group has changed but no data was transfered.
+        shard_server = MySQLServer.fetch(local_list_after[0][0])
+        shard_server.connect()
+        self.assertRaises(
+            DatabaseError, shard_server.exec_stmt,
+            "SELECT NAME FROM db1.t1", {"fetch" : True}
+        )
 
     def tearDown(self):
         self.proxy.sharding.enable_shard("1")

@@ -24,6 +24,7 @@ import tests.utils
 from mysql.fabric import (
     executor as _executor,
     server as _server,
+    replication as _replication,
 )
 
 class TestServerServices(unittest.TestCase):
@@ -780,6 +781,188 @@ class TestServerServices(unittest.TestCase):
             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
         ]
         self.assertEqual(retrieved, expected)
+
+    def test_update_only(self):
+        """Test the update_only parameter while adding a slave.
+        """
+        # Prepare group and servers
+        self.proxy.group.create("group", "Testing group...")
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(1)
+        address_3 = tests.utils.MySQLInstances().get_address(2)
+
+        status_uuid = self.proxy.server.lookup_uuid(address_1)
+        uuid_1 = status_uuid[2]
+        server_1 = _server.MySQLServer(_uuid.UUID(uuid_1), address_1)
+        server_1.connect()
+
+        status_uuid = self.proxy.server.lookup_uuid(address_2)
+        uuid_2 = status_uuid[2]
+        server_2 = _server.MySQLServer(_uuid.UUID(uuid_2), address_2)
+        server_2.connect()
+
+        status_uuid = self.proxy.server.lookup_uuid(address_3)
+        uuid_3 = status_uuid[2]
+        server_3 = _server.MySQLServer(_uuid.UUID(uuid_3), address_3)
+        server_3.connect()
+
+        # Add a server and check that replication is not configured. Since
+        # there is no master configured, it does not matter whether the
+        # update_only parameter is set or not.
+        self.proxy.group.add("group", address_1, True)
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][uuid_1]["threads"], {"is_configured" : False}
+        )
+        self.proxy.group.remove("group", uuid_1)
+        self.proxy.group.add("group", address_1, False)
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][uuid_1]["threads"], {"is_configured" : False}
+        )
+
+        # Try to make the previous server a master, i.e. --update-only = False.
+        status = self.proxy.server.set_status(
+            uuid_1, _server.MySQLServer.PRIMARY
+        )
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_status).")
+
+        # Try to make the previous server a master, i.e. --update-only = True.
+        status = self.proxy.server.set_status(
+            uuid_1, _server.MySQLServer.PRIMARY, True
+        )
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_status).")
+        self.proxy.group.promote("group", uuid_1)
+
+        # Add a slave but notice that it is not properly configured, i.e.
+        # --update-only = True.
+        self.proxy.group.add("group", address_2, True)
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][uuid_2]["threads"], {"is_configured" : False}
+        )
+
+        # Properly configure the previous slave.
+        _replication.switch_master(slave=server_2, master=server_1,
+            master_user=server_1.user, master_passwd=server_1.passwd
+        )
+        _replication.start_slave(server_2, wait=True)
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][uuid_2]["threads"], {}
+        )
+
+        # Add a slave but notice that it is properly configured, i.e.
+        # --update-only = False.
+        self.proxy.group.add("group", address_3)
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.SECONDARY
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"], {}
+        )
+
+        # Stop replication, set slave's status to faulty and add it
+        # back as a spare, --update-only = False. Note that it is
+        # properly configured.
+        _replication.stop_slave(server_3, wait=True)
+        server_3.status = _server.MySQLServer.FAULTY
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.FAULTY
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"],
+            {"io_running": False, "sql_running": False}
+        )
+        status = self.proxy.server.set_status(
+            uuid_3, _server.MySQLServer.SPARE
+        )
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"], {}
+        )
+
+        # Stop replication, set slave's status to faulty and add it
+        # back as a spare, --update-only = True. Note that it is not
+        # properly configured.
+        _replication.stop_slave(server_3, wait=True)
+        server_3.status = _server.MySQLServer.FAULTY
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.FAULTY
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"],
+            {"io_running": False, "sql_running": False}
+        )
+        status = self.proxy.server.set_status(
+            uuid_3, _server.MySQLServer.SPARE, True
+        )
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"],
+            {"io_running": False, "sql_running": False}
+        )
+
+        # Try to set slave's status to faulty, i.e. --update-only = False.
+        status = self.proxy.server.set_status(
+            uuid_3, _server.MySQLServer.FAULTY
+        )
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_status).")
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"],
+            {"io_running": False, "sql_running": False}
+        )
+
+        # Try to set slave's status to faulty, i.e. --update-only = True.
+        status = self.proxy.server.set_status(
+            uuid_3, _server.MySQLServer.FAULTY, True
+        )
+        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_set_server_status).")
+        status = self.proxy.group.health("group")
+        self.assertEqual(
+            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
+        )
+        self.assertEqual(
+            status[2][uuid_3]["threads"],
+            {"io_running": False, "sql_running": False}
+        )
 
     def test_lookup_servers(self):
         """Test searching for servers by calling group.lookup_servers().

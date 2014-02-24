@@ -45,7 +45,9 @@ class ReportError(ProcedureGroup):
 
     If there are many issues reported by different servers within a period of
     time, the server is marked as faulty. Should the server be a primary, the
-    failover mechanism is triggered.
+    failover mechanism is triggered. Users who only want to set the server's
+    status to faulty after getting enough notifications from different clients
+    must set the update_only parameter to true. By default its value is false.
     """
     group_name = "threat"
     command_name = "report_error"
@@ -61,17 +63,18 @@ class ReportError(ProcedureGroup):
     _NOTIFICATION_INTERVAL = _DEFAULT_NOTIFICATION_INTERVAL = 60
 
     def execute(self, uuid, reporter="unknown", error="unknown",
-                synchronous=True):
-        """Report a server issue. Note that a failover can be triggered after
-        enough notifications from different clients.
+                update_only=False, synchronous=True):
+        """Report a server issue.
 
         :param uuid: Server's UUID.
         :param reporter: Who has reported the issue, usually an IP address or a
                          host name.
         :param error: Error that has been reported.
+        :param update_only: Only update the state store and skip provisioning.
         """
         procedures = _events.trigger(
-            REPORT_ERROR, self.get_lockable_objects(), uuid, reporter, error
+            REPORT_ERROR, self.get_lockable_objects(), uuid, reporter,
+            error, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -80,26 +83,30 @@ class ReportFailure(ProcedureGroup):
     """Report with certantity that a server has failed or is unreachable.
 
     Should the server be a primary, the failover mechanism is triggered.
+    Users who only want to set the server's status to faulty must set the
+    update_only parameter to True. By default its value is false.
     """
     group_name = "threat"
     command_name = "report_failure"
 
     def execute(self, uuid, reporter="unknown", error="unknown",
-                synchronous=True):
+                update_only=False, synchronous=True):
         """Report a server issue.
 
         :param uuid: Server's UUID.
         :param reporter: Who has reported the issue, usually an IP address or a
                          host name.
         :param error: Error that has been reported.
+        :param update_only: Only update the state store and skip provisioning.
         """
         procedures = _events.trigger(
-            REPORT_FAILURE, self.get_lockable_objects(), uuid, reporter, error
+            REPORT_FAILURE, self.get_lockable_objects(), uuid, reporter,
+            error, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(REPORT_ERROR)
-def _report_error(uuid, reporter, error):
+def _report_error(uuid, reporter, error, update_only):
     """Report a server error.
     """
     (now, server) = _append_error_log(uuid, reporter, error)
@@ -111,16 +118,16 @@ def _report_error(uuid, reporter, error):
                       ReportError._NOTIFICATION_CLIENTS):
         group = _server.Group.fetch(server.group_id)
         if group.can_set_server_faulty(server, now):
-            _set_status_faulty(server)
+            _set_status_faulty(server, update_only)
 
 @_events.on_event(REPORT_FAILURE)
-def _report_failure(uuid, reporter, error):
+def _report_failure(uuid, reporter, error, update_only):
     """Report a server failure.
     """
     (_, server) = _append_error_log(uuid, reporter, error)
-    _set_status_faulty(server)
+    _set_status_faulty(server, update_only)
 
-def _set_status_faulty(server):
+def _set_status_faulty(server, update_only):
     """Set server's status to fauly and trigger a failover if the server
     is a master.
 
@@ -128,17 +135,18 @@ def _set_status_faulty(server):
     the FAIL_OVER event.
     """
     server.status = _server.MySQLServer.FAULTY
-    _server.ConnectionPool().purge_connections(server.uuid)
 
-    group = _server.Group.fetch(server.group_id)
     _events.trigger_within_procedure(
-        "SERVER_LOST", group.group_id, str(server.uuid)
+        "SERVER_LOST", server.group_id, str(server.uuid)
     )
 
-    if group.master == server.uuid:
-        _LOGGER.info("Master (%s) in group (%s) has "
-                     "been lost.", server.uuid, group.group_id)
-        _events.trigger_within_procedure("FAIL_OVER", group.group_id)
+    if not update_only:
+        _server.ConnectionPool().purge_connections(server.uuid)
+        group = _server.Group.fetch(server.group_id)
+        if group.master == server.uuid:
+            _LOGGER.info("Master (%s) in group (%s) has "
+                         "been lost.", server.uuid, group.group_id)
+            _events.trigger_within_procedure("FAIL_OVER", group.group_id)
 
 def _append_error_log(uuid, reporter, error):
     """Check whether the server exist and is not faulty and register

@@ -266,7 +266,7 @@ def cleanup_environment():
         uuid_server = _server.MySQLServer.discover_uuid(
             MySQLInstances().get_address(i)
         )
-        server = _server.MySQLServer( 
+        server = _server.MySQLServer(
             _uuid.UUID(uuid_server), MySQLInstances().get_address(i)
         )
         server.connect()
@@ -293,8 +293,8 @@ def setup_xmlrpc():
     from __main__ import xmlrpc_next_port
 
     # Set up the client
-    proxy = xmlrpclib.ServerProxy("http://localhost:%d" % (xmlrpc_next_port, ))
-
+    proxy = xmlrpclib.ServerProxy("http://localhost:%d" % (xmlrpc_next_port, ),
+                                  allow_none=True)
     return (None, proxy)
 
 def teardown_xmlrpc(manager, proxy):

@@ -349,22 +349,31 @@ class PruneShardTables(ProcedureShard):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-BACKUP_SOURCE_SHARD =  _events.Event("BACKUP_SOURCE_SHARD")
+CHECK_SHARD_INFORMATION = _events.Event("CHECK_SHARD_INFORMATION")
+BACKUP_SOURCE_SHARD = _events.Event("BACKUP_SOURCE_SHARD")
 RESTORE_SHARD_BACKUP = _events.Event("RESTORE_SHARD_BACKUP")
 SETUP_MOVE_SYNC = _events.Event("SETUP_MOVE_SYNC")
 SETUP_RESHARDING_SWITCH = _events.Event("SETUP_RESHARDING_SWITCH")
 PRUNE_SHARDS = _events.Event("PRUNE_SHARDS")
 class MoveShardServer(ProcedureShard):
     """Move the shard represented by the shard_id to the destination group.
+
+    By default this operation takes a backup, restores it on the destination
+    group and guarantees that source and destination groups are synchronized
+    before pointing the shard to the new group. If users just want to update
+    the state store and skip these provisioning steps, the update_only
+    parameter must be set to true.
     """
     group_name = "sharding"
     command_name = "move_shard"
-    def execute(self,  shard_id,  group_id,  synchronous=True):
+    def execute(self, shard_id, group_id, update_only=False,
+                synchronous=True):
         """Move the shard represented by the shard_id to the destination group.
 
         :param shard_id: The ID of the shard that needs to be moved.
         :param group_id: The ID of the group to which the shard needs to
                          be moved.
+        :update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution finishes
                         or not.
         """
@@ -374,18 +383,26 @@ class MoveShardServer(ProcedureShard):
                                                 'mysqlclient_program')
 
         procedures = _events.trigger(
-            BACKUP_SOURCE_SHARD, self.get_lockable_objects(), shard_id,
-            group_id, mysqldump_binary, mysqlclient_binary, None, "MOVE"
+            CHECK_SHARD_INFORMATION, self.get_lockable_objects(), shard_id,
+            group_id, mysqldump_binary, mysqlclient_binary, None, "MOVE",
+            update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 class SplitShardServer(ProcedureShard):
     """Split the shard represented by the shard_id into the destination group.
+
+    By default this operation takes a backup, restores it on the destination
+    group and guarantees that source and destination groups are synchronized
+    before pointing the shard to the new group. If users just want to update
+    the state store and skip these provisioning steps, the update_only
+    parameter must be set to true.
+
     """
     group_name = "sharding"
     command_name = "split_shard"
     def execute(self, shard_id,  group_id,  split_value = None,
-                synchronous=True):
+                update_only=False, synchronous=True):
         """Split the shard represented by the shard_id into the destination
         group.
 
@@ -393,6 +410,7 @@ class SplitShardServer(ProcedureShard):
         :param group_id: The ID of the group into which the split data needs
                          to be moved.
         :param split_value: The value at which the range needs to be split.
+        :update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution
                             finishes
         """
@@ -402,9 +420,9 @@ class SplitShardServer(ProcedureShard):
                                                 'mysqlclient_program')
 
         procedures = _events.trigger(
-            BACKUP_SOURCE_SHARD, self.get_lockable_objects(),
+            CHECK_SHARD_INFORMATION, self.get_lockable_objects(),
             shard_id, group_id, mysqldump_binary, mysqlclient_binary,
-            split_value, "SPLIT")
+            split_value, "SPLIT", update_only)
         return self.wait_for_procedures(procedures, synchronous)
 
 class DumpShardTables(Command):
@@ -825,27 +843,13 @@ def _prune_shard_tables(table_name):
     elif shard_mapping.type_name == "HASH":
         HashShardingSpecification.delete_from_shard_db(table_name)
 
-@_events.on_event(BACKUP_SOURCE_SHARD)
-def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
-                         mysqlclient_binary, split_value, cmd):
-    """Backup the source shard.
-
-        :param shard_id: The shard ID of the shard that needs to be moved.
-        :param source_group_id: The group_id of the source shard.
-        :param destn_group_id: The ID of the group to which the shard needs to
-                                               be moved.
-        :param mysqldump_binary: The fully qualified mysqldump binary.
-        :param mysqlclient_binary: The fully qualified mysql client binary.
-        :param split_value: Indicates the value at which the range for the
-                            particular shard will be split. Will be set only
-                            for shard split operations.
-        :param cmd: Indicates the type of re-sharding operation (move, split)
-    """
-
+@_events.on_event(CHECK_SHARD_INFORMATION)
+def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
+                             mysqlclient_binary, split_value, cmd,
+                             update_only):
     if cmd == "SPLIT":
         range_sharding_spec, _,  shard_mappings, _ = \
             _verify_and_fetch_shard(shard_id)
-
         #If the underlying sharding scheme is a HASH. When a shard is split, all
         #the tables that are part of the shard, have the same sharding scheme.
         #All the shard mappings associated with this shard_id will be of the
@@ -903,6 +907,37 @@ def _backup_source_shard(shard_id,  destn_group_id, mysqldump_binary,
     if source_group is None:
         raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
 
+    if not update_only:
+        _events.trigger_within_procedure(
+            BACKUP_SOURCE_SHARD, shard_id, source_group_id, destn_group_id,
+            mysqldump_binary, mysqlclient_binary, split_value, cmd,
+            update_only
+        )
+    else:
+        _events.trigger_within_procedure(
+            SETUP_RESHARDING_SWITCH, shard_id, source_group_id, destn_group_id,
+            split_value, cmd, update_only
+        )
+
+@_events.on_event(BACKUP_SOURCE_SHARD)
+def _backup_source_shard(shard_id, source_group_id, destn_group_id,
+                         mysqldump_binary, mysqlclient_binary, split_value,
+                         cmd, update_only):
+    """Backup the source shard.
+
+    :param shard_id: The shard ID of the shard that needs to be moved.
+    :param source_group_id: The group_id of the source shard.
+    :param destn_group_id: The ID of the group to which the shard needs to
+                           be moved.
+    :param mysqldump_binary: The fully qualified mysqldump binary.
+    :param mysqlclient_binary: The fully qualified mysql client binary.
+    :param split_value: Indicates the value at which the range for the
+                        particular shard will be split. Will be set only
+                        for shard split operations.
+    :param cmd: Indicates the type of re-sharding operation (move, split)
+    :update_only: Only update the state store and skip provisioning.
+    """
+    source_group = Group.fetch(source_group_id)
     move_source_server = _fetch_backup_server(source_group)
 
     #Do the backup of the group hosting the source shard.
@@ -1029,7 +1064,7 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
 
 @_events.on_event(SETUP_RESHARDING_SWITCH)
 def _setup_resharding_switch(shard_id,  source_group_id,  destination_group_id,
-                             split_value, cmd):
+                             split_value, cmd, update_only=False):
     """Setup the shard move or shard split workflow based on the command
     argument.
 
@@ -1040,16 +1075,23 @@ def _setup_resharding_switch(shard_id,  source_group_id,  destination_group_id,
                         (in the case of a shard split operation).
     :param cmd: whether the operation that needs to be split is a
                 MOVE or a SPLIT operation.
+    :param cmd: whether the operation that needs to be split is a
+                MOVE or a SPLIT operation.
+    :update_only: Only update the state store and skip provisioning.
     """
     if cmd == "MOVE":
-        _setup_shard_switch_move(shard_id,  source_group_id,
-                                 destination_group_id)
+        _setup_shard_switch_move(
+            shard_id, source_group_id, destination_group_id,
+            update_only
+        )
     elif cmd == "SPLIT":
-        _setup_shard_switch_split(shard_id,  source_group_id,
-                                  destination_group_id, split_value, cmd)
+        _setup_shard_switch_split(
+            shard_id,  source_group_id, destination_group_id, split_value,
+            cmd, update_only
+        )
 
 def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
-                              split_value, cmd):
+                              split_value, cmd, update_only):
     """Setup the moved shard to map to the new group.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
@@ -1060,6 +1102,7 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
                         particular shard will be split. Will be set only
                         for shard split operations.
     :param cmd: Indicates the type of re-sharding operation.
+    :update_only: Only update the state store and skip provisioning.
     """
     #Fetch the Range sharding specification.
     range_sharding_spec, source_shard,  shard_mappings,  shard_mapping_defn = \
@@ -1131,11 +1174,10 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     new_shard_2.enable()
 
     #Trigger changing the mappings for the shard that was copied
-    _events.trigger_within_procedure(
-                                     PRUNE_SHARDS,
-                                     new_shard_1.shard_id,
-                                     new_shard_2.shard_id
-                                     )
+    if not update_only:
+        _events.trigger_within_procedure(
+            PRUNE_SHARDS, new_shard_1.shard_id, new_shard_2.shard_id
+        )
 
 @_events.on_event(PRUNE_SHARDS)
 def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
@@ -1159,13 +1201,15 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
         HashShardingSpecification.prune_shard_id(shard_id_1)
         HashShardingSpecification.prune_shard_id(shard_id_2)
 
-def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
+def _setup_shard_switch_move(shard_id,  source_group_id, destination_group_id,
+                             update_only):
     """Setup the moved shard to map to the new group.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
     :param source_group_id: The group_id of the source shard.
     :param destination_group_id: The ID of the group to which the shard needs to
                                  be moved.
+    :update_only: Only update the state store and skip provisioning.
     """
     #Fetch the Range sharding specification. When we start implementing
     #heterogenous sharding schemes, we need to find out the type of
@@ -1193,8 +1237,9 @@ def _setup_shard_switch_move(shard_id,  source_group_id,  destination_group_id):
     if master is None:
         raise _errors.ShardingError(SHARD_GROUP_MASTER_NOT_FOUND)
 
-    master.connect()
-    master.read_only = False
+    if not update_only:
+        master.connect()
+        master.read_only = False
 
 def _fetch_backup_server(source_group):
     """Fetch a spare, slave or master from a group in that order of
