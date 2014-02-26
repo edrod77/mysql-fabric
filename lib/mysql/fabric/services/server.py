@@ -417,7 +417,7 @@ def _group_information(group, info):
     master = str(group.master) if group.master else ""
     info.append({
         "group_id" : group.group_id,
-        "description" : group.description,
+        "description" : group.description or "",
         "failure_detector" : True if group.status else False,
         "master_uuid" : master
     })
