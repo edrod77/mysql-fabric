@@ -861,7 +861,7 @@ def _check_requirements(server):
         raise _errors.ServerError(
             "User (%s) does not have appropriate privileges (%s) on server "
             "(%s, %s)." % (server.user,
-            " ON ".join([_server.MySQLServer.ALL_PRIVILEGES, "*.*"]),
+            ", ".join(_server.MySQLServer.ALL_PRIVILEGES),
             server.address, server.uuid)
         )
 
