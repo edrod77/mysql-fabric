@@ -307,13 +307,13 @@ class DumpServers(Command):
     group_name = "dump"
     command_name = "servers"
 
-    def execute(self, version=None, patterns=""):
+    def execute(self, connector_version=None, patterns=""):
         """Return information about all servers.
 
-        :param version: The connectors version of the data.
+        :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        return _server.MySQLServer.dump_servers(version, patterns)
+        return _server.MySQLServer.dump_servers(connector_version, patterns)
 
 SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):

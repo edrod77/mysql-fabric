@@ -433,14 +433,14 @@ class DumpShardTables(Command):
     group_name = "dump"
     command_name = "shard_tables"
 
-    def execute(self, version=None, patterns=""):
+    def execute(self, connector_version=None, patterns=""):
         """Return information about all tables belonging to mappings
         matching any of the provided patterns.
 
-        :param version: The connectors version of the data.
+        :param connector_version: The connectors version of the data.
         :param patterns: shard mapping pattern.
         """
-        return ShardMapping.dump_shard_tables(version, patterns)
+        return ShardMapping.dump_shard_tables(connector_version, patterns)
 
 class DumpShardingInformation(Command):
     """Return all the sharding information about the tables passed as patterns.
@@ -449,15 +449,15 @@ class DumpShardingInformation(Command):
     group_name = "dump"
     command_name = "sharding_information"
 
-    def execute(self, version=None, patterns=""):
+    def execute(self, connector_version=None, patterns=""):
         """Return all the sharding information about the tables passed as
         patterns. If no patterns are provided, dump sharding information
         about all tables.
 
-        :param version: The connectors version of the data.
+        :param connector_version: The connectors version of the data.
         :param patterns: shard table pattern.
         """
-        return ShardMapping.dump_sharding_info(version, patterns)
+        return ShardMapping.dump_sharding_info(connector_version, patterns)
 
 class DumpShardMappings(Command):
     """Return information about all shard mappings matching any of the
@@ -467,14 +467,14 @@ class DumpShardMappings(Command):
     group_name = "dump"
     command_name = "shard_maps"
 
-    def execute(self, version=None, patterns=""):
+    def execute(self, connector_version=None, patterns=""):
         """Return information about all shard mappings matching any of the
         provided patterns.
 
-        :param version: The connectors version of the data.
+        :param connector_version: The connectors version of the data.
         :param patterns: shard mapping pattern.
         """
-        return ShardMapping.dump_shard_maps(version, patterns)
+        return ShardMapping.dump_shard_maps(connector_version, patterns)
 
 class DumpShardIndex(Command):
     """Return information about the index for all mappings matching
@@ -485,14 +485,14 @@ class DumpShardIndex(Command):
     group_name = "dump"
     command_name = "shard_index"
 
-    def execute(self, version=None, patterns=""):
+    def execute(self, connector_version=None, patterns=""):
         """Return information about the index for all mappings matching
         any of the patterns provided.
 
-        :param version: The connectors version of the data.
+        :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        return Shards.dump_shard_indexes(version, patterns)
+        return Shards.dump_shard_indexes(connector_version, patterns)
 
 @_events.on_event(DEFINE_SHARD_MAPPING)
 def _define_shard_mapping(type_name, global_group_id):

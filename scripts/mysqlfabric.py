@@ -272,6 +272,27 @@ def fire_command(command, *args):
     :param arg: Arguments used by the command.
     """
     try:
+        #Get the number of mandatory arguments for the command by inspecting
+        #the class definition of the command. It is important to check that the
+        #number of mandatory arguments for a command are provided because
+        #there is the danger that the value of an optional parameter gets wrapped
+        #as the value for a mandatory argument when we don't provide the value
+        #for an mandatory argument
+        try:
+            spec = inspect.getargspec(command.__class__.execute.original_function)
+        except AttributeError:
+            spec = inspect.getargspec(command.__class__.dispatch)
+        defaults_len = 0
+        if spec.defaults:
+            defaults_len = len(spec.defaults)
+        if len(args) != len(spec.args) - defaults_len - 1:
+            PARSER.error(
+                "Wrong number of parameters were provided "
+                "for command '%s %s'." % (
+                    command.group_name, command.command_name,
+                )
+            )
+
         # Execute command by dispatching it on the client side. Append the
         #optional arguments passed by the user to the argument list.
         result = command.dispatch(*(command.append_options_to_args(args)))

@@ -414,7 +414,10 @@ class Command(object):
             default_params = []
             #Iterate through the default arguments building a key value pair
             for opt, value in zip(reversed(cargs.args), reversed(cargs.defaults)):
-                tmp = "[--" + str(opt).upper() + "=" + str(value).upper() + "]"
+                if type(value) is not bool:
+                    tmp = "[--" + str(opt) + "=" + str(value).upper() + "]"
+                else:
+                    tmp = "[--" + str(opt) + "]"
                 default_params.append(tmp)
             default_params.reverse()
             for param in default_params:
