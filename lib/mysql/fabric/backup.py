@@ -201,6 +201,7 @@ class MySQLDump(BackupMethod):
         mysqldump_command.extend([
              "--log-error=" + MySQLDump.MYSQLDUMP_ERROR_WARNING_LOG,
              "--all-databases", "--single-transaction",
+            "--add-drop-table",
             "--triggers", "--routines",
             "--protocol=tcp",
             "-h" + str(host),

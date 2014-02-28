@@ -130,13 +130,7 @@ class TestShardingGlobalServer(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED", 0)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED", 1001)
+        status = self.proxy.sharding.add_shard(1, "GROUPID2/0,GROUPID3/1001", "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

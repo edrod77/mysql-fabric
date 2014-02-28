@@ -900,6 +900,167 @@ class Shards(_persistence.Persistable):
                 )
         return _utils.wrap_output(result_shard_indexes_list)
 
+class RangeShardingIntegerHandler(object):
+    """Contains the members that are required to handle a sharding definition
+    based on an INTEGER datatype.
+    """
+
+   #Select the server corresponding to the RANGE to which a given key
+    #belongs. The query either selects the least lower_bound that is larger
+    #than a given key or selects the largest lower_bound and insert the key
+    #in that shard.
+    LOOKUP_KEY = (
+        "SELECT "
+        "sr.shard_mapping_id, "
+        "sr.lower_bound, "
+        "s.shard_id "
+        "FROM "
+        "shard_ranges AS sr, shards AS s "
+        "WHERE %s >= CAST(lower_bound AS SIGNED) "
+        "AND sr.shard_mapping_id = %s "
+        "AND s.shard_id = sr.shard_id "
+        "ORDER BY CAST(lower_bound AS SIGNED) DESC "
+        "LIMIT 1"
+    )
+
+    #Select the UPPER BOUND for a given LOWER BOUND value.
+    SELECT_UPPER_BOUND = (
+        "SELECT lower_bound FROM "
+        "shard_ranges "
+        "WHERE  CAST(lower_bound AS SIGNED) > %s AND shard_mapping_id = %s "
+        "ORDER BY  CAST(lower_bound AS SIGNED) ASC LIMIT 1"
+    )
+
+    @staticmethod
+    def is_valid_lower_bound(lower_bound):
+        """Verify if the given value is a valid INTEGER lower bound.
+
+        :param lower_bound: The value that needs to be verified.
+        """
+        try:
+            int(lower_bound)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def split_value(lower_bound, upper_bound):
+        """Find the middle value of a sharding range that can be used when
+        the split value is not explicitly specified.
+
+        :param lower_bound: The lower bound of the shard range.
+        :param upper_bound: The upper bound of the shard range.
+        """
+        #If the underlying sharding specification is a RANGE, and the
+        #split value is not given, then calculate it as the mid value
+        #between the current lower_bound and its next lower_bound.
+        lower_bound = int(lower_bound)
+        upper_bound = int(upper_bound)
+        split_value = lower_bound + (upper_bound - lower_bound) / 2
+        return split_value
+
+    @staticmethod
+    def is_valid_split_value(split_value, lower_bound, upper_bound):
+        """Verify if the given split value for a RANGE sharding definition is
+        valid.
+
+        :param split_value: The split value.
+        :param lower_bound: The lower bound of the sharding definition.
+        :param upper_bound: The upper bound of the sharding definition.
+
+        :return: True - If the split value is valid
+                False - If the split value is not valid
+        """
+        #A split value needs to be a valid lower_bound value and should
+        #lie between the lower bound and the upper bound values
+        if not RangeShardingIntegerHandler.is_valid_lower_bound(split_value):
+            return False
+        if (int(split_value) > int(lower_bound)) is not True:
+            return False
+        if upper_bound is not None:
+            if (int(split_value) < int(upper_bound)) is not True:
+                return False
+        return True
+
+class HashShardingIntegerHandler(object):
+    """Contains the members that are required to handle a hash based
+    sharding definition.
+    """
+    #Fetch the shard ID corresponding to the input key.
+    LOOKUP_KEY = (
+                "("
+                "SELECT "
+                "sr.shard_mapping_id, "
+                "HEX(sr.lower_bound) AS lower_bound, "
+                "s.shard_id "
+                "FROM shard_ranges AS sr, shards AS s "
+                "WHERE MD5(%s) >= HEX(sr.lower_bound) "
+                "AND sr.shard_mapping_id = %s "
+                "AND s.shard_id = sr.shard_id "
+                "ORDER BY HEX(sr.lower_bound) DESC "
+                "LIMIT 1"
+                ") "
+                "UNION ALL "
+                "("
+                "SELECT "
+                "sr.shard_mapping_id, "
+                "HEX(sr.lower_bound) AS lower_bound, "
+                "sr.shard_id "
+                "FROM shard_ranges AS sr, shards AS s "
+                "WHERE sr.shard_mapping_id = %s "
+                "AND s.shard_id = sr.shard_id "
+                "ORDER BY HEX(sr.lower_bound) DESC "
+                "LIMIT 1"
+                ") "
+                "ORDER BY HEX(lower_bound) ASC "
+                "LIMIT 1"
+                )
+
+    #Select the UPPER BOUND for a given LOWER BOUND value.
+    SELECT_UPPER_BOUND = (
+        "SELECT HEX(lower_bound) FROM "
+        "shard_ranges "
+        "WHERE "
+        "HEX(lower_bound) > %s "
+        "AND "
+        "shard_mapping_id = %s "
+        "ORDER BY HEX(lower_bound) ASC LIMIT 1"
+    )
+
+    @staticmethod
+    def is_valid_lower_bound(lower_bound):
+        """Lower bounds in hash based sharding are autogenerated.
+        This method is thus a no-op for hash based sharding.
+        """
+        return False
+
+    @staticmethod
+    def split_value(lower_bound, upper_bound):
+        """Calculate the split value for a hash based shard as the mid-point
+        of the lower and upper bounds of the current shard.
+
+        :param lower_bound: The lower bound of the hash based shard.
+        :param upper_bound: The upper bound of the hash based shard.
+
+        :return: Hexadecimal representatin of the mid values.
+        """
+        #Retrieve an integer representation of the hexadecimal
+        #lower_bound. The value is actually a long. Python automatically
+        #returns a long value.
+        lower_bound = int(lower_bound,  16)
+        upper_bound = int(upper_bound, 16)
+        #split value after the below computation is actually a long.
+        split_value = lower_bound + (upper_bound - lower_bound) / 2
+        #split_value after the hex computation gets stored with a prefix
+        #0x indicating a hexadecimal value and a suffix of L indicating a
+        #Long. Extract the hexadecimal string from this value.
+        split_value = "%x" % (split_value)
+        return split_value
+
+    @staticmethod
+    def is_valid_split_value(split_value, lower_bound, upper_bound):
+        return True
+
 class RangeShardingSpecification(_persistence.Persistable):
     """Represents a RANGE sharding specification. The class helps encapsulate
     the representation of a typical RANGE sharding implementation in the
@@ -992,32 +1153,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         "shard_id "
         "FROM shard_ranges "
         "WHERE shard_mapping_id = %s"
-    )
-
-    #Select the server corresponding to the RANGE to which a given key
-    #belongs. The query either selects the least lower_bound that is larger
-    #than a given key or selects the largest lower_bound and insert the key
-    #in that shard.
-    LOOKUP_KEY = (
-        "SELECT "
-        "sr.shard_mapping_id, "
-        "sr.lower_bound, "
-        "s.shard_id "
-        "FROM "
-        "shard_ranges AS sr, shards AS s "
-        "WHERE %s >= CAST(lower_bound AS SIGNED) "
-        "AND sr.shard_mapping_id = %s "
-        "AND s.shard_id = sr.shard_id "
-        "ORDER BY CAST(lower_bound AS SIGNED) DESC "
-        "LIMIT 1"
-    )
-
-    #Select the UPPER BOUND for a given LOWER BOUND value.
-    SELECT_UPPER_BOUND = (
-        "SELECT lower_bound FROM "
-        "shard_ranges "
-        "WHERE  CAST(lower_bound AS SIGNED) > %s AND shard_mapping_id = %s "
-        "ORDER BY  CAST(lower_bound AS SIGNED) ASC LIMIT 1"
     )
 
     #Update the Range for a particular shard. The updation needs to happen
@@ -1202,7 +1337,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         )
 
     @staticmethod
-    def lookup(key, shard_mapping_id, persister=None):
+    def lookup(key, shard_mapping_id, type, persister=None):
         """Return the Range sharding specification in whose key range the input
             key falls.
 
@@ -1214,11 +1349,10 @@ class RangeShardingSpecification(_persistence.Persistable):
         :return: The Range Sharding Specification that contains the range in
                 which the key belongs.
         """
-        cur = persister.exec_stmt(
-                        RangeShardingSpecification.LOOKUP_KEY,
-                        {"raw" : False,
-                        "fetch" : False,
-                        "params" : (key, shard_mapping_id)})
+        cur = persister.exec_stmt(SHARDING_DATATYPE_HANDLER[type].LOOKUP_KEY,
+                    {"raw" : False,
+                    "fetch" : False,
+                    "params" : (key, shard_mapping_id)})
 
         row = cur.fetchone()
 
@@ -1227,7 +1361,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return RangeShardingSpecification(row[0], row[1],  row[2])
 
     @staticmethod
-    def get_upper_bound(lower_bound, shard_mapping_id, persister=None):
+    def get_upper_bound(lower_bound, shard_mapping_id, type, persister=None):
         """Return the next value in range for a given lower_bound value.
         This basically helps to form a (lower_bound, upper_bound) pair
         that can be used during a prune.
@@ -1241,7 +1375,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         :return: The next value in the range for the given lower_bound.
         """
         cur = persister.exec_stmt(
-                        RangeShardingSpecification.SELECT_UPPER_BOUND,
+                        SHARDING_DATATYPE_HANDLER[type].SELECT_UPPER_BOUND,
                         {"raw" : False,
                         "fetch" : False,
                         "params" : (lower_bound, shard_mapping_id)})
@@ -1254,7 +1388,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return row[0]
 
     @staticmethod
-    def delete_from_shard_db(table_name):
+    def delete_from_shard_db(table_name, type_name):
         """Delete the data from the copied data directories based on the
         sharding configuration uploaded in the sharding tables of the state
         store. The basic logic consists of
@@ -1282,10 +1416,10 @@ class RangeShardingSpecification(_persistence.Persistable):
                                                          " shard mapping ID.")
 
         for shard in shards:
-            RangeShardingSpecification.prune_shard_id(shard.shard_id)
+            RangeShardingSpecification.prune_shard_id(shard.shard_id, type_name)
 
     @staticmethod
-    def prune_shard_id(shard_id):
+    def prune_shard_id(shard_id, type_name):
         """Remove the rows in the shard that do not match the metadata
         in the shard_range tables. When the rows are being removed
         foreign key checks will be disabled.
@@ -1302,7 +1436,8 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         upper_bound = RangeShardingSpecification.get_upper_bound(
                             range_sharding_spec.lower_bound,
-                            range_sharding_spec.shard_mapping_id
+                            range_sharding_spec.shard_mapping_id,
+                            type_name
                         )
 
         shard_mappings = \
@@ -1407,47 +1542,6 @@ class HashShardingSpecification(RangeShardingSpecification):
         "shard_id "
         "FROM shard_ranges "
         "WHERE shard_mapping_id = %s"
-    )
-
-    #Fetch the shard ID corresponding to the input key.
-    LOOKUP_KEY = (
-                "("
-                "SELECT "
-                "sr.shard_mapping_id, "
-                "HEX(sr.lower_bound) AS lower_bound, "
-                "s.shard_id "
-                "FROM shard_ranges AS sr, shards AS s "
-                "WHERE MD5(%s) >= HEX(sr.lower_bound) "
-                "AND sr.shard_mapping_id = %s "
-                "AND s.shard_id = sr.shard_id "
-                "ORDER BY HEX(sr.lower_bound) DESC "
-                "LIMIT 1"
-                ") "
-                "UNION ALL "
-                "("
-                "SELECT "
-                "sr.shard_mapping_id, "
-                "HEX(sr.lower_bound) AS lower_bound, "
-                "sr.shard_id "
-                "FROM shard_ranges AS sr, shards AS s "
-                "WHERE sr.shard_mapping_id = %s "
-                "AND s.shard_id = sr.shard_id "
-                "ORDER BY HEX(sr.lower_bound) DESC "
-                "LIMIT 1"
-                ") "
-                "ORDER BY HEX(lower_bound) ASC "
-                "LIMIT 1"
-                )
-
-    #Select the UPPER BOUND for a given LOWER BOUND value.
-    SELECT_UPPER_BOUND = (
-        "SELECT HEX(lower_bound) FROM "
-        "shard_ranges "
-        "WHERE "
-        "HEX(lower_bound) > %s "
-        "AND "
-        "shard_mapping_id = %s "
-        "ORDER BY HEX(lower_bound) ASC LIMIT 1"
     )
 
     #Select the least LOWER BOUND of all the LOWER BOUNDs for
@@ -1600,7 +1694,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         )
 
     @staticmethod
-    def lookup(key, shard_mapping_id, persister=None):
+    def lookup(key, shard_mapping_id, type, persister=None):
         """Return the Hash sharding specification in whose hashed key range
         the input key falls.
 
@@ -1612,8 +1706,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         :return: The Hash Sharding Specification that contains the range in
                 which the key belongs.
         """
-        cur = persister.exec_stmt(
-                    HashShardingSpecification.LOOKUP_KEY, {
+        cur = persister.exec_stmt(SHARDING_DATATYPE_HANDLER[type].LOOKUP_KEY, {
                         "raw" : False,
                         "fetch" : False,
                         "params" : (
@@ -1732,7 +1825,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         pass
 
     @staticmethod
-    def delete_from_shard_db(table_name):
+    def delete_from_shard_db(table_name, type_name):
         """Delete the data from the copied data directories based on the
         sharding configuration uploaded in the sharding tables of the state
         store. The basic logic consists of
@@ -1760,10 +1853,10 @@ class HashShardingSpecification(RangeShardingSpecification):
                                         " shard mapping ID.")
 
         for shard in shards:
-            HashShardingSpecification.prune_shard_id(shard.shard_id)
+            HashShardingSpecification.prune_shard_id(shard.shard_id, type_name)
 
     @staticmethod
-    def get_upper_bound(lower_bound, shard_mapping_id, persister=None):
+    def get_upper_bound(lower_bound, shard_mapping_id, type, persister=None):
         """Return the next value in range for a given lower_bound value.
         This basically helps to form a (lower_bound, upper_bound) pair
         that can be used during a prune.
@@ -1777,7 +1870,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         :return: The next value in the range for the given lower_bound.
         """
         cur = persister.exec_stmt(
-                        HashShardingSpecification.SELECT_UPPER_BOUND,
+                        SHARDING_DATATYPE_HANDLER[type].SELECT_UPPER_BOUND,
                         {"raw" : False,
                         "fetch" : False,
                         "params" : (lower_bound, shard_mapping_id)})
@@ -1790,7 +1883,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         return row[0]
 
     @staticmethod
-    def prune_shard_id(shard_id):
+    def prune_shard_id(shard_id, type_name):
         """Remove the rows in the shard that do not match the metadata
         in the shard_range tables.
 
@@ -1806,7 +1899,8 @@ class HashShardingSpecification(RangeShardingSpecification):
 
         upper_bound = HashShardingSpecification.get_upper_bound(
                             hash_sharding_spec.lower_bound,
-                            hash_sharding_spec.shard_mapping_id
+                            hash_sharding_spec.shard_mapping_id,
+                            type_name
                         )
 
         shard_mappings = \
@@ -1961,3 +2055,13 @@ class MappingShardsGroups(_persistence.Persistable):
             {"raw" : False, "fetch" : True, "params" : (value, )}
         )
         return rows
+
+SHARDING_DATATYPE_HANDLER = {
+    "RANGE":RangeShardingIntegerHandler,
+    "HASH":HashShardingIntegerHandler
+}
+
+SHARDING_SPECIFICATION_HANDLER = {
+    "RANGE":RangeShardingSpecification,
+    "HASH":HashShardingSpecification
+}

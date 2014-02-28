@@ -262,31 +262,11 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID4", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID5", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID6", "ENABLED")
+        status = self.proxy.sharding.add_shard(
+            1,
+            "GROUPID2,GROUPID3,GROUPID4,GROUPID5,GROUPID6",
+            "ENABLED"
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -339,7 +319,8 @@ class TestShardingServices(unittest.TestCase):
         rows =  self.__server_2.exec_stmt("SELECT userID1 FROM db1.t1",
                                           {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_1.shard_id,
                              1
@@ -349,7 +330,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID1 FROM db1.t1",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_2 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_2 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_2.shard_id,
                              2
@@ -359,7 +341,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID1 FROM db1.t1",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_3 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_3 = HashShardingSpecification.lookup(val, 1, 
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_3.shard_id,
                              3
@@ -369,7 +352,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID1 FROM db1.t1",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_4 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_4 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_4.shard_id,
                              4
@@ -379,7 +363,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID1 FROM db1.t1",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_5 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_5 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_5.shard_id,
                              5
@@ -393,7 +378,8 @@ class TestShardingServices(unittest.TestCase):
         rows =  self.__server_2.exec_stmt("SELECT userID2 FROM db2.t2",
                                           {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_1.shard_id,
                              1
@@ -403,7 +389,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID2 FROM db2.t2",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_2 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_2 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_2.shard_id,
                              2
@@ -413,7 +400,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID2 FROM db2.t2",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_3 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_3 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_3.shard_id,
                              3
@@ -423,7 +411,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID2 FROM db2.t2",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_4 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_4 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_4.shard_id,
                              4
@@ -433,7 +422,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID2 FROM db2.t2",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_5 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_5 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_5.shard_id,
                              5
@@ -447,7 +437,8 @@ class TestShardingServices(unittest.TestCase):
         rows =  self.__server_2.exec_stmt("SELECT userID3 FROM db3.t3",
                                           {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_1 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_1.shard_id,
                              1
@@ -457,7 +448,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID3 FROM db3.t3",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_2 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_2 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_2.shard_id,
                              2
@@ -467,7 +459,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID3 FROM db3.t3",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_3 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_3 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_3.shard_id,
                              3
@@ -479,7 +472,8 @@ class TestShardingServices(unittest.TestCase):
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_4 = HashShardingSpecification.lookup(
                                     val,
-                                    1
+                                    1,
+                                     "HASH"
                                 )
             self.assertEqual(
                              hash_sharding_spec_4.shard_id,
@@ -490,7 +484,8 @@ class TestShardingServices(unittest.TestCase):
                                             "SELECT userID3 FROM db3.t3",
                                             {"fetch" : True})
         for val in rows[0:len(rows)][0]:
-            hash_sharding_spec_5 = HashShardingSpecification.lookup(val, 1)
+            hash_sharding_spec_5 = HashShardingSpecification.lookup(val, 1,
+                "HASH")
             self.assertEqual(
                              hash_sharding_spec_5.shard_id,
                              5

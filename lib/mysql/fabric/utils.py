@@ -148,3 +148,24 @@ def get_time_delta(delta):
     """
     return datetime.timedelta(seconds=delta)
 
+def get_group_lower_bound_list(input_string):
+    """Get the list of GROUP IDs and the LBs from the input string.
+
+    :param input_string: String input by the user containing delimited
+                         group ids and LBs.
+    """
+    group_id_list = []
+    lower_bound_list = []
+    group_id_lower_bound_list = input_string.replace(' ', '').split(",")
+    for item in group_id_lower_bound_list:
+        group_id = None
+        lower_bound = None
+        if item.find("/") != -1:
+            group_id, lower_bound = item.split("/")
+        else:
+            group_id = item
+        if group_id is not None:
+            group_id_list.append(group_id)
+        if lower_bound is not None:
+            lower_bound_list.append(lower_bound)
+    return group_id_list, lower_bound_list

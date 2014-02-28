@@ -335,30 +335,16 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2",
-                                               "ENABLED", 1)
+        status = self.proxy.sharding.add_shard(
+            1,
+            "GROUPID2/1,GROUPID3/101,GROUPID4/1001,GROUPID5/10001",
+            "ENABLED"
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID3",
-                                               "ENABLED", 101)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID4",
-                                               "ENABLED", 1001)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID5",
-                                               "ENABLED", 10001)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+
         status = self.proxy.sharding.prune_shard("db1.t1")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -793,6 +779,48 @@ class TestShardingPrune(unittest.TestCase):
                 )
         global_table_count = int(global_table_count[0][0])
         self.assertTrue(global_table_count == 10)
+
+    def test_split_shard_error_1(self):
+        '''Test that splitting with an invalid split value fails to
+        split a shard.
+        '''
+        status = self.proxy.sharding.split_shard("3", "GROUPID6", "10")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_check_shard_information).")
+
+    def test_split_shard_error_2(self):
+        '''Test that splitting with an invalid split value fails to
+        split a shard.
+        '''
+        status = self.proxy.sharding.split_shard("3", "GROUPID6", "1101.5")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_check_shard_information).")
+
+    def test_split_shard_error_3(self):
+        '''Test that splitting with an invalid split value fails to
+        split a shard.
+        '''
+        self.__group_6.status = Group.INACTIVE
+        status = self.proxy.sharding.split_shard("3", "GROUPID6", "1101.5")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_check_shard_information).")
+
+    def test_split_shard_error_4(self):
+        '''Test that splitting with an empty split value fails to
+        split a shard.
+        '''
+        self.__group_6.status = Group.INACTIVE
+        status = self.proxy.sharding.split_shard("3", "GROUPID6", None)
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_check_shard_information).")
 
     def tearDown(self):
         status = self.proxy.sharding.disable_shard("1")

@@ -130,18 +130,12 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED", 0)
+        status = self.proxy.sharding.add_shard(
+            1, "GROUPID2/0,GROUPID3/1001", "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED", 1001)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
 
     def test_shard_server_add_disabled(self):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
@@ -192,12 +186,11 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
 
         sleep(5)
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2",
-                                               "DISABLED", 0)
-        self.assertStatus(status, _executor.Job.SUCCESS)
+        status = self.proxy.sharding.add_shard(1, "GROUPID2/0", "DISABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+                         "Tried to execute action (_add_shard).")
 
         sleep(5)
 
@@ -250,40 +243,13 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
 
         sleep(5)
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2",
-                                               "ENABLED", 0)
-        self.assertStatus(status, _executor.Job.SUCCESS)
+        status = self.proxy.sharding.add_shard(1, "GROUPID2/0", "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+                         "Tried to execute action (_add_shard).")
 
         sleep(5)
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                shard_uuid = obtained_server_list[idx][0]
-                shard_server = MySQLServer.fetch(shard_uuid)
-                shard_server.connect()
-                try:
-                    rows = shard_server.exec_stmt(
-                        "SELECT NAME FROM global_db.global_table",
-                        {"fetch" : True}
-                    )
-                except _errors.DatabaseError:
-                    raise Exception("Enable Shard failed to enable shard.")
-                self.assertEqual(len(rows), 7)
-                self.assertEqual(rows[0][0], 'TEST 1')
-                self.assertEqual(rows[1][0], 'TEST 2')
-                self.assertEqual(rows[2][0], 'TEST 3')
-                self.assertEqual(rows[3][0], 'TEST 4')
-                self.assertEqual(rows[4][0], 'TEST 5')
-                self.assertEqual(rows[5][0], 'TEST 6')
-                self.assertEqual(rows[6][0], 'TEST 7')
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
         self.assertEqual(status[0], True)
@@ -311,108 +277,5 @@ class TestShardingGlobalServerPart1(unittest.TestCase):
                 self.assertEqual(rows[6][0], 'TEST 7')
 
     def tearDown(self):
-        self.proxy.sharding.enable_shard("2")
-        self.proxy.sharding.enable_shard("3")
-
-        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                shard_uuid = obtained_server_list[idx][0]
-                shard_server = MySQLServer.fetch(shard_uuid)
-                shard_server.connect()
-                shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                shard_uuid = obtained_server_list[idx][0]
-                shard_server = MySQLServer.fetch(shard_uuid)
-                shard_server.connect()
-                shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                shard_uuid = obtained_server_list[idx][0]
-                shard_server = MySQLServer.fetch(shard_uuid)
-                shard_server.connect()
-                shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-
-        status = self.proxy.sharding.disable_shard("3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
-
-        status = self.proxy.sharding.disable_shard("2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
-
-        status = self.proxy.sharding.remove_shard("3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
-
-        status = self.proxy.sharding.remove_shard("2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping_defn).")
-
-        #self.proxy.sharding.disable_shard("3")
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3"):
-            status = self.proxy.group.lookup_servers(group_id)
-            self.assertEqual(status[0], True)
-            self.assertEqual(status[1], "")
-            obtained_server_list = status[2]
-            status = \
-                self.proxy.group.remove(
-                    group_id, obtained_server_list[0]["server_uuid"]
-                )
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_remove_server).")
-            status = \
-                self.proxy.group.remove(
-                    group_id, obtained_server_list[1]["server_uuid"]
-                )
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_remove_server).")
-            status = self.proxy.group.destroy(group_id)
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_destroy_group).")
-
         tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)

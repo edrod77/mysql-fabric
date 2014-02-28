@@ -269,13 +269,16 @@ class TestSharding(unittest.TestCase):
 
     def test_lookup_sharding_scheme(self):
         r_spec_1 = \
-            RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1)
+            RangeShardingSpecification.lookup(500, self.__shard_mapping_id_1,
+                "RANGE")
         self.assertEqual(r_spec_1.shard_id, self.__shard_id_1.shard_id)
         r_spec_2 = \
-            RangeShardingSpecification.lookup(3500, self.__shard_mapping_id_2)
+            RangeShardingSpecification.lookup(3500, self.__shard_mapping_id_2,
+                "RANGE")
         self.assertEqual(r_spec_2.shard_id, self.__shard_id_4.shard_id)
         r_spec_3 = \
-            RangeShardingSpecification.lookup(6500, self.__shard_mapping_id_3)
+            RangeShardingSpecification.lookup(6500, self.__shard_mapping_id_3,
+                "RANGE")
         self.assertEqual(r_spec_3.shard_id, self.__shard_id_6.shard_id)
 
     def test_shard_mapping_list_mappings(self):

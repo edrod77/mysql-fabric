@@ -240,7 +240,8 @@ class TestHashSharding(unittest.TestCase):
         for i in range(0,  1000):
             hash_sharding_spec_1 = HashShardingSpecification.lookup(
                                         i,
-                                        self.__shard_mapping_id_1
+                                        self.__shard_mapping_id_1,
+                                         "HASH"
                                     )
             if self.__shard_1.shard_id == hash_sharding_spec_1.shard_id:
                 shard_1_cnt = shard_1_cnt + 1
@@ -284,7 +285,8 @@ class TestHashSharding(unittest.TestCase):
         for i in range(0,  10):
             hash_sharding_spec = HashShardingSpecification.lookup(
                                         i,
-                                        self.__shard_mapping_id_1
+                                        self.__shard_mapping_id_1,
+                                         "HASH"
                                     )
             self.assertEqual(hash_sharding_spec,  None)
 
@@ -409,7 +411,8 @@ class TestHashSharding(unittest.TestCase):
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_1 = HashShardingSpecification.lookup(
                                     val,
-                                    self.__shard_mapping_id_1
+                                    self.__shard_mapping_id_1,
+                                     "HASH"
                                 )
             self.assertEqual(
                              hash_sharding_spec_1.shard_id,
@@ -422,7 +425,8 @@ class TestHashSharding(unittest.TestCase):
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_2 = HashShardingSpecification.lookup(
                                     val,
-                                    self.__shard_mapping_id_1
+                                    self.__shard_mapping_id_1,
+                                    "HASH"
                                 )
             self.assertEqual(
                              hash_sharding_spec_2.shard_id,
@@ -435,7 +439,8 @@ class TestHashSharding(unittest.TestCase):
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_3 = HashShardingSpecification.lookup(
                                     val,
-                                    self.__shard_mapping_id_1
+                                    self.__shard_mapping_id_1,
+                                    "HASH"
                                 )
             self.assertEqual(
                              hash_sharding_spec_3.shard_id,
@@ -448,7 +453,8 @@ class TestHashSharding(unittest.TestCase):
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_4 = HashShardingSpecification.lookup(
                                     val,
-                                    self.__shard_mapping_id_1
+                                    self.__shard_mapping_id_1,
+                                    "HASH"
                                 )
             self.assertEqual(
                              hash_sharding_spec_4.shard_id,
@@ -461,7 +467,8 @@ class TestHashSharding(unittest.TestCase):
         for val in rows[0:len(rows)][0]:
             hash_sharding_spec_5 = HashShardingSpecification.lookup(
                                     val,
-                                    self.__shard_mapping_id_1
+                                    self.__shard_mapping_id_1,
+                                    "HASH"
                                 )
             self.assertEqual(
                              hash_sharding_spec_5.shard_id,

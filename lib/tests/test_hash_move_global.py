@@ -239,25 +239,11 @@ class TestHashMoveGlobal(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID4", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID5", "ENABLED")
+        status = self.proxy.sharding.add_shard(
+            1,
+            "GROUPID2,GROUPID3,GROUPID4,GROUPID5",
+            "ENABLED"
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

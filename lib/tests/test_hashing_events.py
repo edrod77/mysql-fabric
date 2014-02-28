@@ -152,31 +152,8 @@ class TestShardingServices(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID3", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID4", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID5", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-
-        status = self.proxy.sharding.add_shard(1, "GROUPID6", "ENABLED")
+        status = self.proxy.sharding.add_shard(1, "GROUPID2,GROUPID3,"
+                "GROUPID4,GROUPID5,GROUPID6", "ENABLED")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -203,7 +180,32 @@ class TestShardingServices(unittest.TestCase):
         tests.utils.cleanup_environment()
         tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
+    def test_add_shard_cannot_add_when_shards_exist_exception(self):
+        status = self.proxy.sharding.add_shard(1, "NON_EXISTENT_GROUP",
+            "ENABLED")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_add_shard).")
+
     def test_add_shard_invalid_group_exception(self):
+        #Remove all the existing shards in the system. Since add shard
+        #shard will not be allowed when shards exist in the system
+        self.proxy.sharding.disable_shard(1)
+        self.proxy.sharding.remove_shard(1)
+
+        self.proxy.sharding.disable_shard(2)
+        self.proxy.sharding.remove_shard(2)
+
+        self.proxy.sharding.disable_shard(3)
+        self.proxy.sharding.remove_shard(3)
+
+        self.proxy.sharding.disable_shard(4)
+        self.proxy.sharding.remove_shard(4)
+
+        self.proxy.sharding.disable_shard(5)
+        self.proxy.sharding.remove_shard(5)
+
         #Use an invalid group ID (WRONG_GROUP)
         status = self.proxy.sharding.add_shard(4, "WRONG_GROUP", "ENABLED")
         self.assertStatus(status, _executor.Job.ERROR)
@@ -212,6 +214,23 @@ class TestShardingServices(unittest.TestCase):
                          "Tried to execute action (_add_shard).")
 
     def test_add_shard_invalid_state_exception(self):
+        #Remove all the existing shards in the system. Since add shard
+        #shard will not be allowed when shards exist in the system
+        self.proxy.sharding.disable_shard(1)
+        self.proxy.sharding.remove_shard(1)
+
+        self.proxy.sharding.disable_shard(2)
+        self.proxy.sharding.remove_shard(2)
+
+        self.proxy.sharding.disable_shard(3)
+        self.proxy.sharding.remove_shard(3)
+
+        self.proxy.sharding.disable_shard(4)
+        self.proxy.sharding.remove_shard(4)
+
+        self.proxy.sharding.disable_shard(5)
+        self.proxy.sharding.remove_shard(5)
+
         #WRONG_STATE is an invalid description of the shard state.
         status = self.proxy.sharding.add_shard(4, "GROUP4", "WRONG_STATE")
         self.assertStatus(status, _executor.Job.ERROR)

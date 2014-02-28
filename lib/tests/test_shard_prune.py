@@ -197,32 +197,12 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_add_shard_mapping).")
 
-        status = self.proxy.sharding.add_shard(1, "GROUPID2",
-                                               "ENABLED", 1)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID3",
-                                               "ENABLED", 101)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID4",
-                                               "ENABLED", 201)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID5",
-                                               "ENABLED", 301)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
-        status = self.proxy.sharding.add_shard(1, "GROUPID6",
-                                               "ENABLED", 401)
+        status = self.proxy.sharding.add_shard(
+            1,
+            "GROUPID2/1,GROUPID3/101,GROUPID4/201,"
+            "GROUPID5/301,GROUPID6/401",
+            "ENABLED"
+        )
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
