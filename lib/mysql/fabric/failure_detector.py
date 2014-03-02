@@ -187,7 +187,7 @@ class FailureDetector(object):
                             procedures = trigger("REPORT_FAILURE",
                                 set([self.__group_id]), str(server.uuid),
                                 threading.current_thread().name,
-                                MySQLServer.FAULTY
+                                MySQLServer.FAULTY, False
                             )
                             executor = _executor.Executor()
                             for procedure in procedures:

@@ -137,9 +137,8 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
 
     _LOGGER.debug("Statement (%s), Params(%s).", stmt_str, params)
 
-    cur = cnx.cursor(cursor_class=cursor_class)
-
     try:
+        cur = cnx.cursor(cursor_class=cursor_class)
         cur.execute(stmt_str, params)
     except mysql.connector.Error as error:
         cur.close()
