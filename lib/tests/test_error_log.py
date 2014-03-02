@@ -19,6 +19,7 @@
 import unittest
 import uuid as _uuid
 import tests.utils
+import logging
 
 import mysql.fabric.persistence as _persistence
 
@@ -32,6 +33,8 @@ from mysql.fabric.utils import (
     get_time,
     get_time_delta,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 class TestErrorLog(unittest.TestCase):
     """Unit test for testing ErrorLog.
@@ -134,17 +137,20 @@ class TestErrorLog(unittest.TestCase):
             "TIMEDIFF(UTC_TIMESTAMP(), reported - MAKETIME(2,0,0)) as diff "
             "FROM error_log"
         )
+        _LOGGER.debug("Output test persistence %s.", out)
         self.assertEqual(len(out), 2)
         res = persister.exec_stmt(
             "DELETE FROM error_log WHERE "
             "TIMEDIFF(UTC_TIMESTAMP(), reported - MAKETIME(2,0,0)) > "
             "MAKETIME(1,0,0)"
         )
+        _LOGGER.debug("Output test persistence %s.", res)
         out = persister.exec_stmt(
             "SELECT reported, UTC_TIMESTAMP() as now, "
             "TIMEDIFF(UTC_TIMESTAMP(), reported - MAKETIME(2,0,0)) as diff "
             "FROM error_log"
         )
+        _LOGGER.debug("Output test persistence %s.", out)
         self.assertEqual(len(out), 0)
 
     def test_check_instability(self):
