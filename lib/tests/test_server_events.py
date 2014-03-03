@@ -244,7 +244,7 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.add("group", address_2)
         self.proxy.group.promote("group")
         self.proxy.sharding.add_table(shard_mapping_id, "db1.t1", "user")
-        self.proxy.sharding.add_shard(shard_mapping_id, "group", "ENABLED", 0)
+        self.proxy.sharding.add_shard(shard_mapping_id, "group/0", "ENABLED", 0)
         status = self.proxy.group.destroy("group", True)
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
