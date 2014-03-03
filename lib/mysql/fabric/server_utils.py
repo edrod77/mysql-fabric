@@ -137,21 +137,25 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
 
     _LOGGER.debug("Statement (%s), Params(%s).", stmt_str, params)
 
+    cur = None
     try:
         cur = cnx.cursor(cursor_class=cursor_class)
         cur.execute(stmt_str, params)
     except mysql.connector.Error as error:
-        cur.close()
+        if cur:
+            cur.close()
         raise _errors.DatabaseError(
             "Command (%s, %s) failed: %s" % (stmt_str, params, error),
             error.errno)
     except Exception as error:
-        cur.close()
+        if cur:
+            cur.close()
         raise _errors.DatabaseError(
             "Unknown error. Command: (%s, %s) failed: %s" % (stmt_str,
             params, error)
         )
 
+    assert(cur is not None)
     if fetch:
         results = None
         try:

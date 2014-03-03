@@ -663,8 +663,8 @@ def _do_set_status(server, allowed_status, status, mode, update_only):
         server.mode = mode
     else:
         raise _errors.ServerError(
-            "Cannot change server's status from (%s) to (%s)." %
-            (server.uuid, server.status, status)
+            "Cannot change server's (%s) status from (%s) to (%s)." %
+            (str(server.uuid), server.status, status)
         )
 
     _LOGGER.debug(
