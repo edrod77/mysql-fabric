@@ -73,14 +73,14 @@ class ServiceManager(Singleton):
     constructed, so the load_services have to be called explicitly to
     load the services in the package.
     """
-    def __init__(self, address, number_threads):
+    def __init__(self, address, number_threads, ssl=None):
         """Setup all protocol services.
         """
         Singleton.__init__(self)
         self.__address = address
         host, port = self.__address.split(':')
         self.__rpc_server = _protocol.MyServer(
-            host, int(port), number_threads
+            host, int(port), number_threads, ssl
         )
 
     @property

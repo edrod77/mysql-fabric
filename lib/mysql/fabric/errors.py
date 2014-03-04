@@ -113,3 +113,7 @@ class ShardingError(ServiceError):
     sharding system.
     """
     pass
+
+class CredentialError(Error):
+    """Exception raised when something is wrong with credentials"""
+    pass

@@ -34,6 +34,7 @@ Reading the configuration goes through three steps:
 """
 
 import ConfigParser
+import os
 import re
 
 # These are propagated to the importer
@@ -76,14 +77,33 @@ class Config(ConfigParser.SafeConfigParser):
 
     """
 
+    def normalize_ssl_config(self, section):
+        """Normalizes the SSL option in a section
+
+        :param section: Section from which we read SSL configuration.
+        """
+        if not self._config_file:
+            return
+        default_path = os.path.dirname(self._config_file)
+        try:
+            for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
+                value = self.get(section, option)
+                if not os.path.isabs(value):
+                    self.set(section, option, os.path.join(default_path, value))
+        except NoOptionError:
+            # It's OK when SSL is missing
+            pass
+
     def __init__(self, config_file, config_params=None):
         """Create the configuration parser, read the configuration
         files, and set up the configuration from the options.
         """
 
         ConfigParser.SafeConfigParser.__init__(self)
+
         if config_file is not None:
             self.readfp(open(config_file))
+        self._config_file = config_file
 
         # Incorporate options into the configuration. These are read
         # from the mapping above and written into the configuration.
@@ -93,3 +113,5 @@ class Config(ConfigParser.SafeConfigParser):
                     self.add_section(section)
                 for key, val in var_dict.items():
                     self.set(section, key, val)
+
+        self.normalize_ssl_config('protocol.xmlrpc')

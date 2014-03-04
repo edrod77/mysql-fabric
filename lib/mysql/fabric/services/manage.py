@@ -36,6 +36,7 @@ from mysql.fabric import (
     utils as _utils,
     server as _server,
     error_log as _error_log,
+    credentials,
 )
 
 from mysql.fabric.command import (
@@ -151,7 +152,10 @@ class Setup(Command):
         _setup_ttl(self.config)
 
         # Create database and objects.
-        _persistence.setup()
+        _persistence.setup(config=self.config)
+
+        credentials.check_initial_setup(self.config,
+                                        _persistence.MySQLPersister())
 
 
 class Teardown(Command):
@@ -284,8 +288,15 @@ def _configure_connections(config):
     except (_config.NoOptionError, ValueError):
         number_threads = DEFAULT_N_THREADS
 
+    ssl_config = {}
+    try:
+        for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
+            ssl_config[option] = config.get('protocol.xmlrpc', option)
+    except (_config.NoOptionError):
+        ssl_config = {}
+
     # Define XML-RPC configuration.
-    _services.ServiceManager(address, number_threads)
+    _services.ServiceManager(address, number_threads, ssl_config)
 
     # Fetch options to configure the state store.
     address = config.get('storage', 'address')
@@ -323,12 +334,18 @@ def _configure_connections(config):
     except (_config.NoOptionError, _config.NoSectionError, ValueError):
         connection_delay = None
 
+    try:
+        auth_plugin = config.get("storage", "auth_plugin")
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        auth_plugin = None
+
     # Define state store configuration.
     _persistence.init(
         host=host, port=port, user=user, password=password, database=database,
         connection_timeout=connection_timeout,
         connection_attempts=connection_attempts,
-        connection_delay=connection_delay
+        connection_delay=connection_delay,
+        auth_plugin=auth_plugin
     )
 
 def _setup_ttl(config):

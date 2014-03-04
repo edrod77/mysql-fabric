@@ -135,7 +135,9 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     elif not raw and not columns:
         cursor_class = MySQLCursor
 
-    _LOGGER.debug("Statement (%s), Params(%s).", stmt_str, params)
+    _LOGGER.debug("Statement ({statement}, Params({parameters}).".format(
+        statement=stmt_str.replace('\n', '').replace('\r', ''),
+        parameters=params))
 
     cur = None
     try:

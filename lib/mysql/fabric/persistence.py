@@ -335,7 +335,7 @@ class MySQLPersister(object):
     @classmethod
     def init(cls, host, user, password=None, port=None, database=None,
              connection_timeout=None, connection_attempts=None,
-             connection_delay=None):
+             connection_delay=None, auth_plugin=None):
         """Initialize the object persistance system.
 
         This function initializes the persistance system. The function
@@ -358,6 +358,8 @@ class MySQLPersister(object):
         :param connection_delay: Delay after an atempt to connect or reconnect
                                  to the database server. Default is
                                  :const:`DEFAULT_CONNECT_DELAY`.
+        :param auth_plugin: Use auth_plugin as authencation plugin for
+                            authentication with the database server.
         """
         if port is None:
             port = _server_utils.MYSQL_DEFAULT_PORT
@@ -377,6 +379,7 @@ class MySQLPersister(object):
             "host": host, "port": port,
             "user": user, "password": password,
             "connection_timeout" : connection_timeout,
+            "auth_plugin": auth_plugin,
             }
         cls.connection_attempts = connection_attempts
         cls.connection_delay = connection_delay
@@ -465,6 +468,10 @@ class MySQLPersister(object):
         finally:
             self.__check_connection = True
 
+    def auth_mysql_token(self):
+        """Returns the authentication plugin data found in handshake"""
+        return self.__cnx._handshake['scramble']
+
     @property
     def uuid(self):
         """Return the MySQLPersister's UUID if the server supports it.
@@ -535,7 +542,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def init(host, user, password=None, port=None, database=None,
          connection_timeout=None, connection_attempts=None,
-         connection_delay=None):
+         connection_delay=None, auth_plugin=None):
     """Initialize the persistance system.
 
     This function is idempotent in the sense that it can be executed
@@ -567,10 +574,11 @@ def init(host, user, password=None, port=None, database=None,
         host=host, port=port, user=user, password=password, database=database,
         connection_timeout=connection_timeout,
         connection_attempts=connection_attempts,
-        connection_delay=connection_delay
+        connection_delay=connection_delay,
+        auth_plugin=auth_plugin
     )
 
-def setup():
+def setup(config=None):
     """ Setup the persistance system globally.
 
     This means creating any databases, tables and constraints necessary in the
@@ -582,7 +590,11 @@ def setup():
     for cls in PersistentMeta.classes:
         if hasattr(cls, 'create'):
             _LOGGER.debug("Create database objects for %s", cls.__name__)
-            cls.create(persister=persister)
+            if 'config' in inspect.getargspec(cls.create):
+                cls.create(persister=persister, config=config)
+            else:
+                # create() does not support config
+                cls.create(persister=persister)
 
     #Initialize the constraints after creating the tables.
     for cls in PersistentMeta.classes:
