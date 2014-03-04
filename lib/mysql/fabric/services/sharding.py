@@ -91,8 +91,6 @@ LOWER_BOUND_AUTO_GENERATED = "Lower Bounds are auto-generated in hash "\
 SPLIT_VALUE_NOT_DEFINED = "Splitting a RANGE shard definition requires a split"\
             " value to be defined"
 INVALID_SPLIT_VALUE = "Invalid value given for shard splitting"
-DESTN_GROUP_INACTIVE = "The destination group for he sharding operation is "\
-                        "not active"
 NO_LOWER_BOUND_FOR_HASH_SHARDING = "Lower bound should not be specified "\
                                 "for hash based sharding"
 
@@ -915,9 +913,6 @@ def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
     destn_group = Group.fetch(destn_group_id)
     if destn_group is None:
         raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
-
-    if destn_group.status != Group.INACTIVE:
-        raise _errors.ShardingError(DESTN_GROUP_INACTIVE)
 
     if not update_only:
         _events.trigger_within_procedure(
