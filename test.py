@@ -101,6 +101,7 @@ def get_config(options, env_options):
         'protocol.xmlrpc': {
             'address': 'localhost:%d' % (env_options["xmlrpc_next_port"], ),
             'threads': '5',
+            'disable_authentication' : 'yes',
             },
         'executor': {
             'executors': '5',
