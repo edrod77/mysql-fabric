@@ -3,6 +3,25 @@ ChangeLog for Fabric
 ####################
 
 
+Release 1.4.2 (released March 07, 2014)
+---------------------------------------
+
+* WL#7388: Failover/Switchover based on unreliable failure detectors
+* WL#7455: Credentials for Fabric
+* WL#7599: Cleaning up shard move and split semantics
+* WL#7648: Decoupling provisioning from updates to state store
+* BUG#71370: BUG#18087356: The prefix store.dump_* gives a false
+  impression about update operations
+* BUG#71448: BUG#18138545 - GROUP ADD FAILS IF ACCOUNT HAS NO ACCESS TO
+  MYSQL SCHEMA
+* BUG#71512: BUG#18153823: SERVERS IN THE SAME GROUP SHOULD USE A SINGLE
+  USER/PASSWORD
+* BUG#71525: BUG#17702237: IS_CONNECTED() IS CHECKED EVERY TIME A
+  STATEMENT IS EXECUTED
+* BUG#70954: BUG#17820905: Changed default TCP/IP port to 32274
+* BUG#71428: BUG#18124108: FABRIC.SERVER.SET_STATUS() IS INCONSISTENT
+  WITH FABRIC.STORE.DUMP_SERVERS()
+
 Release 0.4.0 (released December 16, 2013)
 ------------------------------------------
 
