@@ -315,6 +315,8 @@ class TestCommand(unittest.TestCase):
         params = {
             'protocol.xmlrpc': {
                 'address': 'localhost:%d' % (xmlrpc_next_port, ),
+                'user': '',
+                'password': '',
                 },
             }
         config = _config.Config(None, params)
@@ -335,6 +337,8 @@ class TestCommand(unittest.TestCase):
         params = {
             'protocol.xmlrpc': {
                 'address': 'localhost:%d' % (xmlrpc_next_port, ),
+                'user': '',
+                'password': '',
                 },
             }
         config = _config.Config(None, params)
