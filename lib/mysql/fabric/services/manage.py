@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013, 2014 Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -120,6 +120,14 @@ class Start(Command):
 
         #Configure TTL
         _setup_ttl(self.config)
+
+        try:
+            credentials.check_initial_setup(self.config,
+                                            _persistence.MySQLPersister(),
+                                            check_only=True)
+        except _errors.CredentialError as error:
+            _LOGGER.debug(str(error))
+            return
 
         # Daemonize ourselves.
         if daemonize:

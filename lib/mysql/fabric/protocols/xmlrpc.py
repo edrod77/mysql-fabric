@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013, 2014 Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -173,7 +173,7 @@ class MyRequestHandler(SimpleXMLRPCRequestHandler):
             nonce = attrs['nonce']
 
             store = _persistence.current_persister()
-            user = credentials.FabricCredential.fetch_user(
+            user = credentials.User.fetch_user(
                 attrs['username'], protocol='xmlrpc', realm=attrs['realm'])
             if not user:
                 _LOGGER.error("Authentication failed for {user}@{host}".format(
@@ -301,10 +301,9 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             value = config.get('protocol.xmlrpc', 'disable_authentication')
             if value.lower() == 'yes':
                 self.__auth_disabled = True
+                _LOGGER.warning("Authentication disabled")
         except:
             self.__auth_disabled = False
-        else:
-            _LOGGER.warning("Authentication disabled")
 
         try:
             self.__realm = config.get('protocol.xmlrpc', 'realm')
@@ -623,8 +622,7 @@ class FabricTransport(xmlrpclib.Transport):
         self.__handlers = []
         self.__realm = realm
 
-        self.__passmgr = urllib2.HTTPPasswordMgr()
-        # urllib2.HTTPDigestAuthHandler(passmgr)
+        self.__passmgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         self.__digest_auth_handler = urllib2.HTTPDigestAuthHandler(
             self.__passmgr)
 
@@ -644,20 +642,13 @@ class FabricTransport(xmlrpclib.Transport):
         if self.verbose:
             _LOGGER.info("FabricTransport: {0}".format(uri))
 
-        self.__passmgr.add_password(self.__realm,
+        self.__passmgr.add_password(None,
                                     uri, self.__username, self.__password)
 
         headers = {
             'Content-Type': 'text/xml',
             'User-Agent': self.user_agent,
         }
-
-        if auth_handler.nonce_count:
-            ah = self._authorization
-            loc = ah.find('nc=') + 3
-            nc = int(ah[loc:loc+8], 16) + 1
-            ah = ah.replace(ah[loc:loc+8], '%08x' % nc)
-            headers['Authorization'] = ah
 
         opener = urllib2.build_opener(*self.__handlers)
         req = urllib2.Request(uri, request_body, headers=headers)
@@ -694,9 +685,8 @@ class MyClient(xmlrpclib.ServerProxy):
         reference = command.group_name + '.' + command.command_name
 
         address = command.config.get('protocol.xmlrpc', 'address')
-        username = command.config.get('protocol.xmlrpc', 'username')
+        username = command.config.get('protocol.xmlrpc', 'user')
         password = command.config.get('protocol.xmlrpc', 'password')
-        realm = command.config.get('protocol.xmlrpc', 'realm')
 
         ssl_config = {}
         try:
@@ -718,7 +708,7 @@ class MyClient(xmlrpclib.ServerProxy):
                                                 port=port)
 
         transport = FabricTransport(
-            username, password, verbose=0, realm=realm,
+            username, password, verbose=0,
             https_handler=https_handler
         )
         xmlrpclib.ServerProxy.__init__(self, uri, allow_none=True,

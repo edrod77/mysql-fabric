@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013, 2014 Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -241,8 +241,18 @@ class Command(object):
                     'action':action
                 }
                 self.command_options.append(command_option)
+
             #Reverse the extracted list
             self.command_options.reverse()
+
+        # Options for all commands
+        command_option = {
+            'options': ["--user"],
+            'dest': 'auth_user',
+            'default': None,
+            'action': "store"
+        }
+        self.command_options.append(command_option)
 
     def append_options_to_args(self, args):
         """Append the optional arguments and their values to the
@@ -257,6 +267,8 @@ class Command(object):
             #Get the optional parameters from the options object. Append these to
             #the arguments list so that they can be passed to the execute method.
             for option in self.command_options:
+                if option['dest'] == 'auth_user':
+                    continue
                 args_list.append(getattr(self.options, option['dest']))
         return args_list
 

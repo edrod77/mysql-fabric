@@ -3,7 +3,7 @@ address = localhost:3306
 user = fabric
 password =
 database = fabric
-#auth_plugin = mysql_native_password
+auth_plugin = mysql_native_password
 connection_timeout = 6
 connection_attempts = 6
 connection_delay = 1
@@ -15,17 +15,13 @@ password =
 [protocol.xmlrpc]
 address = localhost:32274
 threads = 5
-# username = admin
-# password =
-# disable_authentication = no
-
-# SSL Support, see MySQL Manual to create CA, key and certificates
-#  https://dev.mysql.com/doc/refman/5.6/en/creating-ssl-certs.html
-# Files can be relative in which case they should be located together with
-# this configuration file.
-# ssl_ca = fabric-ca-cert.pem
-# ssl_cert = fabric-server-cert.pem
-# ssl_key = fabric-server-key.pem
+user = admin
+password =
+disable_authentication = no
+realm = MySQL Fabric
+ssl_ca =
+ssl_cert =
+ssl_key =
 
 [executor]
 executors = 5

@@ -15,7 +15,6 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
-from __future__ import print_function
 
 import getpass
 import hashlib
@@ -107,8 +106,8 @@ _SQL_CONSTRAINTS = [
 ]
 
 _USERS = [
-    # user_id, username, password, protocol
-    (1, 'admin', None, 'xmlrpc'),
+    # user_id, username, protocol, password
+    (1, 'admin', 'xmlrpc', None),
 ]
 
 _PERMISSIONS = [
@@ -155,7 +154,7 @@ WHERE
 """
 
 
-class FabricCredential(_persistence.Persistable):
+class User(_persistence.Persistable):
     """Class defining a user connecting to a Fabric instance
     """
 
@@ -163,8 +162,7 @@ class FabricCredential(_persistence.Persistable):
         self._username = username
         self._protocol = protocol
         self._password_hash = password_hash
-        self._permissions = FabricCredential.fetch_permissions(username,
-                                                               protocol)
+        self._permissions = User.fetch_permissions(username, protocol)
 
     @property
     def username(self):
@@ -279,9 +277,8 @@ class FabricCredential(_persistence.Persistable):
     @staticmethod
     def delete_user(user_id=None, username=None, protocol=None, persister=None):
         """Delete a Fabric user"""
-        if bool(user_id) != bool(username):
-            raise AttributeError("Either user_id or username can be given, "
-                                 "not both")
+        if (user_id and username) or (not user_id and not username):
+            raise AttributeError("Use user_id or username, not both")
 
         if username and not protocol:
             raise AttributeError(
@@ -315,30 +312,30 @@ class FabricCredential(_persistence.Persistable):
         for statement in _SQL_CONSTRAINTS:
             persister.exec_stmt(statement)
 
-        for user_id, username, password, protocol in _USERS:
-            FabricCredential.add_user(username, password, protocol,
-                                      user_id=user_id,
-                                      persister=persister,
-                                      config=config)
+        for user_id, username, protocol, password in _USERS:
+            User.add_user(username, password, protocol,
+                          user_id=user_id,
+                          persister=persister,
+                          config=config)
 
         for permission_id, subsystem, component, function, description in \
                 _PERMISSIONS:
-            FabricCredential.add_permission(
+            User.add_permission(
                 subsystem, component, function, description,
                 permission_id=permission_id, persister=persister)
 
         for role_id, name, description in _ROLES:
-            FabricCredential.add_role(name, description, role_id=role_id,
-                                      persister=persister)
+            User.add_role(name, description, role_id=role_id,
+                          persister=persister)
 
         for role_id, permissions in _ROLE_PERMISSIONS.items():
             for permission_id in permissions:
-                FabricCredential.add_role_permission(
+                User.add_role_permission(
                     role_id, permission_id, persister=persister)
 
         for user_id, role_id in _USER_ROLES:
-            FabricCredential.add_user_role(user_id, role_id,
-                                           persister=persister)
+            User.add_user_role(user_id, role_id,
+                               persister=persister)
 
     @staticmethod
     def drop(persister=None):
@@ -381,9 +378,9 @@ class FabricCredential(_persistence.Persistable):
         cur = persister.exec_stmt(sql, options)
         row = cur.fetchone()
         if row:
-            return FabricCredential(username=row.username,
-                                    protocol=row.protocol,
-                                    password_hash=row.password)
+            return User(username=row.username,
+                        protocol=row.protocol,
+                        password_hash=row.password)
 
         return None
 
@@ -444,9 +441,6 @@ def _hash_password(username, password, protocol, config, realm=None):
             user=username, realm=FABRIC_REALM_XMLRPC,
             secret=password)).hexdigest()
 
-    elif protocol == 'console':
-        return hashlib.sha256(username + password).hexdigest()
-
     raise _errors.CredentialError(
         "Password hasing for protocol '{0}' is not implemented.".format(
             protocol
@@ -499,11 +493,13 @@ def _get_password(prompt=None):
     return password
 
 
-def check_initial_setup(config, persister):
+def check_initial_setup(config, persister, check_only=False):
     """Check if admin user has password and if not sets it
 
     :param persister: A valid handle to the state store.
     """
+
+    # Fetch which protocols have no passwords set for user 'admin'
     protocols = []
     for key in FABRIC_PROTOCOL_DEFAULTS.keys():
         if key.startswith('protocol.'):
@@ -513,39 +509,93 @@ def check_initial_setup(config, persister):
                 if not user.password:
                     protocols.append(tmp)
 
+    # Try setting password for 'admin' user from configuration file
+    for protocol in protocols:
+        section = 'protocol.' + protocol
+        try:
+            username = config.get(section, 'user')
+        except _config.NoOptionError:
+            username = 'admin'
+
+        # If there is no password, we have to ask for one.
+        try:
+            password = config.get(section, 'password')
+        except _config.NoOptionError:
+            # No password, so we have to ask for one
+            break
+
+        persister.begin()
+        try:
+            if username != 'admin':
+                _LOGGER.info("Adding user %s/%s", username, protocol)
+                user_id = User.add_user(username, password, protocol,
+                                        persister=persister)
+            else:
+                _LOGGER.info("Initial password for %s/%s set", username,
+                             protocol)
+                _change_password(username, password, protocol, config,
+                                 persister)
+        except _errors.CredentialError as error:
+            print "Setting password cancelled."
+            _LOGGER.debug(str(error))
+            print error
+            persister.rollback()
+        else:
+            persister.commit()
+            msg = (
+                "Password set for {user}/{protocol} from configuration file."
+            ).format(user=username, protocol=protocol)
+            print msg
+            _LOGGER.info(msg)
+
+        if username != 'admin':
+            print "Note: {user}/{protocol} has no roles set!".format(
+                user=username, protocol=protocol
+            )
+        else:
+            # No need to ask for password later for this protocol
+            protocols.remove(protocol)
+
     if not protocols:
         # Passwords are set
         return
 
-    print("Finishing initial setup")
-    print("=======================")
-    print("Password for admin user is not yet set.")
+    if check_only and protocols:
+        print (
+            "\nPassword for admin user is empty. Please run\n\n"
+            "  shell> mysqlfabric user password admin\n\n"
+            "Make sure the password is empty or commented in section\n"
+            "[protocol.xmlrpc] of the configuration file before executing the\n"
+            "above command."
+        )
+        raise _errors.CredentialError("Check empty admin password failed")
+
+    print "Finishing initial setup"
+    print "======================="
+    print "Password for admin user is not yet set."
     password = None
 
     while True:
-        password = _get_password("Password for {user}: ".format(user='admin'))
+        password = _get_password("Password for {user}/{protocol}: ".format(
+            user='admin', protocol='xmlrpc'))
         if password:
             break
 
     if password:
-        options = {
-            "raw": False,
-            "fetch": False,
-            "params": [],
-            "columns": True,
-        }
-        update = ("UPDATE users SET password = %s WHERE username = %s "
-                  "AND protocol = %s")
-
         for protocol in protocols:
-            hashed = _hash_password('admin', password, protocol, config)
-            options['params'] = (hashed, 'admin', protocol)
-            persister.exec_stmt(update, options)
-
+            try:
+                _change_password('admin', password, protocol, config,
+                                 persister)
+            except _errors.CredentialError as error:
+                print "Setting password cancelled."
+                _LOGGER.debug(str(error))
+                print error
+            else:
+                print "Password set."
     else:
         # Making sure password is set and there is an error message
         raise _errors.CredentialError(
-            "Password for admin can not be empty.")
+            "Password for admin can not be empty. Use `user password` command.")
 
     persister.commit()
 
@@ -619,6 +669,8 @@ def confirm(message, default='y'):
     :rtype: bool
     :raises ValueError: if invalid choice has been given.
     """
+    if not isinstance(default, str):
+        raise AttributeError("default argument should be a string")
     if default:
         default = default[0].lower()
 
@@ -666,8 +718,8 @@ def _role_listing(selected=None, marker=None, persister=None):
     }
 
     roleperms = (
-        "SELECT r.role_id, r.name, r.description AS role_desc, p.permission_id, "
-        "p.description AS perm_desc, p.subsystem, "
+        "SELECT r.role_id, r.name, r.description AS role_desc, "
+        "p.permission_id, p.description AS perm_desc, p.subsystem, "
         "p.component, p.function "
         "FROM roles AS r LEFT JOIN role_permissions USING (role_id) "
         "LEFT JOIN permissions AS p USING (permission_id) ORDER BY r.role_id"
@@ -699,9 +751,9 @@ def _role_listing(selected=None, marker=None, persister=None):
     label_desc = "Description and Permissions"
     header = role_fmt.format(role_id="ID", name="Role Name", desc=label_desc,
                              sel=sel)
-    print(header)
-    print(role_fmt.format(role_id='-' * max_rowid_len, name='-' * max_name_len,
-                          desc='-' * len(label_desc), sel=sel))
+    print header
+    print role_fmt.format(role_id='-' * max_rowid_len, name='-' * max_name_len,
+                          desc='-' * len(label_desc), sel=sel)
 
     fmt_perm = '{0}+ {{perm}}'.format(
         (2 + max_rowid_len + 2 + max_name_len + 2) * ' ')
@@ -712,17 +764,18 @@ def _role_listing(selected=None, marker=None, persister=None):
         else:
             sel = ' '
         name, role_desc, permissions = roles[role_id]
-        print(role_fmt.format(role_id=role_id, name=name, desc=role_desc,
-                              sel=sel))
+        print role_fmt.format(role_id=role_id, name=name, desc=role_desc,
+                              sel=sel)
         for perm in permissions:
-            print(fmt_perm.format(perm=perm))
+            print fmt_perm.format(perm=perm)
 
 
-def _role_selection(message=None, persister=None):
+def _role_selection(message=None, choices=None, persister=None):
     """Offers user to select roles on the console
 
     :param persister: A valid handle to the state store.
     :param message: Message shown just before prompt.
+    :param choices: Do not ask, just process choices (string or sequence).
     :return: List of role IDs or role names.
     :rtype: list
     :raises errors.CredentialError: if invalid role was given
@@ -730,14 +783,16 @@ def _role_selection(message=None, persister=None):
     if not persister:
         persister = _persistence.current_persister()
 
-    if not message:
-        message = "\nEnter comma separated list of role IDs or names: "
+    if not choices:
+        if not message:
+            message = "\nEnter comma separated list of role IDs or names: "
 
-    choice = raw_input(message)
-    if not choice.strip():
-        return []
+        choices = raw_input(message)
+        if not choices.strip():
+            return []
 
-    choices = choice.split(',')
+    if isinstance(choices, str):
+        choices = choices.split(',')
 
     options = {
         "raw": False,
@@ -757,7 +812,7 @@ def _role_selection(message=None, persister=None):
         if not all(rid.strip() in valid_role_ids for rid in choices):
             raise ValueError
     except ValueError:
-        raise _errors.CredentialError("Invalid role in choice.")
+        raise _errors.CredentialError("Found invalid role.")
 
     # Only return role IDs
     result = []
@@ -769,6 +824,41 @@ def _role_selection(message=None, persister=None):
             result.append(roles[rid.strip()])
 
     return result
+
+
+def _change_password(username, password, protocol, config, persister):
+    """Change password of a Fabric user
+
+    :param username: Username of Fabric user.
+    :param password: Password to which we change.
+    :param protocol: Protocol for this user.
+    :param config: Fabric configuration.
+    :param persister: A valid handle to the state store.
+
+    :raise _errors.CredentialError: if any error occurs while updating data
+    """
+    try:
+        persister.begin()
+        options = {
+            "raw": False,
+            "fetch": False,
+            "params": (),
+            "columns": True,
+        }
+        update = ("UPDATE users SET password = %s WHERE username = %s"
+                  " AND protocol = %s")
+        hashed = _hash_password(username, password, protocol,
+                                config)
+        options['params'] = (hashed, username, protocol)
+        persister.exec_stmt(update, options)
+    except Exception as error:
+        # We rollback and re-raise
+        persister.rollback()
+        raise _errors.CredentialError("Error updating password: {0}".format(
+            str(error)
+        ))
+    persister.commit()
+
 
 def validate_username(username, allow_empty=False):
     """Validates a username
@@ -815,7 +905,6 @@ def validate_protocol(protocol, allow_empty=False):
 
 
 class UserCommand(_command.Command):
-
     """Base class for all user commands"""
 
     group_name = 'user'
@@ -847,21 +936,21 @@ class UserCommand(_command.Command):
         if not title:
             title = self.description
 
-        print(title)
-        print("=" * len(title))
+        print title
+        print "=" * len(title)
 
         if username:
-            print("Username: {0}".format(username))
+            print "Username: {0}".format(username)
         else:
             username = validate_username(raw_input("Enter username: "))
 
         if self.options.protocol:
             protocol = self.options.protocol
-            print("Protocol: {0}".format(protocol))
+            print "Protocol: {0}".format(protocol)
         else:
             prompt = "Protocol (default {0}): ".format(FABRIC_DEFAULT_PROTOCOL)
             protocol = validate_protocol(raw_input(prompt),
-                                              allow_empty=True)
+                                         allow_empty=True)
             if not protocol:
                 protocol = FABRIC_DEFAULT_PROTOCOL
 
@@ -875,12 +964,17 @@ class UserCommand(_command.Command):
 
 class UserAdd(UserCommand):
 
-    """Add a new Fabric user"""
+    """Add a new Fabric user.
+
+    * protocol: Protocol of the user (for example 'xmlrpc')
+    * roles: Comma separated list of roles, IDs or names (see `role list`)
+
+    """
 
     command_name = 'add'
     description = 'Add a new Fabric user'
 
-    def execute(self, username, protocol=None, role=None):
+    def execute(self, username, protocol=None, roles=None):
         """Add a new Fabric user"""
         username, password, protocol = self._ask_credentials(
             username, ask_password=False)
@@ -891,36 +985,46 @@ class UserAdd(UserCommand):
                 "User {user}/{protocol} already exists".format(
                     user=username, protocol=protocol))
 
-        password = _get_password('Password:')
+        password = _get_password('Password: ')
 
         if not password:
             raise _errors.CredentialError("Can not set empty password")
 
+        role_list = []
+        if roles:
+            role_list = [role.strip() for role in roles.split(',')]
+        else:
+            print "\nSelect role(s) for new user"
+            _role_listing()
+        role_list = _role_selection(persister=self.persister, choices=role_list)
+
         try:
             self.persister.begin()
-            user_id = FabricCredential.add_user(username, password, protocol)
-            print("\nSelect role(s) for new user")
-            _role_listing()
-            roles = _role_selection(persister=self.persister)
-            if not roles:
-                print("You can always assign roles later using the "
-                      "'user addrole' command")
+            user_id = User.add_user(username, password, protocol)
+            if not role_list:
+                print ("You can always assign roles later using the "
+                       "'user addrole' command")
             else:
-                for role_id in roles:
-                    FabricCredential.add_user_role(user_id, int(role_id))
+                for role_id in role_list:
+                    User.add_user_role(user_id, int(role_id))
         except Exception:
             # Whatever happens, we rollback and re-raise
             self.persister.rollback()
-            print("Adding user cancelled.")
+            print "Adding user cancelled."
             raise
 
         self.persister.commit()
-        print("Fabric user added.")
+        print "Fabric user added."
 
 
 class UserDelete(UserCommand):
 
-    """Delete a Fabric user"""
+    """Delete a Fabric user.
+
+    * protocol: Protocol of the user (for example 'xmlrpc')
+    * force: Do not ask for confirmation
+
+    """
 
     command_name = 'delete'
     description = 'Delete a Fabric user'
@@ -946,20 +1050,24 @@ class UserDelete(UserCommand):
 
         try:
             self.persister.begin()
-            FabricCredential.delete_user(username=username, protocol=protocol)
+            User.delete_user(username=username, protocol=protocol)
         except Exception:
             # We rollback and re-raise
             self.persister.rollback()
-            print("Removing user cancelled.")
+            print "Removing user cancelled."
             raise
 
         self.persister.commit()
-        print("Fabric user deleted.")
+        print "Fabric user deleted."
 
 
 class UserPassword(UserCommand):
 
-    """Change password of a Fabric user"""
+    """Change password of a Fabric user.
+
+    * protocol: Protocol of the user (for example 'xmlrpc')
+
+    """
 
     command_name = 'password'
     description = 'Change password a Fabric user'
@@ -976,45 +1084,39 @@ class UserPassword(UserCommand):
                 "No user {user}/{protocol}".format(
                     user=username, protocol=protocol))
 
-        password = _get_password('New password:')
+        password = _get_password('New password: ')
 
         if password:
             try:
-                self.persister.begin()
-                options = {
-                    "raw": False,
-                    "fetch": False,
-                    "params": (),
-                    "columns": True,
-                }
-                update = ("UPDATE users SET password = %s WHERE username = %s"
-                          " AND protocol = %s")
-                hashed = _hash_password(username, password, protocol,
-                                        self.config)
-                options['params'] = (hashed, username, protocol)
-                self.persister.exec_stmt(update, options)
-            except Exception:
-                # We rollback and re-raise
-                print("Changing password cancelled.")
-                raise
-            self.persister.commit()
-            print("Password changed.")
+                _change_password(username, password, protocol, self.config,
+                                 self.persister)
+            except _errors.CredentialError as error:
+                print "Changing password cancelled."
+                _LOGGER.debug(str(error))
+                print error
+            else:
+                print "Password changed."
         else:
             raise _errors.CredentialError("Can not set empty password")
 
 
 class UserRoles(UserCommand):
 
-    """Change roles for a Fabric user"""
+    """Change roles for a Fabric user
+
+    * protocol: Protocol of the user (for example 'xmlrpc')
+    * roles: Comma separated list of roles, IDs or names (see `role list`)
+
+    """
 
     command_name = 'roles'
     description = 'Change roles for a Fabric user'
 
-    def execute(self, username, protocol=None):
+    def execute(self, username, protocol=None, roles=None):
         """Change roles for a Fabric user
         """
         username, password, protocol = self._ask_credentials(
-            username, ask_password=True)
+            username, ask_password=False)
 
         # Check if user exists
         user = get_user(username, protocol)
@@ -1023,56 +1125,162 @@ class UserRoles(UserCommand):
                 "No user {user}/{protocol}".format(user=username,
                                                    protocol=protocol))
 
-        self.persister.begin()
+        exit_text_removed = (
+            "Roles for {user}/{protocol} removed."
+        ).format(user=username, protocol=protocol)
+        exit_text_updated = (
+            "Roles for {user}/{protocol} updated."
+        ).format(user=username, protocol=protocol)
+
+        confirmed = False
+        role_list = []
+        if not roles:
+            options = {
+                "raw": False,
+                "fetch": False,
+                "params": (user.user_id,),
+                "columns": True,
+            }
+            cur = self.persister.exec_stmt(
+                "SELECT role_id FROM user_roles WHERE user_id = %s",
+                options)
+            current_roles = [row.role_id for row in cur]
+
+            print "\nSelect new role(s) for user, replacing current roles."
+            print "Current roles are marke with an X."
+            _role_listing(selected=current_roles)
+            role_list = _role_selection(persister=self.persister)
+
+            if not role_list:
+                confirm_text = (
+                    "Remove all roles of user {user}/{protocol}?"
+                ).format(user=username, protocol=protocol)
+                exit_text = exit_text_removed
+                default = 'n'
+            else:
+                confirm_text = (
+                    "Replace roles of user {user}/{protocol}?"
+                ).format(user=username, protocol=protocol)
+                exit_text = exit_text_updated
+                default = 'y'
+
+            confirmed = confirm(confirm_text.format(username=user.username),
+                                default=default)
+        else:
+            # From command line option --roles
+            confirmed = True
+            if roles.strip() == "0":
+                exit_text = exit_text_removed
+                role_list = []
+            else:
+                exit_text = exit_text_updated
+                role_list = [role.strip() for role in roles.split(',')]
+
+                role_list = _role_selection(persister=self.persister,
+                                            choices=role_list)
+
+        if confirmed:
+            try:
+                self.persister.begin()
+                options = {
+                    "raw": False,
+                    "fetch": False,
+                    "params": (user.user_id,),
+                    "columns": True,
+                }
+                self.persister.exec_stmt(
+                    "DELETE FROM user_roles WHERE user_id = %s", options)
+                for role_id in role_list:
+                    User.add_user_role(user.user_id, int(role_id))
+            except Exception:
+                # Whatever happens, we rollback and re-raise
+                self.persister.rollback()
+                print "Changing roles for user cancelled."
+                raise
+            else:
+                self.persister.commit()
+                print exit_text
+        else:
+            print "Changing roles cancelled."
+
+
+class UserList(UserCommand):
+    """List users and their roles
+    """
+
+    group_name = 'user'
+    command_name = 'list'
+    description = 'List roles and their permissions'
+
+    def execute(self):
+        """Display list of users
+        """
+        persister = _persistence.current_persister()
+
         options = {
             "raw": False,
             "fetch": False,
-            "params": (user.user_id,),
             "columns": True,
         }
-        cur = self.persister.exec_stmt(
-            "SELECT role_id FROM user_roles WHERE user_id = %s",
-            options)
-        current_roles = [row.role_id for row in cur]
 
-        try:
-            self.persister.begin()
-            print("\nSelect new role(s) for user, replacing current roles.")
-            print("Current roles are marke with an X.")
-            _role_listing(selected=current_roles)
-            roles = _role_selection(persister=self.persister)
+        role_perms = (
+            "SELECT u.username, u.protocol, r.name as role_name, "
+            "r.description AS role_desc,"
+            "p.permission_id, p.description AS perm_desc, p.subsystem, "
+            "p.component, p.function "
+            "FROM users as u LEFT JOIN user_roles AS ur USING (user_id) "
+            "LEFT JOIN roles AS r USING (role_id) "
+            "LEFT JOIN role_permissions USING (role_id) "
+            "LEFT JOIN permissions AS p USING (permission_id) "
+            "ORDER BY u.username, u.protocol"
+        )
+        cur = persister.exec_stmt(role_perms, options)
+        roles = {}
+        max_username_len = 0
+        max_protocol_len = 0
 
-            if not roles:
-                confirm_text = "Remove all roles of user {username}?"
-                exit_text = "Fabric user roles removed."
-                default = 'n'
+        user_info = {}
+        for row in cur:
+            if len(row.username) > max_username_len:
+                max_username_len = len(row.username)
+            if len(row.protocol) > max_protocol_len:
+                max_protocol_len = len(row.protocol)
+
+            user_tuple = (row.username, row.protocol)
+            if user_tuple not in user_info:
+                user_info[user_tuple] = []
+            if row.role_name and row.role_name not in user_info[user_tuple]:
+                user_info[user_tuple].append(row.role_name)
+
+        # Minimum sizes
+        max_username_len = max(9, max_username_len)
+        max_protocol_len = max(12, max_protocol_len)
+
+        role_fmt = ("{{username:{userlen}}} {{protocol:{protlen}}} "
+                    "{{roles}}".format(userlen=max_username_len,
+                                       protlen=max_protocol_len))
+
+        header = role_fmt.format(username="Username", protocol="Protocol",
+                                 roles="Roles")
+        print header
+        print role_fmt.format(username='-' * max_username_len,
+                              protocol='-' * max_protocol_len,
+                              roles='-' * 20)
+
+        for user_tuple, roles in user_info.iteritems():
+            username, protocol = user_tuple
+            if roles:
+                role_list = ', '.join(roles)
             else:
-                confirm_text = "Replace roles of user {username}?"
-                exit_text = "Fabric user roles updated."
-                default = 'y'
-
-            if confirm(confirm_text.format(username=user.username),
-                       default=default):
-                self.persister.exec_stmt(
-                    "DELETE FROM user_roles WHERE user_id = %s", options)
-                for role_id in roles:
-                    FabricCredential.add_user_role(user.user_id, int(role_id))
-            else:
-                exit_text = "Changing roles for user cancelled."
-
-        except Exception:
-            # Whatever happens, we rollback and re-raise
-            self.persister.rollback()
-            print("Changing roles for user cancelled.")
-            raise
-        else:
-            self.persister.commit()
-            print(exit_text)
+                role_list = '(no roles set)'
+            print role_fmt.format(username=username,
+                                  protocol=protocol,
+                                  roles=role_list)
 
 
 class RoleList(UserCommand):
-
-    """List roles and their permissions"""
+    """List roles and associated permissions
+    """
 
     group_name = 'role'
     command_name = 'list'
@@ -1082,7 +1290,7 @@ class RoleList(UserCommand):
         _role_listing(persister=self.persister)
 
 
-def check_credentials(group, command, config=None,
+def check_credentials(group, command, config,
                       username=None, password=None, protocol=None):
     """Check credentials using configuration
 
@@ -1097,18 +1305,16 @@ def check_credentials(group, command, config=None,
 
     section = 'protocol.' + protocol
 
-    if config:
-        username = config.get(section, 'username')
-        password = config.get(section, 'password')
-        realm = config.get(section, 'realm', vars=FABRIC_PROTOCOL_DEFAULTS)
+    username = config.get(section, 'user')
+    password = config.get(section, 'password')
+    realm = config.get(section, 'realm', vars=FABRIC_PROTOCOL_DEFAULTS)
 
-    user = FabricCredential.fetch_user(username, protocol, config,
-                                       password=password, realm=realm)
+    user = User.fetch_user(username, protocol, config,
+                           password=password, realm=realm)
 
     if not user:
-        import traceback
-        traceback.print_exc()
+        _LOGGER.info("Failed login for user %s/%s", username, protocol)
         raise _errors.CredentialError("Login failed")
     if not user.has_permission('core', group, command):
+        _LOGGER.info("Permission denied for user %s/%s", username, protocol)
         raise _errors.CredentialError("No permission")
-

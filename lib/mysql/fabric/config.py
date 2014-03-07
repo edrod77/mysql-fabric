@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013, 2014 Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -88,7 +88,9 @@ class Config(ConfigParser.SafeConfigParser):
         try:
             for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
                 value = self.get(section, option)
-                if not os.path.isabs(value):
+                if not value:
+                    self.remove_option(section, option)
+                elif not os.path.isabs(value):
                     self.set(section, option, os.path.join(default_path, value))
         except NoOptionError:
             # It's OK when SSL is missing

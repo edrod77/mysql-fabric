@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright (c) 2013 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013, 2014 Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,11 +16,9 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
-import sys
 import os
 import inspect
 import textwrap
-import traceback
 from getpass import getpass
 from ConfigParser import NoOptionError
 from urllib2 import HTTPError, URLError
@@ -39,7 +37,7 @@ from mysql.fabric.command import (
 from mysql.fabric import (
     __version__,
     credentials,
-    errors
+    errors,
 )
 
 from mysql.fabric.options import (
@@ -47,7 +45,7 @@ from mysql.fabric.options import (
 )
 
 from mysql.fabric.config import (
-    Config,
+    Config
 )
 
 from mysql.fabric.errors import (
@@ -103,15 +101,14 @@ def help_group(group_name):
     """
     indent = " " * 4
     try:
+        commands = get_commands(group_name)
         print
         print "Commands available in group '%s' are:" % (group_name,)
 
-        commands = get_commands(group_name)
         for cmdname in commands:
             print indent + get_command(group_name, cmdname).get_signature()
     except KeyError:
         PARSER.print_error(_ERR_GROUP_MISSING % (group_name,))
-        raise
 
     PARSER.exit(2)
 
@@ -231,7 +228,7 @@ def extract_command(args):
     return args[0], args[1], args[2:]
 
 
-def authenticate(group_name, command_name, config, options):
+def authenticate(group_name, command_name, config, options, args):
     """Prompt for username and password when needed
     """
     if (group_name == 'manage' and
@@ -243,33 +240,43 @@ def authenticate(group_name, command_name, config, options):
     except NoOptionError:
         config.set('protocol.xmlrpc', 'realm', credentials.FABRIC_REALM_XMLRPC)
 
-    # Any other command needs XMLRPC protocol
+    # Handled disabled authentication
     try:
         value = config.get('protocol.xmlrpc', 'disable_authentication')
         if value.lower() == 'yes':
-            config.set('protocol.xmlrpc', 'username', '')
+            config.set('protocol.xmlrpc', 'user', '')
             config.set('protocol.xmlrpc', 'password', '')
             return
     except NoOptionError:
         # OK when disable_authentication is missing
         pass
 
+    # The username from command line argument --user
+    try:
+        cmd_options, _ = PARSER.parse_args(args)
+        username = cmd_options.auth_user
+    except AttributeError:
+        username = None
+
+    password = None
     protocol_section = 'protocol.xmlrpc'
-    try:
-        username = config.get(protocol_section, 'username')
-    except NoOptionError:
-        print("Username for protocol '{protocol}' is required".format(
-            protocol=protocol_section
-        ))
-        sys.exit(1)
-    try:
-        password = config.get(protocol_section, 'password')
-    except NoOptionError:
-        password = None
+    if not username:
+        try:
+            username = config.get(protocol_section, 'user')
+        except NoOptionError:
+            # Referred to default 'admin' user or command line argument --user
+            username = auth_user or 'admin'
+
+        try:
+            password = config.get(protocol_section, 'password')
+        except NoOptionError:
+            password = None
 
     if not password:
         password = getpass('Password for {user}: '.format(user=username))
         config.set(protocol_section, 'password', password.strip())
+
+    config.set(protocol_section, 'user', username.strip())
 
     credentials.check_credentials(group_name, command_name, config=config)
 
@@ -395,10 +402,11 @@ def main():
         # Read configuration file
         config = Config(options.config_file, options.config_params)
 
-        authenticate(group_name, command_name, config, options)
-
         cmd, cargs = create_command(group_name, command_name,
                                     options, args, config)
+
+        authenticate(group_name, command_name, config, options, args)
+
         fire_command(cmd, *cargs)
     except (URLError, HTTPError, NoOptionError) as error:
         try:
@@ -410,11 +418,9 @@ def main():
             # print error as-is
             print str(error)
     except (KeyboardInterrupt, EOFError):
-        #traceback.print_exc(file=sys.stdout)
         print "\nBye."
     except errors.Error as error:
         print "Error: {0}".format(error)
-        #traceback.print_exc(file=sys.stdout)
 
 
 if __name__ == '__main__':
