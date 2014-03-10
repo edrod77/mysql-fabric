@@ -1457,7 +1457,7 @@ class MySQLServer(_persistence.Persistable):
 
         persister_uuid = persister.uuid
         if persister_uuid is not None and persister_uuid == server.uuid:
-            raise _errors.ServerError("Fabric's state store cannot be managed.")
+            raise _errors.ServerError("The MySQL Server instance used as Fabric's state store cannot be managed.")
 
         idx_mode = MySQLServer.get_mode_idx(server.mode)
         idx_status = MySQLServer.get_status_idx(server.status)
