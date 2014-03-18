@@ -23,8 +23,12 @@ from tests.utils import MySQLInstances
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
+    replication as _replication,
 )
-from mysql.fabric.server import MySQLServer
+from mysql.fabric.server import (
+    MySQLServer,
+    Group,
+)
 
 class TestShardingGlobalServer(unittest.TestCase):
 
@@ -620,6 +624,102 @@ class TestShardingGlobalServer(unittest.TestCase):
                 self.assertEqual(len(rows), 2)
                 self.assertEqual(rows[0][0], 'TEST 1')
                 self.assertEqual(rows[1][0], 'TEST 2')
+
+    def test_switchover_with_no_master(self):
+        """Ensure that a switchover/failover happens when masters in the
+        shard and global groups are dead.
+        """
+        # Check that a shard group has it master pointing to a the master
+        # in the global group.
+        global_group = Group.fetch("GROUPID1")
+        shard_group = Group.fetch("GROUPID2")
+        other_shard_group = Group.fetch("GROUPID3")
+        global_master = MySQLServer.fetch(global_group.master)
+        global_master.connect()
+        shard_master = MySQLServer.fetch(shard_group.master)
+        shard_master.connect()
+        other_shard_master = MySQLServer.fetch(other_shard_group.master)
+        other_shard_master.connect()
+        self.assertEqual(
+            _replication.slave_has_master(shard_master),
+            str(global_group.master)
+        )
+        self.assertEqual(
+            _replication.slave_has_master(other_shard_master),
+            str(global_group.master)
+        )
+
+        # Demote the master in the global group and check that a
+        # shard group points to None.
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, global_master.uuid)
+        self.proxy.group.demote("GROUPID1")
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, None)
+        self.assertEqual(_replication.slave_has_master(shard_master), None)
+        self.assertEqual(
+            _replication.slave_has_master(other_shard_master), None
+        )
+
+        # Demote the master in a shard group and promote the master
+        # in the global group.
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, None)
+        shard_group = Group.fetch("GROUPID2")
+        self.assertEqual(shard_group.master, shard_master.uuid)
+        self.proxy.group.demote("GROUPID2")
+        shard_group = Group.fetch("GROUPID2")
+        self.assertEqual(shard_group.master, None)
+        self.proxy.group.promote("GROUPID1", str(global_master.uuid))
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, global_master.uuid)
+        self.assertEqual(_replication.slave_has_master(shard_master), None)
+        self.assertEqual(
+            _replication.slave_has_master(other_shard_master),
+            str(global_group.master)
+        )
+
+        # Promote the master in the previous shard group and check that
+        # everything is back to normal.
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, global_master.uuid)
+        self.assertEqual(_replication.slave_has_master(shard_master), None)
+        shard_group = Group.fetch("GROUPID2")
+        self.assertEqual(shard_group.master, None)
+        self.proxy.group.promote("GROUPID2", str(shard_master.uuid))
+        self.assertEqual(
+            _replication.slave_has_master(shard_master),
+            str(global_group.master)
+        )
+        self.assertEqual(
+            _replication.slave_has_master(other_shard_master),
+            str(global_group.master)
+        )
+        shard_group = Group.fetch("GROUPID2")
+        self.assertEqual(shard_group.master, shard_master.uuid)
+
+        # Demote the master in the global group, check that a shard group
+        # points to None, promot it again and check that everything is back
+        # to normal
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, global_master.uuid)
+        shard_group = Group.fetch("GROUPID2")
+        self.assertEqual(shard_group.master, shard_master.uuid)
+        self.proxy.group.demote("GROUPID1")
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, None)
+        self.assertEqual(_replication.slave_has_master(shard_master), None)
+        self.proxy.group.promote("GROUPID1", str(global_master.uuid))
+        global_group = Group.fetch("GROUPID1")
+        self.assertEqual(global_group.master, global_master.uuid)
+        self.assertEqual(
+            _replication.slave_has_master(shard_master),
+            str(global_group.master)
+        )
+        self.assertEqual(
+            _replication.slave_has_master(other_shard_master),
+            str(global_group.master)
+        )
 
     def tearDown(self):
         self.proxy.sharding.enable_shard("1")

@@ -683,21 +683,31 @@ def _set_group_master_replication(group, server_id, update_only=False):
         group.master = server_id
         return
 
-    #Otherwise, stop the slave running on the current master
-    if group.master_group_id is not None and group.master is not None:
-        _group_replication.stop_group_slave(group.master_group_id,
-                                            group.group_id, False)
-    #Stop the Groups replicating from the current group.
-    _group_replication.stop_group_slaves(group.group_id, False)
+    try:
+        # Otherwise, stop the slave running on the current master
+        if group.master_group_id is not None and group.master is not None:
+            _group_replication.stop_group_slave(
+                group.master_group_id, group.group_id, False
+            )
+        # Stop the Groups replicating from the current group.
+        _group_replication.stop_group_slaves(group.group_id)
+    except (_errors.GroupError, _errors.DatabaseError) as error:
+        _LOGGER.error("Error accessing groups related to (%s).",
+                      group.group_id)
 
-    #set the new master
+    # Set the new master
     group.master = server_id
 
-    #If the master is not None setup the master and the slaves.
-    if group.master is not None:
-        #Start the slave groups for this group.
-        _group_replication.start_group_slaves(group.group_id)
-        if group.master_group_id is not None:
-            #Start the slave on this group
-            _group_replication.setup_group_replication(group.master_group_id,
-                                                       group.group_id)
+    try:
+        # If the master is not None setup the master and the slaves.
+        if group.master is not None:
+            # Start the slave groups for this group.
+            _group_replication.start_group_slaves(group.group_id)
+            if group.master_group_id is not None:
+                # Start the slave on this group
+                _group_replication.setup_group_replication(
+                    group.master_group_id, group.group_id
+                )
+    except (_errors.GroupError, _errors.DatabaseError) as error:
+        _LOGGER.error("Error accessing groups related to (%s).",
+                      group.group_id)

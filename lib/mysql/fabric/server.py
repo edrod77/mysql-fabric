@@ -163,6 +163,17 @@ class Group(_persistence.Persistable):
     #SQL Statement to update the group's status.
     UPDATE_STATUS = ("UPDATE groups SET status = %s WHERE group_id = %s")
 
+    #Create the referential integrity constraint with the servers table
+    ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = (
+        "ALTER TABLE groups ADD CONSTRAINT fk_master_uid_servers "
+        "FOREIGN KEY(master_uuid) REFERENCES servers(server_uuid)"
+    )
+
+    #Drop the referential integrity constraint with the servers table
+    DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = (
+        "ALTER TABLE groups DROP FOREIGN KEY fk_master_uid_servers"
+    )
+
     #Group's statuses
     INACTIVE, ACTIVE = range(0, 2)
 
@@ -512,6 +523,30 @@ class Group(_persistence.Persistable):
         _detector.FailureDetector.unregister_groups()
         persister.exec_stmt(Group.DROP_GROUP_REPLICATION)
         persister.exec_stmt(Group.DROP_GROUP)
+
+    @staticmethod
+    def add_constraints(persister=None):
+        """Add the constraints to the groups table.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        persister.exec_stmt(
+                Group.ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID
+        )
+        return True
+
+    @staticmethod
+    def drop_constraints(persister=None):
+        """Drop the constraints to the groups table.
+
+        :param persister: The DB server that can be used to access the
+                  state store.
+        """
+        persister.exec_stmt(
+            Group.DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID
+        )
+        return True
 
 class ConnectionPool(_utils.Singleton):
     """Manages MySQL Servers' connections.
