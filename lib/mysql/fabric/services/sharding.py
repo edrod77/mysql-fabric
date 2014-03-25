@@ -70,9 +70,9 @@ INVALID_SHARDING_KEY = "Invalid Key %s"
 SHARD_NOT_FOUND = "Shard %s not found"
 SHARD_LOCATION_NOT_FOUND = "Shard location not found"
 INVALID_SHARDING_HINT = "Unknown lookup hint"
-SHARD_GROUP_NOT_FOUND = "Shard group not found"
+SHARD_GROUP_NOT_FOUND = "Shard group %s not found"
 SHARD_GROUP_MASTER_NOT_FOUND = "Shard group master not found"
-SHARD_MOVE_DESTINATION_NOT_EMPTY = "Shard move destination already "\
+SHARD_MOVE_DESTINATION_NOT_EMPTY = "Shard move destination %s already "\
     "hosts a shard"
 INVALID_SHARD_SPLIT_VALUE = "The chosen split value must be between the " \
                             "lower bound and upper bound of the shard"
@@ -898,7 +898,9 @@ def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
 
     #Ensure that the group does not already contain a shard.
     if (Shards.lookup_shard_id(destn_group_id) is not None):
-        raise _errors.ShardingError(SHARD_MOVE_DESTINATION_NOT_EMPTY)
+        raise _errors.ShardingError(
+            SHARD_MOVE_DESTINATION_NOT_EMPTY % (destn_group_id, )
+        )
 
     #Fetch the group information for the source shard that
     #needs to be moved.
@@ -912,7 +914,7 @@ def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
 
     destn_group = Group.fetch(destn_group_id)
     if destn_group is None:
-        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
+        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND % (destn_group_id, ))
 
     if not update_only:
         _events.trigger_within_procedure(
@@ -986,7 +988,7 @@ def _restore_shard_backup(shard_id,  source_group_id, destn_group_id,
     """
     destn_group = Group.fetch(destn_group_id)
     if destn_group is None:
-        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
+        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND % (destn_group_id, ))
 
     #Build a backup image that will be used for restoring
     bk_img = _backup.BackupImage(backup_image)
@@ -1026,11 +1028,11 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
     """
     source_group = Group.fetch(source_group_id)
     if source_group is None:
-        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
+        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND % (source_group_id, ))
 
     destination_group = Group.fetch(destn_group_id)
     if destination_group is None:
-        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
+        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND % (destination_group_id, ))
 
     master = MySQLServer.fetch(source_group.master)
     if master is None:
@@ -1164,7 +1166,7 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     #during the sync. Remove the read_only flag.
     source_group = Group.fetch(source_group_id)
     if source_group is None:
-        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
+        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND % (source_group_id, ))
 
     source_group_master = MySQLServer.fetch(source_group.master)
     if source_group_master is None:
@@ -1236,7 +1238,7 @@ def _setup_shard_switch_move(shard_id,  source_group_id, destination_group_id,
     #Reset the read only flag on the source server.
     source_group = Group.fetch(source_group_id)
     if source_group is None:
-        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND)
+        raise _errors.ShardingError(SHARD_GROUP_NOT_FOUND % (source_group_id, ))
 
     master = MySQLServer.fetch(source_group.master)
     if master is None:
