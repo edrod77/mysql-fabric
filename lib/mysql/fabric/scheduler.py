@@ -288,7 +288,7 @@ class LockManager(object):
         """
         # Dictionary that maps procedures to objects that it already
         # has acquired a lock on.
-        head_procedures = {}
+        head_procedures = set()
         objects, _, _ = self._procedure_enqueued(procedure)
 
         # Remove the information on the procedure from the procedures'
@@ -301,6 +301,7 @@ class LockManager(object):
 
         # Remove the information on the procedure from the objects'
         # dictionary.
+        _LOGGER.debug("Released procedure - %s objects %s.", procedure, objects)
         for obj in objects:
             # The wait_queue contains the list of procedures willing
             # to lock the object.
@@ -313,12 +314,15 @@ class LockManager(object):
             elif wait_queue[0] not in self.__free:
                 # If a procedure is at the head of the queue it has a lock
                 # on the object.
-                acquired_objects = head_procedures.get(wait_queue[0], set())
-                acquired_objects.add(obj)
-                head_procedures[wait_queue[0]] = acquired_objects
+                head_procedures.add(wait_queue[0])
 
-        for procedure in head_procedures.iterkeys():
-            if head_procedures[procedure] == self.__procedures[procedure][0]:
+        _LOGGER.debug("Possible affected procedures %s.", head_procedures)
+        for procedure in head_procedures:
+            objects, _, _ = self.__procedures[procedure]
+            procedures = set([self.__objects[obj][0] for obj in objects])
+            assert(len(procedures) > 0)
+            if procedures == set([procedure]):
+                _LOGGER.debug("Procedure %s is ready to be executed.", procedure)
                 # If the requested set of objects is equal to the acquired
                 # set of objects, the procedure is ready to go.
                 self.__free.append(procedure)
