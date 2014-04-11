@@ -93,6 +93,8 @@ SPLIT_VALUE_NOT_DEFINED = "Splitting a RANGE shard definition requires a split"\
 INVALID_SPLIT_VALUE = "Invalid value given for shard splitting"
 NO_LOWER_BOUND_FOR_HASH_SHARDING = "Lower bound should not be specified "\
                                 "for hash based sharding"
+MYSQLDUMP_NOT_FOUND = "Unable to find MySQLDump in location %s"
+MYSQLCLIENT_NOT_FOUND = "Unable to find MySQL Client in location %s"
 
 DEFINE_SHARD_MAPPING = _events.Event("DEFINE_SHARD_MAPPING")
 class DefineShardMapping(ProcedureShard):
@@ -849,10 +851,38 @@ def _prune_shard_tables(table_name):
     SHARDING_SPECIFICATION_HANDLER[shard_mapping.type_name].delete_from_shard_db\
         (table_name, shard_mapping.type_name)
 
+def _is_valid_binary(binary):
+    """Prints if the binary was found in the given path.
+
+    :param binary: The full path to the binary that needs to be verified.
+
+    :return True: If the binary was found
+        False: If the binary was not found.
+    """
+    import os
+    return os.path.isfile(binary) and os.access(binary, os.X_OK)
+
 @_events.on_event(CHECK_SHARD_INFORMATION)
 def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
                              mysqlclient_binary, split_value, cmd,
                              update_only):
+    """Verify the sharding information before starting a re-sharding operation.
+
+    :param shard_id: The destination shard ID.
+    :param destn_group_id: The Destination group ID.
+    :param mysqldump_binary: The path to the mysqldump binary.
+    :param mysqlclient_binary: The path to the mysqlclient binary.
+    :param split_value: The point at which the sharding definition should be split.
+    :param cmd: Indicates if it is a split or a move being executed.
+    :param update_only: If the operation is a update only operation.
+    """
+
+    if not _is_valid_binary(mysqldump_binary):
+        raise _errors.ShardingError(MYSQLDUMP_NOT_FOUND % mysqldump_binary)
+
+    if not _is_valid_binary(mysqlclient_binary):
+        raise _errors.ShardingError(MYSQLCLIENT_NOT_FOUND % mysqlclient_binary)
+
     if cmd == "SPLIT":
         range_sharding_spec, _,  shard_mappings, _ = \
             _verify_and_fetch_shard(shard_id)

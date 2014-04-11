@@ -23,15 +23,25 @@ mysqldump.
 
 from abc import ABCMeta, abstractmethod
 
+import logging
 import shlex
 import subprocess
 
-import mysql.fabric.errors as _errors
-import mysql.fabric.server_utils as _server_utils
+from subprocess import (
+    Popen,
+    PIPE,
+)
+
+from mysql.fabric import (
+    errors as _errors,
+    server_utils as _server_utils,
+)
 
 from urlparse import urlparse
 
 from mysql.fabric.server import MySQLServer
+
+_LOGGER = logging.getLogger(__name__)
 
 class BackupImage(object):
     """Class that represents a backup image to which the output
@@ -164,7 +174,16 @@ class MySQLDump(BackupMethod):
     """
 
     MYSQL_DEFAULT_PORT = 3306
-    MYSQLDUMP_ERROR_WARNING_LOG = "sharding_mysqldump_warning.log"
+
+    @staticmethod
+    def dump_to_log(message, error_lines=None):
+        """Write the error lines to the log.
+
+        :param message: The message signifying the start of the below log.
+        :param error_lines: The error lines that were output by the command.
+        """
+        if error_lines:
+            _LOGGER.debug(message + ": " + error_lines)
 
     @staticmethod
     def backup(server, mysqldump_binary=None):
@@ -199,7 +218,6 @@ class MySQLDump(BackupMethod):
         #Setup the MYSQLDump command that is used to backup the server.
         #Append the password parameter if the password is not None.
         mysqldump_command.extend([
-             "--log-error=" + MySQLDump.MYSQLDUMP_ERROR_WARNING_LOG,
              "--all-databases", "--single-transaction",
             "--add-drop-table",
             "--triggers", "--routines",
@@ -212,23 +230,18 @@ class MySQLDump(BackupMethod):
             mysqldump_command.append("-p" + str(server.passwd))
 
         #Run the backup command
-        try:
-            with open(destination,"w") as fd_file:
-                subprocess.check_call(
-                    mysqldump_command,
-                    stdout=fd_file,
-                    shell=False
+        with open(destination,"w") as fd_file:
+            p = Popen(mysqldump_command, stdout=fd_file, stderr=PIPE)
+            _, error_lines = p.communicate()
+            if p.returncode:
+                MySQLDump.dump_to_log(
+                    "Error while taking backup using MySQLDump\n",
+                    error_lines
                 )
-        except subprocess.CalledProcessError as error:
-            raise _errors.ShardingError(
-                "Error while doing backup {ERROR}"
-                .format(ERROR=str(error))
-            )
-        except OSError as error:
-            raise _errors.ShardingError(
-                "Error while doing backup {ERROR}"
-                .format(ERROR=str(error))
-            )
+                raise _errors.BackupError(
+                    "Error while taking backup using MySQLDump\n, %s",
+                    error_lines
+                )
 
         #Return the backup image containing the location of the .sql file.
         return BackupImage(destination)
@@ -272,25 +285,25 @@ class MySQLDump(BackupMethod):
 
         #Fire the mysql client for the restore using the input image as
         #the restore source.
-        try:
-            with open(image.path,"r") as fd_file:
-                subprocess.check_call(mysqlclient_command, stdin=fd_file,
-                                      shell=False)
-        except subprocess.CalledProcessError as error:
-            raise _errors.ShardingError(
-                "Error while doing backup {ERROR}"
-                .format(ERROR=str(error))
-            )
-        except OSError as error:
-            raise _errors.ShardingError(
-                "Error while doing backup {ERROR}"
-                .format(ERROR=str(error))
-            )
+        with open(image.path,"r") as fd_file:
+            p = Popen(mysqlclient_command, stdin=fd_file, stderr=PIPE)
+            _, error_lines = p.communicate()
+            if p.returncode:
+                MySQLDump.dump_to_log(
+                    "Error while restoring the backup using "\
+                    "the mysql client\n",
+                    error_lines
+                )
+                raise _errors.BackupError(
+                    "Error while restoring the backup using "\
+                    "the mysql client\n, %s",
+                    error_lines
+                )
 
-        @abstractmethod
-        def copyBackup(image):
-            """Currently the MySQLDump based backup method works by backing
-            up on the FABRIC server and restoring from there. This method is not
-            required for the current implemention of MySQDump based backup.
-            """
-            pass
+    @abstractmethod
+    def copyBackup(image):
+        """Currently the MySQLDump based backup method works by backing
+        up on the FABRIC server and restoring from there. This method is not
+        required for the current implemention of MySQDump based backup.
+        """
+        pass

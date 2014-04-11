@@ -164,6 +164,37 @@ class TestShardSplit(unittest.TestCase):
                                   "VALUES(703, 'TEST 6')")
         shard_server.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(704, 'TEST 7')")
+        self.split_fail = False
+
+    def test_shard_split_fail_GTID_EXECUTED(self):
+        self.split_fail = True
+        status = self.proxy.group.lookup_servers("GROUPID3")
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        obtained_server_list = status[2]
+        for obtained_server in obtained_server_list:
+            if obtained_server["status"] == "PRIMARY":
+                shard_uuid = obtained_server["server_uuid"]
+                shard_server = MySQLServer.fetch(shard_uuid)
+                shard_server.connect()
+                break
+        shard_server.exec_stmt("DROP DATABASE IF EXISTS Extra")
+        shard_server.exec_stmt("CREATE DATABASE Extra")
+        shard_server.exec_stmt("CREATE TABLE Extra.Extra_Table"
+                                  "(userID INT, name VARCHAR(30))")
+        shard_server.exec_stmt("INSERT INTO Extra.Extra_Table "
+                                  "VALUES(101, 'TEST 1')")
+        shard_server.exec_stmt("INSERT INTO Extra.Extra_Table "
+                                  "VALUES(102, 'TEST 2')")
+        shard_server.exec_stmt("INSERT INTO Extra.Extra_Table "
+                                  "VALUES(103, 'TEST 3')")
+        shard_server.exec_stmt("INSERT INTO Extra.Extra_Table "
+                                  "VALUES(701, 'TEST 4')")
+        status = self.proxy.sharding.split_shard("1", "GROUPID3", "600")
+        self.assertStatus(status, _executor.Job.ERROR)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Tried to execute action (_restore_shard_backup).")
 
     def test_shard_split(self):
         status = self.proxy.sharding.split_shard("1", "GROUPID3", "600")
@@ -350,29 +381,42 @@ class TestShardSplit(unittest.TestCase):
             shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
             shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
 
-        status = self.proxy.sharding.disable_shard("2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+        if not self.split_fail:
+            status = self.proxy.sharding.disable_shard("2")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_disable_shard).")
 
-        status = self.proxy.sharding.disable_shard("3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+            status = self.proxy.sharding.disable_shard("3")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_disable_shard).")
 
-        status = self.proxy.sharding.remove_shard("2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+            status = self.proxy.sharding.remove_shard("2")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_remove_shard).")
 
-        status = self.proxy.sharding.remove_shard("3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+            status = self.proxy.sharding.remove_shard("3")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_remove_shard).")
+        else:
+            status = self.proxy.sharding.disable_shard("1")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_disable_shard).")
+
+            status = self.proxy.sharding.remove_shard("1")
+            self.assertStatus(status, _executor.Job.SUCCESS)
+            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+            self.assertEqual(status[1][-1]["description"],
+                             "Executed action (_remove_shard).")
 
         status = self.proxy.sharding.remove_table("db1.t1")
         self.assertStatus(status, _executor.Job.SUCCESS)

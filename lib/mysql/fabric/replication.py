@@ -158,8 +158,6 @@ def is_slave_thread_running(server, threads=None):
 @_server.server_logging
 def slave_has_master(server):
     """Return the master's uuid to which the slave is connected to.
-    If the slave is not connected to any master, what happens if the
-    IO Thread is stopped, None is returned.
 
     :return: Master's uuid or None.
     :rtype: String.

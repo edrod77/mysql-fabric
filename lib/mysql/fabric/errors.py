@@ -114,6 +114,12 @@ class ShardingError(ServiceError):
     """
     pass
 
+class BackupError(Error):
+    """Exception raised when a error occurs in the backup restore framework
+    of Fabric.
+    """
+    pass
+
 class CredentialError(Error):
     """Exception raised when something is wrong with credentials"""
     pass
