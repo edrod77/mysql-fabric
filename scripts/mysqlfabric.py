@@ -265,7 +265,7 @@ def authenticate(group_name, command_name, config, options, args):
             username = config.get(protocol_section, 'user')
         except NoOptionError:
             # Referred to default 'admin' user or command line argument --user
-            username = auth_user or 'admin'
+            username = 'admin'
 
         try:
             password = config.get(protocol_section, 'password')
