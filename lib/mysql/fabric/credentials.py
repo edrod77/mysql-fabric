@@ -1297,6 +1297,9 @@ def check_credentials(group, command, config,
     :raises errors.CredentialError: if login failed, or if user has no
                                     permission
     """
+    if group not in ('user', 'role'):
+        return
+
     _configure_connections(config)
     _persistence.init_thread()
 
