@@ -124,17 +124,19 @@ class CommandMeta(type):
         type.__init__(cls, cname, cbases, cdict)
 
         try:
-            cls.group_name
+            if not cls.group_name:
+                raise AttributeError
         except AttributeError:
             cls.group_name = cdict["__module__"]
 
         try:
-            cls.command_name
+            if not cls.command_name:
+                raise AttributeError
         except AttributeError:
             cls.command_name = cname.lower()
 
         if cls.command_name not in CommandMeta.IgnoredCommand and \
-            re.match("[A-Za-z]\w+", cls.command_name):
+            re.match(r"[A-Za-z]\w+", cls.command_name):
             register_command(cls.group_name, cls.command_name, cls)
 
     @classmethod
@@ -204,6 +206,10 @@ class Command(object):
     """
     __metaclass__ = CommandMeta
 
+    group_name = None
+
+    command_name = None
+
     command_options = []
 
     def __init__(self):
@@ -264,8 +270,9 @@ class Command(object):
         if args:
             args_list.extend(args)
         if self.command_options:
-            #Get the optional parameters from the options object. Append these to
-            #the arguments list so that they can be passed to the execute method.
+            #Get the optional parameters from the options object. Append these
+            #to the arguments list so that they can be passed to the execute
+            #method.
             for option in self.command_options:
                 if option['dest'] == 'auth_user':
                     continue
@@ -356,6 +363,12 @@ class Command(object):
         status = self.client.dispatch(self, *args)
         return self.command_status(status)
 
+    def execute(self):
+        """Any command derived from this class must redefine this
+        method.
+        """
+        raise _errors.ProgrammingError("The execute method is not defined.")
+
     @staticmethod
     def command_status(status, details=False):
         """Present the result reported by a command in a friendly-user way.
@@ -425,7 +438,8 @@ class Command(object):
         if cargs.defaults is not None:
             default_params = []
             #Iterate through the default arguments building a key value pair
-            for opt, value in zip(reversed(cargs.args), reversed(cargs.defaults)):
+            for opt, value in \
+                zip(reversed(cargs.args), reversed(cargs.defaults)):
                 if type(value) is not bool:
                     tmp = "[--" + str(opt) + "=" + str(value).upper() + "]"
                 else:
@@ -523,12 +537,6 @@ class ProcedureCommand(Command):
                 procedure_param[-1].result
         else:
             return str(procedure_param[-1].uuid)
-
-    def execute(self):
-        """Any command derived from this class must redefine this
-        method.
-        """
-        pass
 
     @staticmethod
     def procedure_status(status, details=False):
