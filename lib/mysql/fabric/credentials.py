@@ -922,7 +922,7 @@ class UserCommand(_command.Command):
         self.execute(*args)
 
     def execute(self, *args):
-        raise NotImplemented
+        raise NotImplementedError
 
     def _ask_credentials(self, username, ask_password=True, title=None):
         """Ask for credentials

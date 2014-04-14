@@ -137,9 +137,6 @@ class MyRequestHandler(SimpleXMLRPCRequestHandler):
                                             client_address, server)
 
     def send_authentication(self, nonce):
-        if False and not self._cnx:
-            self._cnx = _server_utils.create_mysql_connection(
-                **self._cnx_info)
         self.send_response(401)
         nonce = create_rfc2617_nonce(self._server.hashfunc,
                                      self._server.private_key)
