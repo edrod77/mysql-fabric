@@ -86,11 +86,16 @@ class OptionParser(optparse.OptionParser):
     def print_help(self):
         """Print help information to the standard output.
         """
+        self.set_usage(
+            "Usage: %prog [--param, --config] <grp> <cmd> [arg, ...]."
+        )
+
         optparse.OptionParser.print_help(self)
+
         print "\n".join([
                 "",
                 "Basic commands:",
-                "    help <mod> <cmd>  Show help for command",
+                "    help <grp> <cmd>  Show help for command",
                 "    help commands     List all commands",
                 "    help groups       List all groups",
         ])

@@ -57,7 +57,7 @@ _ERR_GROUP_MISSING = "group '%s' does not exist"
 _ERR_EXTRA_ARGS = "Too many arguments to '%s'"
 
 PARSER = OptionParser(
-    usage="Usage: %prog <grp> <cmd> [<option> ...] arg ...",
+    usage="",
     version="%prog " + __version__,
     description=("MySQL Fabric {0} - MySQL server farm "
                  "management framework").format(__version__)
@@ -311,6 +311,22 @@ def create_command(group_name, command_name, options, args, config):
         )
 
 
+def error_usage_text(group_name, command_name):
+    """Print Usage information upon error while invoking the command.
+
+    :param group_name: The Group of the command (sharding, server etc).
+    :param command_name: The command name.
+    """
+    cls = get_command(group_name, command_name)
+    command_text = cls.get_signature()
+    print "Usage: ", command_text, "\n"
+    PARSER.error(
+        "Wrong number of parameters were provided "
+        "for command '%s %s'." % (
+            group_name, command_name,
+        )
+    )
+
 def fire_command(command, *args):
     """Fire a command.
 
@@ -331,25 +347,14 @@ def fire_command(command, *args):
         if spec.defaults:
             defaults_len = len(spec.defaults)
         if len(args) != len(spec.args) - defaults_len - 1:
-            PARSER.error(
-                "Wrong number of parameters were provided "
-                "for command '%s %s'." % (
-                    command.group_name, command.command_name,
-                )
-            )
-
+            error_usage_text(command.group_name, command.command_name)
         # Execute command by dispatching it on the client side. Append the
         #optional arguments passed by the user to the argument list.
         result = command.dispatch(*(command.append_options_to_args(args)))
         if result is not None:
             print result
     except TypeError:
-        PARSER.error(
-            "Wrong number of parameters were provided for command '{group} "
-            "{command}'.".format(group=command.group_name,
-                                 command=command.command_name)
-        )
-
+        error_usage_text(command.group_name, command.command_name)
 
 def main():
     """Start mysqlfabric.py script
