@@ -18,6 +18,7 @@
 
 import os
 import inspect
+import sys
 import textwrap
 from getpass import getpass
 from ConfigParser import NoOptionError
@@ -395,8 +396,11 @@ def main():
             try:
                 directory = os.path.dirname(__file__)
             except NameError:
-                directory = os.path.abspath(
-                    inspect.getfile(inspect.currentframe()))
+                if hasattr(sys, 'frozen'):
+                    directory = os.path.dirname(sys.executable)
+                else:
+                    directory = os.path.abspath(
+                        inspect.getfile(inspect.currentframe()))
             prefix = os.path.realpath(os.path.join(directory, '..'))
             if os.name == 'posix' and prefix in ('/', '/usr'):
                 config_file = '/etc/mysql/fabric.cfg'
@@ -426,6 +430,8 @@ def main():
         print "\nBye."
     except errors.Error as error:
         print "Error: {0}".format(error)
+    except IOError as error:
+        print "Error reading configuration file: {0}".format(error)
 
 
 if __name__ == '__main__':
