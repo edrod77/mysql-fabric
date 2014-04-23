@@ -159,17 +159,17 @@ class TestSharding(unittest.TestCase):
             ShardMapping.add(self.__shard_mapping_id_5, "prune_db.prune_table",
                              "userID")
 
-        self.__shard_id_1 = Shards.add("GROUPID1")
-        self.__shard_id_2 = Shards.add("GROUPID10")
-        self.__shard_id_3 = Shards.add("GROUPID11")
-        self.__shard_id_4 = Shards.add("GROUPID4")
-        self.__shard_id_5 = Shards.add("GROUPID5")
-        self.__shard_id_6 = Shards.add("GROUPID6")
-        self.__shard_id_7 = Shards.add("GROUPID7")
-        self.__shard_id_8 = Shards.add("GROUPID8")
-        self.__shard_id_9 = Shards.add("GROUPID9")
-        self.__shard_id_10 = Shards.add("GROUPID2")
-        self.__shard_id_11 = Shards.add("GROUPID3")
+        self.__shard_id_1 = Shards.add("GROUPID1", "ENABLED")
+        self.__shard_id_2 = Shards.add("GROUPID10", "ENABLED")
+        self.__shard_id_3 = Shards.add("GROUPID11", "DISABLED")
+        self.__shard_id_4 = Shards.add("GROUPID4", "ENABLED")
+        self.__shard_id_5 = Shards.add("GROUPID5", "ENABLED")
+        self.__shard_id_6 = Shards.add("GROUPID6", "ENABLED")
+        self.__shard_id_7 = Shards.add("GROUPID7", "ENABLED")
+        self.__shard_id_8 = Shards.add("GROUPID8", "ENABLED")
+        self.__shard_id_9 = Shards.add("GROUPID9", "ENABLED")
+        self.__shard_id_10 = Shards.add("GROUPID2", "ENABLED")
+        self.__shard_id_11 = Shards.add("GROUPID3", "ENABLED")
 
         self.__range_sharding_specification_1 = RangeShardingSpecification.add(
             self.__shard_mapping_1.shard_mapping_id,
@@ -321,7 +321,6 @@ class TestSharding(unittest.TestCase):
                                  ['3', 'RANGE', 'GROUPID12']]]
         self.__setofshardindexes = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
                                     ['1001', '1', '2', 'GROUPID10'],
-                                    ['2001', '1', '3', 'GROUPID11'],
                                     ['3001', '2', '4', 'GROUPID4'],
                                     ['4001', '2', '5', 'GROUPID5'],
                                     ['6001', '3', '6', 'GROUPID6'],
@@ -331,18 +330,15 @@ class TestSharding(unittest.TestCase):
                                     ['100', '5', '10', 'GROUPID2'],
                                     ['201', '5', '11', 'GROUPID3']]]
         self.__setofshardindexes_1 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                      ['1001', '1', '2', 'GROUPID10'],
-                                      ['2001', '1', '3', 'GROUPID11']]]
+                                      ['1001', '1', '2', 'GROUPID10']]]
         self.__setofshardindexes_3 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
                                       ['1001', '1', '2', 'GROUPID10'],
-                                      ['2001', '1', '3', 'GROUPID11'],
                                       ['3001', '2', '4', 'GROUPID4'],
                                       ['4001', '2', '5', 'GROUPID5'],
                                           ['6001', '3', '6', 'GROUPID6'],
                                           ['7001', '3', '7', 'GROUPID7']]]
         self.__setofshardindexes_5 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
                                       ['1001', '1', '2', 'GROUPID10'],
-                                      ['2001', '1', '3', 'GROUPID11'],
                                       ['3001', '2', '4', 'GROUPID4'],
                                       ['4001', '2', '5', 'GROUPID5'],
                                       ['6001', '3', '6', 'GROUPID6'],
@@ -354,15 +350,11 @@ class TestSharding(unittest.TestCase):
         self.__shardinginformation_1 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
                                         '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
                                         ['db1', 't1', 'userID1', '1001',
-                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                        ['db1', 't1', 'userID1', '2001',
-                                        '3', 'RANGE', 'GROUPID11', 'GROUPID10']]]
+                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10']]]
         self.__shardinginformation_2 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
                                         '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
                                         ['db1', 't1', 'userID1', '1001',
                                         '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                        ['db1', 't1', 'userID1', '2001',
-                                        '3', 'RANGE', 'GROUPID11', 'GROUPID10'],
                                         ['db2', 't2', 'userID2', '3001',
                                         '4', 'RANGE', 'GROUPID4', 'GROUPID11'],
                                         ['db2', 't2', 'userID2', '4001',
@@ -371,8 +363,6 @@ class TestSharding(unittest.TestCase):
                                         '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
                                         ['db1', 't1', 'userID1', '1001',
                                         '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                        ['db1', 't1', 'userID1', '2001',
-                                        '3', 'RANGE', 'GROUPID11', 'GROUPID10'],
                                         ['db2', 't2', 'userID2', '3001',
                                         '4','RANGE', 'GROUPID4', 'GROUPID11'],
                                         ['db2', 't2', 'userID2', '4001',
