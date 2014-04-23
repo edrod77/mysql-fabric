@@ -98,7 +98,8 @@ class ShardMapping(_persistence.Persistable):
         "shard_maps AS m RIGHT JOIN shard_tables AS t USING (shard_mapping_id) "
         "LEFT JOIN shard_ranges AS r USING (shard_mapping_id) "
         "LEFT JOIN shards AS s USING (shard_id) "
-        "WHERE table_name LIKE %s "
+        "WHERE table_name LIKE %s AND "
+        "s.state = 'ENABLED' "
         "ORDER BY r.shard_id, t.table_name, t.column_name, r.lower_bound"
     )
 
@@ -700,7 +701,8 @@ class Shards(_persistence.Persistable):
                             "shard_maps AS m JOIN shard_ranges AS sr "
                             "USING (shard_mapping_id) "
                             "JOIN shards AS s USING (shard_id) "
-                            "WHERE sr.shard_mapping_id LIKE %s "
+                            "WHERE sr.shard_mapping_id LIKE %s AND "
+                            "s.state = 'ENABLED' "
                             "ORDER BY s.shard_id, sr.shard_mapping_id, "
                             "sr.lower_bound, s.group_id"
                             )
