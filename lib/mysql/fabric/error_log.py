@@ -68,19 +68,10 @@ class ErrorLog(_persistence.Persistable):
         "TIMEDIFF(UTC_TIMESTAMP(), reported) > MAKETIME(%s,0,0)"
     )
 
-    DROP_SERVER_ERROR_LOG = ("DROP TABLE error_log")
-
-    DROP_EVENT_ERROR_LOG = ("DROP EVENT prune_error_log")
-
     ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID = (
         "ALTER TABLE error_log ADD CONSTRAINT "
         "fk_server_uuid_error_log FOREIGN KEY(server_uuid) "
         "REFERENCES servers(server_uuid)"
-    )
-
-    DROP_FOREIGN_KEY_CONSTRAINT_SERVER_UUID = (
-        "ALTER TABLE error_log DROP FOREIGN KEY "
-        "fk_server_uuid_error_log"
     )
 
     QUERY_SERVER_ERROR_LOG = (
@@ -111,16 +102,6 @@ class ErrorLog(_persistence.Persistable):
         )
 
     @staticmethod
-    def drop(persister=None):
-        """Drop the objects(tables) that store server's errors.
-
-        :param persister: Persister to persist the object to.
-        :raises: DatabaseError If the table does not exist.
-        """
-        persister.exec_stmt(ErrorLog.DROP_EVENT_ERROR_LOG)
-        persister.exec_stmt(ErrorLog.DROP_SERVER_ERROR_LOG)
-
-    @staticmethod
     def add_constraints(persister=None):
         """Add the constraints to the error_log table.
 
@@ -129,18 +110,6 @@ class ErrorLog(_persistence.Persistable):
         """
         persister.exec_stmt(
                 ErrorLog.ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID)
-        return True
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints to the error_log table.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(
-            ErrorLog.DROP_FOREIGN_KEY_CONSTRAINT_SERVER_UUID
-        )
         return True
 
     @staticmethod

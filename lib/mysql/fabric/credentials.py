@@ -338,16 +338,6 @@ class User(_persistence.Persistable):
                                persister=persister)
 
     @staticmethod
-    def drop(persister=None):
-        """Drop tables for FabricCredential
-
-        :param persister: A valid handle to the state store.
-        """
-        for table_name in reversed(_SQL_TABLES):
-            drop_table = "DROP TABLE IF EXISTS {0}".format(table_name)
-            persister.exec_stmt(drop_table)
-
-    @staticmethod
     def fetch_user(username, protocol, config=None, password=None, realm=None,
                    persister=None):
         """Fetch the information about a user using particular protocol

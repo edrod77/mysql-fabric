@@ -106,13 +106,6 @@ class Group(_persistence.Persistable):
                             "REFERENCES groups(group_id), "
                             "INDEX idx_slave_group_id(slave_group_id))")
 
-    #SQL Statements for dropping the table created for storing the Group
-    #information
-    DROP_GROUP = ("DROP TABLE groups")
-
-    #Drop the table that stores the master group of a particular group.
-    DROP_GROUP_REPLICATION = ("DROP TABLE group_replication")
-
     #SQL statement for inserting a new group into the table
     INSERT_GROUP = ("INSERT INTO groups(group_id, description, status) "
                     "VALUES(%s, %s, %s)")
@@ -167,11 +160,6 @@ class Group(_persistence.Persistable):
     ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = (
         "ALTER TABLE groups ADD CONSTRAINT fk_master_uid_servers "
         "FOREIGN KEY(master_uuid) REFERENCES servers(server_uuid)"
-    )
-
-    #Drop the referential integrity constraint with the servers table
-    DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = (
-        "ALTER TABLE groups DROP FOREIGN KEY fk_master_uid_servers"
     )
 
     #Group's statuses
@@ -504,25 +492,7 @@ class Group(_persistence.Persistable):
         :raises: DatabaseError If the table already exists.
         """
         persister.exec_stmt(Group.CREATE_GROUP)
-
-        try:
-            persister.exec_stmt(Group.CREATE_GROUP_REPLICATION)
-        except _errors.DatabaseError:
-            persister.exec_stmt(Group.DROP_GROUP)
-            raise
-
-    @staticmethod
-    def drop(persister=None):
-        """Drop the objects(tables) that represent the Group information in
-        the persistent store.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
-        :raises: DatabaseError If the drop of the related table fails.
-        """
-        _detector.FailureDetector.unregister_groups()
-        persister.exec_stmt(Group.DROP_GROUP_REPLICATION)
-        persister.exec_stmt(Group.DROP_GROUP)
+        persister.exec_stmt(Group.CREATE_GROUP_REPLICATION)
 
     @staticmethod
     def add_constraints(persister=None):
@@ -536,17 +506,6 @@ class Group(_persistence.Persistable):
         )
         return True
 
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints to the groups table.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(
-            Group.DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID
-        )
-        return True
 
 class ConnectionPool(_utils.Singleton):
     """Manages MySQL Servers' connections.
@@ -672,19 +631,10 @@ class MySQLServer(_persistence.Persistable):
         "INDEX idx_group_id (group_id))"
     )
 
-    #SQL Statement for dropping the table used to store the details about the
-    #server.
-    DROP_SERVER = ("DROP TABLE servers")
-
     #Create the referential integrity constraint with the groups table
     ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = (
         "ALTER TABLE servers ADD CONSTRAINT fk_group_id_servers "
         "FOREIGN KEY(group_id) REFERENCES groups(group_id)"
-    )
-
-    #Drop the referential integrity constraint with the groups table
-    DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = (
-        "ALTER TABLE servers DROP FOREIGN KEY fk_group_id_servers"
     )
 
     #SQL statement for inserting a new server into the table
@@ -1451,16 +1401,6 @@ class MySQLServer(_persistence.Persistable):
         persister.exec_stmt(MySQLServer.CREATE_SERVER)
 
     @staticmethod
-    def drop(persister=None):
-        """Drop the objects(tables) that represent the Server information in
-        the persistent store.
-
-        :param persister: Persister to persist the object to.
-        :raises: DatabaseError If the drop of the related table fails.
-        """
-        persister.exec_stmt(MySQLServer.DROP_SERVER)
-
-    @staticmethod
     def add_constraints(persister=None):
         """Add the constraints to the servers table.
 
@@ -1469,16 +1409,6 @@ class MySQLServer(_persistence.Persistable):
         """
         persister.exec_stmt(
                 MySQLServer.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        return True
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints to the servers table.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(MySQLServer.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
         return True
 
     @staticmethod

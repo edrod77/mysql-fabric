@@ -396,8 +396,8 @@ class MySQLPersister(object):
         conn = _server_utils.create_mysql_connection(
             autocommit=True, use_unicode=False, **cls.connection_info
         )
-        conn.cursor().execute(
-            "CREATE DATABASE IF NOT EXISTS %s" % (cls.database, )
+        _server_utils.exec_mysql_stmt(
+            conn, "CREATE DATABASE %s" % (cls.database, )
         )
 
     @classmethod
@@ -412,8 +412,8 @@ class MySQLPersister(object):
         conn = _server_utils.create_mysql_connection(
             autocommit=True, use_unicode=False, **cls.connection_info
         )
-        conn.cursor().execute(
-            "DROP DATABASE IF EXISTS %s" % (cls.database, )
+        _server_utils.exec_mysql_stmt(
+            conn, "DROP DATABASE IF EXISTS %s" % (cls.database, )
         )
 
     def __init__(self):
@@ -587,23 +587,26 @@ def setup(config=None):
     MySQLPersister.setup()
 
     persister = MySQLPersister()
-    for cls in PersistentMeta.classes:
-        if hasattr(cls, 'create'):
-            _LOGGER.debug("Create database objects for %s", cls.__name__)
-            if 'config' in inspect.getargspec(cls.create):
-                cls.create(persister=persister, config=config)
-            else:
-                # create() does not support config
-                cls.create(persister=persister)
+    try:
+        for cls in PersistentMeta.classes:
+            if hasattr(cls, 'create'):
+                _LOGGER.debug("Create database objects for %s", cls.__name__)
+                if 'config' in inspect.getargspec(cls.create):
+                    cls.create(persister=persister, config=config)
+                else:
+                    # create() does not support config
+                    cls.create(persister=persister)
 
-    #Initialize the constraints after creating the tables.
-    for cls in PersistentMeta.classes:
-        #Call the add_constraints method of those classes that sub-class from
-        #Persistence and those which have an implementation of add_constraints.
-        if hasattr(cls, 'add_constraints'):
-            _LOGGER.debug("Create constraints for %s", cls.__name__)
-            cls.add_constraints(persister=persister)
-
+        #Initialize the constraints after creating the tables.
+        for cls in PersistentMeta.classes:
+            #Call the add_constraints method of those classes that sub-class from
+            #Persistence and those which have an implementation of add_constraints.
+            if hasattr(cls, 'add_constraints'):
+                _LOGGER.debug("Create constraints for %s", cls.__name__)
+                cls.add_constraints(persister=persister)
+    except _errors.DatabaseError:
+        MySQLPersister.teardown()
+        raise
 
 def teardown():
     """Teardown the persistance system globally.
@@ -613,20 +616,4 @@ def teardown():
     emove all necessary tables.
     """
     _LOGGER.info("Teardown persister.")
-
-    persister = MySQLPersister()
-    for cls in PersistentMeta.classes:
-        #The constraints are dropped before dropping the tables.
-        if hasattr(cls, 'drop_constraints'):
-            #Call the drop_constraints method of those classes that
-            #sub-class from Persistence and those which have an implementation
-            #of drop_constraints.
-            _LOGGER.debug("Drop constraints for %s", cls.__name__)
-            cls.drop_constraints(persister=persister)
-
-    for cls in PersistentMeta.classes:
-        if hasattr(cls, 'drop'):
-            _LOGGER.debug("Drop database objects for %s", cls.__name__)
-            cls.drop(persister=persister)
-
     MySQLPersister.teardown()
