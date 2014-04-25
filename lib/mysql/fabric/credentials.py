@@ -53,7 +53,7 @@ CREATE TABLE `users` (
   `password` varchar(128) DEFAULT NULL,
   PRIMARY KEY (user_id),
   UNIQUE KEY (`username`, `protocol`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['roles'] = """
@@ -62,7 +62,7 @@ CREATE TABLE `roles` (
   `name` varchar(80) NOT NULL,
   `description` varchar(1000),
   PRIMARY KEY (role_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['permissions'] = """
@@ -74,7 +74,7 @@ CREATE TABLE `permissions` (
   `description` varchar(1000),
   PRIMARY KEY (permission_id),
   UNIQUE INDEX (`subsystem`, `component`, `function`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['role_permissions'] = """
@@ -82,7 +82,7 @@ CREATE TABLE `role_permissions` (
   `role_id` int unsigned NOT NULL,
   `permission_id` int unsigned NOT NULL,
   PRIMARY KEY (`role_id`, `permission_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['user_roles'] = """
@@ -90,7 +90,7 @@ CREATE TABLE `user_roles` (
   `user_id` int unsigned NOT NULL,
   `role_id` int unsigned NOT NULL,
   PRIMARY KEY (`user_id`, `role_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CONSTRAINTS = [
