@@ -232,21 +232,24 @@ def extract_command(args):
 def authenticate(group_name, command_name, config, options, args):
     """Prompt for username and password when needed
     """
+    protocol = "xmlrpc"
+    protocol_section = 'protocol.xmlrpc'
+
     if (group_name == 'manage' and
         command_name in ('setup', 'start', 'teardown')):
         return
 
     try:
-        realm = config.get('protocol.xmlrpc', 'realm')
+        realm = config.get(protocol_section, 'realm')
     except NoOptionError:
-        config.set('protocol.xmlrpc', 'realm', credentials.FABRIC_REALM_XMLRPC)
+        config.set(protocol_section, 'realm', credentials.FABRIC_REALM_XMLRPC)
 
     # Handled disabled authentication
     try:
-        value = config.get('protocol.xmlrpc', 'disable_authentication')
+        value = config.get(protocol_section, 'disable_authentication')
         if value.lower() == 'yes':
-            config.set('protocol.xmlrpc', 'user', '')
-            config.set('protocol.xmlrpc', 'password', '')
+            config.set(protocol_section, 'user', '')
+            config.set(protocol_section, 'password', '')
             return
     except NoOptionError:
         # OK when disable_authentication is missing
@@ -260,12 +263,11 @@ def authenticate(group_name, command_name, config, options, args):
         username = None
 
     password = None
-    protocol_section = 'protocol.xmlrpc'
     if not username:
         try:
             username = config.get(protocol_section, 'user')
         except NoOptionError:
-            # Referred to default 'admin' user or command line argument --user
+            # Referred to default 'admin' user
             username = 'admin'
 
         try:
@@ -279,7 +281,9 @@ def authenticate(group_name, command_name, config, options, args):
 
     config.set(protocol_section, 'user', username.strip())
 
-    credentials.check_credentials(group_name, command_name, config=config)
+    credentials.check_credentials(
+        group_name, command_name, config, protocol
+    )
 
 
 def create_command(group_name, command_name, options, args, config):

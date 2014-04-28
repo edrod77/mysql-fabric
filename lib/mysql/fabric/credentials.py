@@ -139,11 +139,6 @@ SELECT username, protocol, password
 FROM users WHERE username = %s AND protocol = %s
 """
 
-_SQL_FETCH_USER_CHECK_PASSWORD = """
-SELECT username, protocol, password
-FROM users WHERE username = %s AND protocol = %s AND password = %s
-"""
-
 _SQL_FETCH_USER_PERMISSIONS = """
 SELECT p.subsystem, p.component, p.function
 FROM users AS u LEFT JOIN user_roles AS ur USING (user_id)
@@ -338,13 +333,12 @@ class User(_persistence.Persistable):
                                persister=persister)
 
     @staticmethod
-    def fetch_user(username, protocol, config=None, password=None, realm=None,
-                   persister=None):
+    def fetch_user(username, protocol, realm, persister=None):
         """Fetch the information about a user using particular protocol
 
         :param username: Username being queried.
         :param protocol: Protocol with which the user connect.
-        :param password: Password of the user.
+        :param realm: Realm which the user belongs to.
         :param persister: A valid handle to the state store.
         :return: Returns user information including password hash.
         """
@@ -358,14 +352,7 @@ class User(_persistence.Persistable):
             "columns": True,
         }
 
-        if password:
-            sql = _SQL_FETCH_USER_CHECK_PASSWORD
-            options['params'].append(_hash_password(username, password,
-                                                    protocol, config, realm))
-        else:
-            sql = _SQL_FETCH_USER
-
-        cur = persister.exec_stmt(sql, options)
+        cur = persister.exec_stmt(_SQL_FETCH_USER, options)
         row = cur.fetchone()
         if row:
             return User(username=row.username,
@@ -509,7 +496,11 @@ def check_initial_setup(config, persister, check_only=False):
 
         # If there is no password, we have to ask for one.
         try:
-            password = config.get(section, 'password')
+            password = config.get(section, 'password').strip()
+
+            # No password, so we have to ask for one
+            if password == '':
+                break
         except _config.NoOptionError:
             # No password, so we have to ask for one
             break
@@ -1280,8 +1271,7 @@ class RoleList(UserCommand):
         _role_listing(persister=self.persister)
 
 
-def check_credentials(group, command, config,
-                      username=None, password=None, protocol=None):
+def check_credentials(group, command, config, protocol):
     """Check credentials using configuration
 
     :raises errors.CredentialError: if login failed, or if user has no
@@ -1302,12 +1292,12 @@ def check_credentials(group, command, config,
     password = config.get(section, 'password')
     realm = config.get(section, 'realm', vars=FABRIC_PROTOCOL_DEFAULTS)
 
-    user = User.fetch_user(username, protocol, config,
-                           password=password, realm=realm)
+    user = User.fetch_user(username, protocol=protocol, realm=realm)
+    password_hash = _hash_password(username, password, protocol, config, realm)
 
-    if not user:
+    if user is None or user.password_hash != password_hash:
         _LOGGER.info("Failed login for user %s/%s", username, protocol)
         raise _errors.CredentialError("Login failed")
-    if not user.has_permission('core', group, command):
+    elif not user.has_permission('core', group, command):
         _LOGGER.info("Permission denied for user %s/%s", username, protocol)
         raise _errors.CredentialError("No permission")
