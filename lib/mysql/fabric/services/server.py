@@ -198,13 +198,15 @@ class ServerUuid(Command):
     group_name = "server"
     command_name = "lookup_uuid"
 
-    def execute(self, address):
+    def execute(self, address, timeout=5):
         """Return server's UUID.
 
         :param address: Server's address.
+        :param timeout: Time in seconds after which an error is reported
+                        if the UUID is not retrieved.
         :return: UUID.
         """
-        return Command.generate_output_pattern(_lookup_uuid, address)
+        return Command.generate_output_pattern(_lookup_uuid, address, timeout)
 
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
@@ -220,18 +222,21 @@ class ServerAdd(ProcedureGroup):
     group_name = "group"
     command_name = "add"
 
-    def execute(self, group_id, address, update_only=False, synchronous=True):
+    def execute(self, group_id, address, timeout=5, update_only=False,
+                synchronous=True):
         """Add a server into a group.
 
         :param group_id: Group's id.
         :param address: Server's address.
+        :param timeout: Time in seconds after which an error is reported
+                        if one cannot access the server.
         :update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(ADD_SERVER, self.get_lockable_objects(),
-            group_id, address, update_only
+            group_id, address, timeout, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -520,17 +525,22 @@ def _server_information(server, info):
         "weight" : server.weight,
     })
 
-def _lookup_uuid(address):
+def _lookup_uuid(address, timeout):
     """Return server's uuid.
     """
-    return _server.MySQLServer.discover_uuid(address=address)
+    try:
+        return _server.MySQLServer.discover_uuid(
+            address=address, connection_timeout=timeout
+        )
+    except _errors.DatabaseError:
+        raise _errors.ServerError("Error accessing server (%s)." % (address, ))
 
 @_events.on_event(ADD_SERVER)
-def _add_server(group_id, address, update_only):
+def _add_server(group_id, address, timeout, update_only):
     """Add a server into a group.
     """
     group = _retrieve_group(group_id)
-    uuid = _server.MySQLServer.discover_uuid(address=address)
+    uuid = _lookup_uuid(address, timeout)
     _check_server_exists(uuid)
     server = _server.MySQLServer(uuid=_uuid.UUID(uuid), address=address)
 

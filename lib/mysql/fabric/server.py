@@ -606,7 +606,7 @@ class MySQLServer(_persistence.Persistable):
 
     :param uuid: The uuid of the server.
     :param address:  The address of the server.
-    :param user: The username used to access the server.
+    :param user: The user's name used to access the server.
     :param passwd: The password used to access the server.
     :param mode: Server's mode.
     :type mode: OFFLINE, READ_ONLY, READ_WRITE.
@@ -765,10 +765,16 @@ class MySQLServer(_persistence.Persistable):
 
     @staticmethod
     @server_logging
-    def discover_uuid(address, user=None, passwd=None):
+    def discover_uuid(address, user=None, passwd=None,
+                      connection_timeout=None):
         """Retrieve the uuid from a server.
 
-        :param kwargs: Dictionary with parmaters to connect to a server.
+        :param address: Server's address.
+        :param user: The user's name used to access the server.
+        :param passwd: The password used to access the server.
+        :param connection_timeout: Time in seconds after which an error is
+                                   reported if the UUID is not retrieved.
+        :return: UUID.
         """
 
         host, port = _server_utils.split_host_port(
@@ -780,7 +786,7 @@ class MySQLServer(_persistence.Persistable):
         passwd = passwd or MySQLServer.PASSWD
         cnx = _server_utils.create_mysql_connection(
             user=user, passwd=passwd, host=host, port=port, autocommit=True,
-            use_unicode=False
+            use_unicode=False, connection_timeout=connection_timeout
         )
 
         try:

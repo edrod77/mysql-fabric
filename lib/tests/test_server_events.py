@@ -846,7 +846,7 @@ class TestServerServices(unittest.TestCase):
         # Add a server and check that replication is not configured. Since
         # there is no master configured, it does not matter whether the
         # update_only parameter is set or not.
-        self.proxy.group.add("group", address_1, True)
+        self.proxy.group.add("group", address_1, 5, True)
         status = self.proxy.group.health("group")
         self.assertEqual(
             status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
@@ -855,7 +855,7 @@ class TestServerServices(unittest.TestCase):
             status[2][uuid_1]["threads"], {"is_configured" : False}
         )
         self.proxy.group.remove("group", uuid_1)
-        self.proxy.group.add("group", address_1, False)
+        self.proxy.group.add("group", address_1, 5, False)
         status = self.proxy.group.health("group")
         self.assertEqual(
             status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
@@ -885,7 +885,7 @@ class TestServerServices(unittest.TestCase):
 
         # Add a slave but notice that it is not properly configured, i.e.
         # --update-only = True.
-        self.proxy.group.add("group", address_2, True)
+        self.proxy.group.add("group", address_2, 5, True)
         status = self.proxy.group.health("group")
         self.assertEqual(
             status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY

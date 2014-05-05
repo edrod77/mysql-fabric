@@ -30,13 +30,10 @@ from  mysql.fabric import (
     server as _server,
     replication as _replication,
     errors as _errors,
-    server_utils as _server_utils,
-    failure_detector as _detector,
 )
 
 from mysql.fabric.command import (
     ProcedureGroup,
-    Command,
 )
 
 from mysql.fabric.services.server import (
