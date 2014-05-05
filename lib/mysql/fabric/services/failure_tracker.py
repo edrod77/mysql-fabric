@@ -37,6 +37,10 @@ from mysql.fabric.command import (
     ProcedureGroup,
 )
 
+from mysql.fabric.services.server import (
+    _retrieve_server
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 REPORT_ERROR = _events.Event("REPORT_ERROR")
@@ -62,18 +66,18 @@ class ReportError(ProcedureGroup):
     _MAX_NOTIFICATION_INTERVAL = 3600
     _NOTIFICATION_INTERVAL = _DEFAULT_NOTIFICATION_INTERVAL = 60
 
-    def execute(self, uuid, reporter="unknown", error="unknown",
+    def execute(self, server_id, reporter="unknown", error="unknown",
                 update_only=False, synchronous=True):
         """Report a server issue.
 
-        :param uuid: Server's UUID.
+        :param server_id: Servers's UUID or HOST:PORT.
         :param reporter: Who has reported the issue, usually an IP address or a
                          host name.
         :param error: Error that has been reported.
         :param update_only: Only update the state store and skip provisioning.
         """
         procedures = _events.trigger(
-            REPORT_ERROR, self.get_lockable_objects(), uuid, reporter,
+            REPORT_ERROR, self.get_lockable_objects(), server_id, reporter,
             error, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
@@ -89,27 +93,27 @@ class ReportFailure(ProcedureGroup):
     group_name = "threat"
     command_name = "report_failure"
 
-    def execute(self, uuid, reporter="unknown", error="unknown",
+    def execute(self, server_id, reporter="unknown", error="unknown",
                 update_only=False, synchronous=True):
         """Report a server issue.
 
-        :param uuid: Server's UUID.
+        :param server_id: Servers's UUID or HOST:PORT.
         :param reporter: Who has reported the issue, usually an IP address or a
                          host name.
         :param error: Error that has been reported.
         :param update_only: Only update the state store and skip provisioning.
         """
         procedures = _events.trigger(
-            REPORT_FAILURE, self.get_lockable_objects(), uuid, reporter,
+            REPORT_FAILURE, self.get_lockable_objects(), server_id, reporter,
             error, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(REPORT_ERROR)
-def _report_error(uuid, reporter, error, update_only):
+def _report_error(server_id, reporter, error, update_only):
     """Report a server error.
     """
-    (now, server) = _append_error_log(uuid, reporter, error)
+    (now, server) = _append_error_log(server_id, reporter, error)
 
     interval = get_time_delta(ReportError._NOTIFICATION_INTERVAL)
     st = _error_log.ErrorLog.fetch(server, interval, now)
@@ -121,10 +125,10 @@ def _report_error(uuid, reporter, error, update_only):
             _set_status_faulty(server, update_only)
 
 @_events.on_event(REPORT_FAILURE)
-def _report_failure(uuid, reporter, error, update_only):
+def _report_failure(server_id, reporter, error, update_only):
     """Report a server failure.
     """
-    (_, server) = _append_error_log(uuid, reporter, error)
+    (_, server) = _append_error_log(server_id, reporter, error)
     _set_status_faulty(server, update_only)
 
 def _set_status_faulty(server, update_only):
@@ -148,11 +152,11 @@ def _set_status_faulty(server, update_only):
                          "been lost.", server.uuid, group.group_id)
             _events.trigger_within_procedure("FAIL_OVER", group.group_id)
 
-def _append_error_log(uuid, reporter, error):
+def _append_error_log(server_id, reporter, error):
     """Check whether the server exist and is not faulty and register
     error log.
     """
-    server = _retrieve_server(uuid)
+    server = _retrieve_server(server_id)
     if server.status == _server.MySQLServer.FAULTY:
         raise _errors.ServerError(
             "Server (%s) is already marked as faulty." % (server.uuid, )
@@ -164,26 +168,6 @@ def _append_error_log(uuid, reporter, error):
     _error_log.ErrorLog.add(server, now, reporter, error)
 
     return (now, server)
-
-def _retrieve_server(uuid):
-    """Return a server object from a UUID.
-    """
-    try:
-        uuid = _uuid.UUID(uuid)
-    except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
-
-    server = _server.MySQLServer.fetch(uuid)
-    if not server:
-        raise _errors.ServerError(
-            "Server (%s) does not exist." % (uuid, )
-            )
-
-    if not server.group_id:
-        raise _errors.GroupError(
-            "Server (%s) does not belong to a group." % (uuid, )
-            )
-    return server
 
 def configure(config):
     """Set configuration values.

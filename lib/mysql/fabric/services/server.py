@@ -175,20 +175,22 @@ class ServerLookups(Command):
     group_name = "group"
     command_name = "lookup_servers"
 
-    def execute(self, group_id, uuid=None, status=None, mode=None):
+    def execute(self, group_id, server_id=None, status=None, mode=None):
         """Return information on existing server(s) in a group.
 
         :param group_id: Group's id.
         :param uuid: None if one wants to list the existing servers
                      in a group or server's id if one wants information
                      on a server in a group.
+        :server_id type: Servers's UUID or HOST:PORT.
         :param status: Server's status one is searching for.
         :param mode: Server's mode one is searching for.
         :return: Information on servers.
         :rtype: List with [uuid, address, status, mode, weight]
         """
-        return Command.generate_output_pattern(_lookup_servers,
-                                               group_id, uuid, status, mode)
+        return Command.generate_output_pattern(
+            _lookup_servers, group_id, server_id, status, mode
+        )
 
 class ServerUuid(Command):
     """Return server's uuid.
@@ -240,17 +242,17 @@ class ServerRemove(ProcedureGroup):
     group_name = "group"
     command_name = "remove"
 
-    def execute(self, group_id, uuid, synchronous=True):
+    def execute(self, group_id, server_id, synchronous=True):
         """Remove a server from a group.
 
-        :param uuid: Server's uuid.
         :param group_id: Group's id.
+        :param server_id: Servers's UUID or HOST:PORT.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(REMOVE_SERVER, self.get_lockable_objects(),
-            group_id, uuid
+            group_id, server_id
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -336,17 +338,17 @@ class SetServerStatus(ProcedureGroup):
     group_name = "server"
     command_name = "set_status"
 
-    def execute(self, uuid, status, update_only=False, synchronous=True):
+    def execute(self, server_id, status, update_only=False, synchronous=True):
         """Set a server's status.
 
-        :param uuid: Servers's UUID.
+        :param server_id: Servers's UUID or HOST:PORT.
         :param status: Server's status.
         :update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         """
         procedures = _events.trigger(
-            SET_SERVER_STATUS, self.get_lockable_objects(), uuid, status,
+            SET_SERVER_STATUS, self.get_lockable_objects(), server_id, status,
             update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
@@ -363,16 +365,16 @@ class SetServerWeight(ProcedureGroup):
     group_name = "server"
     command_name = "set_weight"
 
-    def execute(self, uuid, weight, synchronous=True):
+    def execute(self, server_id, weight, synchronous=True):
         """Set a server's weight.
 
-        :param uuid: Servers's UUID.
+        :param server_id: Servers's UUID or HOST:PORT.
         :param weight: Server's weight.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         """
         procedures = _events.trigger(
-            SET_SERVER_WEIGHT, self.get_lockable_objects(), uuid, weight
+            SET_SERVER_WEIGHT, self.get_lockable_objects(), server_id, weight
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -386,16 +388,16 @@ class SetServerMode(ProcedureGroup):
     group_name = "server"
     command_name = "set_mode"
 
-    def execute(self, uuid, mode, synchronous=True):
+    def execute(self, server_id, mode, synchronous=True):
         """Set a server's mode.
 
-        :param uuid: Servers's UUID.
+        :param server_id: Servers's UUID or HOST:PORT.
         :param weight: Server's weight.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         """
         procedures = _events.trigger(
-            SET_SERVER_MODE, self.get_lockable_objects(), uuid, mode
+            SET_SERVER_MODE, self.get_lockable_objects(), server_id, mode
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -479,7 +481,7 @@ def _destroy_group(group_id, force):
     _server.Group.remove(group)
     _LOGGER.debug("Removed group (%s).", group)
 
-def _lookup_servers(group_id, uuid=None, status=None, mode=None):
+def _lookup_servers(group_id, server_id=None, status=None, mode=None):
     """Return existing servers in a group or information on a server.
     """
     group = _retrieve_group(group_id)
@@ -497,12 +499,12 @@ def _lookup_servers(group_id, uuid=None, status=None, mode=None):
         mode = [mode]
 
     info = []
-    if uuid is None:
+    if server_id is None:
         for server in group.servers():
             if server.status in status and server.mode in mode:
                 _server_information(server, info)
     else:
-        server = _retrieve_server(uuid, group_id)
+        server = _retrieve_server(server_id, group_id)
         _server_information(server, info)
 
     return info
@@ -549,11 +551,11 @@ def _add_server(group_id, address, update_only):
     _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
 @_events.on_event(REMOVE_SERVER)
-def _remove_server(group_id, uuid):
+def _remove_server(group_id, server_id):
     """Remove a server from a group.
     """
     group = _retrieve_group(group_id)
-    server = _retrieve_server(uuid, group_id)
+    server = _retrieve_server(server_id, group_id)
 
     if group.master == server.uuid:
         raise _errors.ServerError(
@@ -566,11 +568,11 @@ def _remove_server(group_id, uuid):
     _server.ConnectionPool().purge_connections(server.uuid)
 
 @_events.on_event(SET_SERVER_STATUS)
-def _set_server_status(uuid, status, update_only):
+def _set_server_status(server_id, status, update_only):
     """Set a server's status.
     """
     status = _retrieve_server_status(status)
-    server = _retrieve_server(uuid)
+    server = _retrieve_server(server_id)
 
     if status == _server.MySQLServer.PRIMARY:
         _set_server_status_primary(server, update_only)
@@ -674,10 +676,10 @@ def _do_set_status(server, allowed_status, status, mode, update_only):
     )
 
 @_events.on_event(SET_SERVER_WEIGHT)
-def _set_server_weight(uuid, weight):
+def _set_server_weight(server_id, weight):
     """Set server's weight.
     """
-    server = _retrieve_server(uuid)
+    server = _retrieve_server(server_id)
 
     try:
         weight = float(weight)
@@ -692,11 +694,11 @@ def _set_server_weight(uuid, weight):
     server.weight = weight
 
 @_events.on_event(SET_SERVER_MODE)
-def _set_server_mode(uuid, mode):
+def _set_server_mode(server_id, mode):
     """Set server's mode.
     """
     mode = _retrieve_server_mode(mode)
-    server = _retrieve_server(uuid)
+    server = _retrieve_server(server_id)
 
     if server.status == _server.MySQLServer.PRIMARY:
         _set_server_mode_primary(server, mode)
@@ -773,10 +775,10 @@ def _do_set_server_mode(server, mode, allowed_mode):
         )
     server.mode = mode
 
-def _retrieve_server(uuid, group_id=None):
-    """Return a MySQLServer object from a UUID.
+def _retrieve_server(server_id, group_id=None):
+    """Return a MySQLServer object from a UUID or an HOST:PORT.
     """
-    uuid = _retrieve_uuid_object(uuid)
+    uuid = _retrieve_uuid_object(server_id)
 
     server = _server.MySQLServer.fetch(uuid)
     if not server:
@@ -836,14 +838,22 @@ def _check_shard_exists(group_id):
             "shard definition (%s)." % (group_id, shard_mapping_id)
         )
 
-def _retrieve_uuid_object(uuid):
+def _retrieve_uuid_object(server_id):
     """Transform an input string into a UUID object.
     """
+    assert(isinstance(server_id, basestring))
+
     try:
-        assert(isinstance(uuid, basestring))
-        return _uuid.UUID(uuid)
+        return _uuid.UUID(server_id)
     except ValueError:
-        raise _errors.ServerError("Malformed UUID (%s)." % (uuid, ))
+        pass
+
+    try:
+        return _server.MySQLServer.discover_uuid(address=server_id)
+    except ValueError:
+        raise _errors.ServerError(
+            "Error trying to access server identified by (%s)." % (server_id, )
+        )
 
 def _check_requirements(server):
     """Check if the server fulfils some requirements.
