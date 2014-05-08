@@ -124,21 +124,19 @@ def split_database_table(fully_qualified_table_name):
     return fully_qualified_table_name.split('.')
 
 def wrap_output(output):
-    """Used to wrap the the output in a standard format, viz,
-    (_utils.FABRIC_UUID, _utils.VERSION_TOKEN, _utils.TTL, <o/p>).
+    """Used to wrap the the output in a standard format:
+    (FABRIC_UUID, VERSION_TOKEN, TTL).
 
     :param output: The output that needs to be wrapped.
-
     :return: the "output" parameter is returned in the following four
              tuple format.
     """
     return (FABRIC_UUID, VERSION_TOKEN, TTL, output)
 
-
 def get_time():
     """Get current time using datetime.utcnow().
     """
-    return datetime.datetime.utcnow()
+    return datetime.datetime.utcnow().replace(microsecond=0)
 
 def get_time_delta(delta):
     """Transform a value provided through the parameter delta into a
@@ -147,6 +145,11 @@ def get_time_delta(delta):
     :param delta: Delta value in seconds.
     """
     return datetime.timedelta(seconds=delta)
+
+def get_time_from_timestamp(timestamp):
+    """Return a utc time from a timestemp().
+    """
+    return datetime.datetime.utcfromtimestamp(timestamp).replace(microsecond=0)
 
 def get_group_lower_bound_list(input_string):
     """Get the list of GROUP IDs and the LBs from the input string.

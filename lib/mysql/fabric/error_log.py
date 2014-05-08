@@ -110,7 +110,6 @@ class ErrorLog(_persistence.Persistable):
         """
         persister.exec_stmt(
                 ErrorLog.ADD_FOREIGN_KEY_CONSTRAINT_SERVER_UUID)
-        return True
 
     @staticmethod
     def add(server, reported, reporter, error, persister=None):

@@ -50,6 +50,10 @@ from mysql.fabric import (
     config as _config,
 )
 
+from mysql.fabric.handler import (
+    MySQLHandler,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 def server_logging(function):
@@ -368,9 +372,18 @@ class Group(_persistence.Persistable):
         else:
             param_master = str(master)
 
+        _LOGGER.info("Master has changed from %s to %s.", self.__master, master,
+            extra={
+                "subject": self.__group_id,
+                "category": MySQLHandler.GROUP,
+                "type" : MySQLHandler.PROMOTE if master else \
+                         MySQLHandler.DEMOTE
+            }
+        )
         persister.exec_stmt(Group.UPDATE_MASTER,
             {"params":(param_master, _utils.get_time(), self.__group_id)})
         self.__master = master
+
 
     def servers(self):
         """Return a list with the servers in this group.
@@ -408,7 +421,7 @@ class Group(_persistence.Persistable):
         diff = now - self.__master_defined
         interval = _utils.get_time_delta(Group._FAILOVER_INTERVAL)
 
-        if (self.__master == server.uuid and diff > interval) or \
+        if (self.__master == server.uuid and diff >= interval) or \
             self.__master != server.uuid:
             return True
 

@@ -77,7 +77,7 @@ def get_options():
                             "empty string."))
     parser.add_option("--db-user",
                       action="store", dest="db_user", default="mats",
-                      help=("User created to accesss the MySQL Server instances" 
+                      help=("User created to accesss the MySQL Server instances"
                             "while running the test cases "))
     parser.add_option("--port",
                       action="store", dest="port", default=32274, type=int,
@@ -267,6 +267,59 @@ def teardown_xmlrpc(proxy):
     persistence.deinit_thread()
     persistence.teardown()
 
+def configure_logging(level):
+    from mysql.fabric.handler import MySQLHandler
+
+    handler = None
+    mysql_handler = None
+
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(created)f - %(threadName)s - %(message)s"
+    )
+
+    mysql_handler = MySQLHandler()
+    if options.log_file:
+        # Configuring handler.
+        handler = FileHandler(options.log_file, 'w')
+        handler.setFormatter(formatter)
+    elif options.log_level:
+        # If a log-level is given, but no log-file, the assumption is
+        # that the user want to see the output, so then we output the
+        # log to standard output.
+        handler = StreamHandler(sys.stdout)
+        handler.setFormatter(formatter)
+    else:
+        # If neither log file nor log level is given, we assume that
+        # the user just want a test report.
+        handler = NullHandler()
+
+    # Logging levels.
+    logging_levels = {
+        "CRITICAL" : logging.CRITICAL,
+        "ERROR" : logging.ERROR,
+        "WARNING" : logging.WARNING,
+        "INFO" : logging.INFO,
+        "DEBUG" : logging.DEBUG
+    }
+
+    # Setting logging for "mysql.fabric".
+    logger = logging.getLogger("mysql.fabric")
+    try:
+        logger.setLevel(logging_levels[level])
+    except KeyError:
+        logger.setLevel(logging_levels["DEBUG"])
+    logger.addHandler(handler)
+    logger.addHandler(mysql_handler)
+
+    # Setting logging for "tests".
+    logger = logging.getLogger("tests")
+    try:
+        logger.setLevel(logging_levels[level])
+    except KeyError:
+        logger.setLevel(logging_levels["DEBUG"])
+    logger.addHandler(handler)
+    logger.addHandler(mysql_handler)
+
 
 if __name__ == '__main__':
     # Note: do not change the names of the set of variables found below, e.g
@@ -284,57 +337,16 @@ if __name__ == '__main__':
     }
     config = get_config(options, env_options)
 
-    handler = None
-    formatter = logging.Formatter(
-        "[%(levelname)s] %(created)f - %(threadName)s - %(message)s")
-
     if options.password is None:
         options.password = getpass.getpass()
 
-    if options.log_file:
-        # Configuring handler.
-        handler = FileHandler(options.log_file, 'w')
-        handler.setFormatter(formatter)
-    elif options.log_level:
-        # If a log-level is given, but no log-file, the assumption is
-        # that the user want to see the output, so then we output the
-        # log to standard output.
-        handler = StreamHandler(sys.stdout)
-    else:
-        # If neither log file nor log level is given, we assume that
-        # the user just want a test report.
-        handler = NullHandler()
-
-    # Logging levels.
-    logging_levels = {
-        "CRITICAL" : logging.CRITICAL,
-        "ERROR" : logging.ERROR,
-        "WARNING" : logging.WARNING,
-        "INFO" : logging.INFO,
-        "DEBUG" : logging.DEBUG
-    }
-
-    # Get Logging level.
+    # Configure logging.
     if options.log_level:
         level = options.log_level.upper()
     else:
         level = "DEBUG"
+    configure_logging(level)
 
-    # Setting logging for "mysql.fabric".
-    logger = logging.getLogger("mysql.fabric")
-    try:
-        logger.setLevel(logging_levels[level])
-    except KeyError:
-        logger.setLevel(logging_levels["DEBUG"])
-    logger.addHandler(handler)
-
-    # Setting logging for "tests".
-    logger = logging.getLogger("tests")
-    try:
-        logger.setLevel(logging_levels[level])
-    except KeyError:
-        logger.setLevel(logging_levels["DEBUG"])
-    logger.addHandler(handler)
-
+    # Run tests.
     result = run_tests('tests', options, args, config)
     sys.exit(result is None or not result.wasSuccessful())

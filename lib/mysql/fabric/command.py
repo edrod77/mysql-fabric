@@ -53,6 +53,10 @@ from mysql.fabric import (
     persistence as _persistence,
 )
 
+from mysql.fabric.handler import (
+    MySQLHandler,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 _COMMANDS_CLASS = {}
@@ -146,12 +150,37 @@ class CommandMeta(type):
         """
         original = func
         @functools.wraps(func)
-        def _wrap(*args, **kwrds):
+        def _wrap(obj, *args, **kwrds):
             """Inner wrapper function.
             """
-            _LOGGER.debug("Started command (%s).", cname)
-            ret = original(*args, **kwrds)
-            _LOGGER.debug("Finished command (%s).", cname)
+            group = obj.group_name
+            command = obj.command_name
+            subject = ".".join([group, command])
+            success = True
+            try:
+                _LOGGER.debug(
+                    "Started command (%s, %s).", group, command,
+                    extra={
+                        "subject" : subject,
+                        "category" : MySQLHandler.PROCEDURE,
+                        "type" : MySQLHandler.START
+                    }
+                )
+                ret = original(obj, *args, **kwrds)
+                if isinstance(obj, ProcedureCommand):
+                    success = ProcedureCommand.succeeded(ret)
+            except:
+                success = False
+                raise
+            finally:
+                _LOGGER.debug("Finished command (%s, %s).", group, command,
+                    extra={
+                        "subject" : subject,
+                        "category" : MySQLHandler.PROCEDURE,
+                        "type" : MySQLHandler.STOP if success else \
+                                 MySQLHandler.ABORT
+                    }
+                )
             return ret
         _wrap.original_function = func
         return _wrap
@@ -585,6 +614,20 @@ class ProcedureCommand(Command):
             "  activities  = %s"  % (activities, ),
             "}"
             ])
+
+    @staticmethod
+    def succeeded(status):
+        """Check whether a procedure has succeeded or not.
+        """
+        ret = True
+
+        try:
+            ret = (status[1][-1]["success"] == _executor.Job.SUCCESS)
+        except TypeError:
+            # This may happen if the procedure is asynchronously executed.
+            pass
+
+        return ret
 
     def get_lockable_objects(self, variable=None, function=None):
         """Return the set of lockable objects by extracting information
