@@ -179,6 +179,7 @@ def check_number_threads(increasing=0):
 
     :param increasing: Whether you want to increase the number of threads and
                        how many threads. Default is zero.
+
     It raises a ConfigurationError exception if the number of connections is
     too small.
     """

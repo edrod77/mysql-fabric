@@ -42,8 +42,8 @@ class ErrorLog(_persistence.Persistable):
     See also:
 
     * :class:`~mysql.fabric.server.Group`.
-    * :class:`~mysql.fabric.services.server.ReportError`.
-    * :class:`~mysql.fabric.services.server.ReportFailure`.
+    * :class:`~mysql.fabric.services.threat.ReportError`.
+    * :class:`~mysql.fabric.services.threat.ReportFailure`.
     """
 
     _MIN_PRUNE_TIME = 60

@@ -130,20 +130,20 @@ class MySQLHandler(logging.Handler, _persistence.Persistable):
 
     The following categories are supported:
 
-    . GROUP - Defines that information is about a group.
-    . NODE - Defines that information is about the Fabric Node.
-    . PROCEDURE - Defines that information is about a procedure.
-    . SERVER - Defines that information is about a server.
+    * GROUP - Defines that information is about a group.
+    * NODE - Defines that information is about the Fabric Node.
+    * PROCEDURE - Defines that information is about a procedure.
+    * SERVER - Defines that information is about a server.
 
     The following types are supported:
 
-    . START - Defines that an entity has been started.
-    . STOP - Defines that an entity has been stopped.
-    . ABORT - Defines that an entity has been aborted. This is applicable
+    * START - Defines that an entity has been started.
+    * STOP - Defines that an entity has been stopped.
+    * ABORT - Defines that an entity has been aborted. This is applicable
               to procedures.
-    . PROMOTE - Defines that an entity has been promoted. This is applicable
+    * PROMOTE - Defines that an entity has been promoted. This is applicable
                 to a server or group.
-    . DEMOTE - Defines that an entity has been demoted. This is applicable
+    * DEMOTE - Defines that an entity has been demoted. This is applicable
                to a server or group.
 
     It is also possible to define the reporter and reported parameters. They

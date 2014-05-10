@@ -25,3 +25,9 @@ Contents
    command
    protocol_xmlrpc
    health
+   statistics
+   statistics_services
+   node
+   error_log
+   failure_tracker
+   credentials
