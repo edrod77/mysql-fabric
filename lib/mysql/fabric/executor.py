@@ -702,6 +702,12 @@ class Executor(Singleton):
             self._assert_not_running()
             self.__number_executors = number_executors
 
+    def get_number_executors(self):
+        """Get number of concurrent executors.
+        """
+        with self.__threads_lock:
+            return self.__number_executors
+
     def start(self):
         """Start the executor.
         """

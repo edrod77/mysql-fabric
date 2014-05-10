@@ -92,6 +92,11 @@ class ServiceManager(Singleton):
         """
         return self.__address
 
+    def get_number_sessions(self):
+        """Return the number of concurrent sessions.
+        """
+        return self.__rpc_server.get_number_sessions()
+
     def start(self):
         """Start all services managed by the service manager.
         """

@@ -413,6 +413,15 @@ class TestMySQLServer(unittest.TestCase):
         new_server.disconnect()
         ConnectionPool().purge_connections(_uuid.UUID(uuid))
 
+    def test_max_connections(self):
+        uuid = MySQLServer.discover_uuid(OPTIONS["address"])
+        server = MySQLServer(
+            _uuid.UUID(uuid), OPTIONS["address"],
+        )
+        server.connect()
+        res = server.get_variable("max_connections")
+        self.assertNotEqual(int(res), 0)
+
 class TestConnectionPool(unittest.TestCase):
     """Unit test for testing Connection Pool.
     """

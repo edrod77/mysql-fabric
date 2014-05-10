@@ -478,13 +478,22 @@ class MySQLPersister(object):
         Otherwise, return None.
         """
         try:
-            row = _server_utils.exec_mysql_stmt(self.__cnx,
-                                                "SELECT @@GLOBAL.SERVER_UUID")
+            row = _server_utils.exec_mysql_stmt(
+                self.__cnx, "SELECT @@GLOBAL.SERVER_UUID"
+            )
             return _uuid.UUID(row[0][0])
         except _errors.DatabaseError:
             pass
 
         return None
+
+    def max_allowed_connections(self):
+        """Return the maximum number of allowed connections to server.
+        """
+        row = _server_utils.exec_mysql_stmt(
+            self.__cnx, "SELECT @@GLOBAL.max_connections"
+        )
+        return int(row[0][0])
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.

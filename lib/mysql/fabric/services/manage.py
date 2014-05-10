@@ -390,6 +390,10 @@ def _start(options, config):
     # Initilize the state store.
     _persistence.init_thread()
 
+    # Check the maximum number of threads.
+    _utils.check_number_threads()
+
+    # Configure Fabric Node.
     fabric = FabricNode()
     reported = _utils.get_time()
     _LOGGER.info(

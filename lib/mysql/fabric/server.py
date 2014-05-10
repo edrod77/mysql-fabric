@@ -405,6 +405,8 @@ class Group(_persistence.Persistable):
                           state store.
         """
         assert(status in Group.GROUP_STATUS)
+        # Check the maximum number of threads.
+        _utils.check_number_threads(1)
         persister.exec_stmt(Group.UPDATE_STATUS,
             {"params":(status, self.__group_id)})
         self.__status = status

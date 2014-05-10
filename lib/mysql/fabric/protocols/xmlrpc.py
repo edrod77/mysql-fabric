@@ -289,6 +289,11 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
                 raise _errors.Error('{errno} {strerr}'.format(
                     errno=err.errno, strerr=err.strerror))
 
+    def get_number_sessions(self):
+        """Return the number of concurrent sessions.
+        """
+        return self.__number_threads
+
     def _configure(self, config):
         """Configure the server using the loaded configuration
 

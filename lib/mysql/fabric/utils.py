@@ -172,3 +172,37 @@ def get_group_lower_bound_list(input_string):
         if lower_bound is not None:
             lower_bound_list.append(lower_bound)
     return group_id_list, lower_bound_list
+
+def check_number_threads(increasing=0):
+    """Check the number of threads that are running and whether the maximum
+    number of connections in the state store is configured accordingly.
+
+    :param increasing: Whether you want to increase the number of threads and
+                       how many threads. Default is zero.
+    It raises a ConfigurationError exception if the number of connections is
+    too small.
+    """
+    from mysql.fabric import (
+        errors as _errors,
+        executor as _executor,
+        persistence as _persistence,
+        services as _services,
+        server as _server,
+    )
+
+    n_sessions = _services.ServiceManager().get_number_sessions()
+    n_executors = _executor.Executor().get_number_executors()
+    n_failure_detectors = len(_server.Group.groups_by_status(_server.Group.ACTIVE))
+    n_controls = 1
+    persister = _persistence.current_persister()
+    max_allowed_connections = persister.max_allowed_connections()
+    if (n_sessions +  n_executors + n_controls + n_failure_detectors +\
+        increasing) > (max_allowed_connections - 1):
+        raise _errors.ConfigurationError(
+            "Too many threads requested. Session threads (%s), Executor "
+            "threads (%s), Control threads (%s) and Failure Detector threads "
+            "(%s). The maximum number of threads allowed is (%s). Increase "
+            "the maximum number of connections in the state store in order "
+            "to increase this limit." % (n_sessions, n_executors, n_controls,
+            n_failure_detectors, max_allowed_connections - 1)
+         )
