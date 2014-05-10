@@ -587,11 +587,13 @@ def _wait_slave_fail(group_id, slave_uuid):
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    slave_status = _replication.get_slave_status(slave)
-    if slave_status:
-        gtid_executed = slave.get_gtid_status()[0].GTID_EXECUTED.strip(",")
-        gtid_retrieved = slave_status[0].Retrieved_Gtid_Set.strip(",")
-        _utils.process_slave_backlog(slave, gtid_executed, gtid_retrieved)
+    try:
+        _utils.process_slave_backlog(slave)
+    except _errors.DatabaseError as error:
+        _LOGGER.warning(
+            "Error (%s) trying to process transactions in the relay log "
+            "for candidate (%s).", slave, error
+        )
 
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 

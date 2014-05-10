@@ -45,6 +45,42 @@ class TestReplicationUse(unittest.TestCase):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
+    def test_reset_promote(self):
+        """Check the sequence reset master on a slave and promote it to master.
+        """
+        # Configure replication.
+        instances = tests.utils.MySQLInstances()
+        user = instances.user
+        passwd = instances.passwd
+        instances.configure_instances({0 : [{1 : []}, {2 : []}]}, user, passwd)
+        master = instances.get_instance(0)
+        slave_1 = instances.get_instance(1)
+        slave_2 = instances.get_instance(2)
+
+        self.proxy.group.create("group_id", "")
+        self.proxy.group.add("group_id", master.address)
+        self.proxy.group.add("group_id", slave_1.address)
+        self.proxy.group.add("group_id", slave_2.address)
+        status = self.proxy.group.promote("group_id", str(master.uuid))
+        self.assertStatus(status, _executor.Job.SUCCESS)
+
+        # Create some data.
+        master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
+        master.exec_stmt("USE test")
+        master.exec_stmt("CREATE TABLE IF NOT EXISTS t_1(id INTEGER)")
+
+        # Demote the master and gurantee that everything is synchronized.
+        status = self.proxy.group.demote("group_id")
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_wait_slaves_demote).")
+
+        # Call reset master on the slave and promote it to master. 
+        _repl.reset_master(slave_1)
+        status = self.proxy.group.promote("group_id", str(slave_1.uuid))
+        self.assertStatus(status, _executor.Job.SUCCESS)
+
     def test_demote_promote(self):
         """Check the sequence demote and promote when some candidates have no
         information on GTIDs.
