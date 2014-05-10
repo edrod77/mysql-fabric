@@ -90,7 +90,7 @@ class MySQLFilter(logging.Filter):
     def __init__(self, name):
         """Constructor for the MySQLFilter.
         """
-        super(MySQLFilter, self).__init__(name)
+        logging.Filter.__init__(self, name)
 
     def filter(self, record):
         """Filter a record that is not supposed to be written to the logging
