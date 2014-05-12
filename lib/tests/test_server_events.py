@@ -113,10 +113,6 @@ class TestServerServices(unittest.TestCase):
         """
         # Insert a new server.
         address = tests.utils.MySQLInstances().get_address(0)
-        user = tests.utils.MySQLInstances().user
-        root_user = tests.utils.MySQLInstances().root_user
-        passwd = tests.utils.MySQLInstances().passwd
-        root_passwd = tests.utils.MySQLInstances().root_passwd
         self.proxy.group.create("group_1", "Testing group...")
         status = self.proxy.group.add("group_1", address)
         self.assertStatus(status, _executor.Job.SUCCESS)
@@ -160,8 +156,20 @@ class TestServerServices(unittest.TestCase):
         self.assertNotEqual(status[1], "")
         self.assertEqual(status[2],  True)
 
-        # Look up a server.
+        # Look up a server using UUID.
         status = self.proxy.group.lookup_servers("group_1", status_uuid[2])
+        self.assertEqual(status[0], True)
+        self.assertEqual(status[1], "")
+        self.assertEqual(
+            status[2],
+            [{"server_uuid" : status_uuid[2], "address" : address,
+            "status" : _server.MySQLServer.SECONDARY,
+            "mode" : _server.MySQLServer.READ_ONLY,
+            "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
+        )
+
+        # Look up a server using HOST:PORT.
+        status = self.proxy.group.lookup_servers("group_1", address)
         self.assertEqual(status[0], True)
         self.assertEqual(status[1], "")
         self.assertEqual(
@@ -255,15 +263,15 @@ class TestServerServices(unittest.TestCase):
         """Test removing a server by calling group.remove().
         """
         # Prepare group and servers
-        address = tests.utils.MySQLInstances().get_address(0)
-        user = tests.utils.MySQLInstances().user
-        passwd = tests.utils.MySQLInstances().passwd
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(2)
         self.proxy.group.create("group", "Testing group...")
         self.proxy.group.create("group_1", "Testing group...")
-        self.proxy.group.add("group_1", address)
-        status_uuid = self.proxy.server.lookup_uuid(address)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
+        self.proxy.group.add("group_1", address_1)
+        self.proxy.group.add("group_1", address_2)
+        status_uuid_1 = self.proxy.server.lookup_uuid(address_1)
+        self.assertEqual(status_uuid_1[0], True)
+        self.assertEqual(status_uuid_1[1], "")
 
         # Try to remove a server from a non-existing group.
         status = self.proxy.group.remove(
@@ -296,17 +304,24 @@ class TestServerServices(unittest.TestCase):
         # Try to remove a server that is master within the group.
         group = _server.Group.fetch("group_1")
         tests.utils.configure_decoupled_master(group,
-                                               _uuid.UUID(status_uuid[2]))
-        status = self.proxy.group.remove("group_1", status_uuid[2])
+                                               _uuid.UUID(status_uuid_1[2]))
+        status = self.proxy.group.remove("group_1", status_uuid_1[2])
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_remove_server).")
 
-        # Remove a server.
+        # Remove a server using its UUID.
         group = _server.Group.fetch("group_1")
         tests.utils.configure_decoupled_master(group, None)
-        status = self.proxy.group.remove("group_1", status_uuid[2])
+        status = self.proxy.group.remove("group_1", status_uuid_1[2])
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_remove_server).")
+
+        # Remove a server using its address.
+        status = self.proxy.group.remove("group_1", address_2)
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -414,9 +429,10 @@ class TestServerServices(unittest.TestCase):
         tests.utils.configure_decoupled_master(group, None)
 
         # Set a spare server when the server is faulty.
+        # Note this is using HOST:PORT instead of using UUID.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.FAULTY
-        status = self.proxy.server.set_status(uuid_1, "spare")
+        status = self.proxy.server.set_status(address_1, "spare")
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
@@ -568,6 +584,16 @@ class TestServerServices(unittest.TestCase):
                          "Executed action (_set_server_weight).")
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.weight, 0.1)
+
+        # Set the weight to 1.0.
+        # Note this is using HOST:PORT instead of using UUID.
+        status = self.proxy.server.set_weight(address_1, 1.0)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_set_server_weight).")
+        server = _server.MySQLServer.fetch(uuid_1)
+        self.assertEqual(server.weight, 1.0)
 
     def test_server_mode(self):
         """Test server's mode by calling server.mode().
@@ -728,13 +754,24 @@ class TestServerServices(unittest.TestCase):
         # Set the WRITE_ONLY mode when the server is a primary.
         # Note this uses idx
         status = self.proxy.server.set_mode(uuid_1,
-            _server.MySQLServer.get_mode_idx("WRITE_ONLY"))
+            _server.MySQLServer.get_mode_idx("WRITE_ONLY")
+        )
         self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_set_server_mode).")
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.WRITE_ONLY)
+
+        # Set the READ_WRITE mode when the server is a primary.
+        # Note this is using HOST:PORT instead of using UUID.
+        status = self.proxy.server.set_mode(address_1, "read_write")
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_set_server_mode).")
+        server = _server.MySQLServer.fetch(uuid_1)
+        self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
 
     def test_add_slave(self):
         """Test whether some servers are made slaves or not.
@@ -809,7 +846,7 @@ class TestServerServices(unittest.TestCase):
         # Add a server and check that replication is not configured. Since
         # there is no master configured, it does not matter whether the
         # update_only parameter is set or not.
-        self.proxy.group.add("group", address_1, True)
+        self.proxy.group.add("group", address_1, 5, True)
         status = self.proxy.group.health("group")
         self.assertEqual(
             status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
@@ -818,7 +855,7 @@ class TestServerServices(unittest.TestCase):
             status[2][uuid_1]["threads"], {"is_configured" : False}
         )
         self.proxy.group.remove("group", uuid_1)
-        self.proxy.group.add("group", address_1, False)
+        self.proxy.group.add("group", address_1, 5, False)
         status = self.proxy.group.health("group")
         self.assertEqual(
             status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
@@ -848,7 +885,7 @@ class TestServerServices(unittest.TestCase):
 
         # Add a slave but notice that it is not properly configured, i.e.
         # --update-only = True.
-        self.proxy.group.add("group", address_2, True)
+        self.proxy.group.add("group", address_2, 5, True)
         status = self.proxy.group.health("group")
         self.assertEqual(
             status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY

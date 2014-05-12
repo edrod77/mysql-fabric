@@ -34,6 +34,9 @@ url = file:///var/log/fabric.log
 mysqldump_program = /usr/bin/mysqldump
 mysqlclient_program = /usr/bin/mysql
 
+[statistics]
+prune_time = 3600
+
 [failure_tracking]
 notifications = 300
 notification_clients = 50

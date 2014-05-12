@@ -252,7 +252,7 @@ def cleanup_environment():
     server.set_foreign_key_checks(False)
     tables = server.exec_stmt(
         "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE "
-        "TABLE_SCHEMA = 'fabric'"
+        "TABLE_SCHEMA = 'fabric' and TABLE_TYPE = 'BASE TABLE'"
     )
     for table in tables:
         server.exec_stmt("TRUNCATE fabric.%s" % (table[0], ))

@@ -120,11 +120,6 @@ class ShardMapping(_persistence.Persistable):
                             "shard_mapping_id, type_name, global_group"
                        )
 
-    #Drop the schema for the tables used to store the shard specification
-    #mapping information
-    DROP_SHARD_MAPPING = ("DROP TABLE shard_tables")
-    DROP_SHARD_MAPPING_DEFN = ("DROP TABLE shard_maps")
-
     #Create the referential integrity constraint with the shard_maps
     #table.
     ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
@@ -133,23 +128,12 @@ class ShardMapping(_persistence.Persistable):
                                   "FOREIGN KEY(shard_mapping_id) REFERENCES "
                                   "shard_maps(shard_mapping_id)")
 
-    #Drop the referential integrity constraint with the shard_maps
-    #table.
-    DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = \
-                                    ("ALTER TABLE shard_tables DROP "
-                                     "FOREIGN KEY fk_shard_mapping_id")
-
     #Create the referential integrity constraint with the groups table.
     ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
                             ("ALTER TABLE shard_maps "
                             "ADD CONSTRAINT fk_shard_mapping_global_group "
                             "FOREIGN KEY(global_group) REFERENCES "
                             "groups(group_id)")
-
-    #Drop the referential integrity constraint with the groups table.
-    DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP = \
-                                ("ALTER TABLE shard_maps DROP "
-                                "FOREIGN KEY fk_shard_mapping_global_group")
 
     #Define a shard mapping.
     DEFINE_SHARD_MAPPING = ("INSERT INTO "
@@ -321,39 +305,6 @@ class ShardMapping(_persistence.Persistable):
 
         persister.exec_stmt(ShardMapping.CREATE_SHARD_MAPPING)
         persister.exec_stmt(ShardMapping.CREATE_SHARD_MAPPING_DEFN)
-
-    @staticmethod
-    def drop(persister=None):
-        """Drop the schema for the table used to store the mapping between
-        the table and the sharding specificaton.
-
-        :param persister: A valid handle to the state store.
-        """
-
-        persister.exec_stmt(ShardMapping.DROP_SHARD_MAPPING_DEFN)
-        persister.exec_stmt(ShardMapping.DROP_SHARD_MAPPING)
-
-    @staticmethod
-    def add_constraints(persister=None):
-        """Add the Foreign key contraints for the Shard Mapping tables.
-
-        :param persister: A valid handle to the state store.
-        """
-        persister.exec_stmt(
-                    ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
-        persister.exec_stmt(
-                    ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP)
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the Foreign key contraints for the Shard Mapping tables.
-
-        :param persister: A valid handle to the state store.
-        """
-        persister.exec_stmt(
-                    ShardMapping.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID)
-        persister.exec_stmt(
-                    ShardMapping.DROP_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP)
 
     @staticmethod
     def fetch(table_name, persister=None):
@@ -670,14 +621,6 @@ class Shards(_persistence.Persistable):
                                   "FOREIGN KEY(group_id) REFERENCES "
                                   "groups(group_id)")
 
-    #Drop the referential integrity constraint with the groups table.
-    DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
-                                    ("ALTER TABLE shards DROP "
-                                     "FOREIGN KEY fk_shards_group_id")
-
-    #Drop the schema for storing the shard to group mapping.
-    DROP_SHARDS = ("DROP TABLE shards")
-
     #Insert the Range to Shard mapping into the table.
     INSERT_SHARD = ("INSERT INTO shards(group_id, state) VALUES(%s, %s)")
 
@@ -735,14 +678,6 @@ class Shards(_persistence.Persistable):
         persister.exec_stmt(Shards.CREATE_SHARDS)
 
     @staticmethod
-    def drop(persister=None):
-        """Drop the schema to store the current Shard to Group mapping.
-
-        :param persister: A valid handle to the state store.
-        """
-        persister.exec_stmt(Shards.DROP_SHARDS)
-
-    @staticmethod
     def add(group_id, state="DISABLED", persister=None):
         """Add a Group that will store a shard. A shard ID is automatically
         generated for a given added Group.
@@ -766,15 +701,6 @@ class Shards(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(Shards.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints on the Shards tables.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
-        """
-        persister.exec_stmt(Shards.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
 
     def remove(self, persister=None):
         """Remove the Shard to Group mapping.
@@ -1103,14 +1029,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         "shard_maps(shard_mapping_id)"
     )
 
-    #Drop the referential integrity constraint with the shard_mapping_defn
-    #table
-    DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID = (
-        "ALTER TABLE shard_ranges "
-        "DROP FOREIGN KEY "
-        "fk_shard_mapping_id_sharding_spec"
-    )
-
     #Create the referential integrity constraint with the shard_id
     #table
     ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID = \
@@ -1118,16 +1036,6 @@ class RangeShardingSpecification(_persistence.Persistable):
                                   "ADD CONSTRAINT fk_shard_id_sharding_spec "
                                   "FOREIGN KEY(shard_id) REFERENCES "
                                   "shards(shard_id)")
-
-    #Drop the referential integrity constraint with the shard_id
-    #table
-    DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID = \
-                                    ("ALTER TABLE shard_ranges "
-                                       "DROP FOREIGN KEY "
-                                       "fk_shard_id_sharding_spec")
-
-    #Drop the schema for storing the RANGE sharding specification.
-    DROP_RANGE_SPECIFICATION = ("DROP TABLE shard_ranges")
 
     #Insert a RANGE of keys and the server to which they belong.
     INSERT_RANGE_SPECIFICATION = ("INSERT INTO shard_ranges"
@@ -1267,15 +1175,6 @@ class RangeShardingSpecification(_persistence.Persistable):
         return [ RangeShardingSpecification(*row[0:5]) for row in rows ]
 
     @staticmethod
-    def drop(persister=None):
-        """Drop the Range shard specification schema.
-
-        :param persister: A valid handle to the state store.
-        """
-        persister.exec_stmt(
-                        RangeShardingSpecification.DROP_RANGE_SPECIFICATION)
-
-    @staticmethod
     def add_constraints(persister=None):
         """Add the constraints on the sharding tables.
 
@@ -1287,20 +1186,6 @@ class RangeShardingSpecification(_persistence.Persistable):
             )
         persister.exec_stmt(
             RangeShardingSpecification.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_ID
-            )
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints on the sharding tables.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(
-            RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_ID
-            )
-        persister.exec_stmt(
-            RangeShardingSpecification.DROP_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
             )
 
     @staticmethod
@@ -1796,33 +1681,12 @@ class HashShardingSpecification(RangeShardingSpecification):
         pass
 
     @staticmethod
-    def drop(persister=None):
-        """Drop the Range shard specification schema. We use the relations used
-        to store the RANGE sharding data. Hence this method is a dummy here.
-        We need a dummy implementation since the framework invokes this method
-        to drop the schemas.
-
-        :param persister: A valid handle to the state store.
-        """
-        pass
-
-    @staticmethod
     def add_constraints(persister=None):
         """Add the constraints on the sharding tables. We use a dummy
         implementation here.
 
         :param persister: The DB server that can be used to access the
                           state store.
-        """
-        pass
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints on the sharding tables. We use a dummy
-        implementation here.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
         """
         pass
 

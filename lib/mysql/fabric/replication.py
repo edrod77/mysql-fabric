@@ -43,6 +43,7 @@ def get_master_status(server, options=None):
     the result set, a named tuple is always returned. Look up the `SHOW
     MASTER STATUS` command in the MySQL Manual for further details.
 
+    :param server: MySQL Server.
     :param options: Define how the result is formatted and retrieved.
                     See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
@@ -56,12 +57,16 @@ def get_master_status(server, options=None):
 def reset_master(server):
     """Reset the master. Look up the `RESET MASTER` command in the
     MySQL Manual for further details.
+
+    :param server: MySQL Server.
     """
     server.exec_stmt("RESET MASTER")
 
 @_server.server_logging
 def has_appropriate_privileges(server):
     """Check whether the current user has the `REPLICATION SLAVE PRIVILEGE`.
+
+    :param server: MySQL Server.
     """
     return server.has_privileges(["REPLICATION SLAVE"])
 
@@ -72,6 +77,7 @@ def get_master_slaves(server, options=None):
     Please, look up the `SHOW SLAVE HOSTS` in the MySQL Manual for further
     details.
 
+    :param server: MySQL Server.
     :param options: Define how the result is formatted and retrieved.
                     See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
@@ -128,7 +134,7 @@ def check_master_issues(server):
     if not server.get_variable("LOG_SLAVE_UPDATES"):
         status["is_slave_updates_enabled"] = False
 
-    # See if there is at least one user with rpl privileges
+    # See if the current user has the appropriate replication privilege(s)
     if not has_appropriate_privileges(server):
         status["rpl_user"] = False
 
@@ -140,6 +146,7 @@ def get_slave_status(server, options=None):
     the result set, a named tuple is always returned. Look up the `SHOW
     SLAVE STATUS` command in the MySQL Manual for further details.
 
+    :param server: MySQL Server.
     :param options: Define how the result is formatted and retrieved.
                     See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
@@ -152,6 +159,8 @@ def get_slave_status(server, options=None):
 @_server.server_logging
 def is_slave_thread_running(server, threads=None):
     """Check to see if slave's threads are running smoothly.
+
+    :param server: MySQL Server.
     """
     return _check_condition(server, threads, True)
 
@@ -159,6 +168,7 @@ def is_slave_thread_running(server, threads=None):
 def slave_has_master(server):
     """Return the master's uuid to which the slave is connected to.
 
+    :param server: MySQL Server.
     :return: Master's uuid or None.
     :rtype: String.
     """
@@ -212,6 +222,7 @@ def get_num_gtid(gtids, server_uuid=None):
 def get_slave_num_gtid_behind(server, master_gtids, master_uuid=None):
     """Get the number of transactions behind the master.
 
+    :param server: MySQL Server.
     :param master_gtids: GTID information retrieved from the master.
         See :meth:`~mysql.fabric.server.MySQLServer.get_gtid_status`.
     :param master_uuid: Master which is used as the basis for comparison.
@@ -244,6 +255,7 @@ def start_slave(server, threads=None, wait=False, timeout=None):
     """Start the slave. Look up the `START SLAVE` command in the MySQL
     Manual for further details.
 
+    :param server: MySQL Server.
     :param threads: Determine which threads shall be started.
     :param wait: Determine whether one shall wait until the thread(s)
                  start(s) or not.
@@ -266,6 +278,7 @@ def stop_slave(server, threads=None, wait=False, timeout=None):
     """Stop the slave. Look up the `STOP SLAVE` command in the MySQL
     Manual for further details.
 
+    :param server: MySQL Server.
     :param threads: Determine which threads shall be stopped.
     :param wait: Determine whether one shall wait until the thread(s)
                  stop(s) or not.
@@ -288,6 +301,7 @@ def reset_slave(server, clean=False):
     """Reset the slave. Look up the `RESET SLAVE` command in the MySQL
     Manual for further details.
 
+    :param server: MySQL Server.
     :param clean: Do not save master information such as host, user, etc.
     """
     param = "ALL" if clean else ""
@@ -302,6 +316,7 @@ def wait_for_slave_thread(server, timeout=None, wait_for_running=True,
     achieved. If the timeout period expires prior to achieving the
     condition the exception TimeoutError is raised.
 
+    :param server: MySQL Server.
     :param timeout: Number of seconds one waits until the condition is
                     achieved. If it is None, one waits indefinitely.
     :param wait_for_running: If one should check whether threads are
@@ -330,6 +345,7 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
     thread is stopped, the :class:`~mysql.fabric.errors.DatabaseError`
     exception is raised.
 
+    :param server: MySQL Server.
     :param binlog_file: Master's binlog file.
     :param binlog_pos: Master's binlog file position.
     :param timeout: Maximum number of seconds to wait for the condition to
@@ -353,6 +369,35 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
     assert(res[0][0] > -1)
 
 @_server.server_logging
+def wait_for_slave_status_thread(server, thread, status, timeout=None):
+    """Wait until a slave's thread exhibits a status.
+
+    The status is a sub-string of the current status: Slave_IO_state or
+    Slave_SQL_Running_State.
+
+    If timeout is None, one waits indefinitely until the condition is
+    achieved. If the timeout period expires prior to achieving the
+    condition the exception TimeoutError is raised.
+
+    :param server: MySQL Server.
+    :param thread: Which thread should be checked.
+    :type thread: `SQL_THREAD` or `IO_THREAD`.
+    :status: Which status should be checked.
+    :type status: string.
+    :param timeout: Number of seconds one waits until the condition is
+                    achieved. If it is None, one waits indefinitely.
+    """
+    while (timeout is None or timeout > 0) and \
+           not _check_status_condition(server, thread, status):
+        time.sleep(1)
+        timeout = timeout - 1 if timeout is not None else None
+    if not _check_status_condition(server, thread, status):
+        raise _errors.TimeoutError(
+            "Error waiting for slave's thread (%s) to exhibit status (%s)." %
+            (thread, status)
+        )
+
+@_server.server_logging
 def sync_slave_with_master(slave, master, timeout=0):
     """Synchronizes a slave with a master.
 
@@ -361,8 +406,8 @@ def sync_slave_with_master(slave, master, timeout=0):
     This function can block if the master fails and all
     transactions are not fetched.
 
-    :param slave: Reference to a slave.
-    :param master: Reference to the master.
+    :param slave: Reference to a slave (MySQL Server).
+    :param master: Reference to the master (MySQL Server).
     :param timeout: Timeout for waiting for slave to catch up.
     """
     # Check servers for GTID support
@@ -385,7 +430,7 @@ def wait_for_slave_gtid(server, gtids, timeout=0):
     raised. If any thread is stopped, the
     :class:`~mysql.fabric.errors.DatabaseError` exception is raised.
 
-    :param slave: Reference to a slave.
+    :param server: MySQL Server.
     :param gtids: Gtid information.
     :param timeout: Timeout for waiting for slave to catch up.
     """
@@ -422,7 +467,8 @@ def switch_master(slave, master, master_user, master_passwd=None,
     settings of the slave along with the parameters provided and execute
     it. No prerequisites are checked.
 
-    :param master: Master class instance.
+    :param slave: Reference to a slave (MySQL Server).
+    :param master: Reference to the master (MySQL Server).
     :param master_user: Replication user.
     :param master_passwd: Replication user password.
     :param from_beginning: If True, start from beginning of logged events.
@@ -523,8 +569,8 @@ def check_slave_delay(slave, master):
       status["bytes_behind"] = Value
       status["gtids_behind"] = Value
 
-    :param slave: MySQL Slave.
-    :param master: MySQL Master.
+    :param slave: Reference to a slave (MySQL Server).
+    :param master: Reference to the master (MySQL Server).
     :return: A dictionary with delays, if there is any.
     """
     status = {}
@@ -565,6 +611,7 @@ def _check_condition(server, threads, check_if_running):
     `SQL_THREAD` or the `IO_THREAD` are stopped and there is an error,
     the :class:`~mysql.fabric.errors.DatabaseError` exception is raised.
 
+    :param server: MySQL Server.
     :param threads: Which threads should be checked.
     :type threads: `SQL_THREAD` or `IO_THREAD`.
     :param check_if_running: If one should check whether threads are
@@ -604,6 +651,47 @@ def _check_condition(server, threads, check_if_running):
 
     return achieved
 
+def _check_status_condition(server, thread, status):
+    """Check if a slave's thread has the requested status. If the `SQL_THREAD`
+    or the `IO_THREAD` is stopped and there is an error, the following
+    :class:`~mysql.fabric.errors.DatabaseError` exception is raised.
+
+    :param server: MySQL Server.
+    :param thread: Which thread should be checked.
+    :type thread: `SQL_THREAD` or `IO_THREAD`.
+    :param status: The status to be checked.
+    """
+    io_errno = sql_errno = 0
+    io_error = sql_error = ""
+    achieved = False
+
+    ret = get_slave_status(server)
+    if not ret:
+        return achieved
+
+    if SQL_THREAD == thread:
+        sql_status = True if status in ret[0].Slave_SQL_Running_State else False
+        sql_error = ret[0].Last_SQL_Error
+        sql_errno = int(ret[0].Last_SQL_Errno)
+
+        if sql_errno != 0:
+            raise _errors.DatabaseError(sql_error)
+
+        achieved = sql_status
+
+    elif IO_THREAD == thread:
+        io_status = True if status in ret[0].Slave_IO_State else False
+        io_error = ret[0].Last_IO_Error
+        io_errno = int(ret[0].Last_IO_Errno)
+
+        if io_errno != 0:
+            raise _errors.DatabaseError(io_error)
+
+        achieved = io_status
+
+    return achieved
+
+
 def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     """Synchronize the master with the slave. The function accepts a transaction
     lag and a timeout parameters.
@@ -618,8 +706,8 @@ def synchronize_with_read_only(slave,  master, trnx_lag=0, timeout=5):
     we have to assume that the slave will not catch up and lock the source
     shard.
 
-    :param slave: The MySQLServer object for the slave server.
-    :param master: The MySQLServer object for the master server.
+    :param slave: Reference to a slave (MySQL Server).
+    :param master: Reference to the master (MySQL Server).
     :param trnx_lag: The number of transactions by which the slave can lag the
                                 master before we can take a lock.
     :param timeout: The timeout for which we should wait before taking a

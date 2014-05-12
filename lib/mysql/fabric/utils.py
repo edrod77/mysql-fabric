@@ -124,21 +124,19 @@ def split_database_table(fully_qualified_table_name):
     return fully_qualified_table_name.split('.')
 
 def wrap_output(output):
-    """Used to wrap the the output in a standard format, viz,
-    (_utils.FABRIC_UUID, _utils.VERSION_TOKEN, _utils.TTL, <o/p>).
+    """Used to wrap the the output in a standard format:
+    (FABRIC_UUID, VERSION_TOKEN, TTL).
 
     :param output: The output that needs to be wrapped.
-
     :return: the "output" parameter is returned in the following four
              tuple format.
     """
     return (FABRIC_UUID, VERSION_TOKEN, TTL, output)
 
-
 def get_time():
     """Get current time using datetime.utcnow().
     """
-    return datetime.datetime.utcnow()
+    return datetime.datetime.utcnow().replace(microsecond=0)
 
 def get_time_delta(delta):
     """Transform a value provided through the parameter delta into a
@@ -147,6 +145,11 @@ def get_time_delta(delta):
     :param delta: Delta value in seconds.
     """
     return datetime.timedelta(seconds=delta)
+
+def get_time_from_timestamp(timestamp):
+    """Return a utc time from a timestemp().
+    """
+    return datetime.datetime.utcfromtimestamp(timestamp).replace(microsecond=0)
 
 def get_group_lower_bound_list(input_string):
     """Get the list of GROUP IDs and the LBs from the input string.
@@ -169,3 +172,38 @@ def get_group_lower_bound_list(input_string):
         if lower_bound is not None:
             lower_bound_list.append(lower_bound)
     return group_id_list, lower_bound_list
+
+def check_number_threads(increasing=0):
+    """Check the number of threads that are running and whether the maximum
+    number of connections in the state store is configured accordingly.
+
+    :param increasing: Whether you want to increase the number of threads and
+                       how many threads. Default is zero.
+
+    It raises a ConfigurationError exception if the number of connections is
+    too small.
+    """
+    from mysql.fabric import (
+        errors as _errors,
+        executor as _executor,
+        persistence as _persistence,
+        services as _services,
+        server as _server,
+    )
+
+    n_sessions = _services.ServiceManager().get_number_sessions()
+    n_executors = _executor.Executor().get_number_executors()
+    n_failure_detectors = len(_server.Group.groups_by_status(_server.Group.ACTIVE))
+    n_controls = 1
+    persister = _persistence.current_persister()
+    max_allowed_connections = persister.max_allowed_connections()
+    if (n_sessions +  n_executors + n_controls + n_failure_detectors +\
+        increasing) > (max_allowed_connections - 1):
+        raise _errors.ConfigurationError(
+            "Too many threads requested. Session threads (%s), Executor "
+            "threads (%s), Control threads (%s) and Failure Detector threads "
+            "(%s). The maximum number of threads allowed is (%s). Increase "
+            "the maximum number of connections in the state store in order "
+            "to increase this limit." % (n_sessions, n_executors, n_controls,
+            n_failure_detectors, max_allowed_connections - 1)
+         )

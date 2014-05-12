@@ -50,17 +50,17 @@ def reset_slave(slave):
     _replication.reset_slave(slave, clean=True)
 
 
-def process_slave_backlog(slave, gtid_executed, gtid_retrieved):
+def process_slave_backlog(slave):
     """Wait until slave processes its backlog.
 
     :param slave: slave.
-    :param gtid_executed: Executed GTIDs.
-    :param gtid_retrieved: Retrieved GTIDs.
     """
     _replication.stop_slave(slave, wait=True)
     _replication.start_slave(slave, threads=("SQL_THREAD", ), wait=True)
-    _replication.wait_for_slave_gtid(slave, gtid_executed + "," + \
-                                     gtid_retrieved)
+    slave_status = _replication.get_slave_status(slave)[0]
+    _replication.wait_for_slave(
+        slave, slave_status.Master_Log_File, slave_status.Read_Master_Log_Pos
+     )
 
 
 def synchronize(slave, master):

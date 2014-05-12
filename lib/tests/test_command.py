@@ -202,8 +202,6 @@ class ClassShard_0(_command.ProcedureShard):
     def execute(self, group_id, synchronous=True):
         """Method that is remotely executed.
         """
-        lockable = self.get_lockable_objects("group_id")
-        assert(lockable == set(['test']))
         procedures = _events.trigger(
             NEW_PROCEDURE_SHARD_0, self.get_lockable_objects(), group_id
         )

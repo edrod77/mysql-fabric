@@ -50,6 +50,10 @@ from mysql.fabric import (
     config as _config,
 )
 
+from mysql.fabric.handler import (
+    MySQLHandler,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 def server_logging(function):
@@ -106,13 +110,6 @@ class Group(_persistence.Persistable):
                             "REFERENCES groups(group_id), "
                             "INDEX idx_slave_group_id(slave_group_id))")
 
-    #SQL Statements for dropping the table created for storing the Group
-    #information
-    DROP_GROUP = ("DROP TABLE groups")
-
-    #Drop the table that stores the master group of a particular group.
-    DROP_GROUP_REPLICATION = ("DROP TABLE group_replication")
-
     #SQL statement for inserting a new group into the table
     INSERT_GROUP = ("INSERT INTO groups(group_id, description, status) "
                     "VALUES(%s, %s, %s)")
@@ -167,11 +164,6 @@ class Group(_persistence.Persistable):
     ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = (
         "ALTER TABLE groups ADD CONSTRAINT fk_master_uid_servers "
         "FOREIGN KEY(master_uuid) REFERENCES servers(server_uuid)"
-    )
-
-    #Drop the referential integrity constraint with the servers table
-    DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID = (
-        "ALTER TABLE groups DROP FOREIGN KEY fk_master_uid_servers"
     )
 
     #Group's statuses
@@ -380,9 +372,18 @@ class Group(_persistence.Persistable):
         else:
             param_master = str(master)
 
+        _LOGGER.info("Master has changed from %s to %s.", self.__master, master,
+            extra={
+                "subject": self.__group_id,
+                "category": MySQLHandler.GROUP,
+                "type" : MySQLHandler.PROMOTE if master else \
+                         MySQLHandler.DEMOTE
+            }
+        )
         persister.exec_stmt(Group.UPDATE_MASTER,
             {"params":(param_master, _utils.get_time(), self.__group_id)})
         self.__master = master
+
 
     def servers(self):
         """Return a list with the servers in this group.
@@ -404,6 +405,8 @@ class Group(_persistence.Persistable):
                           state store.
         """
         assert(status in Group.GROUP_STATUS)
+        # Check the maximum number of threads.
+        _utils.check_number_threads(1)
         persister.exec_stmt(Group.UPDATE_STATUS,
             {"params":(status, self.__group_id)})
         self.__status = status
@@ -420,7 +423,7 @@ class Group(_persistence.Persistable):
         diff = now - self.__master_defined
         interval = _utils.get_time_delta(Group._FAILOVER_INTERVAL)
 
-        if (self.__master == server.uuid and diff > interval) or \
+        if (self.__master == server.uuid and diff >= interval) or \
             self.__master != server.uuid:
             return True
 
@@ -504,25 +507,7 @@ class Group(_persistence.Persistable):
         :raises: DatabaseError If the table already exists.
         """
         persister.exec_stmt(Group.CREATE_GROUP)
-
-        try:
-            persister.exec_stmt(Group.CREATE_GROUP_REPLICATION)
-        except _errors.DatabaseError:
-            persister.exec_stmt(Group.DROP_GROUP)
-            raise
-
-    @staticmethod
-    def drop(persister=None):
-        """Drop the objects(tables) that represent the Group information in
-        the persistent store.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
-        :raises: DatabaseError If the drop of the related table fails.
-        """
-        _detector.FailureDetector.unregister_groups()
-        persister.exec_stmt(Group.DROP_GROUP_REPLICATION)
-        persister.exec_stmt(Group.DROP_GROUP)
+        persister.exec_stmt(Group.CREATE_GROUP_REPLICATION)
 
     @staticmethod
     def add_constraints(persister=None):
@@ -536,17 +521,6 @@ class Group(_persistence.Persistable):
         )
         return True
 
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints to the groups table.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(
-            Group.DROP_FOREIGN_KEY_CONSTRAINT_MASTER_UUID
-        )
-        return True
 
 class ConnectionPool(_utils.Singleton):
     """Manages MySQL Servers' connections.
@@ -647,7 +621,7 @@ class MySQLServer(_persistence.Persistable):
 
     :param uuid: The uuid of the server.
     :param address:  The address of the server.
-    :param user: The username used to access the server.
+    :param user: The user's name used to access the server.
     :param passwd: The password used to access the server.
     :param mode: Server's mode.
     :type mode: OFFLINE, READ_ONLY, READ_WRITE.
@@ -672,19 +646,10 @@ class MySQLServer(_persistence.Persistable):
         "INDEX idx_group_id (group_id))"
     )
 
-    #SQL Statement for dropping the table used to store the details about the
-    #server.
-    DROP_SERVER = ("DROP TABLE servers")
-
     #Create the referential integrity constraint with the groups table
     ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = (
         "ALTER TABLE servers ADD CONSTRAINT fk_group_id_servers "
         "FOREIGN KEY(group_id) REFERENCES groups(group_id)"
-    )
-
-    #Drop the referential integrity constraint with the groups table
-    DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID = (
-        "ALTER TABLE servers DROP FOREIGN KEY fk_group_id_servers"
     )
 
     #SQL statement for inserting a new server into the table
@@ -815,10 +780,16 @@ class MySQLServer(_persistence.Persistable):
 
     @staticmethod
     @server_logging
-    def discover_uuid(address, user=None, passwd=None):
+    def discover_uuid(address, user=None, passwd=None,
+                      connection_timeout=None):
         """Retrieve the uuid from a server.
 
-        :param kwargs: Dictionary with parmaters to connect to a server.
+        :param address: Server's address.
+        :param user: The user's name used to access the server.
+        :param passwd: The password used to access the server.
+        :param connection_timeout: Time in seconds after which an error is
+                                   reported if the UUID is not retrieved.
+        :return: UUID.
         """
 
         host, port = _server_utils.split_host_port(
@@ -830,7 +801,7 @@ class MySQLServer(_persistence.Persistable):
         passwd = passwd or MySQLServer.PASSWD
         cnx = _server_utils.create_mysql_connection(
             user=user, passwd=passwd, host=host, port=port, autocommit=True,
-            use_unicode=False
+            use_unicode=False, connection_timeout=connection_timeout
         )
 
         try:
@@ -1451,16 +1422,6 @@ class MySQLServer(_persistence.Persistable):
         persister.exec_stmt(MySQLServer.CREATE_SERVER)
 
     @staticmethod
-    def drop(persister=None):
-        """Drop the objects(tables) that represent the Server information in
-        the persistent store.
-
-        :param persister: Persister to persist the object to.
-        :raises: DatabaseError If the drop of the related table fails.
-        """
-        persister.exec_stmt(MySQLServer.DROP_SERVER)
-
-    @staticmethod
     def add_constraints(persister=None):
         """Add the constraints to the servers table.
 
@@ -1469,16 +1430,6 @@ class MySQLServer(_persistence.Persistable):
         """
         persister.exec_stmt(
                 MySQLServer.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        return True
-
-    @staticmethod
-    def drop_constraints(persister=None):
-        """Drop the constraints to the servers table.
-
-        :param persister: The DB server that can be used to access the
-                  state store.
-        """
-        persister.exec_stmt(MySQLServer.DROP_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
         return True
 
     @staticmethod

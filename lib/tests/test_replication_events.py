@@ -166,6 +166,38 @@ class TestReplicationServices(unittest.TestCase):
         expected.sort()
         self.assertEqual(retrieved, expected)
 
+        # Do the promote.
+        # Note that it is using HOST:PORT instead of UUID.
+        status = self.proxy.group.promote(
+            "group_id", master.address
+            )
+        self.assertStatus(status, _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_change_to_candidate).")
+
+        # Look up servers.
+        servers = self.proxy.group.lookup_servers("group_id")
+        self.assertEqual(servers[0], True)
+        self.assertEqual(servers[1], "")
+        retrieved = servers[2]
+        expected = \
+            [{"server_uuid" : str(master.uuid), "address" : master.address,
+             "status" : _server.MySQLServer.PRIMARY,
+             "mode" : _server.MySQLServer.READ_WRITE,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
+             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
+             "status" : _server.MySQLServer.SECONDARY,
+             "mode" : _server.MySQLServer.READ_ONLY,
+             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
+        retrieved.sort()
+        expected.sort()
+        self.assertEqual(retrieved, expected)
+
     def test_promote(self):
         # Create topology: M1 ---> S2, M1 ---> S3, M1 ---> S4
         instances = tests.utils.MySQLInstances()

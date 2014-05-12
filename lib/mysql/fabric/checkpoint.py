@@ -85,10 +85,6 @@ class Checkpoint(_persistence.Persistable):
         "CONSTRAINT pk_checkpoint PRIMARY KEY (proc_uuid, job_uuid))"
         )
 
-    # SQL Statement for dropping the table checkpoints which is used to keep
-    # track of execution.
-    DROP_CHECKPOINTS = ("DROP TABLE checkpoints")
-
     #SQL statement for inserting a new checkpoint into the table.
     INSERT_CHECKPOINT = (
         "INSERT INTO checkpoints(proc_uuid, lockable_objects, job_uuid, "
@@ -381,16 +377,6 @@ class Checkpoint(_persistence.Persistable):
                           state store.
         """
         persister.exec_stmt(Checkpoint.CREATE_CHECKPOINTS)
-
-    @staticmethod
-    def drop(persister=None):
-        """Drop the objects(tables) that represent Checkpoint information in
-        the state store.
-
-        :param persister: The DB server that can be used to access the
-                          state store.
-        """
-        persister.exec_stmt(Checkpoint.DROP_CHECKPOINTS)
 
     @staticmethod
     def get_do_action(action_fqn):

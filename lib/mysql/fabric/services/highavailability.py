@@ -30,13 +30,14 @@ from  mysql.fabric import (
     server as _server,
     replication as _replication,
     errors as _errors,
-    server_utils as _server_utils,
-    failure_detector as _detector,
 )
 
 from mysql.fabric.command import (
     ProcedureGroup,
-    Command,
+)
+
+from mysql.fabric.services.server import (
+    _retrieve_server
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -96,12 +97,12 @@ class PromoteMaster(ProcedureGroup):
     group_name = "group"
     command_name = "promote"
 
-    def execute(self, group_id, slave_uuid=None, update_only=False,
+    def execute(self, group_id, slave_id=None, update_only=False,
                 synchronous=True):
         """Promote a new master.
 
         :param uuid: Group's id.
-        :param slave_uuid: Candidate's UUID.
+        :param slave_id: Candidate's UUID or HOST:PORT.
         :param update_only: Only update the state store and skip provisioning.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
@@ -193,12 +194,12 @@ class PromoteMaster(ProcedureGroup):
         """
         procedures = _events.trigger(
             DEFINE_HA_OPERATION, self.get_lockable_objects(), group_id,
-            slave_uuid, update_only
+            slave_id, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
 @_events.on_event(DEFINE_HA_OPERATION)
-def _define_ha_operation(group_id, slave_uuid, update_only):
+def _define_ha_operation(group_id, slave_id, update_only):
     """Define which operation must be called based on the master's status
     and whether the candidate slave is provided or not.
     """
@@ -208,7 +209,7 @@ def _define_ha_operation(group_id, slave_uuid, update_only):
     if not group:
         raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
-    if update_only and not slave_uuid:
+    if update_only and not slave_id:
         raise _errors.ServerError(
             "The new master must be specified through --slave-uuid if "
             "--update-only is set."
@@ -222,22 +223,24 @@ def _define_ha_operation(group_id, slave_uuid, update_only):
             fail_over = False
 
     if update_only:
-        _change_to_candidate(group_id, slave_uuid, update_only)
+        # Check whether the server is registered or not.
+        _retrieve_server(slave_id, group_id)
+        _change_to_candidate(group_id, slave_id, update_only)
         return
 
     if fail_over:
-        if not slave_uuid:
+        if not slave_id:
             _events.trigger_within_procedure(FIND_CANDIDATE_FAIL, group_id)
         else:
             _events.trigger_within_procedure(CHECK_CANDIDATE_FAIL, group_id,
-                                             slave_uuid
+                                             slave_id
             )
     else:
-        if not slave_uuid:
+        if not slave_id:
             _events.trigger_within_procedure(FIND_CANDIDATE_SWITCH, group_id)
         else:
             _events.trigger_within_procedure(CHECK_CANDIDATE_SWITCH, group_id,
-                                             slave_uuid
+                                             slave_id
             )
 
 # Block any write access to the master.
@@ -379,7 +382,7 @@ def _do_find_candidate(group_id, event):
     return chosen_uuid
 
 @_events.on_event(CHECK_CANDIDATE_SWITCH)
-def _check_candidate_switch(group_id, slave_uuid):
+def _check_candidate_switch(group_id, slave_id):
     """Check if the candidate has all the features to become the new
     master.
     """
@@ -390,19 +393,15 @@ def _check_candidate_switch(group_id, slave_uuid):
         raise _errors.GroupError(
             "Group (%s) does not contain a valid "
             "master. Please, run a promote or failover." % (group_id, )
-            )
+        )
 
-    if group.master == _uuid.UUID(slave_uuid):
-        raise _errors.ServerError(
-            "Candidate slave (%s) is already master." % (slave_uuid, )
-            )
-
-    slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
+    slave = _retrieve_server(slave_id, group_id)
     slave.connect()
 
-    if group_id != slave.group_id:
-        raise _errors.GroupError("Group (%s) does not contain server (%s)."
-                                 % (group_id, slave_uuid))
+    if group.master == slave.uuid:
+        raise _errors.ServerError(
+            "Candidate slave (%s) is already master." % (slave_id, )
+            )
 
     master_issues = _replication.check_master_issues(slave)
     if master_issues:
@@ -428,10 +427,10 @@ def _check_candidate_switch(group_id, slave_uuid):
             )
 
     if slave.status not in allowed_status:
-        raise _errors.ServerError("Server (%s) is faulty." % (slave_uuid, ))
+        raise _errors.ServerError("Server (%s) is faulty." % (slave_id, ))
 
     _events.trigger_within_procedure(
-        BLOCK_WRITE_SWITCH, group_id, master_uuid, slave_uuid
+        BLOCK_WRITE_SWITCH, group_id, master_uuid, str(slave.uuid)
         )
 
 @_events.on_event(BLOCK_WRITE_SWITCH)
@@ -553,28 +552,20 @@ def _find_candidate_fail(group_id):
                                      slave_uuid)
 
 @_events.on_event(CHECK_CANDIDATE_FAIL)
-def _check_candidate_fail(group_id, slave_uuid):
+def _check_candidate_fail(group_id, slave_id):
     """Check if the candidate has all the prerequisites to become the new
     master.
     """
     allowed_status = (_server.MySQLServer.SECONDARY, _server.MySQLServer.SPARE)
     group = _server.Group.fetch(group_id)
 
-    if group.master == _uuid.UUID(slave_uuid):
-        raise _errors.ServerError(
-            "Candidate slave (%s) is already master." % (slave_uuid, )
-            )
-
-    slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
-    if slave is None:
-        raise _errors.ServerError(
-            "Candidate slave (%s) was not found." % (slave_uuid, )
-        )
+    slave = _retrieve_server(slave_id, group_id)
     slave.connect()
 
-    if group_id != slave.group_id:
-        raise _errors.GroupError("Group (%s) does not contain server (%s)."
-                                 % (group_id, slave_uuid))
+    if group.master == slave.uuid:
+        raise _errors.ServerError(
+            "Candidate slave (%s) is already master." % (slave_id, )
+            )
 
     master_issues = _replication.check_master_issues(slave)
     if master_issues:
@@ -585,9 +576,9 @@ def _check_candidate_fail(group_id, slave_uuid):
             )
 
     if slave.status not in allowed_status:
-        raise _errors.ServerError("Server (%s) is faulty." % (slave_uuid, ))
+        raise _errors.ServerError("Server (%s) is faulty." % (slave_id, ))
 
-    _events.trigger_within_procedure(WAIT_SLAVE_FAIL, group_id, slave_uuid)
+    _events.trigger_within_procedure(WAIT_SLAVE_FAIL, group_id, str(slave.uuid))
 
 @_events.on_event(WAIT_SLAVE_FAIL)
 def _wait_slave_fail(group_id, slave_uuid):
@@ -596,11 +587,13 @@ def _wait_slave_fail(group_id, slave_uuid):
     slave = _server.MySQLServer.fetch(_uuid.UUID(slave_uuid))
     slave.connect()
 
-    slave_status = _replication.get_slave_status(slave)
-    if slave_status:
-        gtid_executed = slave.get_gtid_status()[0].GTID_EXECUTED.strip(",")
-        gtid_retrieved = slave_status[0].Retrieved_Gtid_Set.strip(",")
-        _utils.process_slave_backlog(slave, gtid_executed, gtid_retrieved)
+    try:
+        _utils.process_slave_backlog(slave)
+    except _errors.DatabaseError as error:
+        _LOGGER.warning(
+            "Error (%s) trying to process transactions in the relay log "
+            "for candidate (%s).", slave, error
+        )
 
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
 

@@ -37,10 +37,19 @@ from mysql.fabric import (
     server as _server,
     error_log as _error_log,
     credentials,
+    handler as _logging,
 )
 
 from mysql.fabric.command import (
     Command,
+)
+
+from mysql.fabric.handler import (
+    MySQLHandler,
+)
+
+from mysql.fabric.node import (
+    FabricNode
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -114,7 +123,6 @@ class Start(Command):
         # Configure logging.
         _configure_logging(self.config, daemonize)
 
-        _LOGGER.info("Fabric node starting.")
         # Configure connections.
         _configure_connections(self.config)
 
@@ -136,7 +144,6 @@ class Start(Command):
         # Start Fabric server.
         _start(self.options, self.config)
         _services.ServiceManager().wait()
-        _LOGGER.info("Fabric node stopped.")
 
 
 class Setup(Command):
@@ -260,17 +267,19 @@ def _configure_logging(config, daemon):
         handler = _LOGGING_HANDLER[urlinfo.scheme](config, urlinfo)
     else:
         handler = logging.StreamHandler()
+    mysql_handler = _logging.MySQLHandler()
 
     formatter = logging.Formatter(
-        "[%(levelname)s] %(created)f - %(threadName)s"
-        " - %(message)s")
+        "[%(levelname)s] %(created)f - %(threadName)s "
+        "- %(message)s")
     handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.addHandler(mysql_handler)
     try:
         level = config.get("logging", "level")
         logger.setLevel(_LOGGING_LEVELS[level.upper()])
     except KeyError:
         logger.setLevel(_LOGGING_LEVELS["INFO"])
-    logger.addHandler(handler)
 
 
 def _configure_connections(config):
@@ -381,6 +390,23 @@ def _start(options, config):
     # Initilize the state store.
     _persistence.init_thread()
 
+    # Check the maximum number of threads.
+    _utils.check_number_threads()
+
+    # Configure Fabric Node.
+    fabric = FabricNode()
+    reported = _utils.get_time()
+    _LOGGER.info(
+        "Fabric node starting.",
+        extra={
+            'subject' : str(fabric.uuid),
+            'category' : MySQLHandler.NODE,
+            'type' : MySQLHandler.START,
+            'reported' : reported
+        }
+    )
+    fabric.startup = reported
+
     # Start the executor, failure detector and then service manager. In this
     # scenario, the recovery is sequentially executed after starting the
     # executor and before starting the service manager.
@@ -410,6 +436,14 @@ def _shutdown():
     _services.ServiceManager().shutdown()
     _events.Handler().shutdown()
     _events.Handler().wait()
+    _LOGGER.info(
+        "Fabric node stopped.",
+        extra={
+            'subject' : 'Node',
+            'category' : MySQLHandler.NODE,
+            'type' : MySQLHandler.STOP
+        }
+    )
 
 
 class FabricLookups(Command):

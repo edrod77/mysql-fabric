@@ -53,7 +53,7 @@ CREATE TABLE `users` (
   `password` varchar(128) DEFAULT NULL,
   PRIMARY KEY (user_id),
   UNIQUE KEY (`username`, `protocol`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['roles'] = """
@@ -62,7 +62,7 @@ CREATE TABLE `roles` (
   `name` varchar(80) NOT NULL,
   `description` varchar(1000),
   PRIMARY KEY (role_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['permissions'] = """
@@ -74,7 +74,7 @@ CREATE TABLE `permissions` (
   `description` varchar(1000),
   PRIMARY KEY (permission_id),
   UNIQUE INDEX (`subsystem`, `component`, `function`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['role_permissions'] = """
@@ -82,7 +82,7 @@ CREATE TABLE `role_permissions` (
   `role_id` int unsigned NOT NULL,
   `permission_id` int unsigned NOT NULL,
   PRIMARY KEY (`role_id`, `permission_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CREATE['user_roles'] = """
@@ -90,7 +90,7 @@ CREATE TABLE `user_roles` (
   `user_id` int unsigned NOT NULL,
   `role_id` int unsigned NOT NULL,
   PRIMARY KEY (`user_id`, `role_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) DEFAULT CHARSET=utf8
 """
 
 _SQL_CONSTRAINTS = [
@@ -137,11 +137,6 @@ _USER_ROLES = [
 _SQL_FETCH_USER = """
 SELECT username, protocol, password
 FROM users WHERE username = %s AND protocol = %s
-"""
-
-_SQL_FETCH_USER_CHECK_PASSWORD = """
-SELECT username, protocol, password
-FROM users WHERE username = %s AND protocol = %s AND password = %s
 """
 
 _SQL_FETCH_USER_PERMISSIONS = """
@@ -338,23 +333,12 @@ class User(_persistence.Persistable):
                                persister=persister)
 
     @staticmethod
-    def drop(persister=None):
-        """Drop tables for FabricCredential
-
-        :param persister: A valid handle to the state store.
-        """
-        for table_name in reversed(_SQL_TABLES):
-            drop_table = "DROP TABLE IF EXISTS {0}".format(table_name)
-            persister.exec_stmt(drop_table)
-
-    @staticmethod
-    def fetch_user(username, protocol, config=None, password=None, realm=None,
-                   persister=None):
+    def fetch_user(username, protocol, realm, persister=None):
         """Fetch the information about a user using particular protocol
 
         :param username: Username being queried.
         :param protocol: Protocol with which the user connect.
-        :param password: Password of the user.
+        :param realm: Realm which the user belongs to.
         :param persister: A valid handle to the state store.
         :return: Returns user information including password hash.
         """
@@ -368,14 +352,7 @@ class User(_persistence.Persistable):
             "columns": True,
         }
 
-        if password:
-            sql = _SQL_FETCH_USER_CHECK_PASSWORD
-            options['params'].append(_hash_password(username, password,
-                                                    protocol, config, realm))
-        else:
-            sql = _SQL_FETCH_USER
-
-        cur = persister.exec_stmt(sql, options)
+        cur = persister.exec_stmt(_SQL_FETCH_USER, options)
         row = cur.fetchone()
         if row:
             return User(username=row.username,
@@ -519,7 +496,11 @@ def check_initial_setup(config, persister, check_only=False):
 
         # If there is no password, we have to ask for one.
         try:
-            password = config.get(section, 'password')
+            password = config.get(section, 'password').strip()
+
+            # No password, so we have to ask for one
+            if password == '':
+                break
         except _config.NoOptionError:
             # No password, so we have to ask for one
             break
@@ -1290,13 +1271,15 @@ class RoleList(UserCommand):
         _role_listing(persister=self.persister)
 
 
-def check_credentials(group, command, config,
-                      username=None, password=None, protocol=None):
+def check_credentials(group, command, config, protocol):
     """Check credentials using configuration
 
     :raises errors.CredentialError: if login failed, or if user has no
                                     permission
     """
+    if group not in ('user', 'role'):
+        return
+
     _configure_connections(config)
     _persistence.init_thread()
 
@@ -1309,12 +1292,12 @@ def check_credentials(group, command, config,
     password = config.get(section, 'password')
     realm = config.get(section, 'realm', vars=FABRIC_PROTOCOL_DEFAULTS)
 
-    user = User.fetch_user(username, protocol, config,
-                           password=password, realm=realm)
+    user = User.fetch_user(username, protocol=protocol, realm=realm)
+    password_hash = _hash_password(username, password, protocol, config, realm)
 
-    if not user:
+    if user is None or user.password_hash != password_hash:
         _LOGGER.info("Failed login for user %s/%s", username, protocol)
         raise _errors.CredentialError("Login failed")
-    if not user.has_permission('core', group, command):
+    elif not user.has_permission('core', group, command):
         _LOGGER.info("Permission denied for user %s/%s", username, protocol)
         raise _errors.CredentialError("No permission")

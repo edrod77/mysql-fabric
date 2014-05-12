@@ -137,6 +137,16 @@ class TestFailureEvents(unittest.TestCase):
             status[2][uuid_2]["status"], _server.MySQLServer.PRIMARY
         )
 
+        # Report instability of a server that is spare.
+        # Note this is using HOST:PORT instead of UUID.
+        server = _server.MySQLServer.fetch(uuid_1)
+        server.status = _server.MySQLServer.SPARE
+        status = self.proxy.threat.report_error(address_1)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_report_error).")
+
     def test_report_error_update_only(self):
         """Test the mechanism used to report server's issues (i.e. errors).
         """
@@ -206,7 +216,7 @@ class TestFailureEvents(unittest.TestCase):
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_report_failure).")
 
-        # Report failure of a server that is secondary.
+        # Report failure of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.PRIMARY
         status = self.proxy.threat.report_failure(uuid_1)
@@ -216,6 +226,16 @@ class TestFailureEvents(unittest.TestCase):
         self.assertEqual(server.status, _server.MySQLServer.FAULTY)
         self.assertEqual(status[1][-1]["description"],
                          "Executed action (_change_to_candidate).")
+
+        # Report failure of a server that is a spare.
+        # Note this is using HOST:PORT instead of UUID.
+        server = _server.MySQLServer.fetch(uuid_1)
+        server.status = _server.MySQLServer.SPARE
+        status = self.proxy.threat.report_failure(address_1)
+        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
+        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.assertEqual(status[1][-1]["description"],
+                         "Executed action (_report_failure).")
 
     def test_report_failure_update_only(self):
         """Test the mechanism used to report server's issues (i.e. failures).
