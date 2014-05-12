@@ -304,22 +304,22 @@ def configure_logging(level):
 
     # Setting logging for "mysql.fabric".
     logger = logging.getLogger("mysql.fabric")
-    try:
-        logger.setLevel(logging_levels[level])
-    except KeyError:
-        logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
     logger.addHandler(mysql_handler)
+    logger.setLevel(logging_levels["DEBUG"])
 
     # Setting logging for "tests".
     logger = logging.getLogger("tests")
-    try:
-        logger.setLevel(logging_levels[level])
-    except KeyError:
-        logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
     logger.addHandler(mysql_handler)
+    logger.setLevel(logging_levels["DEBUG"])
 
+    # Setting debugging level.
+    mysql_handler.setLevel(logging_levels["DEBUG"])
+    try:
+        handler.setLevel(logging_levels[level])
+    except KeyError:
+        handler.setLevel(logging_levels["DEBUG"])
 
 if __name__ == '__main__':
     # Note: do not change the names of the set of variables found below, e.g
