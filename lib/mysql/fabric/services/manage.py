@@ -273,14 +273,17 @@ def _configure_logging(config, daemon):
         "[%(levelname)s] %(created)f - %(threadName)s "
         "- %(message)s")
     handler.setFormatter(formatter)
+
     logger.addHandler(handler)
     logger.addHandler(mysql_handler)
+
+    logger.setLevel(_LOGGING_LEVELS["DEBUG"])
+    mysql_handler.setLevel(_LOGGING_LEVELS["DEBUG"])
     try:
         level = config.get("logging", "level")
-        logger.setLevel(_LOGGING_LEVELS[level.upper()])
+        handler.setLevel(_LOGGING_LEVELS[level.upper()])
     except KeyError:
-        logger.setLevel(_LOGGING_LEVELS["INFO"])
-
+        handler.setLevel(_LOGGING_LEVELS["INFO"])
 
 def _configure_connections(config):
     """Configure information on database connection and remote
