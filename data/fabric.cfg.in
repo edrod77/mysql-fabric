@@ -49,3 +49,6 @@ prune_time = 3600
 
 [connector]
 TTL = 1
+
+[client]
+password=

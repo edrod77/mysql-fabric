@@ -186,7 +186,7 @@ class MySQLDump(BackupMethod):
             _LOGGER.debug(message + ": " + error_lines)
 
     @staticmethod
-    def backup(server, mysqldump_binary=None):
+    def backup(server, config_file, mysqldump_binary=None):
         """Perform the backup using mysqldump.
 
         The backup results in creation a .sql file on the FABRIC server,
@@ -194,6 +194,7 @@ class MySQLDump(BackupMethod):
         this will suffice.
 
         :param server: The MySQLServer that needs to be backed up.
+        :param config_file: The complete path to the fabric configuration file.
         :param mysqldump_binary: The fully qualified mysqldump binary.
         """
         assert (isinstance(server, MySQLServer))
@@ -218,16 +219,15 @@ class MySQLDump(BackupMethod):
         #Setup the MYSQLDump command that is used to backup the server.
         #Append the password parameter if the password is not None.
         mysqldump_command.extend([
-             "--all-databases", "--single-transaction",
+            "--defaults-extra-file="+config_file,
+            "--all-databases", "--single-transaction",
             "--add-drop-table",
             "--triggers", "--routines",
+            "--events",
             "--protocol=tcp",
             "-h" + str(host),
             "-P" + str(port),
             "-u" + str(server.user)])
-
-        if server.passwd:
-            mysqldump_command.append("-p" + str(server.passwd))
 
         #Run the backup command
         with open(destination,"w") as fd_file:
@@ -247,8 +247,59 @@ class MySQLDump(BackupMethod):
         return BackupImage(destination)
 
     @staticmethod
-    def restore(server,  image, mysqlclient_binary):
-        """Restore the backup from the image to the server.
+    def restore_server(host,  port, user, passwd,
+                        image, config_file, mysqlclient_binary):
+        """Restore the backup from the image to a server outside the Fabric
+        Farm.
+
+        In the current implementation the restore works by restoring the
+        .sql file created on the FABRIC server. This will be optimized in future
+        implementation. But for the current implementation this suffices.
+
+        :param host: The host name of the server on which the backup needs
+                    to be restored into.
+        :param port: The port number of the server on which the backup needs
+                    to be restored into
+        :param user: The user name used for accessing the server.
+        :param passwd: The password used for accessing the server.
+        :param image: The image that needs to be restored.
+        :param config_file: The complete path to the fabric configuration file.
+        :param mysqlclient_binary: The fully qualified mysqlclient binary.
+        """
+
+        mysqlclient_command = shlex.split(mysqlclient_binary)
+
+        #Use the mysql client for the restore. Append the -p option with
+        #the password if there is a non-empty password.
+        mysqlclient_command.extend([
+            "--defaults-extra-file="+config_file,
+            "-h" + str(host),  "-P" + str(port),
+            "--protocol=tcp",
+            "-u" + str(user)])
+
+        #Fire the mysql client for the restore using the input image as
+        #the restore source.
+        p = Popen(mysqlclient_command, stdin=PIPE, stderr=PIPE)
+        if passwd:
+            p.stdin.write(passwd + "\n")
+        p.stdin.write("source %s\n" % (image.path,))
+        _, error_lines = p.communicate()
+        if p.returncode:
+            MySQLDump.dump_to_log(
+                "Error while restoring the backup using "\
+                "the mysql client\n",
+                error_lines
+            )
+            raise _errors.BackupError(
+                "Error while restoring the backup using "\
+                "the mysql client\n, %s",
+                error_lines
+            )
+
+    @staticmethod
+    def restore_fabric_server(server,  image, config_file, mysqlclient_binary):
+        """Restore the backup from the image to a server within the
+        fabric farm and managed by the Fabric server.
 
         In the current implementation the restore works by restoring the
         .sql file created on the FABRIC server. This will be optimized in future
@@ -256,6 +307,7 @@ class MySQLDump(BackupMethod):
 
         :param server: The server on which the backup needs to be restored.
         :param image: The image that needs to be restored.
+        :param config_file: The complete path to the fabric configuration file.
         :param mysqlclient_binary: The fully qualified mysqlclient binary.
         """
 
@@ -270,35 +322,8 @@ class MySQLDump(BackupMethod):
                                                 server.address,
                                                 MySQLDump.MYSQL_DEFAULT_PORT
                                                 )
-
-        mysqlclient_command = shlex.split(mysqlclient_binary)
-
-        #Use the mysql client for the restore. Append the -p option with
-        #the password if there is a non-empty password.
-        mysqlclient_command.extend([
-            "-h" + str(host),  "-P" + str(port),
-            "--protocol=tcp",
-            "-u" + str(server.user)])
-
-        if server.passwd:
-            mysqlclient_command.append("-p" + str(server.passwd))
-
-        #Fire the mysql client for the restore using the input image as
-        #the restore source.
-        with open(image.path,"r") as fd_file:
-            p = Popen(mysqlclient_command, stdin=fd_file, stderr=PIPE)
-            _, error_lines = p.communicate()
-            if p.returncode:
-                MySQLDump.dump_to_log(
-                    "Error while restoring the backup using "\
-                    "the mysql client\n",
-                    error_lines
-                )
-                raise _errors.BackupError(
-                    "Error while restoring the backup using "\
-                    "the mysql client\n, %s",
-                    error_lines
-                )
+        MySQLDump.restore_server(host, port, server.user, server.passwd,
+                image, config_file, mysqlclient_binary)
 
     @abstractmethod
     def copyBackup(image):

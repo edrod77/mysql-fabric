@@ -82,9 +82,9 @@ class Config(ConfigParser.SafeConfigParser):
 
         :param section: Section from which we read SSL configuration.
         """
-        if not self._config_file:
+        if not self.config_file:
             return
-        default_path = os.path.dirname(self._config_file)
+        default_path = os.path.dirname(self.config_file)
         try:
             for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
                 value = self.get(section, option)
@@ -105,7 +105,7 @@ class Config(ConfigParser.SafeConfigParser):
 
         if config_file is not None:
             self.readfp(open(config_file))
-        self._config_file = config_file
+        self.config_file = config_file
 
         # Incorporate options into the configuration. These are read
         # from the mapping above and written into the configuration.

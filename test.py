@@ -131,7 +131,9 @@ def get_config(options, env_options):
             'prune_time' :  '60',
             },
         }
-    return _config.Config(None, params)
+    config = _config.Config(None, params)
+    config.config_file = ""
+    return config
 
 def configure_path(options):
     # Compute the directory where this script is. We have to do this

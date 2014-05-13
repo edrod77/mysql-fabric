@@ -75,9 +75,9 @@ class TestBackupMySQLDump(unittest.TestCase):
 
     def test_backup(self):
         restore_server = MySQLServer.fetch(self.__server_2.uuid)
-        image = MySQLDump.backup(self.__server_1, self.mysqldump_path)
+        image = MySQLDump.backup(self.__server_1, "", self.mysqldump_path)
         restore_server.connect()
-        MySQLDump.restore(restore_server, image, self.mysqlclient_path)
+        MySQLDump.restore_fabric_server(restore_server, image, "", self.mysqlclient_path)
         rows = restore_server.exec_stmt(
                                     "SELECT NAME FROM backup_db.backup_table",
                                     {"fetch" : True})
