@@ -131,7 +131,9 @@ def get_config(options, env_options):
             'prune_time' :  '60',
             },
         }
-    return _config.Config(None, params)
+    config = _config.Config(None, params)
+    config.config_file = ""
+    return config
 
 def configure_path(options):
     # Compute the directory where this script is. We have to do this
@@ -304,22 +306,22 @@ def configure_logging(level):
 
     # Setting logging for "mysql.fabric".
     logger = logging.getLogger("mysql.fabric")
-    try:
-        logger.setLevel(logging_levels[level])
-    except KeyError:
-        logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
     logger.addHandler(mysql_handler)
+    logger.setLevel(logging_levels["DEBUG"])
 
     # Setting logging for "tests".
     logger = logging.getLogger("tests")
-    try:
-        logger.setLevel(logging_levels[level])
-    except KeyError:
-        logger.setLevel(logging_levels["DEBUG"])
     logger.addHandler(handler)
     logger.addHandler(mysql_handler)
+    logger.setLevel(logging_levels["DEBUG"])
 
+    # Setting debugging level.
+    mysql_handler.setLevel(logging_levels["DEBUG"])
+    try:
+        handler.setLevel(logging_levels[level])
+    except KeyError:
+        handler.setLevel(logging_levels["DEBUG"])
 
 if __name__ == '__main__':
     # Note: do not change the names of the set of variables found below, e.g
