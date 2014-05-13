@@ -1,15 +1,15 @@
---- doc/source/CHANGELOG.rst.gen	2014-05-13 07:07:40.648244646 +0200
-+++ doc/source/CHANGELOG.rst	2014-05-13 07:07:05.473550000 +0200
-@@ -3,7 +3,7 @@
- ####################
- 
+--- ./doc/source/CHANGELOG.rst.gen	2014-05-13 09:15:42.676427220 +0200
++++ ./doc/source/CHANGELOG.rst	2014-05-13 09:15:42.680427220 +0200
+@@ -33,7 +33,7 @@
+ * BUG#18648779: BUG#72448: FAILS TO REPLICATE FABRIC DATABASE USING NBD
+   CLUSTER SETUP
  
 -Release 1.4.2 (released March 25, 2014)
 +Release 1.4.2 (released March 07, 2014)
  ---------------------------------------
  
  * WL#7388: Failover/Switchover based on unreliable failure detectors
-@@ -18,206 +18,62 @@
+@@ -48,206 +48,62 @@
    USER/PASSWORD
  * BUG#71525: BUG#17702237: IS_CONNECTED() IS CHECKED EVERY TIME A
    STATEMENT IS EXECUTED
@@ -248,7 +248,7 @@
  * HAM-327: Remove TODOs from the code
  * HAM-340: Error executing mysqlfabric: Configuration file is not found
  * HAM-350: Add support to dump interfaces for HASH based sharding
-@@ -226,60 +82,68 @@
+@@ -256,60 +112,68 @@
  -------------------------------------
  
  * HAM-59: Clean up replication and high availability functions.
@@ -316,28 +316,4 @@
 -* HAM-88: setup.py is not installing the configuration file "main.cfg"
 -  in /etc/fabric
 +* HAM-88: setup.py is not installing the configuration file "main.cfg" in /etc/fabric
- * HAM-90: Creating the fabric list mapping definitions command
--* HAM-94: Mismatch between fabric and connector python
--* HAM-95: setup.py is only installing docs from the build/ direcotry
- 
- Release 0.1.0 (released January 23, 2013)
- -----------------------------------------
- 
--* HAM-8: Improved the test.py and made it support logging and external
--  libraries such as mysql.connector.
-+* HAM-1: State Store
-+* HAM-4: Configuration
-+* HAM-7: Shard key configuration
-+* HAM-8: Master Groups
-+* HAM-9: Logging
-+* HAM-12: High Availability Interfaces
-+* HAM-17: Basic Executor
- * HAM-18: Persister Management
-+* HAM-22: Offline Sharding Utility
- * HAM-30: Implement event processing
-+* HAM-31: Shard key mapping interface
- * HAM-40: Remove deprecated decorators
--* WL#6123: Basic HA Manager Framework
--* WL#6424: Configuration File Handling
--* WL#6439: Sharding utility for offline sharding
-+* HAM-43: Removal of the core module and centralized Manager
+ * HAM-90: Creating th
