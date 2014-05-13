@@ -70,12 +70,14 @@ import uuid as _uuid
 import mysql.fabric.services.utils as _utils
 
 from mysql.fabric import (
+    backup as _backup,
     events as _events,
     server as _server,
     errors as _errors,
     failure_detector as _detector,
     group_replication as _group_replication,
     sharding as _sharding,
+    server_utils as _server_utils,
 )
 
 from mysql.fabric.command import (
@@ -88,6 +90,10 @@ from mysql.fabric.utils import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+SERVER_NOT_FOUND = "Server with UUID %s not found."
+MYSQLDUMP_NOT_FOUND = "Unable to find MySQLDump in location %s"
+MYSQLCLIENT_NOT_FOUND = "Unable to find MySQL Client in location %s"
 
 class GroupLookups(Command):
     """Return information on existing group(s).
@@ -406,6 +412,85 @@ class SetServerMode(ProcedureGroup):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
+BACKUP_SERVER = _events.Event("BACKUP_SERVER")
+RESTORE_SERVER = _events.Event("RESTORE_SERVER")
+class CloneServer(ProcedureGroup):
+    """Clone the objects of a given server into a destination server.
+    """
+    group_name = "server"
+    command_name = "clone"
+
+    def execute(self, group_id, destn_address, server_uuid=None,
+                synchronous=True):
+        """Clone the objects of a given server into a destination server.
+
+        :param group_id: The ID of the source group.
+        :param destn_address: The address of the MySQL Server to which
+            the clone needs to happen.
+        :param server_uuid: The UUID of the source MySQL Server.
+        :param synchronous: Whether one should wait until the execution
+                            finishes or not.
+        """
+        #If the destination server is already part of a Fabric Group, raise
+        #an error
+        if destn_address:
+            destn_server_uuid = _server.MySQLServer.\
+                discover_uuid(destn_address)
+            destn_server = _server.MySQLServer.fetch(destn_server_uuid)
+            #we should check for both the presence of the server object
+            #and its associated group ID. Checking its association with
+            #a group ID would verify that a server that is part of Fabric
+            #but is not part of a group can also be cloned into.
+            if destn_server and destn_server.group_id:
+                raise _errors.ServerError("The Destination server is already "\
+                    "part of Group (%s)" % (destn_server.group_id,))
+
+        config_file = self.config.config_file if self.config.config_file else ""
+
+        mysqldump_binary = _utils.read_config_value(
+                                self.config,
+                                'sharding',
+                                'mysqldump_program'
+                            )
+        mysqlclient_binary = _utils.read_config_value(
+                                self.config,
+                                'sharding',
+                                'mysqlclient_program'
+                            )
+
+        if not _utils.is_valid_binary(mysqldump_binary):
+            raise _errors.ServerError(MYSQLDUMP_NOT_FOUND % mysqldump_binary)
+
+        if not _utils.is_valid_binary(mysqlclient_binary):
+            raise _errors.ServerError(MYSQLCLIENT_NOT_FOUND % mysqlclient_binary)
+
+        if server_uuid:
+            server = _server.MySQLServer.fetch(server_uuid)
+            if group_id != server.group_id:
+                raise _errors.ServerError("The server %s was not found in "\
+                                          "group %s" % (server_uuid, group_id, ))
+        elif not server_uuid:
+            group = _server.Group.fetch(group_id)
+            server = _utils.fetch_backup_server(group)
+            server_uuid = str(server.uuid)
+
+        host, port = _server_utils.split_host_port(
+                                destn_address,
+                                _backup.MySQLDump.MYSQL_DEFAULT_PORT
+                            )
+
+        procedures = _events.trigger(
+            BACKUP_SERVER,
+            self.get_lockable_objects(),
+            server_uuid,
+            host,
+            port,
+            mysqldump_binary,
+            mysqlclient_binary,
+            config_file
+        )
+        return self.wait_for_procedures(procedures, synchronous)
+
 def _lookup_groups(group_id=None):
     """Return a list of existing group(s).
     """
@@ -719,6 +804,69 @@ def _set_server_mode(server_id, mode):
     elif server.status == _server.MySQLServer.FAULTY:
         _set_server_mode_faulty(server, mode)
 
+@_events.on_event(BACKUP_SERVER)
+def _backup_server(source_uuid, host, port, mysqldump_binary,
+                   mysqlclient_binary, config_file):
+    """Backup the source server, given by the source_uuid.
+
+    :param source_uuid: The UUID of the source server.
+    :param host: The hostname of the destination server.
+    :param port: The port number of the destination server.
+    :param mysqldump_binary: The MySQL Dump Binary path.
+    :param mysqlclient_binary: The MySQL Client Binary path.
+    :param config_file: The complete path to the fabric configuration
+        file.
+    """
+    source_server = _server.MySQLServer.fetch(source_uuid)
+    #Do the backup of the group hosting the source shard.
+    backup_image = _backup.MySQLDump.backup(
+                        source_server,
+                        config_file,
+                        mysqldump_binary
+                    )
+    _LOGGER.debug("Done with backup of server with uuid = %s.", source_uuid)
+    procedures = _events.trigger_within_procedure(
+        RESTORE_SERVER,
+        source_uuid,
+        host,
+        port,
+        backup_image.path,
+        mysqlclient_binary,
+        config_file
+    )
+
+@_events.on_event(RESTORE_SERVER)
+def _restore_server(source_uuid, host, port, backup_image, mysqlclient_binary,
+                    config_file):
+    """Restore the backup on the destination Server.
+
+    :param source_uuid: The UUID of the source server.
+    :param host: The hostname of the destination server.
+    :param port: The port number of the destination server.
+    :param userid: The User Name to be used to connect to the destn server.
+    :param passwd: The password to be used to connect to the destn server.
+    :param mysqldump_binary: The MySQL Dump Binary path.
+    :param mysqlclient_binary: The MySQL Client Binary path.
+    :param config_file: The complete path to the fabric configuration
+        file.
+    """
+    source_server = _server.MySQLServer.fetch(source_uuid)
+    if not source_server:
+        raise _errors.ServerError(SERVER_NOT_FOUND % source_uuid)
+    #Build a backup image that will be used for restoring
+    bk_img = _backup.BackupImage(backup_image)
+    _backup.MySQLDump.restore_server(
+        host,
+        port,
+        source_server.USER,
+        source_server.PASSWD,
+        bk_img,
+        config_file,
+        mysqlclient_binary
+    )
+    _LOGGER.debug("Done with restore of server with host = %s, port = %s" %\
+                  (host, port,))
+
 def _retrieve_server_mode(mode):
     """Check whether the server's mode is valid or not and if an integer was
     provided retrieve the correspondent string.
@@ -807,14 +955,16 @@ def _retrieve_server(server_id, group_id=None):
         )
     return server
 
-def _check_server_exists(uuid):
+def _check_server_exists(server_id):
     """Check whether a MySQLServer instance exists or not.
-    """
-    uuid = _retrieve_uuid_object(uuid)
 
-    server = _server.MySQLServer.fetch(uuid)
+    :param server_id: The UUID or the host:port for the server.
+    """
+    server_id = _retrieve_uuid_object(server_id)
+
+    server = _server.MySQLServer.fetch(server_id)
     if server:
-        raise _errors.ServerError("Server (%s) already exists." % (uuid, ))
+        raise _errors.ServerError("Server (%s) already exists." % (server_id, ))
 
 def _retrieve_group(group_id):
     """Return a Group object from an identifier.
