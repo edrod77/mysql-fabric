@@ -625,7 +625,7 @@ def _remove_shard(shard_id):
         :       ShardingError if the shard is not disabled.
     """
     range_sharding_specification, shard, _, _ = \
-        _verify_and_fetch_shard(shard_id)
+        verify_and_fetch_shard(shard_id)
     if shard.state == "ENABLED":
         raise _errors.ShardingError(SHARD_NOT_DISABLED)
     #Stop the replication of the shard group with the global
@@ -709,7 +709,7 @@ def _enable_shard(shard_id):
     :return: True Placeholder return value
     :raises: ShardingError if the shard_id is not found.
     """
-    _, shard, _, _ = _verify_and_fetch_shard(shard_id)
+    _, shard, _, _ = verify_and_fetch_shard(shard_id)
     #When you enable a shard, setup replication with the global server
     #of the shard mapping associated with this shard.
     _setup_shard_group_replication(shard_id)
@@ -725,13 +725,13 @@ def _disable_shard(shard_id):
     :return: True Placeholder return value
     :raises: ShardingError if the shard_id is not found.
     """
-    _, shard, _, _ = _verify_and_fetch_shard(shard_id)
+    _, shard, _, _ = verify_and_fetch_shard(shard_id)
     #When you disable a shard, disable replication with the global server
     #of the shard mapping associated with the shard.
     _stop_shard_group_replication(shard_id,  False)
     shard.disable()
 
-def _verify_and_fetch_shard(shard_id):
+def verify_and_fetch_shard(shard_id):
     """Find out if the shard_id exists and return the sharding specification for
     it. If it does not exist throw an exception.
 
@@ -799,7 +799,7 @@ def _setup_shard_group_replication(shard_id):
     #sharding scheme and we should use that to find out the sharding
     #implementation.
     _, shard, _, shard_mapping_defn  = \
-        _verify_and_fetch_shard(shard_id)
+        verify_and_fetch_shard(shard_id)
 
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
@@ -818,7 +818,7 @@ def _stop_shard_group_replication(shard_id,  clear_ref):
     #sharding scheme and we should use that to find out the sharding
     #implementation.
     _, shard, _, shard_mapping_defn  = \
-        _verify_and_fetch_shard(shard_id)
+        verify_and_fetch_shard(shard_id)
 
     #Stop the replication between the shard group and the global group. Also
     #based on the clear_ref flag decide if you want to clear the references

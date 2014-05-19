@@ -28,7 +28,6 @@ from mysql.fabric import (
     group_replication as _group_replication,
     replication as _replication,
     backup as _backup,
-    utils as _utils,
 )
 
 from mysql.fabric.server import (
@@ -41,15 +40,12 @@ from mysql.fabric.sharding import (
     RangeShardingSpecification,
     HashShardingSpecification,
     Shards,
-    RangeShardingIntegerHandler,
-    HashShardingIntegerHandler,
     SHARDING_DATATYPE_HANDLER,
     SHARDING_SPECIFICATION_HANDLER,
 )
 
 from mysql.fabric.command import (
     ProcedureShard,
-    Command,
 )
 
 from mysql.fabric.services import (
@@ -141,7 +137,7 @@ class SplitShardServer(ProcedureShard):
     """
     group_name = "sharding"
     command_name = "split_shard"
-    def execute(self, shard_id,  group_id,  split_value = None,
+    def execute(self, shard_id, group_id, split_value=None,
                 update_only=False, synchronous=True):
         """Split the shard represented by the shard_id into the destination
         group.
@@ -159,7 +155,7 @@ class SplitShardServer(ProcedureShard):
                                 'sharding',
                                 'mysqldump_program'
                             )
-        mysqlclient_binary =  _services_utils.read_config_value(
+        mysqlclient_binary = _services_utils.read_config_value(
                                 self.config,
                                 'sharding',
                                 'mysqlclient_program'
@@ -191,7 +187,7 @@ def _prune_shard_tables(table_name):
         delete_from_shard_db(table_name, shard_mapping.type_name)
 
 @_events.on_event(CHECK_SHARD_INFORMATION)
-def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
+def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
                              mysqlclient_binary, split_value, config_file, cmd,
                              update_only):
     """Verify the sharding information before starting a re-sharding operation.
@@ -216,8 +212,8 @@ def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
                 _services_sharding.MYSQLCLIENT_NOT_FOUND % mysqlclient_binary)
 
     if cmd == "SPLIT":
-        range_sharding_spec, _,  shard_mappings, _ = \
-            _services_sharding._verify_and_fetch_shard(shard_id)
+        range_sharding_spec, _, shard_mappings, _ = \
+            _services_sharding.verify_and_fetch_shard(shard_id)
         upper_bound =\
             SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
                         get_upper_bound(
@@ -267,7 +263,7 @@ def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
             )
 
     #Ensure that the group does not already contain a shard.
-    if (Shards.lookup_shard_id(destn_group_id) is not None):
+    if Shards.lookup_shard_id(destn_group_id) is not None:
         raise _errors.ShardingError(
             _services_sharding.SHARD_MOVE_DESTINATION_NOT_EMPTY %
             (destn_group_id, )
@@ -282,7 +278,6 @@ def _check_shard_information(shard_id,  destn_group_id, mysqldump_binary,
 
     #Fetch the group_id and the group that hosts the source shard.
     source_group_id = source_shard.group_id
-    source_group = Group.fetch(source_group_id)
 
     destn_group = Group.fetch(destn_group_id)
     if destn_group is None:
@@ -346,7 +341,7 @@ def _backup_source_shard(shard_id, source_group_id, destn_group_id,
                                      )
 
 @_events.on_event(RESTORE_SHARD_BACKUP)
-def _restore_shard_backup(shard_id,  source_group_id, destn_group_id,
+def _restore_shard_backup(shard_id, source_group_id, destn_group_id,
                             mysqlclient_binary, backup_image,
                             split_value, config_file, cmd):
     """Restore the backup on the destination Group.
@@ -414,7 +409,7 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
     destination_group = Group.fetch(destn_group_id)
     if destination_group is None:
         raise _errors.ShardingError(_services_sharding.SHARD_GROUP_NOT_FOUND %
-                                    (destination_group_id, ))
+                                    (destn_group_id, ))
 
     master = MySQLServer.fetch(source_group.master)
     if master is None:
@@ -433,7 +428,7 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
     _replication.reset_slave(slave, clean=True)
 
     #Change the master to the shard group master.
-    _replication.switch_master(slave,  master,  master. user,  master.passwd)
+    _replication.switch_master(slave, master, master.user, master.passwd)
 
     #Start the slave so that syncing of the data begins
     _replication.start_slave(slave, wait=True)
@@ -456,7 +451,7 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
                                      )
 
 @_events.on_event(SETUP_RESHARDING_SWITCH)
-def _setup_resharding_switch(shard_id,  source_group_id,  destination_group_id,
+def _setup_resharding_switch(shard_id, source_group_id, destination_group_id,
                              split_value, cmd, update_only=False):
     """Setup the shard move or shard split workflow based on the command
     argument.
@@ -479,11 +474,11 @@ def _setup_resharding_switch(shard_id,  source_group_id,  destination_group_id,
         )
     elif cmd == "SPLIT":
         _setup_shard_switch_split(
-            shard_id,  source_group_id, destination_group_id, split_value,
+            shard_id, source_group_id, destination_group_id, split_value,
             cmd, update_only
         )
 
-def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
+def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
                               split_value, cmd, update_only):
     """Setup the moved shard to map to the new group.
 
@@ -498,8 +493,8 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
     :update_only: Only update the state store and skip provisioning.
     """
     #Fetch the Range sharding specification.
-    range_sharding_spec, source_shard,  shard_mappings,  shard_mapping_defn = \
-            _services_sharding._verify_and_fetch_shard(shard_id)
+    range_sharding_spec, source_shard, shard_mappings, shard_mapping_defn = \
+            _services_sharding.verify_and_fetch_shard(shard_id)
 
     #Disable the old shard
     source_shard.disable()
@@ -562,7 +557,7 @@ def _setup_shard_switch_split(shard_id,  source_group_id,  destination_group_id,
 
     #Setup replication for the new group from the global server
     _group_replication.setup_group_replication \
-            (shard_mapping_defn[2],  destination_group_id)
+            (shard_mapping_defn[2], destination_group_id)
 
     #Enable the split shards
     new_shard_1.enable()
@@ -585,8 +580,8 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    _, _,  shard_mappings,  _ = _services_sharding.\
-        _verify_and_fetch_shard(shard_id_1)
+    _, _, shard_mappings,  _ = _services_sharding.\
+        verify_and_fetch_shard(shard_id_1)
 
     #All the shard mappings associated with this shard_id should be
     #of the same type. Hence it is safe to use one of them.
@@ -595,7 +590,7 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
     prune_shard_id(shard_id_2, shard_mappings[0].type_name)
 
-def _setup_shard_switch_move(shard_id,  source_group_id, destination_group_id,
+def _setup_shard_switch_move(shard_id, source_group_id, destination_group_id,
                              update_only):
     """Setup the moved shard to map to the new group.
 
@@ -609,18 +604,18 @@ def _setup_shard_switch_move(shard_id,  source_group_id, destination_group_id,
     #heterogenous sharding schemes, we need to find out the type of
     #sharding scheme and we should use that to find out the sharding
     #implementation.
-    _, source_shard,  _,  shard_mapping_defn = \
-        _services_sharding._verify_and_fetch_shard(shard_id)
+    _, source_shard, _, shard_mapping_defn = \
+        _services_sharding.verify_and_fetch_shard(shard_id)
 
     #Setup replication between the shard group and the global group.
     _group_replication.setup_group_replication \
-            (shard_mapping_defn[2],  destination_group_id)
+            (shard_mapping_defn[2], destination_group_id)
     #set the shard to point to the new group.
     source_shard.group_id = destination_group_id
     #Stop the replication between the global server and the original
     #group associated with the shard.
     _group_replication.stop_group_slave\
-            (shard_mapping_defn[2],  source_group_id,  True)
+            (shard_mapping_defn[2], source_group_id,  True)
 
     #Reset the read only flag on the source server.
     source_group = Group.fetch(source_group_id)

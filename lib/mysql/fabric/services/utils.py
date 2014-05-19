@@ -26,6 +26,7 @@ from mysql.fabric import (
 )
 
 CONFIG_NOT_FOUND = "Configuration option not found %s . %s"
+GROUP_MASTER_NOT_FOUND = "Group master not found"
 
 def switch_master(slave, master):
     """Make slave point to master.
@@ -85,7 +86,7 @@ def stop_slave(slave):
     """
     _replication.stop_slave(slave, wait=True)
 
-def read_config_value(config,  config_group,  config_name):
+def read_config_value(config, config_group, config_name):
     """Read the value of the configuration option from the config files.
 
     :param config: The config class that encapsulates the config parsing
@@ -97,13 +98,13 @@ def read_config_value(config,  config_group,  config_name):
     config_value = None
 
     try:
-        config_value =  config.get(config_group, config_name)
+        config_value = config.get(config_group, config_name)
     except AttributeError:
         pass
 
     if config_value is None:
         raise _errors.ConfigurationError(CONFIG_NOT_FOUND %
-                                        (config_group,  config_name))
+                                        (config_group, config_name))
 
     return config_value
 
@@ -145,6 +146,6 @@ def fetch_backup_server(source_group):
 
     #If there is no master throw an exception
     if backup_server is None:
-        raise _errors.ShardingError(SHARD_GROUP_MASTER_NOT_FOUND)
+        raise _errors.ShardingError(GROUP_MASTER_NOT_FOUND)
 
     return backup_server

@@ -25,7 +25,6 @@ from abc import ABCMeta, abstractmethod
 
 import logging
 import shlex
-import subprocess
 
 from subprocess import (
     Popen,
@@ -50,7 +49,7 @@ class BackupImage(object):
     :param uri: The URI to the destination on which the backup image needs
                        to be stored.
     """
-    def __init__(self,  uri):
+    def __init__(self, uri):
         """The constructor for initializing the backup image.
         """
 
@@ -150,7 +149,7 @@ class BackupMethod(object):
         pass
 
     @staticmethod
-    def restore(server,  image):
+    def restore(server, image):
         """Restore the backup from the image to the server.
 
         :param server: The server on which the backup needs to be restored.
@@ -159,7 +158,7 @@ class BackupMethod(object):
         pass
 
     @staticmethod
-    def copyBackup(image):
+    def copy_backup(image):
         """Will be used in cases when the backup needs to be taken on a source
         and will be copied to the destination machine.
 
@@ -197,7 +196,7 @@ class MySQLDump(BackupMethod):
         :param config_file: The complete path to the fabric configuration file.
         :param mysqldump_binary: The fully qualified mysqldump binary.
         """
-        assert (isinstance(server, MySQLServer))
+        assert isinstance(server, MySQLServer)
 
         #Extract the host and the port from the server address.
         host = None
@@ -230,7 +229,7 @@ class MySQLDump(BackupMethod):
             "-u" + str(server.user)])
 
         #Run the backup command
-        with open(destination,"w") as fd_file:
+        with open(destination, "w") as fd_file:
             p = Popen(mysqldump_command, stdout=fd_file, stderr=PIPE)
             _, error_lines = p.communicate()
             if p.returncode:
@@ -247,7 +246,7 @@ class MySQLDump(BackupMethod):
         return BackupImage(destination)
 
     @staticmethod
-    def restore_server(host,  port, user, passwd,
+    def restore_server(host, port, user, passwd,
                         image, config_file, mysqlclient_binary):
         """Restore the backup from the image to a server outside the Fabric
         Farm.
@@ -273,7 +272,7 @@ class MySQLDump(BackupMethod):
         #the password if there is a non-empty password.
         mysqlclient_command.extend([
             "--defaults-extra-file="+config_file,
-            "-h" + str(host),  "-P" + str(port),
+            "-h" + str(host), "-P" + str(port),
             "--protocol=tcp",
             "-u" + str(user)])
 
@@ -297,7 +296,7 @@ class MySQLDump(BackupMethod):
             )
 
     @staticmethod
-    def restore_fabric_server(server,  image, config_file, mysqlclient_binary):
+    def restore_fabric_server(server, image,config_file, mysqlclient_binary):
         """Restore the backup from the image to a server within the
         fabric farm and managed by the Fabric server.
 
@@ -311,8 +310,8 @@ class MySQLDump(BackupMethod):
         :param mysqlclient_binary: The fully qualified mysqlclient binary.
         """
 
-        assert (isinstance(server, MySQLServer))
-        assert (image is None or isinstance(image, BackupImage))
+        assert isinstance(server, MySQLServer)
+        assert image is None or isinstance(image, BackupImage)
 
         #Extract the host and the port from the server address.
         host = None
@@ -325,8 +324,8 @@ class MySQLDump(BackupMethod):
         MySQLDump.restore_server(host, port, server.user, server.passwd,
                 image, config_file, mysqlclient_binary)
 
-    @abstractmethod
-    def copyBackup(image):
+    @staticmethod
+    def copy_backup(image):
         """Currently the MySQLDump based backup method works by backing
         up on the FABRIC server and restoring from there. This method is not
         required for the current implemention of MySQDump based backup.
