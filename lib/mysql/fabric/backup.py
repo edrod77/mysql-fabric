@@ -279,8 +279,6 @@ class MySQLDump(BackupMethod):
         #Fire the mysql client for the restore using the input image as
         #the restore source.
         p = Popen(mysqlclient_command, stdin=PIPE, stderr=PIPE)
-        if passwd:
-            p.stdin.write(passwd + "\n")
         p.stdin.write("source %s\n" % (image.path,))
         _, error_lines = p.communicate()
         if p.returncode:
