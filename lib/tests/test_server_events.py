@@ -20,6 +20,8 @@
 import unittest
 import uuid as _uuid
 import tests.utils
+import re
+import sys
 
 from mysql.fabric import (
     executor as _executor,
@@ -27,12 +29,85 @@ from mysql.fabric import (
     replication as _replication,
 )
 
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
+
 class TestServerServices(unittest.TestCase):
     """Test server service interface.
     """
+
+    uuid_cre = re.compile('\w{8}(-\w{4}){3}-\w{12}')
+
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
         self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
+
+    def check_xmlrpc_command_result(self, packet, has_error, is_syncronous=False):
+        "Check that a packet from a procedure execution is sane."
+
+        result = _xmlrpc._decode(packet)
+
+        if has_error:
+            message = "No error but error expected"
+        else:
+            message = "Error: %s" % result.error
+        self.assertEqual(bool(result.error), has_error, message)
+
+        # If the procedure did not have an error, first result set,
+        # first row, first column contain UUID of procedure. Just
+        # check that it looks like a UUID.
+        if not has_error:
+            self.assertNotEqual(
+                self.uuid_cre.match(result.results[0][0][0]),
+                None,
+                str(result)
+            )
+
+        # If the call was synchronous and succeeded, check that there
+        # is at least 2 result sets and that the second result set
+        # contain more than zero jobs.
+        if is_syncronous and not has_error:
+            self.assertTrue(len(result.results) > 1, str(result))
+            self.assertNotEqual(result.results[1].rowcount, 0,
+                                "had %d result sets" % len(result.results))
+
+    def check_xmlrpc_get_uuid(self, packet, has_error):
+        result = _xmlrpc._decode(packet)
+
+        # If the procedure did not have an error, first result set,
+        # first row, first column contain UUID of server. Just
+        # check that it looks like a UUID.
+        if not has_error:
+            self.assertNotEqual(self.uuid_cre.match(result.results[0][0][0]), None)
+
+        return result.results[0][0][0]
+
+    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0):
+        result = _xmlrpc._decode(packet)
+
+        self.assertEqual(bool(result.error), has_error)
+
+        if not has_error:
+            # Check that there are at least one result set.
+            self.assertTrue(len(result.results) > 0, str(result))
+
+            # Check that there is enough rows in the first result set
+            self.assertTrue(result.results[0].rowcount > index, str(result))
+
+            # Create a dictionary from this row.
+            info = dict(
+                zip([ col.name for col in result.results[0].columns],
+                    result.results[0][index])
+            )
+
+            for key, value in checks.items():
+                self.assertTrue(key in info, str(result))
+                self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
+                    info[key], value, str(result))
+                )
+
+            # For convenience, allowing the simple result to be used by callers.
+            return info
+        return {}
 
     def setUp(self):
         """Configure the existing environment
@@ -50,63 +125,45 @@ class TestServerServices(unittest.TestCase):
         """
         # Look up groups.
         status = self.proxy.group.lookup_groups()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [])
+        result = _xmlrpc._decode(status)
+        self.assertEqual(len(result.results), 1)
+        self.assertEqual(result.results[0].rowcount, 0)
 
         # Insert a new group.
         status = self.proxy.group.create("group", "Testing group...")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_group).")
+        self.check_xmlrpc_command_result(status, False)
 
         # Try to insert a group twice.
         status = self.proxy.group.create("group", "Testing group...")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_group).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Look up groups.
         status = self.proxy.group.lookup_groups()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [{"group_id" : "group",
-            "description" : "Testing group...", "master_uuid" : "",
-            "failure_detector" : False}]
-        )
+        self.check_xmlrpc_simple(status, {
+            "group_id" : "group",
+            "description" : "Testing group...",
+            "failure_detector" : False,
+        })
 
         # Look up a group.
         status = self.proxy.group.lookup_groups("group")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [{"group_id" : "group",
-            "description" : "Testing group...", "master_uuid" : "",
-            "failure_detector" : False}]
-        )
+        self.check_xmlrpc_simple(status, {
+            "group_id" : "group",
+            "description" : "Testing group...",
+            "failure_detector" : False,
+        })
 
         # Try to look up a group that does not exist.
         status = self.proxy.group.lookup_groups("group_1")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2], True)
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
         # Update a group.
         status = self.proxy.group.description("group", "Test Test Test")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_update_group_description).")
+        self.check_xmlrpc_command_result(status, False)
 
         # Try to update group that does not exist.
         status = self.proxy.group.description("group_1", "Test Test Test")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(
-            status[1][-1]["description"],
-           "Tried to execute action (_update_group_description)."
-           )
+        self.check_xmlrpc_command_result(status, True)
 
     def test_add_server_events(self):
         """Test adding a server by calling group.add().
@@ -115,89 +172,63 @@ class TestServerServices(unittest.TestCase):
         address = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.create("group_1", "Testing group...")
         status = self.proxy.group.add("group_1", address)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status, False)
 
         # Try to insert a server twice.
         status = self.proxy.group.add("group_1", address)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_add_server).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to insert a server into a non-existing group.
         status = self.proxy.group.add("group_2", address)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_add_server).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Look up servers.
-        status_servers = self.proxy.group.lookup_servers("group_1")
-        self.assertEqual(status_servers[0], True)
-        self.assertEqual(status_servers[1], "")
-        obtained_server_list = status_servers[2]
-        status_uuid = self.proxy.server.lookup_uuid(address)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
-        self.assertEqual(
-            status_servers[2],
-            [{"server_uuid": status_uuid[2], "address" : address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        )
-
+        status = self.proxy.group.lookup_servers("group_1")
+        info = self.check_xmlrpc_simple(status, {
+            'address': address,
+            'status': _server.MySQLServer.SECONDARY,
+            'mode': _server.MySQLServer.READ_ONLY,
+            'weight': _server.MySQLServer.DEFAULT_WEIGHT,
+        })
+        
         # Try to look up servers in a group that does not exist.
         status = self.proxy.group.lookup_servers("group_x")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2],  True)
+        self.check_xmlrpc_command_result(status, True)
 
         # Look up a server using UUID.
-        status = self.proxy.group.lookup_servers("group_1", status_uuid[2])
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(
-            status[2],
-            [{"server_uuid" : status_uuid[2], "address" : address,
+        status = self.proxy.group.lookup_servers("group_1", info['server_uuid'])
+        self.check_xmlrpc_simple(status, {
+            "server_uuid" : info['server_uuid'],
+            "address" : address,
             "status" : _server.MySQLServer.SECONDARY,
             "mode" : _server.MySQLServer.READ_ONLY,
-            "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        )
+            "weight" : _server.MySQLServer.DEFAULT_WEIGHT,
+        })
 
         # Look up a server using HOST:PORT.
         status = self.proxy.group.lookup_servers("group_1", address)
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(
-            status[2],
-            [{"server_uuid" : status_uuid[2], "address" : address,
+        self.check_xmlrpc_simple(status, {
+            "server_uuid" : info['server_uuid'],
+            "address" : address,
             "status" : _server.MySQLServer.SECONDARY,
             "mode" : _server.MySQLServer.READ_ONLY,
-            "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        )
+            "weight" : _server.MySQLServer.DEFAULT_WEIGHT
+        })
 
         # Try to look up a server in a group that does not exist.
-        status = self.proxy.group.lookup_servers("group_x", status_uuid[2])
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2],  True)
-
+        status = self.proxy.group.lookup_servers("group_x", info['server_uuid'])
+        self.check_xmlrpc_simple(status, {}, has_error=True)
+        
         # Try to look up a server that does not exist.
-        status = self.proxy.group.lookup_servers("group_1",
-            "cc75b12c-98d1-414c-96af-9e9d4b179678")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2],  True)
+        status = self.proxy.group.lookup_servers(
+            "group_1",
+            "cc75b12c-98d1-414c-96af-9e9d4b179678"
+        )
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
         # Try to look up a server that does not exist
         status = self.proxy.server.lookup_uuid("unknown:15000")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2],  True)
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
     def test_destroy_group_events(self):
         """Test destroying a group by calling group.destroy().
@@ -211,31 +242,19 @@ class TestServerServices(unittest.TestCase):
 
         # Remove a group.
         status = self.proxy.group.destroy("group")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_group).")
+        self.check_xmlrpc_command_result(status, False)
 
         # Try to remove a group twice.
         status = self.proxy.group.destroy("group")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_group).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to remove a group where there are servers.
         status = self.proxy.group.destroy("group_1")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_group).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Remove a group where there are servers.
         status = self.proxy.group.destroy("group_1", True)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_group).")
+        self.check_xmlrpc_command_result(status, False)
 
         # Try to remove a group that is used by shards.
         self.proxy.group.create("group_global")
@@ -244,20 +263,15 @@ class TestServerServices(unittest.TestCase):
         status = self.proxy.sharding.create_definition("RANGE", "group_global")
         shard_mapping_id = status[2]
         status = self.proxy.group.destroy("group_global", True)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_group).")
+        self.check_xmlrpc_command_result(status, True)
+
         self.proxy.group.create("group")
         self.proxy.group.add("group", address_2)
         self.proxy.group.promote("group")
         self.proxy.sharding.add_table(shard_mapping_id, "db1.t1", "user")
         self.proxy.sharding.add_shard(shard_mapping_id, "group/0", "ENABLED", 0)
         status = self.proxy.group.destroy("group", True)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_group).")
+        self.check_xmlrpc_command_result(status, True)
 
     def test_remove_server_events(self):
         """Test removing a server by calling group.remove().
@@ -269,63 +283,44 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.create("group_1", "Testing group...")
         self.proxy.group.add("group_1", address_1)
         self.proxy.group.add("group_1", address_2)
-        status_uuid_1 = self.proxy.server.lookup_uuid(address_1)
-        self.assertEqual(status_uuid_1[0], True)
-        self.assertEqual(status_uuid_1[1], "")
+        status_1 = self.proxy.server.lookup_uuid(address_1)
+        info_1 = self.check_xmlrpc_simple(status_1, {})
 
         # Try to remove a server from a non-existing group.
         status = self.proxy.group.remove(
             "group_2", "bb75b12b-98d1-414c-96af-9e9d4b179678"
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_remove_server).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to remove a server with an invalid uuid.
         status = self.proxy.group.remove(
             "group_1", "bb-98d1-414c-96af-9"
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_remove_server).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to remove a server that does not exist.
         status = self.proxy.group.remove(
             "group_1",
             "bb75b12c-98d1-414c-96af-9e9d4b179678"
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_remove_server).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to remove a server that is master within the group.
         group = _server.Group.fetch("group_1")
         tests.utils.configure_decoupled_master(group,
-                                               _uuid.UUID(status_uuid_1[2]))
-        status = self.proxy.group.remove("group_1", status_uuid_1[2])
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_remove_server).")
+                                               _uuid.UUID(info_1['uuid']))
+        status = self.proxy.group.remove("group_1", info_1['uuid'])
+        self.check_xmlrpc_command_result(status, True)
 
         # Remove a server using its UUID.
         group = _server.Group.fetch("group_1")
         tests.utils.configure_decoupled_master(group, None)
-        status = self.proxy.group.remove("group_1", status_uuid_1[2])
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_server).")
+        status = self.proxy.group.remove("group_1", info_1['uuid'])
+        self.check_xmlrpc_command_result(status, False)
 
         # Remove a server using its address.
         status = self.proxy.group.remove("group_1", address_2)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_server).")
+        self.check_xmlrpc_command_result(status, False)
 
     def test_group_status(self):
         """Test group's status by calling group.activate()/group.deactive().
@@ -336,25 +331,18 @@ class TestServerServices(unittest.TestCase):
         passwd = tests.utils.MySQLInstances().passwd
         self.proxy.group.create("group", "Testing group...")
         self.proxy.group.add("group", address)
-        status_uuid = self.proxy.server.lookup_uuid(address)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
+        status = self.proxy.server.lookup_uuid(address)
+        self.check_xmlrpc_simple(status, {})
 
         # Try to activate a non-existing group.
         status = self.proxy.group.activate("group-1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_activate_group).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Activate group.
         group = _server.Group.fetch("group")
         self.assertEqual(group.status, _server.Group.INACTIVE)
         status = self.proxy.group.activate("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_activate_group).")
+        self.check_xmlrpc_command_result(status, False)
         group = _server.Group.fetch("group")
         self.assertEqual(group.status, _server.Group.ACTIVE)
 
@@ -362,19 +350,13 @@ class TestServerServices(unittest.TestCase):
         group = _server.Group.fetch("group")
         self.assertEqual(group.status, _server.Group.ACTIVE)
         status = self.proxy.group.deactivate("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_deactivate_group).")
+        self.check_xmlrpc_command_result(status, False)
         group = _server.Group.fetch("group")
         self.assertEqual(group.status, _server.Group.INACTIVE)
 
         # Try to deactivate a non-existing group.
         status = self.proxy.group.deactivate("group-1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_deactivate_group).")
+        self.check_xmlrpc_command_result(status, True)
 
     def test_server_status(self):
         """Test server's status by calling server.status().
@@ -384,48 +366,35 @@ class TestServerServices(unittest.TestCase):
         address_1 = tests.utils.MySQLInstances().get_address(0)
         address_2 = tests.utils.MySQLInstances().get_address(1)
         self.proxy.group.add("group", address_1)
-        status_uuid = self.proxy.server.lookup_uuid(address_1)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
-        uuid_1 = status_uuid[2]
-        error_uuid = status_uuid[1]
+        status_1 = self.proxy.server.lookup_uuid(address_1)
+        info_1 = self.check_xmlrpc_simple(status_1, {})
+        uuid_1 = info_1['uuid']
+        error_uuid = 'foo'
+
         self.proxy.group.add("group", address_2)
-        status_uuid = self.proxy.server.lookup_uuid(address_2)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
+        status = self.proxy.server.lookup_uuid(address_2)
+        self.check_xmlrpc_simple(status, {})
 
         # Try to set the status when the server's id is invalid.
         status = self.proxy.server.set_status("INVALID", "spare")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the status when the server does not exist.
         status = self.proxy.server.set_status(error_uuid, "spare")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the status when the server does not belong to a group.
         server = _server.MySQLServer.fetch(uuid_1)
         server.group_id = None
         status = self.proxy.server.set_status(uuid_1, "spare")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
         server.group_id = "group"
 
         # Try to set a spare server when the server is a master.
         group = _server.Group.fetch("group")
         tests.utils.configure_decoupled_master(group, _uuid.UUID(uuid_1))
         status = self.proxy.server.set_status(uuid_1, "spare")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
         tests.utils.configure_decoupled_master(group, None)
 
         # Set a spare server when the server is faulty.
@@ -433,30 +402,21 @@ class TestServerServices(unittest.TestCase):
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.FAULTY
         status = self.proxy.server.set_status(address_1, "spare")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
 
         # Set a spare server when the server is secondary.
         server.status = _server.MySQLServer.SECONDARY
         status = self.proxy.server.set_status(uuid_1, "spare")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
 
         # Try to set a status that does not exist.
         # Note though that this uses idx.
         status = self.proxy.server.set_status(uuid_1, 20)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Set a spare server when the server is secondary.
         # Note though that this uses idx.
@@ -464,59 +424,38 @@ class TestServerServices(unittest.TestCase):
         server.status = _server.MySQLServer.FAULTY
         status = self.proxy.server.set_status(uuid_1,
             _server.MySQLServer.get_status_idx("SPARE"))
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
 
         # Try to set a secondary server that does not exist.
         status = self.proxy.server.set_status(error_uuid, "secondary")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set a secondary server when the server is a master.
         group = _server.Group.fetch("group")
         tests.utils.configure_decoupled_master(group, _uuid.UUID(uuid_1))
         status = self.proxy.server.set_status(uuid_1, "secondary")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
         tests.utils.configure_decoupled_master(group, None)
 
         # Try to set a secondary server when the server is faulty.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.FAULTY
         status = self.proxy.server.set_status(uuid_1, "secondary")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set a faulty server.
         status = self.proxy.server.set_status(uuid_1, "faulty")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set a primary server.
         status = self.proxy.server.set_status(uuid_1, "primary")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set an invalid status.
         status = self.proxy.server.set_status(uuid_1, "INVALID")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
     def test_server_weight(self):
         """Test server's weight by calling server.weight().
@@ -525,73 +464,48 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.create("group", "Testing group...")
         address_1 = tests.utils.MySQLInstances().get_address(0)
         self.proxy.group.add("group", address_1)
-        status_uuid = self.proxy.server.lookup_uuid(address_1)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
-        uuid_1 = status_uuid[2]
-        error_uuid = status_uuid[1]
+        status = self.proxy.server.lookup_uuid(address_1)
+        info = self.check_xmlrpc_simple(status, {})
+        uuid_1 = info['uuid']
+        error_uuid = 'foo'
 
         # Try to set the weight when the server's id is invalid.
         status = self.proxy.server.set_weight("INVALID", "0.1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the weight when the server does not exist.
         status = self.proxy.server.set_weight(error_uuid, "0.1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the mode when the server does not belong to a group.
         server = _server.MySQLServer.fetch(uuid_1)
         server.group_id = None
         status = self.proxy.server.set_weight(uuid_1, "0.1")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, True)
         server.group_id = "group"
 
         # Try to set the weight to zero.
         status = self.proxy.server.set_weight(uuid_1, "0.0")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the weight to a negative value.
         status = self.proxy.server.set_weight(uuid_1, "-1.0")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the weight to a string.
         status = self.proxy.server.set_weight(uuid_1, "error")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Set the weight to 0.1.
         status = self.proxy.server.set_weight(uuid_1, 0.1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.weight, 0.1)
 
         # Set the weight to 1.0.
         # Note this is using HOST:PORT instead of using UUID.
         status = self.proxy.server.set_weight(address_1, 1.0)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_weight).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.weight, 1.0)
 
@@ -602,69 +516,48 @@ class TestServerServices(unittest.TestCase):
         self.proxy.group.create("group", "Testing group...")
         address_1 = tests.utils.MySQLInstances().get_address(0)
         status = self.proxy.group.add("group", address_1)
-        status_uuid = self.proxy.server.lookup_uuid(address_1)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
-        uuid_1 = status_uuid[2]
-        error_uuid = status_uuid[1]
+        self.check_xmlrpc_command_result(status, False)
+        status = self.proxy.server.lookup_uuid(address_1)
+        info = self.check_xmlrpc_simple(status, {})
+        uuid_1 = info['uuid']
+        error_uuid = 'foobar'
 
         # Try to set the mode when the server's id is invalid.
         status = self.proxy.server.set_mode("INVALID", "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the mode when the server does not exist.
         status = self.proxy.server.set_mode(error_uuid, "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the mode when the server does not belong to a group.
         server = _server.MySQLServer.fetch(uuid_1)
         server.group_id = None
         status = self.proxy.server.set_mode(uuid_1, "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
         server.group_id = "group"
 
         # Try to set the READ_WRITE mode when the server is a secondary.
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.SECONDARY)
         status = self.proxy.server.set_mode(uuid_1, "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the WRITE_ONLY mode when the server is a secondary.
         status = self.proxy.server.set_mode(uuid_1, "write_only")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Set the OFFLINE mode when the server is a secondary.
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_ONLY)
         status = self.proxy.server.set_mode(uuid_1, "offline")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.OFFLINE)
 
         # Set the READ_ONLY mode when the server is a secondary.
         status = self.proxy.server.set_mode(uuid_1, "read_only")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_ONLY)
 
@@ -673,35 +566,23 @@ class TestServerServices(unittest.TestCase):
         server.status = _server.MySQLServer.SPARE
         self.assertEqual(server.status, _server.MySQLServer.SPARE)
         status = self.proxy.server.set_mode(uuid_1, "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the WRITE_ONLY mode when the server is a spare.
         status = self.proxy.server.set_mode(uuid_1, "write_only")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Set the OFFLINE mode when the server is a spare.
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_ONLY)
         status = self.proxy.server.set_mode(uuid_1, "offline")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.OFFLINE)
 
         # Set the READ_ONLY mode when the server is a spare.
         status = self.proxy.server.set_mode(uuid_1, "read_only")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_ONLY)
 
@@ -712,42 +593,27 @@ class TestServerServices(unittest.TestCase):
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
         self.assertEqual(server.status, _server.MySQLServer.PRIMARY)
         status = self.proxy.server.set_mode(uuid_1, "offline")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to set the READ_ONLY mode when the server is a primary.
         status = self.proxy.server.set_mode(uuid_1, "read_only")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Set the WRITE_ONLY mode when the server is a primary.
         status = self.proxy.server.set_mode(uuid_1, "write_only")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.WRITE_ONLY)
 
         # Set the READ_WRITE mode when the server is a primary.
         status = self.proxy.server.set_mode(uuid_1, "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
 
         # Trye to set an invalid mode using idx.
         status = self.proxy.server.set_mode(uuid_1, 20)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, True)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
 
@@ -756,20 +622,14 @@ class TestServerServices(unittest.TestCase):
         status = self.proxy.server.set_mode(uuid_1,
             _server.MySQLServer.get_mode_idx("WRITE_ONLY")
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.WRITE_ONLY)
 
         # Set the READ_WRITE mode when the server is a primary.
         # Note this is using HOST:PORT instead of using UUID.
         status = self.proxy.server.set_mode(address_1, "read_write")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_set_server_mode).")
+        self.check_xmlrpc_command_result(status, False)
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.mode, _server.MySQLServer.READ_WRITE)
 
@@ -788,36 +648,25 @@ class TestServerServices(unittest.TestCase):
         status_uuid = self.proxy.server.lookup_uuid(address_2)
         uuid_2 = status_uuid[2]
         status = self.proxy.group.add("group", address_0)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
-        status = self.proxy.group.promote("group")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status, False)
 
-        # Add a servers and check that they are made slaves.
+        status = self.proxy.group.promote("group")
+        self.check_xmlrpc_command_result(status, False)
+
+        # Add servers and check that they are made slaves.
         self.proxy.group.add("group", address_1)
         self.proxy.group.add("group", address_2)
         status =  self.proxy.group.lookup_servers("group")
-        retrieved = status[2]
-        expected = [
-            {"server_uuid" : uuid_0, "address" : address_0,
-            "status" : _server.MySQLServer.PRIMARY,
-            "mode" : _server.MySQLServer.READ_WRITE,
-            "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-            {"server_uuid" : uuid_1, "address" : address_1,
-            "status" : _server.MySQLServer.SECONDARY,
-            "mode" : _server.MySQLServer.READ_ONLY,
-            "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-            {"server_uuid" : uuid_2, "address" : address_2,
-            "status" : _server.MySQLServer.SECONDARY,
-            "mode" : _server.MySQLServer.READ_ONLY,
-            "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-        ]
-        self.assertEqual(retrieved, expected)
+        result = _xmlrpc._decode(status)
+        for row in result.results[0]:
+            info = dict(zip([ c.name for c in result.results[0].columns ], row))
+            self.assertEqual(info['weight'], 1.0)
+            if info['address'] == address_0:
+                self.assertEqual(info['status'], _server.MySQLServer.PRIMARY)
+                self.assertEqual(info['mode'], _server.MySQLServer.READ_WRITE)
+            else:
+                self.assertEqual(info['status'], _server.MySQLServer.SECONDARY)
+                self.assertEqual(info['mode'], _server.MySQLServer.READ_ONLY)
 
     def test_update_only(self):
         """Test the update_only parameter while adding a slave.
@@ -828,18 +677,18 @@ class TestServerServices(unittest.TestCase):
         address_2 = tests.utils.MySQLInstances().get_address(1)
         address_3 = tests.utils.MySQLInstances().get_address(2)
 
-        status_uuid = self.proxy.server.lookup_uuid(address_1)
-        uuid_1 = status_uuid[2]
+        status = self.proxy.server.lookup_uuid(address_1)
+        uuid_1 = self.check_xmlrpc_get_uuid(status, False)
         server_1 = _server.MySQLServer(_uuid.UUID(uuid_1), address_1)
         server_1.connect()
 
-        status_uuid = self.proxy.server.lookup_uuid(address_2)
-        uuid_2 = status_uuid[2]
+        status = self.proxy.server.lookup_uuid(address_2)
+        uuid_2 = self.check_xmlrpc_get_uuid(status, False)
         server_2 = _server.MySQLServer(_uuid.UUID(uuid_2), address_2)
         server_2.connect()
 
-        status_uuid = self.proxy.server.lookup_uuid(address_3)
-        uuid_3 = status_uuid[2]
+        status = self.proxy.server.lookup_uuid(address_3)
+        uuid_3 = self.check_xmlrpc_get_uuid(status, False)
         server_3 = _server.MySQLServer(_uuid.UUID(uuid_3), address_3)
         server_3.connect()
 
@@ -848,51 +697,40 @@ class TestServerServices(unittest.TestCase):
         # update_only parameter is set or not.
         self.proxy.group.add("group", address_1, 5, True)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][uuid_1]["threads"], {"is_configured" : False}
-        )
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.SECONDARY,
+            'is_configured': False,
+        })
+
         self.proxy.group.remove("group", uuid_1)
         self.proxy.group.add("group", address_1, 5, False)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_1]["status"], _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][uuid_1]["threads"], {"is_configured" : False}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+            "is_configured" : False,
+        })
 
         # Try to make the previous server a master, i.e. --update-only = False.
         status = self.proxy.server.set_status(
             uuid_1, _server.MySQLServer.PRIMARY
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
 
         # Try to make the previous server a master, i.e. --update-only = True.
         status = self.proxy.server.set_status(
             uuid_1, _server.MySQLServer.PRIMARY, True
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
         self.proxy.group.promote("group", uuid_1)
 
         # Add a slave but notice that it is not properly configured, i.e.
         # --update-only = True.
         self.proxy.group.add("group", address_2, 5, True)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][uuid_2]["threads"], {"is_configured" : False}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+            "is_configured" : False,
+        })
 
         # Properly configure the previous slave.
         _replication.switch_master(slave=server_2, master=server_1,
@@ -900,23 +738,17 @@ class TestServerServices(unittest.TestCase):
         )
         _replication.start_slave(server_2, wait=True)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][uuid_2]["threads"], {}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+        })
 
         # Add a slave but notice that it is properly configured, i.e.
         # --update-only = False.
         self.proxy.group.add("group", address_3)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"], {}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+        }, index=1)
 
         # Stop replication, set slave's status to faulty and add it
         # back as a spare, --update-only = False. Note that it is
@@ -924,23 +756,18 @@ class TestServerServices(unittest.TestCase):
         _replication.stop_slave(server_3, wait=True)
         server_3.status = _server.MySQLServer.FAULTY
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.FAULTY
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"],
-            {"io_running": False, "sql_running": False}
-        )
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.FAULTY,
+            "io_running": False,
+            "sql_running": False
+        }, index=1)
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.SPARE
         )
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"], {}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SPARE,
+        }, index=1)
 
         # Stop replication, set slave's status to faulty and add it
         # back as a spare, --update-only = True. Note that it is not
@@ -948,58 +775,44 @@ class TestServerServices(unittest.TestCase):
         _replication.stop_slave(server_3, wait=True)
         server_3.status = _server.MySQLServer.FAULTY
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.FAULTY
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"],
-            {"io_running": False, "sql_running": False}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.FAULTY,
+            "io_running": False,
+            "sql_running": False,
+        }, index=1)
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.SPARE, True
         )
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"],
-            {"io_running": False, "sql_running": False}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SPARE,
+            "io_running": False,
+            "sql_running": False,
+        }, index=1)
 
         # Try to set slave's status to faulty, i.e. --update-only = False.
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.FAULTY
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"],
-            {"io_running": False, "sql_running": False}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SPARE,
+            "io_running": False,
+            "sql_running": False,
+        }, index=1)
 
         # Try to set slave's status to faulty, i.e. --update-only = True.
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.FAULTY, True
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_set_server_status).")
+        self.check_xmlrpc_command_result(status, True)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_3]["status"], _server.MySQLServer.SPARE
-        )
-        self.assertEqual(
-            status[2][uuid_3]["threads"],
-            {"io_running": False, "sql_running": False}
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SPARE,
+            "io_running": False,
+            "sql_running": False,
+        }, index=1)
 
     def test_lookup_servers(self):
         """Test searching for servers by calling group.lookup_servers().
@@ -1009,15 +822,20 @@ class TestServerServices(unittest.TestCase):
         address_0 = tests.utils.MySQLInstances().get_address(0)
         address_1 = tests.utils.MySQLInstances().get_address(1)
         address_2 = tests.utils.MySQLInstances().get_address(2)
-        self.proxy.group.add("group", address_0)
-        self.proxy.group.add("group", address_1)
-        self.proxy.group.add("group", address_2)
+        status = self.proxy.group.add("group", address_0)
+        self.check_xmlrpc_command_result(status, False)
+        status = self.proxy.group.add("group", address_1)
+        self.check_xmlrpc_command_result(status, False)
+        status = self.proxy.group.add("group", address_2)
+        self.check_xmlrpc_command_result(status, False)
         status_uuid = self.proxy.server.lookup_uuid(address_1)
         server_1 = _server.MySQLServer.fetch(status_uuid[2])
 
-        # Fetch all servers in a group.
-        server =  self.proxy.group.lookup_servers("group")
-        self.assertEqual(len(server[2]), 3)
+        # Fetch all servers in a group and check the number of server.
+        status = self.proxy.group.lookup_servers("group")
+        result = _xmlrpc._decode(status)
+        self.assertNotEqual(len(result.results), 0, str(result));
+        self.assertEqual(result.results[0].rowcount, 3, str(result))
 
         #
         # It it not possible to specify only some of the optional
@@ -1066,9 +884,10 @@ class TestServerServices(unittest.TestCase):
         """
         from __main__ import xmlrpc_next_port
         status = self.proxy.dump.fabric_nodes()
-        self.assertEqual(
-            status, [0, 0, 0, ["localhost:%d" % (xmlrpc_next_port, )]]
-        )
+        self.check_xmlrpc_simple(status, {
+            'host': "localhost",
+            'port': int(xmlrpc_next_port),
+        })
 
 if __name__ == "__main__":
     unittest.main()

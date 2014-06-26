@@ -26,6 +26,8 @@ from  mysql.fabric import (
 
 from mysql.fabric.command import (
     Command,
+    CommandResult,
+    ResultSet,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,42 +51,43 @@ class CheckHealth(Command):
 
         :param group_id: Group's id.
         """
-        return Command.generate_output_pattern(_health, group_id)
 
-def _health(group_id):
-    """Check which servers in a group are up and down.
-    """
-    availability = {}
+        group = _server.Group.fetch(group_id)
+        if not group:
+            raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+        info = ResultSet(
+            names=[
+                'is_alive', 'status', 
+                'is_running', 'is_configured', 'io_running',
+                'sql_running', 'io_error', 'sql_error',
+            ],
+            types=[bool, str] + [bool] * 6
+        )
 
-    for server in group.servers():
-        alive = False
-        is_master = (group.master == server.uuid)
-        thread_issues = {}
-        status = server.status
-        try:
-            server.connect()
-            alive = True
-            if not is_master:
-                slave_issues = _replication.check_slave_issues(server)
-                str_master_uuid = _replication.slave_has_master(server)
-                if (group.master is None or str(group.master) != \
-                    str_master_uuid) and not slave_issues:
-                    thread_issues = \
-                        "Group has master (%s) but server is connected " \
-                        "to master (%s)." % \
-                        (group.master, str_master_uuid)
-                elif slave_issues:
-                    thread_issues = slave_issues
-        except _errors.DatabaseError:
-            status = _server.MySQLServer.FAULTY
-        availability[str(server.uuid)] = {
-            "is_alive" : alive,
-            "status" : status,
-            "threads" : thread_issues
-            }
+        issues = ResultSet(names=['issue'], types=[str])
+        
+        for server in group.servers():
+            alive = False
+            is_master = (group.master == server.uuid)
+            thread_issues = {}
+            status = server.status
+            try:
+                server.connect()
+                alive = True
+                if not is_master:
+                    slave_issues = _replication.check_slave_issues(server)
+                    str_master_uuid = _replication.slave_has_master(server)
+                    if (group.master is None or str(group.master) != \
+                        str_master_uuid) and not slave_issues:
+                        issues.append_row([
+                            "Group has master (%s) but server is connected " \
+                            "to master (%s)." % \
+                            (group.master, str_master_uuid)
+                        ])
+                    elif slave_issues:
+                        info.append_row([alive, status] + slave_issues.values() )
+            except _errors.DatabaseError:
+                status = _server.MySQLServer.FAULTY
 
-    return availability
+        return CommandResult(None, results=[info, issues])

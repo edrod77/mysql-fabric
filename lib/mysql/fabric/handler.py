@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 _CREATE_FABRIC_LOG = (
     "CREATE TABLE log "
     "(subject VARCHAR(40) NOT NULL, "
-    "reported TIMESTAMP(6) NOT NULL, "
+    "reported TIMESTAMP /*!50604 (6) */ NOT NULL, "
     "reporter VARCHAR(64) NOT NULL, "
     "message TEXT, "
     "category int NOT NULL, "

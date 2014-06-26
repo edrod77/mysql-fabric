@@ -99,7 +99,7 @@ def get_config(options, env_options):
     # Configure parameters.
     params = {
         'protocol.xmlrpc': {
-            'address': 'localhost:%d' % (env_options["xmlrpc_next_port"], ),
+            'address': 'localhost:{0}'.format(env_options["xmlrpc_next_port"]),
             'threads': '5',
             'disable_authentication' : 'yes',
             },
@@ -109,7 +109,7 @@ def get_config(options, env_options):
         'storage': {
             'address': options.host + ":" + str(options.port),
             'user': options.user,
-            'password': options.password,
+            'password': options.password or '',
             'database': 'fabric',
             'connection_timeout': 'None',
             },
@@ -329,7 +329,7 @@ if __name__ == '__main__':
     # options.
     options, args = get_options()
     configure_path(options)
-    xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
+    xmlrpc_next_port = str(os.getenv("HTTP_PORT", 15500))
     mysqldump_path = os.getenv("MYSQLDUMP", "")
     mysqlclient_path = os.getenv("MYSQLCLIENT", "")
     env_options = {

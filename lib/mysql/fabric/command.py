@@ -40,10 +40,17 @@ import re
 import inspect
 import logging
 import functools
-import traceback
+import collections
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
+
+from cStringIO import StringIO
+
+from mysql.fabric.utils import (
+    FABRIC_UUID,
+    TTL,
+)
 
 from mysql.fabric.sharding import (
     MappingShardsGroups,
@@ -167,11 +174,29 @@ class CommandMeta(type):
                     }
                 )
                 ret = original(obj, *args, **kwrds)
+
+                # Check that we really got a result set back. If not,
+                # something is amiss.
+                # 
+                # As a special case, if the function returns None it
+                # means it finished without throwing an exception, so
+                # it trivially succeeded without a result set.
+                if ret is None:
+                    ret = CommandResult(None)
+                elif not isinstance(ret, CommandResult):
+                    raise  _errors.InternalError(
+                        "Expected '%s', got '%s'" % (
+                            CommandResult.__name__,
+                            ret,
+                        )
+                    )
+
                 if isinstance(obj, ProcedureCommand):
                     success = ProcedureCommand.succeeded(ret)
             except:
                 success = False
                 raise
+                    
             finally:
                 _LOGGER.debug("Finished command (%s, %s).", group, command,
                     extra={
@@ -389,48 +414,13 @@ class Command(object):
 
         :param args: The arguments for the command dispatch.
         """
-        status = self.client.dispatch(self, *args)
-        return self.command_status(status)
+        return self.client.dispatch(self, *args)
 
     def execute(self):
         """Any command derived from this class must redefine this
         method.
         """
         raise _errors.ProgrammingError("The execute method is not defined.")
-
-    @staticmethod
-    def command_status(status, details=False):
-        """Present the result reported by a command in a friendly-user way.
-
-        :param status: The command status.
-        :param details: Whether details on failures should be printed or
-                        not.
-        """
-        success = True
-        returned = ""
-        activities = ""
-
-        if not isinstance(status, list):
-            returned = status
-        elif not isinstance(status[0], bool):
-            returned = status
-        else:
-            success = status[0]
-            if success:
-                returned = status[2]
-            else:
-                trace = status[1].split("\n")
-                returned = trace[-2]
-                if details:
-                    activities = "\n".join(trace)
-
-        return "\n".join([
-            "Command :",
-            "{ success     = %s" % (success, ),
-            "  return      = %s" % (returned, ),
-            "  activities  = %s" % (activities, ),
-            "}"
-            ])
 
     @classmethod
     def get_signature(cls):
@@ -494,14 +484,22 @@ class Command(object):
         :param func: the function that needs to be called
         :param params: The parameters to the function
 
-        :return: {success:True/False, message:<for example exception>,
-                return:<return values>}.
+        :return: :class:`CommandResult` instance
+
         """
-        try:
-            status = func(*params)
-        except Exception:
-            return [False, traceback.format_exc(), True]
-        return [True, "", status]
+
+        status = func(*params)
+        _LOGGER.debug("Status from execution of '%s': %s", func.__name__, status)
+        if len(status) > 0:
+            rset = ResultSet(
+                names=status[0].keys(),
+                types=[ type(v) for v in status[0].values() ],
+            )
+            for entry in status:
+                rset.append_row(entry.values())
+        else:
+            rset = None
+        return CommandResult(None, results=rset)
 
 
 class ProcedureCommand(Command):
@@ -537,8 +535,8 @@ class ProcedureCommand(Command):
 
         :param args: The arguments for the command dispatch.
         """
-        status = self.client.dispatch(self, *args)
-        return self.procedure_status(status)
+
+        return self.client.dispatch(self, *args)
 
     @staticmethod
     def wait_for_procedures(procedure_param, synchronous):
@@ -552,68 +550,63 @@ class ProcedureCommand(Command):
         :param procedure_param: Iterable with procedures.
         :param synchronous: Whether should wait until the procedure
                             finishes its execution or not.
-        :return: Information on the procedure.
-        :rtype: str(procedure.uuid), procedure.status, procedure.result
-                or (str(procedure.uuid))
+        :return: A :class:`CommandResult` instance with the execution result.
+        :rtype: CommandResult
         """
         assert(len(procedure_param) == 1)
         synchronous = str(synchronous).upper() not in ("FALSE", "0")
-        if synchronous:
-            executor = _executor.Executor()
-            for procedure in procedure_param:
-                executor.wait_for_procedure(procedure)
-            return str(procedure_param[-1].uuid), procedure_param[-1].status, \
-                procedure_param[-1].result
-        else:
-            return str(procedure_param[-1].uuid)
+        if not synchronous:
+            info = ResultSet(names=['uuid'], types=[str])
+            info.append_row([str(procedure_param[-1].uuid)])
+            return CommandResult(None, results=info)
 
-    @staticmethod
-    def procedure_status(status, details=False):
-        """Transform a status reported by :func:`wait_for_procedures` into
-        a string that can be used by the command-line interface.
+        executor = _executor.Executor()
+        for procedure in procedure_param:
+            executor.wait_for_procedure(procedure)
+        _LOGGER.debug(
+            "Result after wait: uuid='%s', status='%s', result='%s'",
+            str(procedure_param[-1].uuid), procedure_param[-1].status,
+            procedure_param[-1].result
+        )
 
-        :param status: The status of the command execution.
-        :param details: Boolean that indicates if detailed execution status
-                        be returned.
+        # We look at the diagnosis of the last entry to decide the
+        # status of the procedure execution.
+        operation = procedure_param[-1].status[-1]
+        complete = operation['state'] == _executor.Job.COMPLETE
+        success = operation['success'] == _executor.Job.SUCCESS
 
-        :return: Return the detailed execution status as a string.
-        """
-        proc_id = None
-        complete = ""
-        success = ""
-        returned = ""
-        activities = ""
-
-        if isinstance(status, str):
-            proc_id = status
-        else:
-            proc_id = status[0]
-            operation = status[1][-1]
-            returned = None
-            activities = ""
-            complete = (operation["state"] == _executor.Job.COMPLETE)
-            success = (operation["success"] == _executor.Job.SUCCESS)
-
-            if success:
-                returned = status[2]
-                if details:
-                    steps = [step["description"] for step in status[1]]
-                    activities = "\n  ".join(steps)
-            else:
-                trace = operation["diagnosis"].split("\n")
-                returned = trace[-2]
-                if details:
-                    activities = "\n".join(trace)
-
-        return "\n".join([
-            "Procedure :",
-            "{ uuid        = %s," % (proc_id, ),
-            "  finished    = %s," % (complete, ),
-            "  success     = %s," % (success, ),
-            "  return      = %s," % (returned, ),
-            "  activities  = %s"  % (activities, ),
-            "}"
+        if success:
+            info = ResultSet(
+                names=('uuid', 'finished', 'success', 'result'),
+                types=(str, bool, bool, str),
+            )
+            info.append_row([
+                str(procedure_param[-1].uuid),
+                complete,
+                success,
+                str(procedure_param[-1].result),
             ])
+            _LOGGER.debug("Success: uuid='%s', result='%s'", 
+                          str(procedure_param[-1].uuid),
+                          str(procedure_param[-1].result))
+                
+            rset = ResultSet(
+                names=('state', 'success', 'when', 'description'),
+                types=(int, int, float, str),
+            )
+            for item in procedure_param[-1].status:
+                rset.append_row([
+                    item['state'],
+                    item['success'],
+                    item['when'],
+                    item['description'],
+                ])
+            return CommandResult(None, results=[info, rset])
+        else:
+            # The error message is the last line of the diagnosis, so we get it from there.
+            error = operation['diagnosis'].split("\n")[-2]
+            _LOGGER.debug("Failure: error='%s'", error)
+            return CommandResult(error)
 
     @staticmethod
     def succeeded(status):
@@ -656,3 +649,213 @@ class ProcedureShard(ProcedureCommand):
     execute operations within a sharding.
     """
     pass
+
+ResultSetColumn = collections.namedtuple('ResultSetColumn', 'name,type')
+
+class ResultSet(object):
+    """A result set returned by a command object.
+
+    Each result set is conceptually a table with columns where each
+    column have a name and a type. The name is given as a string and
+    the type is given as a Python type.
+
+    Rows are internally stored as tuples, even if other iterables are
+    used to add a row to the result set.
+
+    :param names: List (or other iterable) of names of columns.
+    :param types: List (or other iterable) of types of columns.
+
+    """
+
+    def __init__(self, names, types):
+        "Constructor. See class description for more information."
+
+        # Make sure that we always store the column information as a
+        # tuple, even if other types of iterables are passed to the
+        # function.
+        assert len(names) == len(types)
+        self.__columns = tuple(ResultSetColumn(nm, tp) for nm, tp in zip(names, types))
+        self.__rows = []
+
+    def table_rows(self):
+        r"""Create rows for the result set as a table.
+
+        This will create the lines for a result set in a tabular
+        format. A typical use-case would be:
+
+        >>> rset = ResultSet(names=('one', 'two'), types=(int, int))
+        >>> rset.append_row([1,2])
+        >>> rset.append_row([3,4])
+        >>> print "\n".join(rset.table_rows())
+        one two
+        --- ---
+          1   2
+          3   4
+
+        """
+
+        header = [ col.name for col in self.__columns ]
+        all_rows = [ header ]
+        all_rows.extend(self.__rows)
+        width = [max(len(str(r)) for r in col) for col in zip(*all_rows)]
+        def _mkline(row):
+            return " ".join("{:>{}}".format(x, width[i]) for i, x in enumerate(row))
+
+        result = [ _mkline(header) ]
+        result.append(_mkline([ '-' * w for w in width ]))
+        for row in self.__rows:
+            result.append(_mkline(row))
+        return result
+
+    @property
+    def rowcount(self):
+        "The number of rows in the result set"
+        return len(self.__rows)
+
+    @property
+    def columns(self):
+        "An array of the columns defined for the result set."
+        return self.__columns
+
+    def __iter__(self):
+        """Iterate over the rows of the result set.
+
+        Each row is a list of column values. 
+
+        """
+
+        for row in self.__rows:
+            yield row
+
+    def __getitem__(self, index):
+        "Indexing operator for result set. Will index the rows of the result set."
+        return self.__rows[index]
+
+    def append_row(self, row):
+        """Append a row to the result set.
+
+        The row is an array (a list or tuple) of values that should be
+        added to the result set. When adding the row, it will be
+        checked that the length of the row matches the number of
+        columns defined for the result set and that the types of the
+        values match the type given for the column.
+
+        :param row: An array of the values to add.
+
+        """
+
+        # Check that the length of the row matches the number of
+        # columns for the result set
+        if len(row) != len(self.__columns):
+            message = "Invalid row length: expected %d, was %d" % (
+                len(self.__columns), len(row)
+            )
+            raise _errors.CommandResultError(message)
+
+        self.__rows.append(
+            tuple(col.type(val) for col, val in zip(self.__columns, row))
+        )
+
+
+class CommandResult(object):
+    """Command result class.
+
+    The command result class contain the result of a procedure
+    execution. This covers any errors returned and zero or more result
+    sets.
+
+    :param error: Error string, or None if there were no error.
+    :param results: List of result sets, or a single result set to add.
+    :param uuid: UUID that identifies the Fabric meta-data.
+    :param ttl: Time-To-Live (TTL) in seconds.
+
+    """
+
+    def __init__(self, error, results=None, uuid=FABRIC_UUID, ttl=TTL):
+        self.__error = error
+        self.__uuid = uuid
+        self.__ttl = ttl
+        self.__results = []
+
+        # Ensure that results is a list of results even if a single
+        # result (or None) was passed as value.
+        if results is None:
+            results = []
+        elif isinstance(results, ResultSet):
+            results = [results]
+
+        # Append the result sets one by one to perform the standard
+        # checks on adding result sets to the command result.
+        for result in results:
+            self.append_result(result)
+
+    def emit(self, output):
+        """Write a human-readable version of the command result.
+
+        This will print a human-readable version of the command
+        result, including all result sets, to the output provided.
+
+        :param output: File object to write to.
+
+        """
+
+        rows = [
+            "Fabric UUID:  %s" % self.uuid,
+            "Time-To-Live: %d" % self.__ttl,
+            "",
+        ]
+
+        if self.__error:
+            rows.append(self.__error)
+        elif not self.__results:
+            rows.append('Success (empty result set)')
+        else:
+            for rset in self.__results:
+                rows.extend(rset.table_rows())
+                rows.append("")
+
+        output.writelines(row + "\n" for row in rows)
+        output.write("\n")
+
+    def __str__(self):
+        "The command result as a string."
+        output = StringIO()
+        self.emit(output)
+        return output.getvalue()
+
+    @property
+    def uuid(self):
+        "Fabric node UUID for command result."
+        return self.__uuid
+
+    @property
+    def ttl(self):
+        "Time-To-Live for command result."
+        return self.__ttl
+
+    @property
+    def error(self):
+        "Command result error, or None if there were no error."
+        return self.__error
+
+    @property
+    def results(self):
+        "List of result sets."
+        return self.__results
+
+    def append_result(self, result):
+        """Append a result set to the list of result sets.
+
+        :param result: Result set to add last to the list of result sets.
+
+        """
+
+        if not isinstance(result, ResultSet):
+            raise _errors.CommandResultError('Result have to be an instance of ResultSet')
+        if self.error:
+            raise _errors.CommandResultError('result sets cannot be added for error results')
+        self.__results.append(result)
+            
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()

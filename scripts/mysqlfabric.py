@@ -24,6 +24,8 @@ from getpass import getpass
 from ConfigParser import NoOptionError
 from urllib2 import HTTPError, URLError
 
+from mysql.fabric.protocols.xmlrpc import MyClient
+
 from mysql.fabric.services import (
     find_commands,
     find_client,
@@ -357,7 +359,9 @@ def fire_command(command, *args):
         #optional arguments passed by the user to the argument list.
         result = command.dispatch(*(command.append_options_to_args(args)))
         if result is not None:
-            print result
+            result.emit(sys.stdout)
+        else:
+            print "No result returned"
     except TypeError:
         error_usage_text(command.group_name, command.command_name)
 

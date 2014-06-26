@@ -66,6 +66,7 @@ provided elsewhere.
 """
 import logging
 import uuid as _uuid
+import sys
 
 import mysql.fabric.services.utils as _utils
 
@@ -83,6 +84,8 @@ from mysql.fabric import (
 from mysql.fabric.command import (
     ProcedureGroup,
     Command,
+    ResultSet,
+    CommandResult,
 )
 
 from mysql.fabric.utils import (
@@ -109,9 +112,34 @@ class GroupLookups(Command):
         :return: List with {"group_id" : group_id, "failure_detector": ON/OFF,
                  "description" : description}.
         """
-        return Command.generate_output_pattern(
-            _lookup_groups, group_id)
 
+        if group_id is None:
+            gids = _server.Group.groups()
+        else:
+            gids = [group_id]
+
+        _LOGGER.debug("Group IDs: %s", gids)
+
+        # Fetch all the groups before building the result set since an
+        # exception can be thrown and there is little point in trying
+        # to build a result set before all groups can be fetched.
+        groups = [ _retrieve_group(gid) for gid in gids ]
+
+        rset = ResultSet(
+            names=('group_id', 'description', 'failure_detector', 'master_uuid'),
+            types=(str, str, bool, str)
+        )
+
+        for group in groups:
+            rset.append_row([
+                group.group_id,          # group_id
+                group.description,       # description
+                group.status,            # failure_detector
+                group.master,            # master_uuid
+            ])
+
+        return CommandResult(None, results=rset)
+            
 CREATE_GROUP = _events.Event()
 class GroupCreate(ProcedureGroup):
     """Create a group.
@@ -212,7 +240,9 @@ class ServerUuid(Command):
                         if the UUID is not retrieved.
         :return: UUID.
         """
-        return Command.generate_output_pattern(_lookup_uuid, address, timeout)
+        rset = ResultSet(names=['uuid'], types=[str])
+        rset.append_row([_lookup_uuid(address, timeout)])
+        return CommandResult(None, results=rset)
 
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
@@ -326,7 +356,16 @@ class DumpServers(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        return _server.MySQLServer.dump_servers(connector_version, patterns)
+        
+        rset = ResultSet(
+            names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
+            types=(str, str, str, int, int, int, float)
+        )
+        
+        for row in _server.MySQLServer.dump_servers(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):
@@ -490,29 +529,6 @@ class CloneServer(ProcedureGroup):
             config_file
         )
         return self.wait_for_procedures(procedures, synchronous)
-
-def _lookup_groups(group_id=None):
-    """Return a list of existing group(s).
-    """
-    info = []
-    if group_id is None:
-        for group_id in _server.Group.groups():
-            _group_information(_server.Group.fetch(group_id[0]), info)
-    else:
-        group = _retrieve_group(group_id)
-        _group_information(group, info)
-    return info
-
-def _group_information(group, info):
-    """Get information on group and append it into to a list.
-    """
-    master = str(group.master) if group.master else ""
-    info.append({
-        "group_id" : group.group_id,
-        "description" : group.description or "",
-        "failure_detector" : True if group.status else False,
-        "master_uuid" : master
-    })
 
 @_events.on_event(CREATE_GROUP)
 def _create_group(group_id, description):

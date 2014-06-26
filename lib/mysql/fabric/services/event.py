@@ -25,11 +25,13 @@ from mysql.fabric import (
     events as _events,
     executor as _executor,
     errors as _errors,
-    )
+)
 
 from mysql.fabric.command import (
     Command,
-    )
+    CommandResult,
+    ResultSet,
+)
 
 class Trigger(Command):
     """Trigger an event.
@@ -44,15 +46,24 @@ class Trigger(Command):
         :type event: String
         :param args: Event's non-keyworded arguments.
         :param kwargs: Event's keyworded arguments.
-        :return: List of the procedures' uuids that were created.
+
+        :return: :class:`CommandResult` instance with UUID of the
+                 procedures that were triggered.
+
         """
+
         lockable_objects = set()
         for lock in locks.split(","):
             lockable_objects.add(lock.strip())
-        return [ str(proc.uuid) \
-                 for proc in _events.trigger(event, lockable_objects,
-                                             *args, **kwargs)
-               ]
+
+        rset = ResultSet(names=['uuid'], types=[str])
+
+        # Trigger the event and add the UUID of all procedures queued
+        # to the result.
+        for proc in _events.trigger(event, lockable_objects, *args, **kwargs):
+            rset.append_row([str(proc.uuid)])
+            
+        return CommandResult(None, results=rset)
 
 class WaitForProcedures(Command):
     """Wait until procedures, which are identified through their uuid in a
@@ -85,4 +96,4 @@ class WaitForProcedures(Command):
         for procedure in procs:
             procedure.wait()
 
-        return True
+        return CommandResult(None)

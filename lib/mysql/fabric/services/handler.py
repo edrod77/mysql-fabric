@@ -24,10 +24,17 @@ from mysql.fabric.handler import (
 
 from mysql.fabric.command import (
     Command,
+    CommandResult,
+    ResultSet,
 )
 
 from mysql.fabric.node import (
     FabricNode,
+)
+
+from datetime import (
+    datetime,
+    timedelta,
 )
 
 class Node(Command):
@@ -43,7 +50,17 @@ class Node(Command):
         the following fileds: node identification, how long it is running,
         when it was started.
         """
-        return Command.generate_output_pattern(_node_view)
+        fabric = FabricNode()
+        node_id = fabric.uuid
+        node_startup = fabric.startup
+        node_uptime = _utils.get_time() - node_startup
+
+        rset = ResultSet(
+            names=('node_id', 'node_uptime', 'node_startup'),
+            types=( str, datetime, timedelta))
+        rset.append_row([node_id, node_startup, node_update])
+
+        return CommandResult(None, results=rset)
 
 class Procedure(Command):
     """Retrieve statistics on Procedures.
@@ -61,9 +78,16 @@ class Procedure(Command):
 
         :param procedure_name: Procedure one wants to retrieve information on.
         """
-        return Command.generate_output_pattern(
-            MySQLHandler.procedure_view, procedure_name
+
+        rset = ResultSet(
+            names=('proc_name', 'call_count', 'call_abort'),
+            types=(str, long, long),
         )
+
+        for row in MySQLHandler.procedure_view(procedure_name):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class Group(Command):
     """Retrieve statistics on Procedures.
@@ -80,16 +104,16 @@ class Group(Command):
 
         :param group_id: Group one wants to retrieve information on.
         """
-        return Command.generate_output_pattern(
-            MySQLHandler.group_view, group_id
+
+        rset = ResultSet(
+            names=('group_id', 'call_count', 'call_abort'),
+            types=(str, long, long),
         )
 
-def _node_view():
-    """Retrieve information on the Fabric node.
-    """
-    fabric = FabricNode()
-    node_id = fabric.uuid
-    node_startup = fabric.startup
-    node_uptime = _utils.get_time() - node_startup
+        for row in MySQLHandler.group_view(group_id):
+            rset.append_row(row)
 
-    return [[str(node_id), str(node_uptime), str(node_startup)]]
+        return CommandResult(None, results=rset)
+
+            
+

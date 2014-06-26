@@ -47,6 +47,8 @@ from mysql.fabric.sharding import (
 from mysql.fabric.command import (
     ProcedureShard,
     Command,
+    ResultSet,
+    CommandResult,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -355,7 +357,16 @@ class DumpShardTables(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: shard mapping pattern.
         """
-        return ShardMapping.dump_shard_tables(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
+            types=(str, str, str, int),
+        )
+
+        for row in ShardMapping.dump_shard_tables(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class DumpShardingInformation(Command):
     """Return all the sharding information about the tables passed as patterns.
@@ -372,7 +383,17 @@ class DumpShardingInformation(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: shard table pattern.
         """
-        return ShardMapping.dump_sharding_info(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('schema_name', 'table_name', 'column_name', 'lower_bound',
+                   'shard_id', 'group_id', 'global_group_id', 'type_name'),
+            types=(str, str, str, str, int, str, str, str),
+        )
+
+        for row in ShardMapping.dump_sharding_info(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class DumpShardMappings(Command):
     """Return information about all shard mappings matching any of the
@@ -389,7 +410,16 @@ class DumpShardMappings(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: shard mapping pattern.
         """
-        return ShardMapping.dump_shard_maps(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('mapping_id', 'type_name', 'global_group_id'),
+            types=(int, str, str),
+        )
+
+        for row in ShardMapping.dump_shard_maps(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class DumpShardIndex(Command):
     """Return information about the index for all mappings matching
@@ -407,7 +437,16 @@ class DumpShardIndex(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        return Shards.dump_shard_indexes(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
+            types=(str, int, int, str),
+        )
+
+        for row in Shards.dump_shard_indexes(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 @_events.on_event(DEFINE_SHARD_MAPPING)
 def _define_shard_mapping(type_name, global_group_id):

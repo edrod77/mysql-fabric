@@ -455,9 +455,6 @@ class ShardMapping(_persistence.Persistable):
         :return: A list of registered tables using the provided shard mapping
                 pattern.
         """
-        #This is used to store the consolidated list of shard mappings
-        #that will be returned.
-        result_shard_tables_list = []
 
         #This stores the pattern that will be passed to the LIKE MySQL
         #command.
@@ -483,15 +480,7 @@ class ShardMapping(_persistence.Persistable):
             #a database and table name.
             for row in rows:
                 database, table = _utils.split_database_table(row[0])
-                result_shard_tables_list.append(
-                    (
-                        database,
-                        table,
-                        row[1],
-                        row[2]
-                    )
-                )
-        return _utils.wrap_output(result_shard_tables_list)
+                yield (database, table, row[1], row[2] )
 
     @staticmethod
     def dump_sharding_info(version=None, patterns="", persister=None):
@@ -503,9 +492,6 @@ class ShardMapping(_persistence.Persistable):
         :param persister: Persister to persist the object to.
         :return: The sharding information for all the tables passed in patterns.
         """
-        #This is used to store the consolidated list of shard mappings
-        #that will be returned.
-        result_shard_tables_list = []
 
         #This stores the pattern that will be passed to the LIKE MySQL
         #command.
@@ -531,19 +517,16 @@ class ShardMapping(_persistence.Persistable):
             #a database and table name.
             for row in rows:
                 database, table = _utils.split_database_table(row[0])
-                result_shard_tables_list.append(
-                    (
-                        database,
-                        table,
-                        row[1],  # column_name
-                        row[2],  # lower_bound
-                        row[3],  # shard_id
-                        row[4],  # group_id
-                        row[5],  # global_group
-                        row[6],  # type
-                    )
+                yield (
+                    database,
+                    table,
+                    row[1],     # column_name
+                    row[2],     # lower_bound
+                    row[3],     # shard_id
+                    row[4],     # group_id
+                    row[5],     # global_group
+                    row[6],     # type_name
                 )
-        return _utils.wrap_output(result_shard_tables_list)
 
     @staticmethod
     def dump_shard_maps(version=None, patterns="", persister=None):
@@ -555,9 +538,6 @@ class ShardMapping(_persistence.Persistable):
         :param persister: Persister to persist the object to.
         :return: A list of shard mappings matching the provided pattern.
         """
-        #This is used to store the consolidated list of shard mappings
-        #that will be returned.
-        result_shard_maps = []
 
         #This stores the pattern that will be passed to the LIKE MySQL
         #command.
@@ -580,8 +560,7 @@ class ShardMapping(_persistence.Persistable):
                                   {"fetch" : False, "params":(like_pattern,)})
             rows = cur.fetchall()
             for row in rows:
-                result_shard_maps.append((row[0], row[1], row[2]))
-        return _utils.wrap_output(result_shard_maps)
+                yield (row[0], row[1], row[2])
 
 class Shards(_persistence.Persistable):
     """Contains the mapping between the Shard ID and the Group ID
@@ -796,9 +775,6 @@ class Shards(_persistence.Persistable):
         :return: A list of shard indexes belonging to the shard mappings that
                 match the provded patterns.
         """
-        #This is used to store the consolidated list of shard mappings
-        #that will be returned.
-        result_shard_indexes_list = []
 
         #This stores the pattern that will be passed to the LIKE MySQL
         #command.
@@ -821,12 +797,12 @@ class Shards(_persistence.Persistable):
                                   {"fetch" : False, "params":(like_pattern,)})
             rows = cur.fetchall()
             for row in rows:
-                result_shard_indexes_list.append(
-                    (
-                        row[0], row[1], row[2], row[3]
-                    )
+                yield (
+                    row[0],
+                    row[1],
+                    row[2],
+                    row[3]
                 )
-        return _utils.wrap_output(result_shard_indexes_list)
 
 class RangeShardingIntegerHandler(object):
     """Contains the members that are required to handle a sharding definition

@@ -293,8 +293,10 @@ def setup_xmlrpc():
     from __main__ import xmlrpc_next_port
 
     # Set up the client
-    proxy = xmlrpclib.ServerProxy("http://localhost:%d" % (xmlrpc_next_port, ),
-                                  allow_none=True)
+    proxy = xmlrpclib.ServerProxy(
+        "http://localhost:{0}".format(xmlrpc_next_port),
+        allow_none=True
+    )
     return (None, proxy)
 
 def teardown_xmlrpc(manager, proxy):

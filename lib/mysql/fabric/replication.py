@@ -526,7 +526,15 @@ def check_slave_issues(server):
     :param server: MySQL Server.
     :return: A dictionary with issues, if there is any.
     """
-    status = {}
+
+    status = {
+        'is_running': False,
+        'is_configured': False,
+        'io_running': False,
+        'sql_running': False,
+        'io_error': False,
+        'sql_error': False,
+    }
 
     if not server.is_connected():
         status["is_running"] = False
