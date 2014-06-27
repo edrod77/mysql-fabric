@@ -302,24 +302,52 @@ class TestMySQLSlave(unittest.TestCase):
 
         # Try to check the health when one cannot connect to the server.
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'is_running': False})
+        self.assertEqual(ret, {
+            'io_error': False,
+            'io_running': False,
+            'is_configured': False,
+            'is_running': False,
+            'sql_error': False,
+            'sql_running': False,
+        })
 
         # Try to check the health when change master has not been executed.
         slave.connect()
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'is_configured': False})
+        self.assertEqual(ret, {
+            'io_error': False,
+            'io_running': False,
+            'is_configured': False,
+            'is_running': False,
+            'sql_error': False,
+            'sql_running': False,
+        })
 
         # Try to check the health after executing change master.
         switch_master(slave, master, MySQLInstances().user,
             MySQLInstances().passwd
         )
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'io_running': False, 'sql_running': False})
+        self.assertEqual(ret, {
+            'io_error': False,
+            'io_running': False,
+            'is_configured': False,
+            'is_running': False,
+            'sql_error': False,
+            'sql_running': False,
+        })
 
         # Try to check the health after starting one thread.
         start_slave(slave, wait=True, threads=(SQL_THREAD, ))
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'io_running': False})
+        self.assertEqual(ret, {
+            'io_error': False,
+            'io_running': False,
+            'is_configured': False,
+            'is_running': False,
+            'sql_error': False,
+            'sql_running': False,
+        })
 
         # Create data and synchronize to show there is no gtid behind.
         master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")

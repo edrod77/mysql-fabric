@@ -17,22 +17,27 @@
 
 """Module holding support utilities for tests.
 """
+
 import glob
-import os
-import uuid as _uuid
-import xmlrpclib
 import logging
+import os
+import unittest
+import uuid
+import xmlrpclib
 
 from mysql.fabric import (
     replication as _replication,
     server as _server,
     utils as _utils,
 )
+
 from mysql.fabric.sharding import (
     ShardMapping,
     RangeShardingSpecification,
     HashShardingSpecification,
 )
+
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +55,7 @@ def configure_decoupled_master(group, master):
         server.status = _server.MySQLServer.SECONDARY
     group.master = None
 
-    if master and isinstance(master, _uuid.UUID):
+    if master and isinstance(master, uuid.UUID):
         master = _server.MySQLServer.fetch(master)
 
     if master and isinstance(master, _server.MySQLServer):
@@ -145,7 +150,7 @@ class MySQLInstances(_utils.Singleton):
                 address=master_address
             )
             master = _server.MySQLServer(
-                _uuid.UUID(master_uuid), master_address, user, passwd)
+                uuid.UUID(master_uuid), master_address, user, passwd)
             master.connect()
             master.read_only = False
             self.__instances[number] = master
@@ -243,7 +248,7 @@ def cleanup_environment():
         MySQLInstances().state_store_address, MySQLInstances().root_user,
         MySQLInstances().root_passwd
     )
-    server = _server.MySQLServer(_uuid.UUID(uuid_server),
+    server = _server.MySQLServer(uuid.UUID(uuid_server),
         MySQLInstances().state_store_address, MySQLInstances().root_user,
         MySQLInstances().root_passwd
     )
@@ -267,7 +272,7 @@ def cleanup_environment():
             MySQLInstances().get_address(i)
         )
         server = _server.MySQLServer(
-            _uuid.UUID(uuid_server), MySQLInstances().get_address(i)
+            uuid.UUID(uuid_server), MySQLInstances().get_address(i)
         )
         server.connect()
         _replication.stop_slave(server, wait=True)
@@ -303,3 +308,62 @@ def teardown_xmlrpc(manager, proxy):
     """Clean up XML-RPC.
     """
     pass
+
+class TestCase(unittest.TestCase):
+    """Test case class that defines some convenience methods for MySQL
+    Fabric test cases.
+
+    """
+
+    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0):
+        """Perform assertion checks on a row of a result set.
+
+        This will perform basic assertion checks on a command result
+        returned by an XML-RPC server proxy. It will decode the result
+        into a command result and pick a row from the first result set
+        in the result (assuming there were no error) and do an
+        equality comparison with the fields provided in the ``checks``
+        parameter.
+
+        :param packet: The Python data structure from the XML-RPC server.
+
+        :param checks: Dictionary of values to check.
+
+        :param has_error: True if errors are expected for this packet,
+        False otherwise. Default to False.
+
+        :param index: Index of row to check. Default to the first row
+        of the result set.
+
+        :return: Return a dictionary of the actual contents of the
+        row, or an empty dictionary in the event of an error.
+
+        """
+
+        result = _xmlrpc._decode(packet)
+
+        self.assertEqual(bool(result.error), has_error)
+
+        if not has_error:
+            # Check that there are at least one result set.
+            self.assertTrue(len(result.results) > 0, str(result))
+
+            # Check that there is enough rows in the first result set
+            self.assertTrue(result.results[0].rowcount > index, str(result))
+
+            # Create a dictionary from this row.
+            info = dict(
+                zip([ col.name for col in result.results[0].columns],
+                    result.results[0][index])
+            )
+
+            for key, value in checks.items():
+                self.assertTrue(key in info, str(result))
+                self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
+                    info[key], value, str(result))
+                )
+
+            # For convenience, allowing the simple result to be used by callers.
+            return info
+        return {}
+

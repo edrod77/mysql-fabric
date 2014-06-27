@@ -31,7 +31,7 @@ from mysql.fabric import (
 
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
-class TestServerServices(unittest.TestCase):
+class TestServerServices(tests.utils.TestCase):
     """Test server service interface.
     """
 
@@ -80,34 +80,6 @@ class TestServerServices(unittest.TestCase):
             self.assertNotEqual(self.uuid_cre.match(result.results[0][0][0]), None)
 
         return result.results[0][0][0]
-
-    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0):
-        result = _xmlrpc._decode(packet)
-
-        self.assertEqual(bool(result.error), has_error)
-
-        if not has_error:
-            # Check that there are at least one result set.
-            self.assertTrue(len(result.results) > 0, str(result))
-
-            # Check that there is enough rows in the first result set
-            self.assertTrue(result.results[0].rowcount > index, str(result))
-
-            # Create a dictionary from this row.
-            info = dict(
-                zip([ col.name for col in result.results[0].columns],
-                    result.results[0][index])
-            )
-
-            for key, value in checks.items():
-                self.assertTrue(key in info, str(result))
-                self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
-                    info[key], value, str(result))
-                )
-
-            # For convenience, allowing the simple result to be used by callers.
-            return info
-        return {}
 
     def setUp(self):
         """Configure the existing environment
