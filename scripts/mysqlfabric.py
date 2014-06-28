@@ -24,8 +24,6 @@ from getpass import getpass
 from ConfigParser import NoOptionError
 from urllib2 import HTTPError, URLError
 
-from mysql.fabric.protocols.xmlrpc import MyClient
-
 from mysql.fabric.services import (
     find_commands,
     find_client,

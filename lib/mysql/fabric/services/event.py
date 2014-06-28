@@ -62,7 +62,7 @@ class Trigger(Command):
         # to the result.
         for proc in _events.trigger(event, lockable_objects, *args, **kwargs):
             rset.append_row([str(proc.uuid)])
-            
+
         return CommandResult(None, results=rset)
 
 class WaitForProcedures(Command):

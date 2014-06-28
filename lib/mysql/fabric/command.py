@@ -177,7 +177,7 @@ class CommandMeta(type):
 
                 # Check that we really got a result set back. If not,
                 # something is amiss.
-                # 
+                #
                 # As a special case, if the function returns None it
                 # means it finished without throwing an exception, so
                 # it trivially succeeded without a result set.
@@ -196,7 +196,7 @@ class CommandMeta(type):
             except:
                 success = False
                 raise
-                    
+
             finally:
                 _LOGGER.debug("Finished command (%s, %s).", group, command,
                     extra={
@@ -267,6 +267,12 @@ class Command(object):
     command_options = []
 
     def __init__(self):
+        """Constructor.
+        
+        See class description for information.
+
+        """
+
         self.__client = None
         self.__server = None
         self.__options = None
@@ -576,20 +582,21 @@ class ProcedureCommand(Command):
         success = operation['success'] == _executor.Job.SUCCESS
 
         if success:
+            result_field = procedure_param[-1].result
             info = ResultSet(
                 names=('uuid', 'finished', 'success', 'result'),
-                types=(str, bool, bool, str),
+                types=(str, bool, bool, type(result_field)),
             )
             info.append_row([
                 str(procedure_param[-1].uuid),
                 complete,
                 success,
-                str(procedure_param[-1].result),
+                result_field,
             ])
-            _LOGGER.debug("Success: uuid='%s', result='%s'", 
+            _LOGGER.debug("Success: uuid='%s', result='%s'",
                           str(procedure_param[-1].uuid),
                           str(procedure_param[-1].result))
-                
+
             rset = ResultSet(
                 names=('state', 'success', 'when', 'description'),
                 types=(int, int, float, str),
@@ -603,7 +610,8 @@ class ProcedureCommand(Command):
                 ])
             return CommandResult(None, results=[info, rset])
         else:
-            # The error message is the last line of the diagnosis, so we get it from there.
+            # The error message is the last line of the diagnosis, so
+            # we get it from there. 
             error = operation['diagnosis'].split("\n")[-2]
             _LOGGER.debug("Failure: error='%s'", error)
             return CommandResult(error)
@@ -668,7 +676,11 @@ class ResultSet(object):
     """
 
     def __init__(self, names, types):
-        "Constructor. See class description for more information."
+        """Constructor.
+
+        See class description for more information.
+
+        """
 
         # Make sure that we always store the column information as a
         # tuple, even if other types of iterables are passed to the
@@ -699,7 +711,7 @@ class ResultSet(object):
         all_rows.extend(self.__rows)
         width = [max(len(str(r)) for r in col) for col in zip(*all_rows)]
         def _mkline(row):
-            return " ".join("{:>{}}".format(x, width[i]) for i, x in enumerate(row))
+                return " ".join("{0:>{1}}".format(x, width[i]) for i, x in enumerate(row))
 
         result = [ _mkline(header) ]
         result.append(_mkline([ '-' * w for w in width ]))
@@ -709,18 +721,20 @@ class ResultSet(object):
 
     @property
     def rowcount(self):
-        "The number of rows in the result set"
+        """The number of rows in the result set
+        """
         return len(self.__rows)
 
     @property
     def columns(self):
-        "An array of the columns defined for the result set."
+        """An array of the columns defined for the result set.
+        """
         return self.__columns
 
     def __iter__(self):
         """Iterate over the rows of the result set.
 
-        Each row is a list of column values. 
+        Each row is a list of column values.
 
         """
 
@@ -728,7 +742,12 @@ class ResultSet(object):
             yield row
 
     def __getitem__(self, index):
-        "Indexing operator for result set. Will index the rows of the result set."
+        """Indexing operator for result set.
+
+        Will index the rows of the result set.
+
+        """
+
         return self.__rows[index]
 
     def append_row(self, row):
@@ -772,6 +791,12 @@ class CommandResult(object):
     """
 
     def __init__(self, error, results=None, uuid=FABRIC_UUID, ttl=TTL):
+        """Constructor.
+
+        See class description for information.
+
+        """
+
         self.__error = error
         self.__uuid = uuid
         self.__ttl = ttl
@@ -783,6 +808,10 @@ class CommandResult(object):
             results = []
         elif isinstance(results, ResultSet):
             results = [results]
+        elif not isinstance(results, collections.Iterable):
+            # The actual contents of the iterable is checked in the
+            # append_result function.
+            raise TypeError("Expected None, ResultSet, or iterable")
 
         # Append the result sets one by one to perform the standard
         # checks on adding result sets to the command result.
@@ -818,29 +847,34 @@ class CommandResult(object):
         output.write("\n")
 
     def __str__(self):
-        "The command result as a string."
+        """The command result as a string.
+        """
         output = StringIO()
         self.emit(output)
         return output.getvalue()
 
     @property
     def uuid(self):
-        "Fabric node UUID for command result."
+        """Fabric node UUID for command result.
+        """
         return self.__uuid
 
     @property
     def ttl(self):
-        "Time-To-Live for command result."
+        """Time-To-Live for command result.
+        """
         return self.__ttl
 
     @property
     def error(self):
-        "Command result error, or None if there were no error."
+        """Command result error, or None if there were no error.
+        """
         return self.__error
 
     @property
     def results(self):
-        "List of result sets."
+        """List of result sets.
+        """
         return self.__results
 
     def append_result(self, result):
@@ -855,7 +889,7 @@ class CommandResult(object):
         if self.error:
             raise _errors.CommandResultError('result sets cannot be added for error results')
         self.__results.append(result)
-            
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

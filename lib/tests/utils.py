@@ -315,7 +315,7 @@ class TestCase(unittest.TestCase):
 
     """
 
-    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0):
+    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0, rowcount=None):
         """Perform assertion checks on a row of a result set.
 
         This will perform basic assertion checks on a command result
@@ -335,6 +335,9 @@ class TestCase(unittest.TestCase):
         :param index: Index of row to check. Default to the first row
         of the result set.
 
+        :param rowcount: Number of rows expected in the result set, or
+        None if no check should be done.
+
         :return: Return a dictionary of the actual contents of the
         row, or an empty dictionary in the event of an error.
 
@@ -347,6 +350,9 @@ class TestCase(unittest.TestCase):
         if not has_error:
             # Check that there are at least one result set.
             self.assertTrue(len(result.results) > 0, str(result))
+
+            if rowcount is not None:
+                self.assertEqual(result.results[0].rowcount, rowcount)
 
             # Check that there is enough rows in the first result set
             self.assertTrue(result.results[0].rowcount > index, str(result))

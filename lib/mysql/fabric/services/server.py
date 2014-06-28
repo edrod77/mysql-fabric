@@ -66,7 +66,6 @@ provided elsewhere.
 """
 import logging
 import uuid as _uuid
-import sys
 
 import mysql.fabric.services.utils as _utils
 

@@ -528,12 +528,12 @@ def check_slave_issues(server):
     """
 
     status = {
-        'is_running': False,
-        'is_configured': False,
-        'io_running': False,
-        'sql_running': False,
-        'io_error': False,
-        'sql_error': False,
+        'is_running': True,
+        'is_configured': True,
+        'io_running': True,
+        'sql_running': True,
+        'io_error': True,
+        'sql_error': True,
     }
 
     if not server.is_connected():

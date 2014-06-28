@@ -19,9 +19,11 @@
 """
 import unittest
 import tests.utils
+import sys
 
 import mysql.fabric.command as _command
 import mysql.fabric.events as _events
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
 from mysql.fabric.node import (
     FabricNode,
@@ -48,7 +50,7 @@ def _new_procedure_group_0():
     """
     raise Exception("Error.")
 
-class TestHandlerServices(unittest.TestCase):
+class TestHandlerServices(tests.utils.TestCase):
     """Unit tests for statistics.
     """
     def setUp(self):
@@ -68,10 +70,9 @@ class TestHandlerServices(unittest.TestCase):
         # Check statistics on Fabric node.
         res = self.proxy.statistics.node()
         fabric = FabricNode()
-        self.assertEqual(len(res[2]), 1)
-        self.assertEqual(res[2][0][0], str(fabric.uuid))
-        self.assertNotEqual(res[2][0][1], "")
-        self.assertEqual(res[2][0][2], str(fabric.startup))
+        self.check_xmlrpc_simple(res, {
+            'node_startup': str(fabric.startup),
+        }, rowcount=1)
 
     def test_statistics_group(self):
         """Test statistics on a group.
@@ -80,72 +81,110 @@ class TestHandlerServices(unittest.TestCase):
         address_2 = tests.utils.MySQLInstances().get_address(1)
 
         # Check statistics on a non-existent group.
-        res = self.proxy.statistics.group("non-existent")
-        self.assertEqual(len(res[2]), 0)
+        packet = self.proxy.statistics.group("non-existent")
+        result = _xmlrpc._decode(packet)
+        self.assertEqual(len(result.results), 1)
+        self.assertEqual(result.results[0].rowcount, 0)
 
         # Check statistics on group_id_1 after a promotion.
-        res = self.proxy.group.create("group_id_1")
-        res = self.proxy.group.add("group_id_1", address_1)
-        res = self.proxy.group.promote("group_id_1")
-        res = self.proxy.statistics.group()
-        self.assertEqual(res[2], [["group_id_1", 1, 0]])
+        self.proxy.group.create("group_id_1")
+        self.proxy.group.add("group_id_1", address_1)
+        self.proxy.group.promote("group_id_1")
+        packet = self.proxy.statistics.group()
+        self.check_xmlrpc_simple(packet, {
+            'group_id': 'group_id_1',
+            'call_count': 1,
+            'call_abort': 0,
+        }, rowcount=1)
 
         # Check statistics on group_id_1 after a demotion.
         self.proxy.group.demote("group_id_1")
         res = self.proxy.statistics.group("group_id_1")
-        self.assertEqual(res[2], [["group_id_1", 1, 1]])
+        self.check_xmlrpc_simple(res, {
+            'group_id': 'group_id_1',
+            'call_count': 1,
+            'call_abort': 1,
+        }, rowcount=1)
 
         # Check statistics on group_id_2 after a promotion.
         self.proxy.group.create("group_id_2")
         self.proxy.group.add("group_id_2", address_2)
         self.proxy.group.promote("group_id_2")
         res = self.proxy.statistics.group("group_id_2")
-        self.assertEqual(res[2], [["group_id_2", 1, 0]])
+        self.check_xmlrpc_simple(res, {
+            'group_id': 'group_id_2',
+            'call_count': 1,
+            'call_abort': 0,
+        }, rowcount=1)
 
         # Check statistics on all groups with a common pattern.
         res = self.proxy.statistics.group("group_id")
-        self.assertEqual(res[2], [["group_id_1", 1, 1], ["group_id_2", 1, 0]])
+        self.check_xmlrpc_simple(res, {}, rowcount=2)
 
         # Check statistics on all groups.
         res = self.proxy.statistics.group()
-        self.assertEqual(res[2], [["group_id_1", 1, 1], ["group_id_2", 1, 0]])
+        self.check_xmlrpc_simple(res, {}, rowcount=2)
 
     def test_statistics_procedure(self):
         """Test statistics on procedures.
         """
         # Check statistics on a non-existent procedure.
         res = self.proxy.statistics.procedure("non-existent")
-        self.assertEqual(len(res[2]), 0)
+        result = _xmlrpc._decode(res)
+        self.assertEqual(len(result.results), 1)
+        self.assertEqual(result.results[0].rowcount, 0)
 
         # Check statistics on procedures using the "statistics" pattern.
         self.proxy.statistics.group("group_id")
         res = self.proxy.statistics.procedure("statistics")
-        self.assertEqual(
-           res[2], [['statistics.group', 1, 0], ['statistics.procedure', 2, 0]]
-        )
-
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'statistics.group',
+            'call_count': 1,
+            'call_abort': 0,
+        }, index=0)
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'statistics.procedure',
+            'call_count': 2,
+            'call_abort': 0,
+        }, index=1)
+        
         # Check statistics on procedures that fail.
         self.proxy.test.execution_event()
         res = self.proxy.statistics.procedure("test.execution_event")
-        self.assertEqual(
-           res[2], [['test.execution_event', 1, 1]]
-        )
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'test.execution_event',
+            'call_count': 1,
+            'call_abort': 1,
+        }, rowcount=1)
 
         # Check statistics on procedures that are asynchronously executed and
         # fail. Note that an error is not reported because the procedure is
         # asynchronously executed.
         self.proxy.test.execution_event(False)
         res = self.proxy.statistics.procedure("test.execution_event")
-        self.assertEqual(
-           res[2], [['test.execution_event', 2, 1]]
-        )
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'test.execution_event',
+            'call_count': 2,
+            'call_abort': 0,
+        }, rowcount=1)
 
         # Check statistics on procecures executed so far, i.e. all procedures.
         res = self.proxy.statistics.procedure()
-        self.assertEqual(len(res[2]), 3)
-        self.assertEqual(res[2], [['statistics.group', 1, 0],
-           ['statistics.procedure', 5, 0], ['test.execution_event', 2, 1]]
-        )
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'statistics.group',
+            'call_count': 1,
+            'call_abort': 0,
+        }, index=0, rowcount=3)
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'statistics.procedure',
+            'call_count': 5,
+            'call_abort': 0,
+        }, index=1, rowcount=3)
+        self.check_xmlrpc_simple(res, {
+            'proc_name': 'test.execution_event',
+            'call_count': 2,
+            'call_abort': 0,
+        }, index=2, rowcount=3)
 
 if __name__ == "__main__":
     unittest.main()

@@ -329,7 +329,7 @@ if __name__ == '__main__':
     # options.
     options, args = get_options()
     configure_path(options)
-    xmlrpc_next_port = str(os.getenv("HTTP_PORT", 15500))
+    xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
     mysqldump_path = os.getenv("MYSQLDUMP", "")
     mysqlclient_path = os.getenv("MYSQLCLIENT", "")
     env_options = {

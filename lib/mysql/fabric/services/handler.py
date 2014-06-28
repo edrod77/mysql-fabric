@@ -57,8 +57,8 @@ class Node(Command):
 
         rset = ResultSet(
             names=('node_id', 'node_uptime', 'node_startup'),
-            types=( str, datetime, timedelta))
-        rset.append_row([node_id, node_startup, node_update])
+            types=( str, str, str))
+        rset.append_row([node_id, node_uptime, node_startup])
 
         return CommandResult(None, results=rset)
 
@@ -86,7 +86,6 @@ class Procedure(Command):
 
         for row in MySQLHandler.procedure_view(procedure_name):
             rset.append_row(row)
-
         return CommandResult(None, results=rset)
 
 class Group(Command):

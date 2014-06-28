@@ -58,7 +58,7 @@ class CheckHealth(Command):
 
         info = ResultSet(
             names=[
-                'is_alive', 'status', 
+                'is_alive', 'status',
                 'is_running', 'is_configured', 'io_running',
                 'sql_running', 'io_error', 'sql_error',
             ],
@@ -66,7 +66,7 @@ class CheckHealth(Command):
         )
 
         issues = ResultSet(names=['issue'], types=[str])
-        
+
         for server in group.servers():
             alive = False
             is_master = (group.master == server.uuid)

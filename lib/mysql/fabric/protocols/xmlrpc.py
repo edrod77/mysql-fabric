@@ -50,7 +50,7 @@ import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.errors as _errors
 
 from mysql.fabric import (
-    credentials, 
+    credentials,
     __version__ as FABRIC_VERSION,
 )
 
@@ -79,7 +79,7 @@ def _encode(result):
         packet = [FORMAT_VERSION, str(result.uuid), result.ttl, result.error, []]
     else:
         rows = [
-            { 
+            {
                 'info': {
                     'names': [ col.name for col in rs.columns ],
                 },
@@ -87,7 +87,7 @@ def _encode(result):
             } for rs in result.results
         ]
 
-            
+
 
         packet = [FORMAT_VERSION, str(result.uuid), result.ttl, '', rows]
     _LOGGER.debug("Encoded packet: %s", packet)
@@ -102,11 +102,11 @@ def _decode(packet):
     the dictionaries.
 
     """
-    
+
     _LOGGER.debug("Decode packet: %s", packet)
     version, fabric_uuid, ttl, error, rsets = packet
     if version != FORMAT_VERSION:
-        raise TypeError("XML-RPC packet format version was %d, expected %d", 
+        raise TypeError("XML-RPC packet format version was %d, expected %d",
                         version, FORMAT_VERSION)
     result = CommandResult(error, uuid=fabric_uuid, ttl=ttl)
     if len(rsets) > 0:
@@ -162,7 +162,7 @@ def _CommandExecuteAndEncode(command):
 
     return _wrapper
 
-        
+
 def create_rfc2617_nonce(hashfunc, private_key, secs=AUTH_EXPIRES):
     try:
         if hashfunc.__name__ not in ('openssl_md5', 'openssl_sha1'):
@@ -424,11 +424,11 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
 
         This will register the command under the name
         *group_name*.*command_name*.
-        
+
         The command's execute method is expected to return a
         CommandResult, so we need to turn it into something to
         transport over the wire.
-        
+
         :param command: Command to be registered.
         :type command: Command
 
@@ -837,4 +837,3 @@ class MyClient(xmlrpclib.ServerProxy):
 
         packet = getattr(self, reference)(*args)
         return _decode(packet)
-
