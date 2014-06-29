@@ -58,11 +58,11 @@ class CheckHealth(Command):
 
         info = ResultSet(
             names=[
-                'is_alive', 'status',
+                'uuid', 'is_alive', 'status',
                 'is_running', 'is_configured', 'io_running',
                 'sql_running', 'io_error', 'sql_error',
             ],
-            types=[bool, str] + [bool] * 6
+            types=[str, bool, str] + [bool] * 6
         )
 
         issues = ResultSet(names=['issue'], types=[str])
@@ -70,8 +70,16 @@ class CheckHealth(Command):
         for server in group.servers():
             alive = False
             is_master = (group.master == server.uuid)
-            thread_issues = {}
             status = server.status
+            # These are used when server is not contactable.
+            slave_issues = {
+                'is_running': False,
+                'is_configured': False,
+                'io_running': False,
+                'sql_running': False,
+                'io_error': False,
+                'sql_error': False,
+            }
             try:
                 server.connect()
                 alive = True
@@ -85,9 +93,18 @@ class CheckHealth(Command):
                             "to master (%s)." % \
                             (group.master, str_master_uuid)
                         ])
-                    elif slave_issues:
-                        info.append_row([alive, status] + slave_issues.values() )
             except _errors.DatabaseError:
                 status = _server.MySQLServer.FAULTY
+            info.append_row([
+                server.uuid,
+                alive, 
+                status,
+                slave_issues['is_running'],
+                slave_issues['is_configured'],
+                slave_issues['io_running'],
+                slave_issues['sql_running'],
+                slave_issues['io_error'],
+                slave_issues['sql_error'],
+            ])
 
         return CommandResult(None, results=[info, issues])

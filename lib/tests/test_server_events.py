@@ -702,7 +702,7 @@ class TestServerServices(tests.utils.TestCase):
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SECONDARY,
             "is_configured" : False,
-        })
+        }, rowcount=2, index=1)
 
         # Properly configure the previous slave.
         _replication.switch_master(slave=server_2, master=server_1,
@@ -712,7 +712,7 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SECONDARY,
-        })
+        }, rowcount=2, index=1)
 
         # Add a slave but notice that it is properly configured, i.e.
         # --update-only = False.
@@ -732,14 +732,14 @@ class TestServerServices(tests.utils.TestCase):
             'status': _server.MySQLServer.FAULTY,
             "io_running": False,
             "sql_running": False
-        }, index=1)
+        }, rowcount=3, index=2)
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.SPARE
         )
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SPARE,
-        }, index=1)
+        }, rowcount=3, index=2)
 
         # Stop replication, set slave's status to faulty and add it
         # back as a spare, --update-only = True. Note that it is not
@@ -751,7 +751,7 @@ class TestServerServices(tests.utils.TestCase):
             "status": _server.MySQLServer.FAULTY,
             "io_running": False,
             "sql_running": False,
-        }, index=1)
+        }, rowcount=3, index=2)
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.SPARE, True
         )
@@ -760,7 +760,7 @@ class TestServerServices(tests.utils.TestCase):
             "status": _server.MySQLServer.SPARE,
             "io_running": False,
             "sql_running": False,
-        }, index=1)
+        }, rowcount=3, index=2)
 
         # Try to set slave's status to faulty, i.e. --update-only = False.
         status = self.proxy.server.set_status(
@@ -772,19 +772,19 @@ class TestServerServices(tests.utils.TestCase):
             "status": _server.MySQLServer.SPARE,
             "io_running": False,
             "sql_running": False,
-        }, index=1)
+        }, rowcount=3, index=2)
 
         # Try to set slave's status to faulty, i.e. --update-only = True.
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.FAULTY, True
         )
-        self.check_xmlrpc_command_result(status, True)
+        self.check_xmlrpc_command_result(status, has_error=True)
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SPARE,
             "io_running": False,
             "sql_running": False,
-        }, index=1)
+        }, rowcount=3, index=2)
 
     def test_lookup_servers(self):
         """Test searching for servers by calling group.lookup_servers().

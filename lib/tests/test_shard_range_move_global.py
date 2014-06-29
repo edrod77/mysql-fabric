@@ -349,7 +349,7 @@ class TestShardingPrune(unittest.TestCase):
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         packet = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
-        self.check_xmlrpc_command_success(packet, '1', False)
+        self.check_xmlrpc_command_success(packet, 1, False)
 
         packet = self.proxy.sharding.add_table(1, "db1.t1", "userID")
         self.check_xmlrpc_command_success(packet, None, False)

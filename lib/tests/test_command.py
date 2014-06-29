@@ -18,9 +18,6 @@
 import unittest
 import re
 import tests.utils
-import sys
-
-from cStringIO import StringIO
 
 import mysql.fabric.command as _command
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
@@ -251,7 +248,7 @@ def _new_procedure_shard_1(table_name, shard_mapping_id, shard_id):
     """
     pass
 
-class TestCommand(unittest.TestCase):
+class TestCommand(tests.utils.TestCase):
     "Test command interface."
 
     def setUp(self):
@@ -273,29 +270,6 @@ class TestCommand(unittest.TestCase):
 
         _command.unregister_command("test", "procedure_command_0")
         _command.unregister_command("test", "procedure_command_1")
-
-    def check_xmlrpc_command_result(self, packet, is_syncronous, has_error=False):
-        "Check that a packet from a procedure execution is sane."
-
-        check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
-        result = _xmlrpc._decode(packet)
-
-        self.assertEqual(bool(result.error), has_error,
-                         "Error: %s" % result.error)
-
-        # If the procedure did not have an error, first result set,
-        # first row, first column contain UUID of procedure. Just
-        # check that it looks like a UUID.
-        if not has_error:
-            self.assertNotEqual(check.match(result.results[0][0][0]), None)
-
-        # If the call was synchronous and succeeded, check that there
-        # is at least 2 result sets and that the second result set
-        # contain more than zero jobs.
-        if is_syncronous and not has_error:
-            self.assertTrue(len(result.results) > 1, str(result))
-            self.assertNotEqual(result.results[1].rowcount, 0,
-                                "had %d result sets" % len(result.results))
             
 
     def test_command(self):

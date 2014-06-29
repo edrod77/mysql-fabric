@@ -21,6 +21,7 @@
 import glob
 import logging
 import os
+import re
 import unittest
 import uuid
 import xmlrpclib
@@ -345,11 +346,13 @@ class TestCase(unittest.TestCase):
 
         result = _xmlrpc._decode(packet)
 
-        self.assertEqual(bool(result.error), has_error)
+        self.assertEqual(bool(result.error), has_error, str(result))
 
         if not has_error:
-            # Check that there are at least one result set.
-            self.assertTrue(len(result.results) > 0, str(result))
+            # Some commands are successful but have no result sets
+            # anyway (e.g., set_logging_level).
+            if len(result.results) == 0:
+                return {}
 
             if rowcount is not None:
                 self.assertEqual(result.results[0].rowcount, rowcount)
@@ -373,3 +376,30 @@ class TestCase(unittest.TestCase):
             return info
         return {}
 
+    def check_xmlrpc_command_result(self, packet, is_syncronous=True, has_error=False):
+        """Check that a packet from a procedure execution is sane.
+
+        This check that the first command result set, which contain
+        result of execution, is sane.
+
+        """
+
+        check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
+        result = _xmlrpc._decode(packet)
+
+        self.assertEqual(bool(result.error), has_error,
+                         "Error: %s" % result.error)
+
+        # If the procedure did not have an error, first result set,
+        # first row, first column contain UUID of procedure. Just
+        # check that it looks like a UUID.
+        if not has_error:
+            self.assertNotEqual(check.match(result.results[0][0][0]), None)
+
+        # If the call was synchronous and succeeded, check that there
+        # is at least 2 result sets and that the second result set
+        # contain more than zero jobs.
+        if is_syncronous and not has_error:
+            self.assertTrue(len(result.results) > 1, str(result))
+            self.assertNotEqual(result.results[1].rowcount, 0,
+                                "had %d result sets" % len(result.results))

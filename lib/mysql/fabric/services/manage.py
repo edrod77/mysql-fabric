@@ -97,7 +97,7 @@ class Logging(Command):
             logger.setLevel(_LOGGING_LEVELS[level.upper()])
         except (KeyError, ImportError) as error:
             _LOGGER.debug(error)
-            return CommandResult(error)
+            return CommandResult(str(error))
         return CommandResult(None)
 
 
