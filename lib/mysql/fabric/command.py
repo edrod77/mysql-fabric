@@ -731,6 +731,11 @@ class ResultSet(object):
         """
         return self.__columns
 
+    def __str__(self):
+        """Convert the result set to a human-friendly output.
+        """
+        return "\n".join(self.table_rows())
+
     def __iter__(self):
         """Iterate over the rows of the result set.
 

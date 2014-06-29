@@ -403,3 +403,23 @@ class TestCase(unittest.TestCase):
             self.assertTrue(len(result.results) > 1, str(result))
             self.assertNotEqual(result.results[1].rowcount, 0,
                                 "had %d result sets" % len(result.results))
+
+    def check_xmlrpc_result(self, packet, expected, index=0):
+        """Compare the result set of a command result with an expected value.
+
+        Order of rows in result sets are important and have to match.
+
+        :param ResultSet expected: Expected result set.
+
+        """
+
+        result = _xmlrpc._decode(packet)
+        
+        self.assertFalse(result.error, "Error: '%s'" % result.error)
+        self.assertTrue(len(result.results) > index, str(result))
+        self.assertEqual(result.results[index].columns, expected.columns)
+
+        for row, exp in zip(result.results[index], expected):
+            self.assertEqual(row, exp)
+
+        

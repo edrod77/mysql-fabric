@@ -19,6 +19,8 @@ import unittest
 import uuid as _uuid
 import tests.utils
 
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
+
 from mysql.fabric.sharding import (
     ShardMapping,
     RangeShardingSpecification,
@@ -28,10 +30,55 @@ from mysql.fabric.server import (
     Group,
     MySQLServer,
 )
+
+import mysql.fabric.command as command
+
 from mysql.fabric import server_utils
 from tests.utils import MySQLInstances
 
-class TestSharding(unittest.TestCase):
+def _make_result(names, types, rows):
+    rset = command.ResultSet(names=names, types=types)
+    for row in rows:
+        rset.append_row(row)
+    return rset
+
+def _make_servers_result(rows):
+    return _make_result(
+        names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
+        types=(str, str, str, int, int, int, float),
+        rows=rows,
+    )
+
+def _make_tables_result(rows):
+    return _make_result(
+        names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
+        types=(str, str, str, int),
+        rows=rows,
+    )
+
+def _make_mapping_result(rows):
+    return _make_result(
+        names=('mapping_id', 'type_name', 'global_group_id'),
+        types=(int, str, str),
+        rows=rows,
+    )
+
+def _make_index_result(rows):
+    return _make_result(
+        names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
+        types=(str, int, int, str),
+        rows=rows,
+    )
+
+def _make_info_result(rows):
+    return _make_result(
+        names=('schema_name', 'table_name', 'column_name', 'lower_bound',
+               'shard_id', 'group_id', 'global_group_id', 'type_name'),
+        types=(str, str, str, str, int, str, str, str),
+        rows=rows,
+    )
+
+class TestSharding(tests.utils.TestCase):
     """Test dump interface associated to sharding.
     """
     def setUp(self):
@@ -235,7 +282,7 @@ class TestSharding(unittest.TestCase):
         SECONDARY = MySQLServer.get_status_idx(MySQLServer.SECONDARY)
         PRIMARY = MySQLServer.get_status_idx(MySQLServer.PRIMARY)
 
-        self.__setofservers = [0, 0, 0,
+        self.__setofservers = _make_servers_result(
             [[str(self.__server_1.uuid),
             'GROUPID1', self.__options_1_host,  self.__options_1_port,
             READ_ONLY, SECONDARY, 1.0],
@@ -253,175 +300,219 @@ class TestSharding(unittest.TestCase):
             READ_WRITE, PRIMARY, 1.0],
             [str(self.__server_6.uuid),
             'GROUPID3', self.__options_6_host,  self.__options_6_port,
-            READ_ONLY, SECONDARY, 1.0]]]
+            READ_ONLY, SECONDARY, 1.0]]
+        )
 
-        self.__setofservers_1 = [0, 0, 0,
-                [[str(self.__server_1.uuid),
-                'GROUPID1', self.__options_1_host,  self.__options_1_port,
-                READ_ONLY, SECONDARY, 1.0],
-                [str(self.__server_2.uuid),
-                'GROUPID1', self.__options_2_host,  self.__options_2_port,
-                READ_ONLY, SECONDARY, 1.0]]]
-
-        self.__setofservers_2 = [0, 0, 0,
-                [[str(self.__server_1.uuid),
-                'GROUPID1', self.__options_1_host,  self.__options_1_port,
-                READ_ONLY, SECONDARY, 1.0],
-                [str(self.__server_2.uuid),
-                'GROUPID1', self.__options_2_host,  self.__options_2_port,
-                READ_ONLY, SECONDARY, 1.0],
-                [str(self.__server_3.uuid),
-                'GROUPID2', self.__options_3_host,  self.__options_3_port,
-                READ_WRITE, PRIMARY, 1.0],
-                [str(self.__server_4.uuid),
-                'GROUPID2', self.__options_4_host,  self.__options_4_port,
-                READ_ONLY, SECONDARY, 1.0]]]
-
-        self.__setofservers_3 = [0, 0, 0,
+        self.__setofservers_1 = _make_servers_result(
             [[str(self.__server_1.uuid),
-            'GROUPID1', self.__options_1_host,  self.__options_1_port,
-            READ_ONLY, SECONDARY, 1.0],
-            [str(self.__server_2.uuid),
-            'GROUPID1', self.__options_2_host,  self.__options_2_port,
-            READ_ONLY, SECONDARY, 1.0],
-            [str(self.__server_3.uuid),
-            'GROUPID2', self.__options_3_host,  self.__options_3_port,
-            READ_WRITE, PRIMARY, 1.0],
-            [str(self.__server_4.uuid),
-            'GROUPID2', self.__options_4_host,  self.__options_4_port,
-            READ_ONLY, SECONDARY, 1.0],
-            [str(self.__server_5.uuid),
-            'GROUPID3', self.__options_5_host,  self.__options_5_port,
-            READ_WRITE, PRIMARY, 1.0],
-            [str(self.__server_6.uuid),
-            'GROUPID3', self.__options_6_host,  self.__options_6_port,
-            READ_ONLY, SECONDARY, 1.0]]]
+              'GROUPID1', self.__options_1_host,  self.__options_1_port,
+              READ_ONLY, SECONDARY, 1.0],
+             [str(self.__server_2.uuid),
+              'GROUPID1', self.__options_2_host,  self.__options_2_port,
+              READ_ONLY, SECONDARY, 1.0]]
+        )
 
-        self.__setoftables = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
-                              ['db2', 't2', 'userID2', '2'],
-                              ['db3', 't3', 'userID3', '3'],
-                              ['db4', 't4', 'userID4', '4'],
-                              ['prune_db', 'prune_table', 'userID', '5']]]
-        self.__setoftables_1 = [0, 0, 0, [['db1', 't1', 'userID1', '1']]]
-        self.__setoftables_2 = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
-                                 ['db2', 't2', 'userID2', '2']]]
-        self.__setoftables_3 = [0, 0, 0, [['db1', 't1', 'userID1', '1'],
-                                ['db2', 't2', 'userID2', '2'],
-                                ['db3', 't3', 'userID3', '3']]]
-        self.__setofshardmaps = [0, 0, 0, [['1', 'RANGE', 'GROUPID10'],
-                                 ['2', 'RANGE', 'GROUPID11'],
-                                 ['3', 'RANGE', 'GROUPID12'],
-                                 ['4', 'RANGE', 'GROUPID13'],
-                                 ['5', 'RANGE', 'GROUPID14']]]
-        self.__setofshardmaps_1 = [0, 0, 0, [['1', 'RANGE', 'GROUPID10']]]
-        self.__setofshardmaps_2 = [0, 0, 0, [['1', 'RANGE', 'GROUPID10'],
-                                 ['2', 'RANGE', 'GROUPID11']]]
-        self.__setofshardmaps_3 = [0, 0, 0, [['1', 'RANGE', 'GROUPID10'],
-                                 ['2', 'RANGE', 'GROUPID11'],
-                                 ['3', 'RANGE', 'GROUPID12']]]
-        self.__setofshardindexes = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                    ['1001', '1', '2', 'GROUPID10'],
-                                    ['3001', '2', '4', 'GROUPID4'],
-                                    ['4001', '2', '5', 'GROUPID5'],
-                                    ['6001', '3', '6', 'GROUPID6'],
-                                    ['7001', '3', '7', 'GROUPID7'],
-                                    ['8001', '4', '8', 'GROUPID8'],
-                                    ['10001', '4', '9', 'GROUPID9'],
-                                    ['100', '5', '10', 'GROUPID2'],
-                                    ['201', '5', '11', 'GROUPID3']]]
-        self.__setofshardindexes_1 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                      ['1001', '1', '2', 'GROUPID10']]]
-        self.__setofshardindexes_3 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                      ['1001', '1', '2', 'GROUPID10'],
-                                      ['3001', '2', '4', 'GROUPID4'],
-                                      ['4001', '2', '5', 'GROUPID5'],
-                                          ['6001', '3', '6', 'GROUPID6'],
-                                          ['7001', '3', '7', 'GROUPID7']]]
-        self.__setofshardindexes_5 = [0, 0, 0, [['0', '1', '1', 'GROUPID1'],
-                                      ['1001', '1', '2', 'GROUPID10'],
-                                      ['3001', '2', '4', 'GROUPID4'],
-                                      ['4001', '2', '5', 'GROUPID5'],
-                                      ['6001', '3', '6', 'GROUPID6'],
-                                      ['7001', '3', '7', 'GROUPID7'],
-                                      ['8001', '4', '8', 'GROUPID8'],
-                                      ['10001', '4', '9', 'GROUPID9'],
-                                      ['100', '5', '10', 'GROUPID2'],
-                                      ['201', '5', '11', 'GROUPID3']]]
-        self.__shardinginformation_1 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
-                                        '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
-                                        ['db1', 't1', 'userID1', '1001',
-                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10']]]
-        self.__shardinginformation_2 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
-                                        '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
-                                        ['db1', 't1', 'userID1', '1001',
-                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                        ['db2', 't2', 'userID2', '3001',
-                                        '4', 'RANGE', 'GROUPID4', 'GROUPID11'],
-                                        ['db2', 't2', 'userID2', '4001',
-                                        '5', 'RANGE', 'GROUPID5', 'GROUPID11']]]
-        self.__shardinginformation_3 = [0, 0, 0, [['db1', 't1', 'userID1', '0',
-                                        '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
-                                        ['db1', 't1', 'userID1', '1001',
-                                        '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
-                                        ['db2', 't2', 'userID2', '3001',
-                                        '4','RANGE', 'GROUPID4', 'GROUPID11'],
-                                        ['db2', 't2', 'userID2', '4001',
-                                        '5', 'RANGE', 'GROUPID5', 'GROUPID11'],
-                                        ['db3', 't3', 'userID3', '6001',
-                                        '6', 'RANGE', 'GROUPID6', 'GROUPID12'],
-                                        ['db3', 't3', 'userID3', '7001',
-                                        '7', 'RANGE', 'GROUPID7', 'GROUPID12']]]
+        self.__setofservers_2 = _make_servers_result(
+            [[str(self.__server_1.uuid),
+              'GROUPID1', self.__options_1_host,  self.__options_1_port,
+              READ_ONLY, SECONDARY, 1.0],
+             [str(self.__server_2.uuid),
+              'GROUPID1', self.__options_2_host,  self.__options_2_port,
+              READ_ONLY, SECONDARY, 1.0],
+             [str(self.__server_3.uuid),
+              'GROUPID2', self.__options_3_host,  self.__options_3_port,
+              READ_WRITE, PRIMARY, 1.0],
+             [str(self.__server_4.uuid),
+              'GROUPID2', self.__options_4_host,  self.__options_4_port,
+              READ_ONLY, SECONDARY, 1.0]]
+        )
+
+        self.__setofservers_3 = _make_servers_result(
+            [[str(self.__server_1.uuid),
+              'GROUPID1', self.__options_1_host,  self.__options_1_port,
+              READ_ONLY, SECONDARY, 1.0],
+             [str(self.__server_2.uuid),
+              'GROUPID1', self.__options_2_host,  self.__options_2_port,
+              READ_ONLY, SECONDARY, 1.0],
+             [str(self.__server_3.uuid),
+              'GROUPID2', self.__options_3_host,  self.__options_3_port,
+              READ_WRITE, PRIMARY, 1.0],
+             [str(self.__server_4.uuid),
+              'GROUPID2', self.__options_4_host,  self.__options_4_port,
+              READ_ONLY, SECONDARY, 1.0],
+             [str(self.__server_5.uuid),
+              'GROUPID3', self.__options_5_host,  self.__options_5_port,
+              READ_WRITE, PRIMARY, 1.0],
+             [str(self.__server_6.uuid),
+              'GROUPID3', self.__options_6_host,  self.__options_6_port,
+              READ_ONLY, SECONDARY, 1.0]]
+        )
+        
+        self.__setoftables = _make_tables_result(
+            [['db1', 't1', 'userID1', '1'],
+             ['db2', 't2', 'userID2', '2'],
+             ['db3', 't3', 'userID3', '3'],
+             ['db4', 't4', 'userID4', '4'],
+             ['prune_db', 'prune_table', 'userID', '5']]
+        )
+        self.__setoftables_1 = _make_tables_result(
+            [['db1', 't1', 'userID1', '1']]
+        )
+        self.__setoftables_2 = _make_tables_result(
+            [['db1', 't1', 'userID1', '1'],
+             ['db2', 't2', 'userID2', '2']]
+        )
+        self.__setoftables_3 = _make_tables_result(
+            [['db1', 't1', 'userID1', '1'],
+             ['db2', 't2', 'userID2', '2'],
+             ['db3', 't3', 'userID3', '3']]
+        )
+        self.__setofshardmaps = _make_mapping_result(
+            [['1', 'RANGE', 'GROUPID10'],
+             ['2', 'RANGE', 'GROUPID11'],
+             ['3', 'RANGE', 'GROUPID12'],
+             ['4', 'RANGE', 'GROUPID13'],
+             ['5', 'RANGE', 'GROUPID14']]
+        )
+        self.__setofshardmaps_1 = _make_mapping_result(
+            [['1', 'RANGE', 'GROUPID10']]
+        )
+        self.__setofshardmaps_2 = _make_mapping_result(
+            [['1', 'RANGE', 'GROUPID10'],
+             ['2', 'RANGE', 'GROUPID11']]
+        )
+        self.__setofshardmaps_3 = _make_mapping_result(
+            [['1', 'RANGE', 'GROUPID10'],
+             ['2', 'RANGE', 'GROUPID11'],
+             ['3', 'RANGE', 'GROUPID12']]
+        )
+        self.__setofshardindexes = _make_index_result(
+            [['0', '1', '1', 'GROUPID1'],
+             ['1001', '1', '2', 'GROUPID10'],
+             ['3001', '2', '4', 'GROUPID4'],
+             ['4001', '2', '5', 'GROUPID5'],
+             ['6001', '3', '6', 'GROUPID6'],
+             ['7001', '3', '7', 'GROUPID7'],
+             ['8001', '4', '8', 'GROUPID8'],
+             ['10001', '4', '9', 'GROUPID9'],
+             ['100', '5', '10', 'GROUPID2'],
+             ['201', '5', '11', 'GROUPID3']]
+        )
+        self.__setofshardindexes_1 = _make_index_result(
+            [['0', '1', '1', 'GROUPID1'],
+             ['1001', '1', '2', 'GROUPID10']]
+        )
+        self.__setofshardindexes_3 = _make_index_result(
+            [['0', '1', '1', 'GROUPID1'],
+             ['1001', '1', '2', 'GROUPID10'],
+             ['3001', '2', '4', 'GROUPID4'],
+             ['4001', '2', '5', 'GROUPID5'],
+             ['6001', '3', '6', 'GROUPID6'],
+             ['7001', '3', '7', 'GROUPID7']]
+        )
+        self.__setofshardindexes_5 = _make_index_result(
+            [['0', '1', '1', 'GROUPID1'],
+             ['1001', '1', '2', 'GROUPID10'],
+             ['3001', '2', '4', 'GROUPID4'],
+             ['4001', '2', '5', 'GROUPID5'],
+             ['6001', '3', '6', 'GROUPID6'],
+             ['7001', '3', '7', 'GROUPID7'],
+             ['8001', '4', '8', 'GROUPID8'],
+             ['10001', '4', '9', 'GROUPID9'],
+             ['100', '5', '10', 'GROUPID2'],
+             ['201', '5', '11', 'GROUPID3']]
+        )
+        self.__shardinginformation_1 = _make_info_result(
+            [['db1', 't1', 'userID1', '0',
+              '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
+             ['db1', 't1', 'userID1', '1001',
+              '2', 'RANGE', 'GROUPID10', 'GROUPID10']]
+        )
+        self.__shardinginformation_2 = _make_info_result(
+            [['db1', 't1', 'userID1', '0',
+              '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
+             ['db1', 't1', 'userID1', '1001',
+              '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
+             ['db2', 't2', 'userID2', '3001',
+              '4', 'RANGE', 'GROUPID4', 'GROUPID11'],
+             ['db2', 't2', 'userID2', '4001',
+              '5', 'RANGE', 'GROUPID5', 'GROUPID11']]
+        )
+        self.__shardinginformation_3 = _make_info_result(
+            [['db1', 't1', 'userID1', '0',
+              '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
+             ['db1', 't1', 'userID1', '1001',
+              '2', 'RANGE', 'GROUPID10', 'GROUPID10'],
+             ['db2', 't2', 'userID2', '3001',
+              '4','RANGE', 'GROUPID4', 'GROUPID11'],
+             ['db2', 't2', 'userID2', '4001',
+              '5', 'RANGE', 'GROUPID5', 'GROUPID11'],
+             ['db3', 't3', 'userID3', '6001',
+              '6', 'RANGE', 'GROUPID6', 'GROUPID12'],
+             ['db3', 't3', 'userID3', '7001',
+              '7', 'RANGE', 'GROUPID7', 'GROUPID12']]
+        )
 
     def test_dumps(self):
         """Test dump interface associated to sharding.
         """
-        self.assertEqual(self.__setofservers,
-            self.proxy.dump.servers(0))
 
-        self.assertEqual(self.__setofservers_1,
-            self.proxy.dump.servers(0, "GROUPID1"))
-        self.assertEqual(self.__setofservers_2,
-            self.proxy.dump.servers(0, "GROUPID1,GROUPID2"))
-        self.assertEqual(self.__setofservers_3,
-            self.proxy.dump.servers(0, "GROUPID1,GROUPID2,GROUPID3"))
-        self.assertEqual(self.proxy.dump.shard_tables(0),
-            self.__setoftables)
-        self.assertEqual(self.proxy.dump.shard_tables(0,  "1"),
-            self.__setoftables_1)
-        self.assertEqual(self.proxy.dump.shard_tables(0,  "1,  2"),
-                        self.__setoftables_2)
-        self.assertEqual(self.proxy.dump.shard_tables(0,  "1,2,  3"),
-                        self.__setoftables_3)
-        self.assertEqual(self.proxy.dump.shard_maps(0),
-                        self.__setofshardmaps)
-        self.assertEqual(self.proxy.dump.shard_maps(0, '1'),
-                        self.__setofshardmaps_1)
-        self.assertEqual(self.proxy.dump.shard_maps(0, '1,  2'),
-                        self.__setofshardmaps_2)
-        self.assertEqual(self.proxy.dump.shard_maps(0, '1,  2,  3'),
-                        self.__setofshardmaps_3)
-        self.assertEqual(self.proxy.dump.shard_index(0),
-                        self.__setofshardindexes)
-        self.assertEqual(self.proxy.dump.shard_index(0,  "1"),
-                        self.__setofshardindexes_1)
-        self.assertEqual(self.proxy.dump.shard_index(0,  "1, 2,   3"),
-                        self.__setofshardindexes_3)
-        self.assertEqual(
-                self.proxy.dump.shard_index(0,  "1, 2,   3,  4,    5"),
-                self.__setofshardindexes_5
-        )
-        self.assertEqual(
-            self.proxy.dump.sharding_information(0, "db1.t1"),
-            self.__shardinginformation_1
-        )
-        self.assertEqual(
-            self.proxy.dump.sharding_information(0, "db1.t1,   db2.t2"),
-            self.__shardinginformation_2
-        )
-        self.assertEqual(
-            self.proxy.dump.sharding_information(0, "db1.t1,   db2.t2,db3.t3"),
-            self.__shardinginformation_3
-        )
+        packet = self.proxy.dump.servers(0)
+        self.check_xmlrpc_result(packet, self.__setofservers)
+        
+        packet = self.proxy.dump.servers(0, "GROUPID1")
+        self.check_xmlrpc_result(packet, self.__setofservers_1)
+        
+        packet = self.proxy.dump.servers(0, "GROUPID1,GROUPID2")
+        self.check_xmlrpc_result(packet, self.__setofservers_2)
+
+        packet = self.proxy.dump.servers(0, "GROUPID1,GROUPID2,GROUPID3")
+        self.check_xmlrpc_result(packet, self.__setofservers_3)
+
+        packet = self.proxy.dump.shard_tables(0)
+        self.check_xmlrpc_result(packet, self.__setoftables)
+
+        packet = self.proxy.dump.shard_tables(0,  "1")
+        self.check_xmlrpc_result(packet, self.__setoftables_1)
+
+        packet = self.proxy.dump.shard_tables(0,  "1,  2")
+        self.check_xmlrpc_result(packet, self.__setoftables_2)
+
+        packet = self.proxy.dump.shard_tables(0,  "1,2,  3")
+        self.check_xmlrpc_result(packet, self.__setoftables_3)
+
+        packet = self.proxy.dump.shard_maps(0)
+        self.check_xmlrpc_result(packet, self.__setofshardmaps)
+
+        packet = self.proxy.dump.shard_maps(0, '1')
+        self.check_xmlrpc_result(packet, self.__setofshardmaps_1)
+
+        packet = self.proxy.dump.shard_maps(0, '1,  2')
+        self.check_xmlrpc_result(packet, self.__setofshardmaps_2)
+
+        packet = self.proxy.dump.shard_maps(0, '1,  2,  3')
+        self.check_xmlrpc_result(packet, self.__setofshardmaps_3)
+
+        packet = self.proxy.dump.shard_index(0)
+        self.check_xmlrpc_result(packet, self.__setofshardindexes)
+
+        packet = self.proxy.dump.shard_index(0,  "1")
+        self.check_xmlrpc_result(packet, self.__setofshardindexes_1)
+
+        packet = self.proxy.dump.shard_index(0,  "1, 2,   3")
+        self.check_xmlrpc_result(packet, self.__setofshardindexes_3)
+
+        packet = self.proxy.dump.shard_index(0,  "1, 2,   3,  4,    5")
+        self.check_xmlrpc_result(packet, self.__setofshardindexes_5)
+
+        packet = self.proxy.dump.sharding_information(0, "db1.t1")
+        self.check_xmlrpc_result(packet, self.__shardinginformation_1)
+
+        packet = self.proxy.dump.sharding_information(0, "db1.t1,   db2.t2")
+        self.check_xmlrpc_result(packet, self.__shardinginformation_2)
+
+        packet = self.proxy.dump.sharding_information(0, "db1.t1,   db2.t2,db3.t3")
+        self.check_xmlrpc_result(packet, self.__shardinginformation_3)
 
     def tearDown(self):
         """Clean up the existing environment
