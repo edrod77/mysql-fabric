@@ -340,7 +340,7 @@ class LookupShardServers(Command):
         :return: The Group UUID that contains the range in which the key
                  belongs.
         """
-        return Command.generate_output_pattern(_lookup, table_name, key, hint)
+        return _lookup(table_name, key, hint)
 
 class DumpShardTables(Command):
     """Return information about all tables belonging to mappings
@@ -730,13 +730,20 @@ def _lookup(lookup_arg, key,  hint):
         if group is None:
             raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
 
-    ret = []
-    #An empty list will be returned if the registered group has not
-    #servers.
+    rset = ResultSet(
+        names=('server_uuid', 'host', 'port', 'is_master'),
+        types=(str, str, int, bool),
+    )
+
     for server in group.servers():
-        ret.append([str(server.uuid), server.address,
-                   group.master == server.uuid])
-    return ret
+        host, port = server.address.split(":")
+        rset.append_row([
+            str(server.uuid),   # server_uuid
+            host,               # host
+            port,               # port
+            group.master == server.uuid, # is_master
+        ])
+    return CommandResult(None, results=rset)
 
 @_events.on_event(SHARD_ENABLE)
 def _enable_shard(shard_id):

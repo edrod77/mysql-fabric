@@ -25,7 +25,7 @@ from mysql.fabric import executor as _executor
 from mysql.fabric.server import MySQLServer, Group
 from mysql.fabric.errors import DatabaseError
 
-class TestServerClone(unittest.TestCase):
+class TestServerClone(tests.utils.TestCase):
     """Tests the mysqlfabric clone command to clone all the data in a server
     registered in Fabric into another server.  Create a Group and add some
     servers. Insert data into one of the servers. Now clone this server into
@@ -131,10 +131,7 @@ class TestServerClone(unittest.TestCase):
 
         status = self.proxy.server.clone("GROUPID1", self.__server_3.address,
                                          None)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_restore_server).")
+        self.check_xmlrpc_command_result(status)
         rows = self.__server_3.exec_stmt(
                                     "SELECT NAME FROM db1.t1",
                                     {"fetch" : True})

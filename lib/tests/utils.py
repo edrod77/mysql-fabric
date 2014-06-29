@@ -376,7 +376,8 @@ class TestCase(unittest.TestCase):
             return info
         return {}
 
-    def check_xmlrpc_command_result(self, packet, is_syncronous=True, has_error=False):
+    def check_xmlrpc_command_result(self, packet, is_syncronous=True,
+                                    has_error=False, returns=None):
         """Check that a packet from a procedure execution is sane.
 
         This check that the first command result set, which contain
@@ -404,6 +405,11 @@ class TestCase(unittest.TestCase):
             self.assertNotEqual(result.results[1].rowcount, 0,
                                 "had %d result sets" % len(result.results))
 
+        if not has_error and returns is not None:
+            self.assertTrue(len(result.results) > 1, str(result))
+            self.assertEqual(result.results[0].rowcount, 1, str(result))
+            self.assertEqual(result.results[0][0][3], returns)
+
     def check_xmlrpc_result(self, packet, expected, index=0):
         """Compare the result set of a command result with an expected value.
 
@@ -422,4 +428,12 @@ class TestCase(unittest.TestCase):
         for row, exp in zip(result.results[index], expected):
             self.assertEqual(row, exp)
 
-        
+    def check_xmlrpc_iter(self, packet, index=0):
+        """Iterate over a result set and do some basic integrity checking first.
+        """
+
+        result = _xmlrpc._decode(packet)
+        self.assertTrue(len(result.results) > index, str(result))
+        for row in result.results[index]:
+            yield dict(zip([ c.name for c in result.results[0].columns ], row))
+
