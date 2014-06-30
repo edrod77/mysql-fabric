@@ -239,23 +239,33 @@ class Command(object):
 
     command_name = None
 
-    command_options = []
-
     def __init__(self):
+        """Constructor for Command object.
+        """
         self.__client = None
         self.__server = None
         self.__options = None
         self.__config = None
-        #use the execute / dispatch method signature to build the
-        #optional argument list passed to the command line parser.
+        self.generate_options()
+
+    def generate_options(self):
+        """Use the execute / dispatch method signature to build the
+        optional argument list passed to the command line parser.
+        """
+        # Define command_options if it was not done already.
+        try:
+            self.command_options
+        except AttributeError:
+            self.command_options = []
+
+        # Extract the default values from the method signature and build
+        # the optional argument list.
         try:
             spec = inspect.getargspec(self.execute.original_function)
         except AttributeError:
             spec = inspect.getargspec(self.dispatch)
-        #Extract the default values from the method signature and build
-        #the optional argument list.
+
         if spec.defaults is not None:
-            self.command_options = []
             action = ""
             #Easier to build the default args and values pairs in reverse
             for opt, value in zip(reversed(spec.args), reversed(spec.defaults)):

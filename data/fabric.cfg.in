@@ -1,6 +1,6 @@
 [storage]
-address = localhost:3306
-user = fabric
+address = localhost:13000
+user = root
 password =
 database = fabric
 auth_plugin = mysql_native_password
@@ -9,14 +9,14 @@ connection_attempts = 6
 connection_delay = 1
 
 [servers]
-user = fabric
+user = root
 password =
 
 [protocol.xmlrpc]
 address = localhost:32274
 threads = 5
 user = admin
-password =
+password = admin
 disable_authentication = no
 realm = MySQL Fabric
 ssl_ca =

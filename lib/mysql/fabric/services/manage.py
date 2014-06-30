@@ -38,6 +38,7 @@ from mysql.fabric import (
     error_log as _error_log,
     credentials,
     handler as _logging,
+    providers as providers,
 )
 
 from mysql.fabric.command import (
@@ -386,6 +387,9 @@ def _start(options, config):
     _server.configure(config)
     _error_log.configure(config)
     _failure_detector.configure(config)
+
+    # Load information on all providers.
+    providers.find_providers()
 
     # Load all services into the service manager
     _services.ServiceManager().load_services(options, config)
