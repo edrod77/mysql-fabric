@@ -38,7 +38,7 @@ from mysql.fabric.server import (
 )
 from tests.utils import MySQLInstances
 
-class TestShardingPrune(unittest.TestCase):
+class TestShardingPrune(tests.utils.TestCase):
     """Contains unit tests for testing the shard move operation and for
     verifying that the global server configuration remains constant after
     the shard move configuration.
@@ -766,9 +766,8 @@ class TestShardingPrune(unittest.TestCase):
         for group_id in ("GROUPID1", "GROUPID2", "GROUPID3",
             "GROUPID4", "GROUPID5", "GROUPID6"):
             packet = self.proxy.group.lookup_servers(group_id)
-            result = _xmlrpc._decode(packet)
-            for row in result.results[0]:
-                self.proxy.group.remove(group_id, row[3])
+            for info in self.check_xmlrpc_iter(packet):
+                self.proxy.group.remove(group_id, row['server_uuid'])
             self.proxy.group.destroy(group_id)
 
         tests.utils.cleanup_environment()

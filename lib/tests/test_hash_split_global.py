@@ -22,6 +22,7 @@ import unittest
 import uuid as _uuid
 import time
 import tests.utils
+import sys
 
 from mysql.fabric import executor as _executor
 from mysql.fabric.server import (
@@ -30,7 +31,51 @@ from mysql.fabric.server import (
 )
 from tests.utils import MySQLInstances
 
-class TestHashSplitGlobal(unittest.TestCase):
+import mysql.fabric.command as command
+
+def _make_result(names, types, rows):
+    rset = command.ResultSet(names=names, types=types)
+    for row in rows:
+        rset.append_row(row)
+    return rset
+
+def _make_servers_result(rows):
+    return _make_result(
+        names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
+        types=(str, str, str, int, int, int, float),
+        rows=rows,
+    )
+
+def _make_tables_result(rows):
+    return _make_result(
+        names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
+        types=(str, str, str, int),
+        rows=rows,
+    )
+
+def _make_mapping_result(rows):
+    return _make_result(
+        names=('mapping_id', 'type_name', 'global_group_id'),
+        types=(int, str, str),
+        rows=rows,
+    )
+
+def _make_index_result(rows):
+    return _make_result(
+        names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
+        types=(str, int, int, str),
+        rows=rows,
+    )
+
+def _make_info_result(rows):
+    return _make_result(
+        names=('schema_name', 'table_name', 'column_name', 'lower_bound',
+               'shard_id', 'group_id', 'global_group_id', 'type_name'),
+        types=(str, str, str, str, int, str, str, str),
+        rows=rows,
+    )
+
+class TestHashSplitGlobal(tests.utils.TestCase):
     """Contains unit tests for testing the shard split operation and for
     verifying that the global server configuration remains constant after
     the shard split configuration.
@@ -251,49 +296,24 @@ class TestHashSplitGlobal(unittest.TestCase):
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        self.check_xmlrpc_command_result(status, returns=1)
 
         status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.add_table(1, "db3.t3", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(1, "GROUPID2,GROUPID3,GROUPID4,GROUPID5", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.prune_shard("db2.t2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.prune_shard("db3.t3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
 
     def test_split_shard_1(self):
         '''Test the split of shard 1 and the global server configuration
@@ -320,10 +340,7 @@ class TestHashSplitGlobal(unittest.TestCase):
         row_cnt_shard_db3_t3 = int(row_cnt_shard_db3_t3[0][0])
 
         status = self.proxy.sharding.split_shard("1", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         self.__server_6.connect()
 
@@ -453,10 +470,7 @@ class TestHashSplitGlobal(unittest.TestCase):
         row_cnt_shard_db3_t3 = int(row_cnt_shard_db3_t3[0][0])
 
         status = self.proxy.sharding.split_shard("2", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         self.__server_6.connect()
 
@@ -586,10 +600,7 @@ class TestHashSplitGlobal(unittest.TestCase):
         row_cnt_shard_db3_t3 = int(row_cnt_shard_db3_t3[0][0])
 
         status = self.proxy.sharding.split_shard("3", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         self.__server_6.connect()
 
@@ -719,10 +730,7 @@ class TestHashSplitGlobal(unittest.TestCase):
         row_cnt_shard_db3_t3 = int(row_cnt_shard_db3_t3[0][0])
 
         status = self.proxy.sharding.split_shard("4", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         self.__server_6.connect()
 
@@ -829,23 +837,23 @@ class TestHashSplitGlobal(unittest.TestCase):
     def test_hash_dump(self):
         """Test the dump of the HASH sharding information for the table.
         """
-        shardinginformation_1 = [0, 0, 0,
-            [['db1', 't1', 'userID',
-            'E2996A7B8509367020B55A4ACD2AE46A',
-            '1', 'HASH', 'GROUPID2', 'GROUPID1'],
+        shardinginformation_1 = _make_info_result([
             ['db1', 't1', 'userID',
-            'E88F547DF45C99F27646C76316FB21DF',
-            '2', 'HASH', 'GROUPID3', 'GROUPID1'],
+             'E2996A7B8509367020B55A4ACD2AE46A',
+             '1', 'HASH', 'GROUPID2', 'GROUPID1'],
             ['db1', 't1', 'userID',
-            '7A2E76448FF04233F3851A492BEF1090',
-            '3', 'HASH', 'GROUPID4', 'GROUPID1'],
+             'E88F547DF45C99F27646C76316FB21DF',
+             '2', 'HASH', 'GROUPID3', 'GROUPID1'],
             ['db1', 't1', 'userID',
-            '97427AA63E300F56536710F5D73A35FA',
-            '4', 'HASH', 'GROUPID5', 'GROUPID1']]]
-        self.assertEqual(
-            self.proxy.dump.sharding_information(0, "db1.t1"),
-            shardinginformation_1
-        )
+             '7A2E76448FF04233F3851A492BEF1090',
+             '3', 'HASH', 'GROUPID4', 'GROUPID1'],
+            ['db1', 't1', 'userID',
+             '97427AA63E300F56536710F5D73A35FA',
+             '4', 'HASH', 'GROUPID5', 'GROUPID1']
+        ])
+
+        packet = self.proxy.dump.sharding_information(0, "db1.t1")
+        self.check_xmlrpc_result(packet, shardinginformation_1)
 
     def tearDown(self):
         """Clean up the existing environment

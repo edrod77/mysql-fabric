@@ -234,8 +234,13 @@ class ListShardMappingDefinitions(Command):
         :return: A list of shard mapping definitions
                     An Empty List if no shard mapping definition is found.
         """
-        return Command.generate_output_pattern(
-                            ShardMapping.list_shard_mapping_defn)
+        rset = ResultSet(
+            names=('mapping_id', 'type_name', 'global_group_id'),
+            types=(int, str, str),
+        )
+        for row in ShardMapping.list_shard_mapping_defn():
+            rset.append_row(row)
+        return CommandResult(None, results=rset)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
 class AddShard(ProcedureShard):
@@ -517,21 +522,21 @@ def _lookup_shard_mapping(table_name):
     """
     shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is not None:
-        return {"shard_mapping_id":shard_mapping.shard_mapping_id,
-                "table_name":shard_mapping.table_name,
-                "column_name":shard_mapping.column_name,
-                "type_name":shard_mapping.type_name,
-                "global_group":shard_mapping.global_group}
+        return [{"shard_mapping_id":shard_mapping.shard_mapping_id,
+                 "table_name":shard_mapping.table_name,
+                 "column_name":shard_mapping.column_name,
+                 "type_name":shard_mapping.type_name,
+                 "global_group":shard_mapping.global_group}]
     else:
         #We return an empty shard mapping because if an Error is thrown
         #it would cause the executor to rollback which is an unnecessary
         #action. It is enough if we inform the user that the lookup returned
         #nothing.
-        return {"shard_mapping_id":"",
-                "table_name":"",
-                "column_name":"",
-                "type_name":"",
-                "global_group":""}
+        return [{"shard_mapping_id":"",
+                 "table_name":"",
+                 "column_name":"",
+                 "type_name":"",
+                 "global_group":""}]
 
 def _list(sharding_type):
     """The method returns all the shard mappings (names) of a
