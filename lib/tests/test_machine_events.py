@@ -33,7 +33,7 @@ from mysql.fabric import (
 )
 
 PROVIDER_ID = "provider"
-PROVIDER_TYPE = "FAKE_PROVIDER"
+PROVIDER_TYPE = "NULLPROVIDER"
 USERNAME = "username"
 PASSWORD = "password"
 URL = "http://127.0.0.1:5000/v2.0"

@@ -14,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 #
-"""This module manages a fake provider which is used only for testing
+"""This module manages a null provider which is used only for testing
 the system.
 """
 import logging
@@ -32,12 +32,12 @@ from mysql.fabric.machine import (
 _LOGGER = logging.getLogger(__name__)
 
 def configure_provider():
-    """Configure Fake Provider.
+    """Configure NullProvider.
     """
-    return ("FAKE_PROVIDER", MachineManager, 1)
+    return ("NULLPROVIDER", MachineManager, 1)
 
 class MachineManager(AbstractMachineManager):
-    """Manage fake machines.
+    """Manage machines.
     """
     def __init__(self, provider, version=None):
         super(MachineManager, self).__init__(provider, version)
@@ -46,7 +46,7 @@ class MachineManager(AbstractMachineManager):
         """Create machines.
         """
         _LOGGER.debug(
-            "Creating a fake machine: provider (%s), parameters (%s).",
+            "Creating a machine: provider (%s), parameters (%s).",
             self.provider, parameters
         )
 

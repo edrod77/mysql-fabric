@@ -38,7 +38,7 @@ class TestMachine(unittest.TestCase):
         """Configure the existing environment.
         """
         self.provider_id = "provider"
-        self.provider_type = "FAKE_PROVIDER"
+        self.provider_type = "NULLPROVIDER"
         self.username = "username"
         self.password = "password"
         self.url = "http://127.0.0.1:5000/v2.0"
