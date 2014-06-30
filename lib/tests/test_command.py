@@ -22,8 +22,20 @@ import tests.utils
 import mysql.fabric.command as _command
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
 import mysql.fabric.config as _config
+import mysql.fabric.errors as _errors
 import mysql.fabric.events as _events
 import mysql.fabric.executor as _executor
+
+from mysql.fabric.utils import (
+    FABRIC_UUID,
+    TTL,
+)
+
+from mysql.fabric.command import (
+    CommandResult,
+    ResultSet,
+    ResultSetColumn,
+)
 
 class NewCommand(_command.Command):
     """Emulates a local command that executes with success.
@@ -82,16 +94,12 @@ class NewRemoteCommand(_command.Command):
         super(NewRemoteCommand, self).__init__()
         self.execution = None
 
-    def _do_execute(self):
-        """Do something.
-        """
-        self.execution = "executed"
-        return self.execution
-
     def execute(self):
         """Method that is remotely executed.
         """
-        return _command.Command.generate_output_pattern(self._do_execute)
+        rs = ResultSet(names=["foo"], types=[str])
+        rs.append_row(["executed"])
+        return CommandResult(None, rs)
 
 class NewErrorRemoteCommand(_command.Command):
     """Emulates a remote command that throws a Fault because of
@@ -103,7 +111,10 @@ class NewErrorRemoteCommand(_command.Command):
     def execute(self):
         """A remote command that returns None.
         """
-        return None
+
+        rset = ResultSet(names=['foo'], types=[int])
+        rset.append_row([2L**32])
+        return CommandResult(None, results=rset)
 
 NEW_PROCEDURE_COMMAND_0 = _events.Event()
 class ClassCommand_0(_command.ProcedureCommand):
@@ -237,7 +248,7 @@ def _new_procedure_shard_1(table_name, shard_mapping_id, shard_id):
     """
     pass
 
-class TestCommand(unittest.TestCase):
+class TestCommand(tests.utils.TestCase):
     "Test command interface."
 
     def setUp(self):
@@ -259,6 +270,7 @@ class TestCommand(unittest.TestCase):
 
         _command.unregister_command("test", "procedure_command_0")
         _command.unregister_command("test", "procedure_command_1")
+            
 
     def test_command(self):
         """Create a command and check its basic properties.
@@ -312,7 +324,7 @@ class TestCommand(unittest.TestCase):
         from __main__ import xmlrpc_next_port
         params = {
             'protocol.xmlrpc': {
-                'address': 'localhost:%d' % (xmlrpc_next_port, ),
+                'address': 'localhost:{0}'.format(xmlrpc_next_port),
                 'user': '',
                 'password': '',
                 },
@@ -322,9 +334,10 @@ class TestCommand(unittest.TestCase):
         local_cmd.setup_client(_xmlrpc.MyClient(), None, config)
 
         # Dispatch request through local command to remote command.
-        self.assertEqual(local_cmd.dispatch(),
-            "Command :\n{ success     = True\n  return      "
-            "= executed\n  activities  = \n}")
+        rs = ResultSet(names=["foo"], types=[str])
+        rs.append_row(["executed"])
+        self.assertEqual(str(local_cmd.dispatch()),
+                         str(CommandResult(None, results=rs)))
         self.assertEqual(local_cmd.execution, None)
 
     def test_error_remote_command(self):
@@ -334,7 +347,7 @@ class TestCommand(unittest.TestCase):
         from __main__ import xmlrpc_next_port
         params = {
             'protocol.xmlrpc': {
-                'address': 'localhost:%d' % (xmlrpc_next_port, ),
+                'address': 'localhost:{0}'.format(xmlrpc_next_port),
                 'user': '',
                 'password': '',
                 },
@@ -356,64 +369,52 @@ class TestCommand(unittest.TestCase):
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = default).
-        status = self.proxy.test.procedure_command_0("test")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_command_0("test")
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = "True").
-        status = self.proxy.test.procedure_command_0("test", True)
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_command_0("test", True)
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = "TrUe").
-        status = self.proxy.test.procedure_command_0("test", "TrUe")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_command_0("test", "TrUe")
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure is synchronously executed and returns by default
         # True and report about its execution (Synchronous = 1).
-        status = self.proxy.test.procedure_command_0("test", 1)
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_command_0("test", 1)
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = False).
-        status = self.proxy.test.procedure_command_0("test", False)
-        self.assertNotEqual(check.match(status), None)
+        packet = self.proxy.test.procedure_command_0("test", False)
+        self.check_xmlrpc_command_result(packet, False)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = 0).
-        status = self.proxy.test.procedure_command_0("test", 0)
-        self.assertNotEqual(check.match(status), None)
+        packet = self.proxy.test.procedure_command_0("test", 0)
+        self.check_xmlrpc_command_result(packet, False)
 
         # Procedure is asynchronously executed and returns only the
         # the procedure's uuid (Synchronous = "False").
-        status = self.proxy.test.procedure_command_0("test", "False")
-        self.assertNotEqual(check.match(status), None)
+        packet = self.proxy.test.procedure_command_0("test", "False")
+        self.check_xmlrpc_command_result(packet, False)
 
         # Procedure is synchronously executed and returns the report
         # about execution.
-        status = self.proxy.test.procedure_command_0("test", "abc")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_command_0("test", "abc")
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure is synchronously executed but throws an error.
-        status = self.proxy.test.procedure_command_1("test", True)
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[2], False)
+        packet = self.proxy.test.procedure_command_1("test", True)
+        self.check_xmlrpc_command_result(packet, True, True)
 
         # Procedure is ansynchronously executed and returns only the
         # procedure's uuid. Note that it eventually throw an error.
-        status = self.proxy.test.procedure_command_1("test", False)
-        self.assertNotEqual(check.match(status), None)
+        packet = self.proxy.test.procedure_command_1("test", False)
+        self.check_xmlrpc_command_result(packet, False)
 
     def test_procedure_group(self):
         """Check returned values from a procedure
@@ -421,16 +422,12 @@ class TestCommand(unittest.TestCase):
         check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
 
         # Procedure has argument group_id.
-        status = self.proxy.test.procedure_group_0("test")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_group_0("test")
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure does not have argument group_id.
-        status = self.proxy.test.procedure_group_1("test")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_group_1("test")
+        self.check_xmlrpc_command_result(packet, True)
 
     def test_procedure_shard(self):
         """Check returned values from a procedure that inherits from
@@ -439,16 +436,153 @@ class TestCommand(unittest.TestCase):
         check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
 
         # Procedure has argument group_id.
-        status = self.proxy.test.procedure_shard_0("test")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_shard_0("test")
+        self.check_xmlrpc_command_result(packet, True)
 
         # Procedure has argument table_name, shard_mapping_id and shard_id.
-        status = self.proxy.test.procedure_shard_1("test", "test", "test")
-        self.assertNotEqual(check.match(status[0]), None)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[2], True)
+        packet = self.proxy.test.procedure_shard_1("test", "test", "test")
+        self.check_xmlrpc_command_result(packet, True)
+
+
+class TestResultSet(unittest.TestCase):
+    "Test result set."
+
+    def setUp(self):
+        # Create a simplistic result set
+        names = ["foo", "bar"]
+        types = [  int, float]
+        self.result = ResultSet(names=names, types=types)
+        self.names = names
+        self.types = types
+        
+    def test_definition(self):
+        "Check that the types and number of columns are correct."
+        self.assertEqual(len(self.result.columns), 2)
+        for no, name in enumerate(self.names):
+            self.assertEqual(self.result.columns[no].name, name)
+        for no, typ in enumerate(self.types):
+            self.assertEqual(self.result.columns[no].type, typ)
+
+    def test_append_row(self):
+        "Check append_row function"
+
+        self.assertEqual(self.result.rowcount, 0)
+        self.result.append_row((1, 2))
+        self.assertEqual(self.result.rowcount, 1)
+        self.result.append_row([5.0, 3.2])
+        self.assertEqual(self.result.rowcount, 2)
+        self.result.append_row(['50', '2.25'])
+
+        # Test that we can iterate the rows and get the expected
+        # rows. Also check that the value returned matches the
+        # expected type.
+        expected = [
+            (1, 2.0), # Second element in tuple converted to float above
+            (5, 3.2), # First element in tuple converted to int above
+            (50, 2.25), # Both elements converted from string
+        ]
+        for row, ref in zip(self.result, expected):
+            self.assertEqual(row, ref)
+            for no, col in enumerate(row):
+                # assertIsInstance is in Python 2.7, but not Python 2.6
+                self.assertTrue(
+                    isinstance(col, self.result.columns[no].type),
+                    "Expected type '%s', was '%s'" % (
+                        self.result.columns[no].type.__name__, type(col).__name__
+                    )
+                )
+
+    def test_indexing(self):
+        "Check indexing the result set."
+
+        # Just for precaution, the result set should be empty at start.
+        self.assertEqual(self.result.rowcount, 0)
+
+        # This should fail and raise an exception
+        self.assertRaises(IndexError, (lambda x: self.result[x]), 0)
+
+        # Check that indexing works and return the row added.
+        self.result.append_row((1, 2.0))
+        self.assertEqual(self.result[0], (1, 2.0))
+
+    def test_failures(self):
+        "Test that the result set class throw errors at the right times."
+        self.assertRaises(_errors.CommandResultError,
+                          self.result.append_row, [1, 2.0, 5])
+        self.assertRaises(_errors.CommandResultError,
+                          self.result.append_row, [1])
+        self.assertRaises(_errors.CommandResultError,
+                          self.result.append_row, [])
+        self.assertRaises(ValueError, self.result.append_row, [1, 'ERROR'])
+        self.assertRaises(ValueError, self.result.append_row, ['ERROR', 2.0])
+        
+
+class TestCommandResult(unittest.TestCase):
+    "Test command result"
+
+    def setUp(self):
+        self.names = ["foo", "bar"]
+        self.types = [  int, float]
+        self.rset = ResultSet(names=self.names, types=self.types)
+        self.rset.append_row((1, 2.0))
+        self.rset.append_row((2, 4.0))
+
+    def test_basic(self):
+        result = CommandResult(None)
+        self.assertEqual(result.error, None)
+        self.assertEqual(len(result.results), 0)
+
+        result.append_result(self.rset)
+        self.assertEqual(len(result.results), 1)
+
+        # Check that indexing works and return the result set added.
+        self.assertEqual(result.results[0], self.rset)
+
+        # Check that passing something that is not a result set will
+        # raise an error.
+        self.assertRaises(_errors.CommandResultError, result.append_result, [])
+
+        result = CommandResult("Not working")
+        self.assertEqual(result.error, "Not working")
+
+        self.assertRaises(_errors.CommandResultError, result.append_result, self.rset)
+
+
+    def test_xmlrpc_execute(self):
+        "Test XML-RPC encoding and decoding functions."
+        cmd = _xmlrpc._CommandExecuteAndEncode(NewRemoteCommand())
+        result1 = CommandResult(None)
+        result1.append_result(self.rset)
+        packet = cmd()
+        self.assertEqual(packet, [
+            _xmlrpc.FORMAT_VERSION,
+            str(FABRIC_UUID), 
+            TTL,
+            '',                 # No error
+            [                   # One result set with one row
+                {
+                    'info': {
+                        'names': ['foo']
+                    },
+                    'rows': [
+                        ("executed",),
+                    ]
+                }
+            ]
+        ])
+
+        result2 = _xmlrpc._decode(packet)
+
+    def test_xmlrpc_encoding(self):
+        "Test the XML-RPC encoder and decoder."
+
+        results = [
+            CommandResult(None),
+        ]
+        
+        for result in results:
+            self.assertEqual(str(result),
+                             str(_xmlrpc._decode(_xmlrpc._encode(result))))
 
 if __name__ == "__main__":
     unittest.main()

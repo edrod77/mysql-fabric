@@ -17,16 +17,18 @@
 
 """Define features that can be used throughout the code.
 """
+
 import os
 import sys
 import inspect
 import ctypes
 import re
 import datetime
+import uuid
 
 TTL = 0
 VERSION_TOKEN = 0
-FABRIC_UUID = 0
+FABRIC_UUID = uuid.UUID('deadbeef-a007-feed-f00d-cab3fe13249e')
 
 class SingletonMeta(type):
     """Define a Singleton.

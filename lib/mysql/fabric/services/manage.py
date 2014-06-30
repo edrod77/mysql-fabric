@@ -43,6 +43,8 @@ from mysql.fabric import (
 
 from mysql.fabric.command import (
     Command,
+    CommandResult,
+    ResultSet,
 )
 
 from mysql.fabric.handler import (
@@ -96,8 +98,8 @@ class Logging(Command):
             logger.setLevel(_LOGGING_LEVELS[level.upper()])
         except (KeyError, ImportError) as error:
             _LOGGER.debug(error)
-            return False
-        return True
+            return CommandResult(str(error))
+        return CommandResult(None)
 
 
 class Ping(Command):
@@ -109,7 +111,7 @@ class Ping(Command):
     def execute(self):
         """Check whether Fabric server is running or not.
         """
-        return True
+        pass
 
 
 class Start(Command):
@@ -433,7 +435,6 @@ class Stop(Command):
         """Stop the Fabric server.
         """
         _shutdown()
-        return True
 
 
 def _shutdown():
@@ -466,4 +467,6 @@ class FabricLookups(Command):
         :rtype: ["host:port", ...]
         """
         service = _services.ServiceManager()
-        return _utils.wrap_output([service.address])
+        rset = ResultSet(names=('host', 'port'),types=(str, int))
+        rset.append_row(service.address.split(":"))
+        return CommandResult(None, results=rset)

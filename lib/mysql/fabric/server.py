@@ -93,7 +93,7 @@ class Group(_persistence.Persistable):
                     "(group_id VARCHAR(64) NOT NULL, "
                     "description VARCHAR(256), "
                     "master_uuid VARCHAR(40), "
-                    "master_defined TIMESTAMP(6) NULL, "
+                    "master_defined TIMESTAMP /*!50604 (6) */ NULL, "
                     "status BIT(1) NOT NULL, "
                     "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
 
@@ -446,7 +446,7 @@ class Group(_persistence.Persistable):
 
         :param persister: Persister to persist the object to.
         """
-        return persister.exec_stmt(Group.QUERY_GROUPS)
+        return [ gid[0] for gid in persister.exec_stmt(Group.QUERY_GROUPS) ]
 
     @staticmethod
     def remove(group, persister=None):
@@ -1376,9 +1376,6 @@ class MySQLServer(_persistence.Persistable):
         :return: A list of servers belonging to the groups that match
                 the provided pattern.
         """
-        #This is used to store the consolidated list of servers
-        #that will be returned.
-        result_server_list = []
 
         #This stores the pattern that will be passed to the LIKE MySQL
         #command.
@@ -1405,11 +1402,7 @@ class MySQLServer(_persistence.Persistable):
                                 row[2],
                                 _server_utils.MYSQL_DEFAULT_PORT
                              )
-                result_server_list.append(
-                    (row[0], row[1], host, port, row[3], row[4],
-                    row[5])
-                )
-        return _utils.wrap_output(result_server_list)
+                yield (row[0], row[1], host, port, row[3], row[4], row[5])
 
     @staticmethod
     def create(persister=None):

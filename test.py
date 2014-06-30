@@ -99,7 +99,7 @@ def get_config(options, env_options):
     # Configure parameters.
     params = {
         'protocol.xmlrpc': {
-            'address': 'localhost:%d' % (env_options["xmlrpc_next_port"], ),
+            'address': 'localhost:{0}'.format(env_options["xmlrpc_next_port"]),
             'threads': '5',
             'disable_authentication' : 'yes',
             },
@@ -109,7 +109,7 @@ def get_config(options, env_options):
         'storage': {
             'address': options.host + ":" + str(options.port),
             'user': options.user,
-            'password': options.password,
+            'password': options.password or '',
             'database': 'fabric',
             'connection_timeout': 'None',
             },

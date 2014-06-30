@@ -26,7 +26,7 @@ from mysql.fabric.server import (
 )
 from tests.utils import MySQLInstances
 
-class TestShardingServices(unittest.TestCase):
+class TestShardingServices(tests.utils.TestCase):
 
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
@@ -140,24 +140,14 @@ class TestShardingServices(unittest.TestCase):
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        self.check_xmlrpc_command_result(status, returns=1)
 
         status = self.proxy.sharding.add_table(1, "db1.t1", "userID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(1, "GROUPID2,GROUPID3,"
                 "GROUPID4,GROUPID5,GROUPID6", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
     def tearDown(self):
         """Clean up the existing environment
@@ -183,10 +173,7 @@ class TestShardingServices(unittest.TestCase):
     def test_add_shard_cannot_add_when_shards_exist_exception(self):
         status = self.proxy.sharding.add_shard(1, "NON_EXISTENT_GROUP",
             "ENABLED")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_add_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_add_shard_invalid_group_exception(self):
         #Remove all the existing shards in the system. Since add shard
@@ -208,10 +195,7 @@ class TestShardingServices(unittest.TestCase):
 
         #Use an invalid group ID (WRONG_GROUP)
         status = self.proxy.sharding.add_shard(4, "WRONG_GROUP", "ENABLED")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_add_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_add_shard_invalid_state_exception(self):
         #Remove all the existing shards in the system. Since add shard
@@ -233,150 +217,84 @@ class TestShardingServices(unittest.TestCase):
 
         #WRONG_STATE is an invalid description of the shard state.
         status = self.proxy.sharding.add_shard(4, "GROUP4", "WRONG_STATE")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_add_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_add_shard_invalid_shard_mapping(self):
         status = self.proxy.sharding.add_shard(25000, "GROUPID4", "ENABLED")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_add_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_remove_shard_mapping_shards_exist(self):
         #It is not an error to remove tables from a shard mapping.
         status = self.proxy.sharding.remove_table("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
     def test_remove_sharding_specification(self):
         status = self.proxy.sharding.disable_shard(1)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.remove_shard(1)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.disable_shard(2)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.remove_shard(2)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.disable_shard(3)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.remove_shard(3)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.disable_shard(4)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.remove_shard(4)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.disable_shard(5)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.remove_shard(5)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
+        self.check_xmlrpc_command_result(status)
+
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2], True)
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
     def test_remove_sharding_specification_exception(self):
         status = self.proxy.sharding.remove_shard(1)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_remove_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_lookup_shard_mapping(self):
         status = self.proxy.sharding.lookup_table("db1.t1")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], {"shard_mapping_id":1,
-                                     "table_name":"db1.t1",
-                                     "column_name":"userID1",
-                                     "type_name":"HASH",
-                                     "global_group":"GROUPID1"})
+        self.check_xmlrpc_simple(status, {
+            "shard_mapping_id": 1,
+            "table_name": "db1.t1",
+            "column_name": "userID1",
+            "type_name": "HASH",
+            "global_group": "GROUPID1"
+        })
 
     def test_list(self):
         status = self.proxy.sharding.list_tables("HASH")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [{"shard_mapping_id":1,
-                                     "table_name":"db1.t1",
-                                     "column_name":"userID1",
-                                     "type_name":"HASH",
-                                     "global_group":"GROUPID1"}])
+        self.check_xmlrpc_simple(status, {
+            "shard_mapping_id": 1,
+            "table_name": "db1.t1",
+            "column_name": "userID1",
+            "type_name": "HASH",
+            "global_group": "GROUPID1"
+        })
 
     def test_list_exception(self):
         status = self.proxy.sharding.list_tables("Wrong")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2], True)
-
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
     def test_lookup(self):
-        shard_1_hit_count = 0
-        shard_2_hit_count = 0
-        shard_3_hit_count = 0
-        shard_4_hit_count = 0
-        shard_5_hit_count = 0
+        shard_hit_count = {}
 
         for i in range(1,  200):
             status = self.proxy.sharding.lookup_servers("db1.t1", i, "LOCAL")
-            self.assertEqual(status[0], True)
-            self.assertEqual(status[1], "")
-            obtained_server_list = status[2]
+            for info in self.check_xmlrpc_iter(status):
+                uuid = info['server_uuid']
+                if uuid not in shard_hit_count:
+                    shard_hit_count[uuid] = 0
+                shard_hit_count[uuid] += 1
 
-            if obtained_server_list[0][1] == self.__server_2.address and \
-                str(obtained_server_list[0][0]) == str(self.__server_2.uuid):
-                shard_1_hit_count = shard_1_hit_count + 1
-            elif obtained_server_list[0][1] == self.__server_3.address and \
-                str(obtained_server_list[0][0]) == str(self.__server_3.uuid):
-                shard_2_hit_count = shard_2_hit_count + 1
-            elif obtained_server_list[0][1] == self.__server_4.address and \
-                str(obtained_server_list[0][0]) == str(self.__server_4.uuid):
-                shard_3_hit_count = shard_3_hit_count + 1
-            elif obtained_server_list[0][1] == self.__server_5.address and \
-                str(obtained_server_list[0][0]) == str(self.__server_5.uuid):
-                shard_4_hit_count = shard_4_hit_count + 1
-            elif obtained_server_list[0][1] == self.__server_6.address and \
-                str(obtained_server_list[0][0]) == str(self.__server_6.uuid):
-                shard_5_hit_count = shard_5_hit_count + 1
-
-        self.assertTrue(shard_1_hit_count > 0)
-        self.assertTrue(shard_2_hit_count > 0)
-        self.assertTrue(shard_3_hit_count > 0)
-        self.assertTrue(shard_4_hit_count > 0)
-        self.assertTrue(shard_5_hit_count > 0)
+        self.assertEqual(len(shard_hit_count), 5)
+        for key, count in shard_hit_count.items():
+            self.assertTrue(count > 0)
 
     def test_lookup_disabled_exception(self):
         #Since inhashing it is difficult to guess which shard the value will
@@ -387,38 +305,25 @@ class TestShardingServices(unittest.TestCase):
         self.proxy.sharding.disable_shard(4)
         self.proxy.sharding.disable_shard(5)
         status = self.proxy.sharding.lookup_servers("db1.t1", 500, "LOCAL")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2], True)
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
 
     def test_lookup_wrong_table_exception(self):
         status = self.proxy.sharding.lookup_servers("Wrong", 500, "LOCAL")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2], True)
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
     def test_list_shard_mappings(self):
-        expected_shard_mapping_list1 =   [1, "HASH", "GROUPID1"]
         status = self.proxy.sharding.list_definitions()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_shard_mapping_list = status[2]
-        self.assertEqual(
-            set(expected_shard_mapping_list1),
-            set(obtained_shard_mapping_list[0])
-        )
+        self.check_xmlrpc_simple(status, {
+            'mapping_id': 1, 
+            'type_name': "HASH",
+            'global_group_id': "GROUPID1",
+        }, rowcount=1)
 
     def test_enable_shard_exception(self):
         status = self.proxy.sharding.enable_shard(25000)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_enable_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_disable_shard_exception(self):
         status = self.proxy.sharding.disable_shard(25000)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_disable_shard).")
+        self.check_xmlrpc_command_result(status, has_error=True)

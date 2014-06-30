@@ -30,6 +30,8 @@ from tests.utils import (
     cleanup_environment,
 )
 
+import tests.utils
+
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),
     "address"  : MySQLInstances().get_address(0),
@@ -44,7 +46,7 @@ OPTIONS_SLAVE = {
     "passwd": MySQLInstances().passwd,
 }
 
-class TestMySQLMaster(unittest.TestCase):
+class TestMySQLMaster(tests.utils.TestCase):
     """Unit test for the configuration file handling.
     """
     def setUp(self):
@@ -96,7 +98,7 @@ class TestMySQLMaster(unittest.TestCase):
         ret = check_master_issues(master)
         self.assertEqual(ret, {})
 
-class TestMySQLSlave(unittest.TestCase):
+class TestMySQLSlave(tests.utils.TestCase):
     """Unit test for the configuration file handling.
     """
 
@@ -302,24 +304,25 @@ class TestMySQLSlave(unittest.TestCase):
 
         # Try to check the health when one cannot connect to the server.
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'is_running': False})
+        self.assertEqual(ret['is_running'], False)
 
         # Try to check the health when change master has not been executed.
         slave.connect()
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'is_configured': False})
+        self.assertEqual(ret['is_configured'], False)
 
         # Try to check the health after executing change master.
         switch_master(slave, master, MySQLInstances().user,
             MySQLInstances().passwd
         )
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'io_running': False, 'sql_running': False})
+        self.assertEqual(ret['io_running'], False)
+        self.assertEqual(ret['sql_running'], False)
 
         # Try to check the health after starting one thread.
         start_slave(slave, wait=True, threads=(SQL_THREAD, ))
         ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'io_running': False})
+        self.assertEqual(ret['io_running'], False)
 
         # Create data and synchronize to show there is no gtid behind.
         master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
