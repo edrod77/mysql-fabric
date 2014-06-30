@@ -33,48 +33,6 @@ from tests.utils import MySQLInstances
 
 import mysql.fabric.command as command
 
-def _make_result(names, types, rows):
-    rset = command.ResultSet(names=names, types=types)
-    for row in rows:
-        rset.append_row(row)
-    return rset
-
-def _make_servers_result(rows):
-    return _make_result(
-        names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
-        types=(str, str, str, int, int, int, float),
-        rows=rows,
-    )
-
-def _make_tables_result(rows):
-    return _make_result(
-        names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
-        types=(str, str, str, int),
-        rows=rows,
-    )
-
-def _make_mapping_result(rows):
-    return _make_result(
-        names=('mapping_id', 'type_name', 'global_group_id'),
-        types=(int, str, str),
-        rows=rows,
-    )
-
-def _make_index_result(rows):
-    return _make_result(
-        names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
-        types=(str, int, int, str),
-        rows=rows,
-    )
-
-def _make_info_result(rows):
-    return _make_result(
-        names=('schema_name', 'table_name', 'column_name', 'lower_bound',
-               'shard_id', 'group_id', 'global_group_id', 'type_name'),
-        types=(str, str, str, str, int, str, str, str),
-        rows=rows,
-    )
-
 class TestHashSplitGlobal(tests.utils.TestCase):
     """Contains unit tests for testing the shard split operation and for
     verifying that the global server configuration remains constant after
@@ -837,7 +795,7 @@ class TestHashSplitGlobal(tests.utils.TestCase):
     def test_hash_dump(self):
         """Test the dump of the HASH sharding information for the table.
         """
-        shardinginformation_1 = _make_info_result([
+        shardinginformation_1 = tests.utils.make_info_result([
             ['db1', 't1', 'userID',
              'E2996A7B8509367020B55A4ACD2AE46A',
              '1', 'HASH', 'GROUPID2', 'GROUPID1'],

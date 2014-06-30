@@ -221,9 +221,22 @@ class ServerLookups(Command):
         :return: Information on servers.
         :rtype: List with [uuid, address, status, mode, weight]
         """
-        return Command.generate_output_pattern(
-            _lookup_servers, group_id, server_id, status, mode
+
+        rset = ResultSet(
+            names=('server_uuid', 'address', 'status', 'mode', 'weight'),
+            types=(str, str, str, str, float),
         )
+
+        for item in _lookup_servers(group_id, server_id, status, mode):
+            rset.append_row([
+                item['server_uuid'],
+                item['address'],
+                item['status'],
+                item['mode'],
+                item['weight'],
+            ])
+
+        return CommandResult(None, results=rset)
 
 class ServerUuid(Command):
     """Return server's uuid.

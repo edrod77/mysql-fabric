@@ -562,7 +562,7 @@ def _list(sharding_type):
     shard_mappings = ShardMapping.list(sharding_type)
     for shard_mapping in shard_mappings:
         ret_shard_mappings.append({
-                    "shard_mapping_id":shard_mapping.shard_mapping_id,
+                    "mapping_id":shard_mapping.shard_mapping_id,
                     "table_name":shard_mapping.table_name,
                     "column_name":shard_mapping.column_name,
                     "type_name":shard_mapping.type_name,

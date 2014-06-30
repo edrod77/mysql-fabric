@@ -26,7 +26,7 @@ import mysql.fabric.replication as _repl
 
 from mysql.fabric.server import Group
 
-class TestReplicationServices(unittest.TestCase):
+class TestReplicationServices(tests.utils.TestCase):
     "Test replication service interface."
 
     def setUp(self):
@@ -58,20 +58,14 @@ class TestReplicationServices(unittest.TestCase):
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_define_ha_operation).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to use a slave that does not exist with the group.
         self.proxy.group.create("group_id", "")
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_fail).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to use a server that is already a master.
         self.proxy.group.add("group_id", master.address)
@@ -83,10 +77,7 @@ class TestReplicationServices(unittest.TestCase):
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_switch).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to use a slave whose replication is not properly configured.
         tests.utils.configure_decoupled_master(group, master)
@@ -95,108 +86,66 @@ class TestReplicationServices(unittest.TestCase):
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_switch).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to use a slave whose replication is not properly running.
         _repl.switch_master(slave_1, master, user, passwd)
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_candidate_switch).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Start the slave.
         _repl.start_slave(slave_1, wait=True)
 
         # Look up servers.
+        expected = tests.utils.make_servers_lookup_result([
+            [str(master.uuid), master.address,_server.MySQLServer.PRIMARY,
+             _server.MySQLServer.READ_WRITE, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_1.uuid), slave_1.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_2.uuid), slave_2.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+        ])
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" :_server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
+        self.check_xmlrpc_result(servers, expected)
 
         # Do the promote.
         status = self.proxy.group.promote(
             "group_id", str(slave_1.uuid)
             )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
 
         # Look up servers.
+        expected = tests.utils.make_servers_lookup_result([
+            [str(master.uuid), master.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_1.uuid), slave_1.address, _server.MySQLServer.PRIMARY,
+             _server.MySQLServer.READ_WRITE, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_2.uuid), slave_2.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+        ])
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" : _server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
+        self.check_xmlrpc_result(servers, expected)
 
         # Do the promote.
         # Note that it is using HOST:PORT instead of UUID.
         status = self.proxy.group.promote(
             "group_id", master.address
             )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
+        expected = tests.utils.make_servers_lookup_result([
+            [str(master.uuid), master.address, _server.MySQLServer.PRIMARY,
+             _server.MySQLServer.READ_WRITE, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_1.uuid), slave_1.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_2.uuid), slave_2.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+        ])
+        self.check_xmlrpc_result(servers, expected)
 
     def test_promote(self):
         # Create topology: M1 ---> S2, M1 ---> S3, M1 ---> S4
@@ -212,18 +161,12 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to use a group that does not exist.
         status = self.proxy.group.promote("group_id")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_define_ha_operation).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to use a group without candidates.
         self.proxy.group.create("group_id", "")
         status = self.proxy.group.promote("group_id")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_find_candidate_fail).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to use a group with an invalid candidate (simulating that a
         # server went down).
@@ -235,10 +178,7 @@ class TestReplicationServices(unittest.TestCase):
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
         status = self.proxy.group.promote("group_id")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_find_candidate_fail).")
+        self.check_xmlrpc_command_result(status, has_error=True)
         group.remove_server(invalid_server)
         _server.MySQLServer.remove(invalid_server)
 
@@ -260,59 +200,33 @@ class TestReplicationServices(unittest.TestCase):
         _repl.switch_master(slave_3, slave_2, user, passwd)
 
         # Look up servers.
+        expected = tests.utils.make_servers_lookup_result([
+            [str(master.uuid), master.address, _server.MySQLServer.PRIMARY,
+             _server.MySQLServer.READ_WRITE, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_1.uuid), slave_1.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_2.uuid), slave_2.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_3.uuid), slave_3.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(invalid_server.uuid), invalid_server.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+        ])
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_3.uuid), "address" : slave_3.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(invalid_server.uuid),
-             "address" : invalid_server.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(expected, retrieved)
+        self.check_xmlrpc_result(servers, expected)
 
         # Do the promote.
         status = self.proxy.group.promote("group_id")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Look up servers.
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        retrieved.sort()
-        self.assertNotEqual(expected, retrieved)
+        self.check_xmlrpc_result(servers, expected)
 
         # Do the promote without a current master.
         tests.utils.configure_decoupled_master(group, None)
         status = self.proxy.group.promote("group_id")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
 
     def test_promote_update_only(self):
         """Test promoting a master by calling group.promote.
@@ -333,39 +247,26 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to promote a master, i.e. --update-only = True.
         status = self.proxy.group.promote("group_id", None, True)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_define_ha_operation).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Execute promote a master, i.e. --update-only = True.
         status = self.proxy.group.promote("group_id", str(slave_2.uuid), True)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_ha_operation).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.health("group_id")
-        self.assertEqual(
-            status[2][str(master.uuid)]["status"],
-            _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][str(master.uuid)]["threads"], {"is_configured": False}
-        )
-        self.assertEqual(
-            status[2][str(slave_1.uuid)]["status"],
-            _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][str(slave_1.uuid)]["threads"],
-            "Group has master (%s) but server is connected to master (%s)." %
-            (slave_2.uuid, master.uuid, )
-        )
-        self.assertEqual(
-            status[2][str(slave_2.uuid)]["status"],
-            _server.MySQLServer.PRIMARY
-        )
-        self.assertEqual(status[2][str(slave_2.uuid)]["threads"], { })
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+            "is_configured": False,
+            
+        }, index=0, rowcount=3)
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+            
+        }, index=1, rowcount=3)
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.PRIMARY,
+            "is_configured": False,
+            
+        }, index=2, rowcount=3)
 
     def test_demote(self):
         """Test demoting a master by calling group.demote.
@@ -381,18 +282,12 @@ class TestReplicationServices(unittest.TestCase):
 
         # Try to use a group that does not exist.
         status = self.proxy.group.demote("group_id")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_block_write_demote).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to demote when there is no master.
         self.proxy.group.create("group_id", "")
         status = self.proxy.group.demote("group_id")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_block_write_demote).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Configure masters and slaves.
         self.proxy.group.add("group_id", slave_1.address)
@@ -402,57 +297,37 @@ class TestReplicationServices(unittest.TestCase):
         tests.utils.configure_decoupled_master(group, master)
 
         # Look up servers.
+        expected = tests.utils.make_servers_lookup_result([
+            [str(master.uuid), master.address, _server.MySQLServer.PRIMARY,
+             _server.MySQLServer.READ_WRITE,_server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_1.uuid), slave_1.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_2.uuid), slave_2.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+        ])
+
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.PRIMARY,
-             "mode" : _server.MySQLServer.READ_WRITE,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
+        self.check_xmlrpc_result(servers, expected)
+        
         self.assertTrue(_repl.is_slave_thread_running(slave_1))
         self.assertTrue(_repl.is_slave_thread_running(slave_2))
 
         # Demote master.
         status = self.proxy.group.demote("group_id")
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_wait_slaves_demote).")
+        self.check_xmlrpc_command_result(status)
 
         # Look up servers.
+        expected = tests.utils.make_servers_lookup_result([
+            [str(master.uuid), master.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_1.uuid), slave_1.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+            [str(slave_2.uuid), slave_2.address, _server.MySQLServer.SECONDARY,
+             _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
+        ])
         servers = self.proxy.group.lookup_servers("group_id")
-        self.assertEqual(servers[0], True)
-        self.assertEqual(servers[1], "")
-        retrieved = servers[2]
-        expected = \
-            [{"server_uuid" : str(master.uuid), "address" : master.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_1.uuid), "address" : slave_1.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT},
-             {"server_uuid" : str(slave_2.uuid), "address" : slave_2.address,
-             "status" : _server.MySQLServer.SECONDARY,
-             "mode" : _server.MySQLServer.READ_ONLY,
-             "weight" : _server.MySQLServer.DEFAULT_WEIGHT}]
-        retrieved.sort()
-        expected.sort()
-        self.assertEqual(retrieved, expected)
+        self.check_xmlrpc_result(servers, expected)
+
         self.assertFalse(_repl.is_slave_thread_running(slave_1))
         self.assertFalse(_repl.is_slave_thread_running(slave_2))
 
@@ -475,36 +350,18 @@ class TestReplicationServices(unittest.TestCase):
 
         # Demote a master, i.e. --update-only = True.
         status = self.proxy.group.demote("group_id", True)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_block_write_demote).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.health("group_id")
-        self.assertEqual(
-            status[2][str(master.uuid)]["status"],
-            _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][str(master.uuid)]["threads"], {"is_configured": False}
-        )
-        self.assertEqual(
-            status[2][str(slave_1.uuid)]["status"],
-            _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][str(slave_1.uuid)]["threads"],
-            "Group has master (None) but server is connected to master (%s)." %
-            (master.uuid, )
-        )
-        self.assertEqual(
-            status[2][str(slave_2.uuid)]["status"],
-            _server.MySQLServer.SECONDARY
-        )
-        self.assertEqual(
-            status[2][str(slave_2.uuid)]["threads"],
-            "Group has master (None) but server is connected to master (%s)." %
-            (master.uuid, )
-        )
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+            'is_configured': False,
+        }, index=0, rowcount=3)
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+        }, index=1, rowcount=3)
+        self.check_xmlrpc_simple(status, {
+            "status": _server.MySQLServer.SECONDARY,
+        }, index=2, rowcount=3)
 
 if __name__ == "__main__":
     unittest.main()

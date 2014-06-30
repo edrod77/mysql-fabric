@@ -767,7 +767,7 @@ class TestShardingPrune(tests.utils.TestCase):
             "GROUPID4", "GROUPID5", "GROUPID6"):
             packet = self.proxy.group.lookup_servers(group_id)
             for info in self.check_xmlrpc_iter(packet):
-                self.proxy.group.remove(group_id, row['server_uuid'])
+                self.proxy.group.remove(group_id, info['server_uuid'])
             self.proxy.group.destroy(group_id)
 
         tests.utils.cleanup_environment()

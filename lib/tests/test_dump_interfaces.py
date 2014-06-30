@@ -36,47 +36,6 @@ import mysql.fabric.command as command
 from mysql.fabric import server_utils
 from tests.utils import MySQLInstances
 
-def _make_result(names, types, rows):
-    rset = command.ResultSet(names=names, types=types)
-    for row in rows:
-        rset.append_row(row)
-    return rset
-
-def _make_servers_result(rows):
-    return _make_result(
-        names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
-        types=(str, str, str, int, int, int, float),
-        rows=rows,
-    )
-
-def _make_tables_result(rows):
-    return _make_result(
-        names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
-        types=(str, str, str, int),
-        rows=rows,
-    )
-
-def _make_mapping_result(rows):
-    return _make_result(
-        names=('mapping_id', 'type_name', 'global_group_id'),
-        types=(int, str, str),
-        rows=rows,
-    )
-
-def _make_index_result(rows):
-    return _make_result(
-        names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
-        types=(str, int, int, str),
-        rows=rows,
-    )
-
-def _make_info_result(rows):
-    return _make_result(
-        names=('schema_name', 'table_name', 'column_name', 'lower_bound',
-               'shard_id', 'group_id', 'global_group_id', 'type_name'),
-        types=(str, str, str, str, int, str, str, str),
-        rows=rows,
-    )
 
 class TestSharding(tests.utils.TestCase):
     """Test dump interface associated to sharding.
@@ -282,7 +241,7 @@ class TestSharding(tests.utils.TestCase):
         SECONDARY = MySQLServer.get_status_idx(MySQLServer.SECONDARY)
         PRIMARY = MySQLServer.get_status_idx(MySQLServer.PRIMARY)
 
-        self.__setofservers = _make_servers_result(
+        self.__setofservers = tests.utils.make_servers_result(
             [[str(self.__server_1.uuid),
             'GROUPID1', self.__options_1_host,  self.__options_1_port,
             READ_ONLY, SECONDARY, 1.0],
@@ -303,7 +262,7 @@ class TestSharding(tests.utils.TestCase):
             READ_ONLY, SECONDARY, 1.0]]
         )
 
-        self.__setofservers_1 = _make_servers_result(
+        self.__setofservers_1 = tests.utils.make_servers_result(
             [[str(self.__server_1.uuid),
               'GROUPID1', self.__options_1_host,  self.__options_1_port,
               READ_ONLY, SECONDARY, 1.0],
@@ -312,7 +271,7 @@ class TestSharding(tests.utils.TestCase):
               READ_ONLY, SECONDARY, 1.0]]
         )
 
-        self.__setofservers_2 = _make_servers_result(
+        self.__setofservers_2 = tests.utils.make_servers_result(
             [[str(self.__server_1.uuid),
               'GROUPID1', self.__options_1_host,  self.__options_1_port,
               READ_ONLY, SECONDARY, 1.0],
@@ -327,7 +286,7 @@ class TestSharding(tests.utils.TestCase):
               READ_ONLY, SECONDARY, 1.0]]
         )
 
-        self.__setofservers_3 = _make_servers_result(
+        self.__setofservers_3 = tests.utils.make_servers_result(
             [[str(self.__server_1.uuid),
               'GROUPID1', self.__options_1_host,  self.__options_1_port,
               READ_ONLY, SECONDARY, 1.0],
@@ -348,45 +307,45 @@ class TestSharding(tests.utils.TestCase):
               READ_ONLY, SECONDARY, 1.0]]
         )
         
-        self.__setoftables = _make_tables_result(
+        self.__setoftables = tests.utils.make_tables_result(
             [['db1', 't1', 'userID1', '1'],
              ['db2', 't2', 'userID2', '2'],
              ['db3', 't3', 'userID3', '3'],
              ['db4', 't4', 'userID4', '4'],
              ['prune_db', 'prune_table', 'userID', '5']]
         )
-        self.__setoftables_1 = _make_tables_result(
+        self.__setoftables_1 = tests.utils.make_tables_result(
             [['db1', 't1', 'userID1', '1']]
         )
-        self.__setoftables_2 = _make_tables_result(
+        self.__setoftables_2 = tests.utils.make_tables_result(
             [['db1', 't1', 'userID1', '1'],
              ['db2', 't2', 'userID2', '2']]
         )
-        self.__setoftables_3 = _make_tables_result(
+        self.__setoftables_3 = tests.utils.make_tables_result(
             [['db1', 't1', 'userID1', '1'],
              ['db2', 't2', 'userID2', '2'],
              ['db3', 't3', 'userID3', '3']]
         )
-        self.__setofshardmaps = _make_mapping_result(
+        self.__setofshardmaps = tests.utils.make_mapping_result(
             [['1', 'RANGE', 'GROUPID10'],
              ['2', 'RANGE', 'GROUPID11'],
              ['3', 'RANGE', 'GROUPID12'],
              ['4', 'RANGE', 'GROUPID13'],
              ['5', 'RANGE', 'GROUPID14']]
         )
-        self.__setofshardmaps_1 = _make_mapping_result(
+        self.__setofshardmaps_1 = tests.utils.make_mapping_result(
             [['1', 'RANGE', 'GROUPID10']]
         )
-        self.__setofshardmaps_2 = _make_mapping_result(
+        self.__setofshardmaps_2 = tests.utils.make_mapping_result(
             [['1', 'RANGE', 'GROUPID10'],
              ['2', 'RANGE', 'GROUPID11']]
         )
-        self.__setofshardmaps_3 = _make_mapping_result(
+        self.__setofshardmaps_3 = tests.utils.make_mapping_result(
             [['1', 'RANGE', 'GROUPID10'],
              ['2', 'RANGE', 'GROUPID11'],
              ['3', 'RANGE', 'GROUPID12']]
         )
-        self.__setofshardindexes = _make_index_result(
+        self.__setofshardindexes = tests.utils.make_index_result(
             [['0', '1', '1', 'GROUPID1'],
              ['1001', '1', '2', 'GROUPID10'],
              ['3001', '2', '4', 'GROUPID4'],
@@ -398,11 +357,11 @@ class TestSharding(tests.utils.TestCase):
              ['100', '5', '10', 'GROUPID2'],
              ['201', '5', '11', 'GROUPID3']]
         )
-        self.__setofshardindexes_1 = _make_index_result(
+        self.__setofshardindexes_1 = tests.utils.make_index_result(
             [['0', '1', '1', 'GROUPID1'],
              ['1001', '1', '2', 'GROUPID10']]
         )
-        self.__setofshardindexes_3 = _make_index_result(
+        self.__setofshardindexes_3 = tests.utils.make_index_result(
             [['0', '1', '1', 'GROUPID1'],
              ['1001', '1', '2', 'GROUPID10'],
              ['3001', '2', '4', 'GROUPID4'],
@@ -410,7 +369,7 @@ class TestSharding(tests.utils.TestCase):
              ['6001', '3', '6', 'GROUPID6'],
              ['7001', '3', '7', 'GROUPID7']]
         )
-        self.__setofshardindexes_5 = _make_index_result(
+        self.__setofshardindexes_5 = tests.utils.make_index_result(
             [['0', '1', '1', 'GROUPID1'],
              ['1001', '1', '2', 'GROUPID10'],
              ['3001', '2', '4', 'GROUPID4'],
@@ -422,13 +381,13 @@ class TestSharding(tests.utils.TestCase):
              ['100', '5', '10', 'GROUPID2'],
              ['201', '5', '11', 'GROUPID3']]
         )
-        self.__shardinginformation_1 = _make_info_result(
+        self.__shardinginformation_1 = tests.utils.make_info_result(
             [['db1', 't1', 'userID1', '0',
               '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
              ['db1', 't1', 'userID1', '1001',
               '2', 'RANGE', 'GROUPID10', 'GROUPID10']]
         )
-        self.__shardinginformation_2 = _make_info_result(
+        self.__shardinginformation_2 = tests.utils.make_info_result(
             [['db1', 't1', 'userID1', '0',
               '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
              ['db1', 't1', 'userID1', '1001',
@@ -438,7 +397,7 @@ class TestSharding(tests.utils.TestCase):
              ['db2', 't2', 'userID2', '4001',
               '5', 'RANGE', 'GROUPID5', 'GROUPID11']]
         )
-        self.__shardinginformation_3 = _make_info_result(
+        self.__shardinginformation_3 = tests.utils.make_info_result(
             [['db1', 't1', 'userID1', '0',
               '1', 'RANGE', 'GROUPID1', 'GROUPID10'],
              ['db1', 't1', 'userID1', '1001',
