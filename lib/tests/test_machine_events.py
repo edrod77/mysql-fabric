@@ -43,13 +43,9 @@ DEFAULT_FLAVOR = "flavor"
 IMAGE = ["name=image"]
 FLAVOR = ["name=flavor"]
 
-class TestMachineServices(unittest.TestCase):
+class TestMachineServices(tests.utils.TestCase):
     """Unit tests for managing machines.
     """
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Configure the existing environment
         """
@@ -71,89 +67,61 @@ class TestMachineServices(unittest.TestCase):
         status = self.proxy.machine.create(
             "Doesn't exist", IMAGE, FLAVOR
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Create a machine.
         status = self.proxy.machine.create(
             PROVIDER_ID, IMAGE, FLAVOR
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_machine).")
-        machine_uuid  = status[2][0]['uuid']
-        av_zone  = status[2][0]['av_zone']
+        self.check_xmlrpc_command_result(status)
+        status = self.proxy.machine.list(PROVIDER_ID)
+        info = self.check_xmlrpc_simple(status, {})
+        machine_uuid = info['uuid']
+        av_zone = info['av_zone']
         machine = Machine.fetch(machine_uuid)
         self.assertEqual(str(machine.uuid), machine_uuid)
         self.assertEqual(machine.av_zone, av_zone)
 
         # Try to remove a machine  with a wrong provider
         status = self.proxy.machine.destroy("Don't exist", str(machine.uuid))
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Remove a machine.
         status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_machine).")
+        self.check_xmlrpc_command_result(status)
 
         # Try to remove a machine that does not exist.
         status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_parameters(self):
         """Check if parameters are pre-processed.
         """
         # Try to create a machine  without an image.
         status = self.proxy.machine.create(PROVIDER_ID)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine without a flavor.
         status = self.proxy.machine.create(PROVIDER_ID, IMAGE)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong image format.
         status = self.proxy.machine.create(
             PROVIDER_ID, ["name=image", "size"], "flavor"
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong flavor format.
         status = self.proxy.machine.create(
             PROVIDER_ID, ["name=image", "size=20"], "flavor"
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong machine_numbers.
         status = self.proxy.machine.create(
             PROVIDER_ID, ["name=image", "size=20"], ["flavor=flavor"], -1
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong userdata.
         status = self.proxy.machine.create(
@@ -161,10 +129,7 @@ class TestMachineServices(unittest.TestCase):
             "availability_zone", "key_name", "security_group",
             "private_network", "public_network", "userdata"
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong scheduler_hints.
         status = self.proxy.machine.create(
@@ -173,10 +138,7 @@ class TestMachineServices(unittest.TestCase):
             "private_network", "public_network", "setup.py", "swap",
             "scheduler_hints"
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong meta.
         status = self.proxy.machine.create(
@@ -185,10 +147,7 @@ class TestMachineServices(unittest.TestCase):
             "private_network", "public_network", "setup.py", "swap",
             ["name=scheduler_hints"], ["meta"]
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with reserved meta.
         status = self.proxy.machine.create(
@@ -197,10 +156,7 @@ class TestMachineServices(unittest.TestCase):
             "private_network", "public_network", "setup.py", "swap",
             ["name=scheduler_hints"], ["mysql-fabric=True"]
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Create a machine.
         status = self.proxy.machine.create(
@@ -209,54 +165,39 @@ class TestMachineServices(unittest.TestCase):
             "private_network", "public_network", "setup.py", "swap",
             ["name=scheduler_hints"], ["name=meta"]
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_machine).")
+        self.check_xmlrpc_command_result(status)
 
     def test_skip_store(self):
         """Test the skip_store parameter.
         """
+        machine_uuid = "955429e1-2125-478a-869c-3b3ce5549c38"
+
         # Create a machine with the --skip_store=True.
         status = self.proxy.machine.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
             None, None, None, None, None, None, None, None, None, True
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_machine).")
-        machine_uuid = status[2][0]['uuid']
-
+        self.check_xmlrpc_command_result(status)
+        
         # Check if there is any reference to the machine in the state store.
         status = self.proxy.machine.list(PROVIDER_ID)
-        self.assertEqual(status[2], [])
+        self.check_xmlrpc_simple(status, {})
 
         # Try to destroy the machine. The operation fails because there is
-        # no reference to the machine in the state store.
+        # no reference to the machine in the state store. Note that we can
+        # provide any UUID as the NULLPROVIDER is being used.
         status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_machine).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Destroy a machine with the --skip_store=True.
         status = self.proxy.machine.destroy(
             PROVIDER_ID, machine_uuid, False, True
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_machine).")
+        self.check_xmlrpc_command_result(status)
 
-
-class TestSnapshotServices(unittest.TestCase):
+class TestSnapshotServices(tests.utils.TestCase):
     """Unit tests for managing snapshot machines.
     """
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Configure the existing environment.
         """
@@ -268,7 +209,10 @@ class TestSnapshotServices(unittest.TestCase):
         status = self.proxy.machine.create(
             PROVIDER_ID, IMAGE, FLAVOR
         )
-        self.machine_uuid = status[2][0]['uuid']
+        self.check_xmlrpc_command_result(status)
+        status = self.proxy.machine.list(PROVIDER_ID)
+        info = self.check_xmlrpc_simple(status, {})
+        self.machine_uuid = info['uuid']
 
     def tearDown(self):
         """Clean up the existing environment.
@@ -283,55 +227,31 @@ class TestSnapshotServices(unittest.TestCase):
         status = self.proxy.snapshot.create(
             PROVIDER_ID, "Doesn't exist"
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_snapshot).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a snapshot with a wrong provider.
         status = self.proxy.snapshot.create(
             "Doesn't exist", self.machine_uuid
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_snapshot).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Create a snapshot.
         status = self.proxy.snapshot.create(
             PROVIDER_ID, self.machine_uuid
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_snapshot).")
+        self.check_xmlrpc_command_result(status)
 
         # Try to destroy snapshots with a wrong provider.
         status = self.proxy.snapshot.destroy(
             "Doesn't exist", self.machine_uuid
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_snapshot).")
-
-        # Try to destroy snapshots with a wrong provider.
-        status = self.proxy.snapshot.create(
-            "Doesn't exist", self.machine_uuid
-        )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_snapshot).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Destroy snapshots.
         status = self.proxy.snapshot.destroy(
             PROVIDER_ID, self.machine_uuid
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_snapshot).")
+        self.check_xmlrpc_command_result(status)
 
     def test_skip_store(self):
         """Test the skip_store parameter.
@@ -341,36 +261,24 @@ class TestSnapshotServices(unittest.TestCase):
         # Try to create machine's snapshot. The operation fails because
         # there is no reference to the machine in the state store.
         status = self.proxy.snapshot.create(PROVIDER_ID, machine_uuid)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_create_snapshot).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Create machine's snapshot with the --skip_store=True.
         status = self.proxy.snapshot.create(
             PROVIDER_ID, machine_uuid, True, False
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_snapshot).")
+        self.check_xmlrpc_command_result(status)
 
         # Try to destroy machine's snapshot(s). The operation fails because
         # there is no reference to the machine in the state store.
         status = self.proxy.snapshot.destroy(PROVIDER_ID, machine_uuid)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_destroy_snapshot).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Destroy machine's snapshots with the --skip_store=True.
         status = self.proxy.snapshot.destroy(
             PROVIDER_ID, machine_uuid, True
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_snapshot).")
+        self.check_xmlrpc_command_result(status)
 
 if __name__ == "__main__":
     unittest.main()

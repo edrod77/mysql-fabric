@@ -21,7 +21,9 @@ import uuid as _uuid
 
 from mysql.fabric.command import (
     ProcedureCommand,
-    Command
+    Command,
+    ResultSet,
+    CommandResult,
 )
 
 from mysql.fabric import (
@@ -186,10 +188,32 @@ class MachineLookup(Command):
         :param skip_store: Proceed anyway if there is no information on
                            the machine in the state store. Default is False.
         """
-        return Command.generate_output_pattern(
-            _lookup_machines, provider_id, generic_filters, meta_filters,
-            skip_store
+        rset = ResultSet(
+            names=('uuid', 'provider_id', 'av_zone', 'addresses'),
+            types=(str, str, str, str)
         )
+
+        if not skip_store:
+            if generic_filters or meta_filters:
+                raise _errors.ConfigurationError(
+                    "Filters are only supported when the 'skip_store' option "
+                    "is set."
+                )
+            provider = _retrieve_provider(provider_id)
+            for mc in Machine.machines(provider.provider_id):
+                rset.append_row(
+                    (str(mc.uuid), mc.provider_id, mc.av_zone, mc.addresses)
+                )
+        else:
+            generic_filters, meta_filters = \
+                _preprocess_filters(generic_filters, meta_filters)
+            manager = _retrieve_manager(provider_id)
+            for mc in manager.search_machines(generic_filters, meta_filters):
+                rset.append_row(
+                    (str(mc.uuid), mc.provider_id, mc.av_zone, mc.addresses)
+                )
+
+        return CommandResult(None, results=rset)
 
     def generate_options(self):
         """Make some options accept multiple values.
@@ -317,28 +341,6 @@ def _destroy_snapshot(provider_id, machine_uuid, skip_store):
     _retrieve_machine(provider_id, machine_uuid, skip_store)
     manager = _retrieve_manager(provider_id)
     return manager.destroy_snapshot(machine_uuid)
-
-def _lookup_machines(provider_id, generic_filters, meta_filters,
-                      skip_store):
-    """Return a list of existing machine(s).
-    """
-    ret = []
-    if not skip_store:
-        if generic_filters or meta_filters:
-            raise _errors.ConfigurationError(
-               "Filters are only supported when the 'skip_store' option "
-               "is set."
-            )
-        provider = _retrieve_provider(provider_id)
-        for machine in Machine.machines(provider.provider_id):
-            ret.append(machine.as_dict())
-    else:
-        generic_filters, meta_filters = \
-            _preprocess_filters(generic_filters, meta_filters)
-        manager = _retrieve_manager(provider_id)
-        for machine in manager.search_machines(generic_filters, meta_filters):
-            ret.append(machine.as_dict())
-    return ret
 
 def _retrieve_machine(provider_id, machine_uuid, skip_store):
     """Return a machine object from an id.

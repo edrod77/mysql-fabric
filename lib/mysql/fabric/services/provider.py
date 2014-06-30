@@ -22,7 +22,9 @@ import uuid as _uuid
 
 from mysql.fabric.command import (
     ProcedureCommand,
-    Command
+    Command,
+    ResultSet,
+    CommandResult,
 )
 
 from mysql.fabric import (
@@ -107,8 +109,26 @@ class ProviderList(Command):
                             or provider's id if one wants information on a
                             provider.
         """
-        return Command.generate_output_pattern(
-            _lookup_providers, provider_id)
+        rset = ResultSet(
+            names=('provider_id', 'type', 'username', 'url', 'tenant',
+                   'default_image', 'default_flavor'),
+            types=(str, str, str, str, str, str, str)
+        )
+
+        if provider_id is None:
+            for prv in Provider.providers():
+                rset.append_row(
+                    (prv.provider_id, prv.provider_type, prv.username, prv.url,
+                     prv.tenant, prv.default_image, prv.default_flavor)
+                )
+        else:
+            prv = _retrieve_provider(provider_id)
+            rset.append_row(
+                (prv.provider_id, prv.provider_type, prv.username, prv.url,
+                 prv.tenant, prv.default_image, prv.default_flavor)
+            )
+
+        return CommandResult(None, results=rset)
 
 @_events.on_event(REGISTER_PROVIDER)
 def _register_provider(provider_id, provider_type, username, password, url,
@@ -133,18 +153,6 @@ def _unregister_provider(provider_id):
     Provider.remove(provider)
 
     _LOGGER.debug("Unregistered provider (%s).", provider_id)
-
-def _lookup_providers(provider_id):
-    """Return a list of existing provider(s).
-    """
-    info = []
-    if provider_id is None:
-        for provider in Provider.providers():
-            info.append(provider.as_dict())
-    else:
-        provider = _retrieve_provider(provider_id)
-        info.append(provider.as_dict())
-    return info
 
 def _retrieve_provider(provider_id):
     """Return a provider object from an id.

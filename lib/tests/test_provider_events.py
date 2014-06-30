@@ -43,13 +43,9 @@ DEFAULT_FLAVOR = "flavor"
 IMAGE = ["name=image"]
 FLAVOR = ["name=flavor"]
 
-class TestProviderServices(unittest.TestCase):
+class TestProviderServices(tests.utils.TestCase):
     """Unit tests for managing providers.
     """
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Configure the existing environment
         """
@@ -66,94 +62,72 @@ class TestProviderServices(unittest.TestCase):
         """
         # Look up providers.
         status = self.proxy.provider.list()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [])
+        self.check_xmlrpc_simple(status, {})
 
         # Register a new provider.
         status = self.proxy.provider.register(
             PROVIDER_ID, USERNAME, PASSWORD, URL, TENANT, PROVIDER_TYPE,
             DEFAULT_IMAGE, DEFAULT_FLAVOR
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_register_provider).")
+        self.check_xmlrpc_command_result(status, returns=True)
 
         # Try to register a provider twice.
         status = self.proxy.provider.register(
             PROVIDER_ID, USERNAME, PASSWORD, URL, TENANT, PROVIDER_TYPE,
             DEFAULT_IMAGE, DEFAULT_FLAVOR
         )
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_register_provider).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Look up providers.
         status = self.proxy.provider.list()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [{
-            "id" : PROVIDER_ID,
+        self.check_xmlrpc_simple(status, {
+            "provider_id" : PROVIDER_ID,
             "type" : PROVIDER_TYPE,
             "username" : USERNAME,
             "url" : URL,
             "tenant" : TENANT,
             "default_image" : DEFAULT_IMAGE,
-            "default_flavor" : DEFAULT_FLAVOR}]
+            "default_flavor" : DEFAULT_FLAVOR}
         )
 
         # Look up a provider.
         status = self.proxy.provider.list(PROVIDER_ID)
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [{
-            "id" : PROVIDER_ID,
+        self.check_xmlrpc_simple(status, {
+            "provider_id" : PROVIDER_ID,
             "type" : PROVIDER_TYPE,
             "username" : USERNAME,
             "url" : URL,
             "tenant" : TENANT,
             "default_image" : DEFAULT_IMAGE,
-            "default_flavor" : DEFAULT_FLAVOR}]
+            "default_flavor" : DEFAULT_FLAVOR}
         )
 
         # Try to look up a provider that does not exist.
         status = self.proxy.provider.list("Doesn't exist")
-        self.assertEqual(status[0], False)
-        self.assertNotEqual(status[1], "")
-        self.assertEqual(status[2], True)
+        self.check_xmlrpc_simple(status, {}, has_error=True)
 
         # Try to unregister a provider that does not exist.
         status = self.proxy.provider.unregister("Doesn't exist")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_unregister_provider).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to unregister a provider where there are associated machines.
         status = self.proxy.machine.create(PROVIDER_ID, IMAGE, FLAVOR)
-        machine_uuid = status[2][0]['uuid']
-        av_zone = status[2][0]['av_zone']
+        self.check_xmlrpc_command_result(status)
+        status = self.proxy.machine.list(PROVIDER_ID)
+        info = self.check_xmlrpc_simple(status, {})
+        machine_uuid = info['uuid']
         status = self.proxy.provider.unregister(PROVIDER_ID)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_unregister_provider).")
-        self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
+        self.check_xmlrpc_command_result(status, has_error=True)
+        status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
+        self.check_xmlrpc_command_result(status)
 
         # Unregister a provider.
         status = self.proxy.provider.unregister(PROVIDER_ID)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_unregister_provider).")
+        self.check_xmlrpc_command_result(status)
 
         # Look up providers.
         status = self.proxy.provider.list()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [])
+        self.check_xmlrpc_simple(status, {})
 
 if __name__ == "__main__":
     unittest.main()

@@ -315,8 +315,8 @@ class TestCase(unittest.TestCase):
     Fabric test cases.
 
     """
-
-    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0, rowcount=None):
+    def check_xmlrpc_simple(self, packet, checks, has_error=False,
+                            index=0, rowcount=None):
         """Perform assertion checks on a row of a result set.
 
         This will perform basic assertion checks on a command result
@@ -334,7 +334,7 @@ class TestCase(unittest.TestCase):
         False otherwise. Default to False.
 
         :param index: Index of row to check. Default to the first row
-        of the result set.
+        of the result set, if there is any.
 
         :param rowcount: Number of rows expected in the result set, or
         None if no check should be done.
@@ -357,23 +357,27 @@ class TestCase(unittest.TestCase):
             if rowcount is not None:
                 self.assertEqual(result.results[0].rowcount, rowcount)
 
-            # Check that there is enough rows in the first result set
-            self.assertTrue(result.results[0].rowcount > index, str(result))
-
-            # Create a dictionary from this row.
-            info = dict(
-                zip([ col.name for col in result.results[0].columns],
-                    result.results[0][index])
-            )
-
-            for key, value in checks.items():
-                self.assertTrue(key in info, str(result))
-                self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
-                    info[key], value, str(result))
+            if result.results[0].rowcount:
+                # Check that there is enough rows in the first result set
+                self.assertTrue(
+                    result.results[0].rowcount > index, str(result)
                 )
 
-            # For convenience, allowing the simple result to be used by callers.
-            return info
+                # Create a dictionary from this row.
+                info = dict(
+                    zip([col.name for col in result.results[0].columns],
+                    result.results[0][index])
+                )
+
+                for key, value in checks.items():
+                    self.assertTrue(key in info, str(result))
+                    self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
+                        info[key], value, str(result))
+                    )
+
+                # For convenience, allowing the simple result to be used
+                # by callers.
+                return info
         return {}
 
     def check_xmlrpc_command_result(self, packet, is_syncronous=True,
