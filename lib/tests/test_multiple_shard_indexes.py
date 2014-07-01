@@ -26,7 +26,7 @@ from mysql.fabric.server import (
     MySQLServer,
 )
 
-class TestShardingServices(unittest.TestCase):
+class TestShardingServices(tests.utils.TestCase):
 
     def assertStatus(self, status, expect):
         items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
@@ -159,120 +159,65 @@ class TestShardingServices(unittest.TestCase):
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        self.check_xmlrpc_command_result(status, returns=1)
 
         status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 2)
+        self.check_xmlrpc_command_result(status, returns=2)
 
         status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 3)
+        self.check_xmlrpc_command_result(status, returns=3)
 
         status = self.proxy.sharding.add_table(1, "db1.t1", "userID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_table(2, "db2.t2", "userID2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_table(3, "db3.t3", "userID3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(1, "GROUPID2,GROUPID3",
             "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(2, "GROUPID4/0,GROUPID5/101",
             "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(3, "GROUPID6", "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
     def test_list_shard_defns(self):
-        expected_shard_mapping_list1 =   [
-                                          [1, "HASH", "GROUPID1"],
-                                          [2, "RANGE", "GROUPID1"],
-                                          [3, "HASH", "GROUPID1"]
-                                        ]
+        expected_shard_mapping_list1 = tests.utils.make_mapping_result([
+            [1, "HASH", "GROUPID1"],
+            [2, "RANGE", "GROUPID1"],
+            [3, "HASH", "GROUPID1"]
+        ])
+
         status = self.proxy.sharding.list_definitions()
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_shard_mapping_list = status[2]
-        self.assertEqual(set(expected_shard_mapping_list1[0]),
-                         set(obtained_shard_mapping_list[0]))
-        self.assertEqual(set(expected_shard_mapping_list1[1]),
-                         set(obtained_shard_mapping_list[1]))
-        self.assertEqual(set(expected_shard_mapping_list1[2]),
-                         set(obtained_shard_mapping_list[2]))
+        self.check_xmlrpc_result(status, expected_shard_mapping_list1)
 
     def test_list_shard_mappings(self):
+        expected_hash = tests.utils.make_shard_mapping_list_result([
+            [1, 'HASH', "db1.t1", "GROUPID1", "userID1"],
+            [3, 'HASH', "db3.t3", "GROUPID1", "userID3" ],
+        ])
         status = self.proxy.sharding.list_tables("HASH")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [
-                                     {"shard_mapping_id":1,
-                                     "table_name":"db1.t1",
-                                     "column_name":"userID1",
-                                     "type_name":"HASH",
-                                     "global_group":"GROUPID1"},
-                                     {"shard_mapping_id":3,
-                                     "table_name":"db3.t3",
-                                     "column_name":"userID3",
-                                     "type_name":"HASH",
-                                     "global_group":"GROUPID1"}
-                                ])
+        self.check_xmlrpc_result(status, expected_hash)
+
+        expected_range = tests.utils.make_shard_mapping_list_result([
+            [2, "RANGE", "db2.t2", "GROUPID1", "userID2"],
+        ])
         status = self.proxy.sharding.list_tables("RANGE")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        self.assertEqual(status[2], [
-                                     {"shard_mapping_id":2,
-                                     "table_name":"db2.t2",
-                                     "column_name":"userID2",
-                                     "type_name":"RANGE",
-                                     "global_group":"GROUPID1"}
-                                ])
+        self.check_xmlrpc_result(status, expected_range)
 
     def test_shard_prune(self):
         status = self.proxy.sharding.prune_shard("db2.t2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db2.t2", 1,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        shard_uuid = obtained_server_list[0][0]
+        info = self.check_xmlrpc_simple(status, {})
+        shard_uuid = info['server_uuid']
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
         rows = shard_server.exec_stmt(
@@ -289,10 +234,8 @@ class TestShardingServices(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 1)
 
         status = self.proxy.sharding.lookup_servers("db2.t2", 101,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        shard_uuid = obtained_server_list[0][0]
+        info = self.check_xmlrpc_simple(status, {})
+        shard_uuid = info['server_uuid']
         shard_server = MySQLServer.fetch(shard_uuid)
         shard_server.connect()
         rows = shard_server.exec_stmt(

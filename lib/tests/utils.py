@@ -30,6 +30,7 @@ from mysql.fabric import (
     replication as _replication,
     server as _server,
     utils as _utils,
+    command,
 )
 
 from mysql.fabric.sharding import (
@@ -42,6 +43,62 @@ import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
 _LOGGER = logging.getLogger(__name__)
 
+def _make_result(names, types, rows):
+    rset = command.ResultSet(names=names, types=types)
+    for row in rows:
+        rset.append_row(row)
+    return rset
+
+def make_servers_result(rows):
+    return _make_result(
+        names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
+        types=(str, str, str, int, int, int, float),
+        rows=rows,
+    )
+
+def make_tables_result(rows):
+    return _make_result(
+        names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
+        types=(str, str, str, int),
+        rows=rows,
+    )
+
+def make_mapping_result(rows):
+    return _make_result(
+        names=('mapping_id', 'type_name', 'global_group_id'),
+        types=(int, str, str),
+        rows=rows,
+    )
+
+def make_index_result(rows):
+    return _make_result(
+        names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
+        types=(str, int, int, str),
+        rows=rows,
+    )
+
+def make_info_result(rows):
+    return _make_result(
+        names=('schema_name', 'table_name', 'column_name', 'lower_bound',
+               'shard_id', 'group_id', 'global_group_id', 'type_name'),
+        types=(str, str, str, str, int, str, str, str),
+        rows=rows,
+    )
+
+def make_shard_mapping_list_result(rows):
+    return _make_result(
+        names=('mapping_id', 'type_name', 'table_name', 'global_group',
+               'column_name'),
+        types=(int, str, str, str, str),
+        rows=rows,
+    )
+
+def make_servers_lookup_result(rows):
+    return _make_result(
+        names=('server_uuid', 'address', 'status', 'mode', 'weight'),
+        types=(str, str, str, str, float),
+        rows=rows,
+    )
 def configure_decoupled_master(group, master):
     """Configure master in a group by changing the group.master and
     mode and status properties without redirecting slaves to the
@@ -355,29 +412,31 @@ class TestCase(unittest.TestCase):
                 return {}
 
             if rowcount is not None:
-                self.assertEqual(result.results[0].rowcount, rowcount)
+                self.assertEqual(result.results[0].rowcount, rowcount, str(result))
 
-            if result.results[0].rowcount:
-                # Check that there is enough rows in the first result set
-                self.assertTrue(
-                    result.results[0].rowcount > index, str(result)
+            if result.results[0].rowcount == 0:
+                return {}
+
+            # Check that there is enough rows in the first result set
+            self.assertTrue(
+                result.results[0].rowcount > index, str(result)
+            )
+
+            # Create a dictionary from this row.
+            info = dict(
+                zip([col.name for col in result.results[0].columns],
+                result.results[0][index])
+            )
+
+            for key, value in checks.items():
+                self.assertTrue(key in info, str(result))
+                self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
+                    info[key], value, str(result))
                 )
 
-                # Create a dictionary from this row.
-                info = dict(
-                    zip([col.name for col in result.results[0].columns],
-                    result.results[0][index])
-                )
-
-                for key, value in checks.items():
-                    self.assertTrue(key in info, str(result))
-                    self.assertEqual(info[key], value, "[%s != %s]:\n%s" % (
-                        info[key], value, str(result))
-                    )
-
-                # For convenience, allowing the simple result to be used
-                # by callers.
-                return info
+            # For convenience, allowing the simple result to be used
+            # by callers.
+            return info
         return {}
 
     def check_xmlrpc_command_result(self, packet, is_syncronous=True,
@@ -392,8 +451,7 @@ class TestCase(unittest.TestCase):
         check = re.compile('\w{8}(-\w{4}){3}-\w{12}')
         result = _xmlrpc._decode(packet)
 
-        self.assertEqual(bool(result.error), has_error,
-                         "Error: %s" % result.error)
+        self.assertEqual(bool(result.error), has_error, str(result))
 
         # If the procedure did not have an error, first result set,
         # first row, first column contain UUID of procedure. Just
@@ -432,12 +490,20 @@ class TestCase(unittest.TestCase):
         for row, exp in zip(result.results[index], expected):
             self.assertEqual(row, exp)
 
-    def check_xmlrpc_iter(self, packet, index=0):
+    def check_xmlrpc_iter(self, packet, index=0, rowcount=None):
         """Iterate over a result set and do some basic integrity checking first.
         """
 
         result = _xmlrpc._decode(packet)
         self.assertTrue(len(result.results) > index, str(result))
+        if rowcount is not None:
+            self.assertEqual(
+                result.results[index].rowcount,
+                rowcount,
+                str(result)
+            )
+
+        names = [ c.name for c in result.results[index].columns ]
         for row in result.results[index]:
-            yield dict(zip([ c.name for c in result.results[0].columns ], row))
+            yield dict(zip(names, row))
 
