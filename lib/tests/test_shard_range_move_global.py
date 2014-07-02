@@ -22,6 +22,11 @@ import unittest
 import uuid as _uuid
 import time
 import tests.utils
+import sys
+
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
+
+from cStringIO import StringIO
 
 from mysql.fabric import (
     executor as _executor,
@@ -33,15 +38,30 @@ from mysql.fabric.server import (
 )
 from tests.utils import MySQLInstances
 
-class TestShardingPrune(unittest.TestCase):
+class TestShardingPrune(tests.utils.TestCase):
     """Contains unit tests for testing the shard move operation and for
     verifying that the global server configuration remains constant after
     the shard move configuration.
     """
+    def check_xmlrpc_command_success(self, packet, expect, has_error):
+        result = _xmlrpc._decode(packet)
+        self.assertEqual(bool(result.error), has_error,
+                         "Had error '%s'" % result.error)
+        
+        # Check that it returned the expected result (if one is
+        # expected), which is in the first result set (containing
+        # execution result), first row (there is just one for
+        # procedures), and last column (containing the result).
+        if expect is not None:
+            self.assertEqual(result.results[0][0][3], expect)
 
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
+        # If the call was successful, check that there is at least 2
+        # result sets and that the second result set contain more than
+        # zero jobs.
+        if not has_error:
+            self.assertTrue(len(result.results) > 1, str(result))
+            self.assertNotEqual(result.results[1].rowcount, 0,
+                                "had %d result sets" % len(result.results))
 
     def setUp(self):
         """Creates the topology for testing.
@@ -61,6 +81,7 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_1 = MySQLServer(**self.__options_1)
         MySQLServer.add(self.__server_1)
         self.__server_1.connect()
+        self.__server_1.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
 
         self.__group_1 = Group("GROUPID1", "First description.")
         Group.add(self.__group_1)
@@ -79,23 +100,24 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)
         self.__server_2.connect()
+        self.__server_2.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
         self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_2.exec_stmt("CREATE DATABASE db1")
         self.__server_2.exec_stmt("CREATE TABLE db1.t1"
                                   "(userID INT PRIMARY KEY, name VARCHAR(30))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201,10):
             self.__server_2.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
         self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db2")
@@ -104,19 +126,19 @@ class TestShardingPrune(unittest.TestCase):
                                   "(userID INT, salary INT, "
                                   "CONSTRAINT FOREIGN KEY(userID) "
                                   "REFERENCES db1.t1(userID))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_2.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_2.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_2.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_2.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_2.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
 
@@ -137,23 +159,24 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_3 = MySQLServer(**self.__options_3)
         MySQLServer.add( self.__server_3)
         self.__server_3.connect()
+        self.__server_3.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
         self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_3.exec_stmt("CREATE DATABASE db1")
         self.__server_3.exec_stmt("CREATE TABLE db1.t1"
                                   "(userID INT PRIMARY KEY, name VARCHAR(30))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_3.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
         self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db2")
@@ -162,19 +185,19 @@ class TestShardingPrune(unittest.TestCase):
                                   "(userID INT, salary INT, "
                                   "CONSTRAINT FOREIGN KEY(userID) "
                                   "REFERENCES db1.t1(userID))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_3.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_3.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_3.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_3.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_3.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
 
@@ -195,23 +218,24 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_4 = MySQLServer(**self.__options_4)
         MySQLServer.add(self.__server_4)
         self.__server_4.connect()
+        self.__server_4.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
         self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_4.exec_stmt("CREATE DATABASE db1")
         self.__server_4.exec_stmt("CREATE TABLE db1.t1"
                                   "(userID INT PRIMARY KEY, name VARCHAR(30))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_4.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
         self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db2")
@@ -220,19 +244,19 @@ class TestShardingPrune(unittest.TestCase):
                                   "(userID INT, salary INT, "
                                   "CONSTRAINT FOREIGN KEY(userID) "
                                   "REFERENCES db1.t1(userID))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_4.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_4.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_4.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_4.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_4.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
 
@@ -253,23 +277,24 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_5 = MySQLServer(**self.__options_5)
         MySQLServer.add(self.__server_5)
         self.__server_5.connect()
+        self.__server_5.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
         self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.__server_5.exec_stmt("CREATE DATABASE db1")
         self.__server_5.exec_stmt("CREATE TABLE db1.t1"
                                   "(userID INT PRIMARY KEY, name VARCHAR(30))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_5.exec_stmt("INSERT INTO db1.t1 "
                                   "VALUES(%s, 'TEST %s')" % (i, i))
         self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db2")
@@ -278,19 +303,19 @@ class TestShardingPrune(unittest.TestCase):
                                   "(userID INT, salary INT, "
                                   "CONSTRAINT FOREIGN KEY(userID) "
                                   "REFERENCES db1.t1(userID))")
-        for i in range(1, 71):
+        for i in range(1, 71, 10):
             self.__server_5.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(101, 301):
+        for i in range(101, 301, 10):
             self.__server_5.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(1001, 1201):
+        for i in range(1001, 1201, 10):
             self.__server_5.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(10001, 10201):
+        for i in range(10001, 10201, 10):
             self.__server_5.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
-        for i in range(100001, 100201):
+        for i in range(100001, 100201, 10):
             self.__server_5.exec_stmt("INSERT INTO db2.t2 "
                                   "VALUES(%s, %s)" % (i, i))
 
@@ -311,44 +336,30 @@ class TestShardingPrune(unittest.TestCase):
         self.__server_6 = MySQLServer(**self.__options_6)
         MySQLServer.add(self.__server_6)
         self.__server_6.connect()
+        self.__server_6.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
 
         self.__group_6 = Group("GROUPID6", "Sixth description.")
         Group.add( self.__group_6)
         self.__group_6.add_server(self.__server_6)
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
-        status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        packet = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
+        self.check_xmlrpc_command_success(packet, 1, False)
 
-        status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
-        status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        packet = self.proxy.sharding.add_table(1, "db1.t1", "userID")
+        self.check_xmlrpc_command_success(packet, None, False)
 
-        status = self.proxy.sharding.add_shard(
+        packet = self.proxy.sharding.add_table(1, "db2.t2", "userID")
+        self.check_xmlrpc_command_success(packet, None, False)
+
+        packet = self.proxy.sharding.add_shard(
             1, "GROUPID2/1,GROUPID3/101,GROUPID4/1001,GROUPID5/10001",
             "ENABLED"
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_success(packet, None, False)
 
-        status = self.proxy.sharding.prune_shard("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        packet = self.proxy.sharding.prune_shard("db1.t1")
+        self.check_xmlrpc_command_success(packet, None, False)
 
     def test_move_shard_1(self):
         '''Test the move of shard 1 and the global server configuration
@@ -372,13 +383,10 @@ class TestShardingPrune(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
-        self.assertEqual(row_cnt_shard_before_move_db1_t1, 70)
-        self.assertEqual(row_cnt_shard_before_move_db2_t2, 70)
-        status = self.proxy.sharding.move_shard("1", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.assertEqual(row_cnt_shard_before_move_db1_t1, 7)
+        self.assertEqual(row_cnt_shard_before_move_db2_t2, 7)
+        packet = self.proxy.sharding.move_shard("1", "GROUPID6")
+        self.check_xmlrpc_command_success(packet, None, False)
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -422,7 +430,7 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
         global_table_count = int(global_table_count[0][0])
-        self.assertTrue(global_table_count == 10)
+        self.assertEqual(global_table_count, 10)
         #Verify that the data is there in the third shard.
         global_table_count = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM global.global_table",
@@ -468,13 +476,10 @@ class TestShardingPrune(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
-        self.assertEqual(row_cnt_shard_before_move_db1_t1, 200)
-        self.assertEqual(row_cnt_shard_before_move_db2_t2, 200)
-        status = self.proxy.sharding.move_shard("2", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.assertEqual(row_cnt_shard_before_move_db1_t1, 20)
+        self.assertEqual(row_cnt_shard_before_move_db2_t2, 20)
+        packet = self.proxy.sharding.move_shard("2", "GROUPID6")
+        self.check_xmlrpc_command_success(packet, None, False)
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -517,7 +522,7 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
         global_table_count = int(global_table_count[0][0])
-        self.assertTrue(global_table_count == 10)
+        self.assertEqual(global_table_count, 10)
         #Verify that the data is there in the third shard.
         global_table_count = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM global.global_table",
@@ -563,13 +568,10 @@ class TestShardingPrune(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
-        self.assertEqual(row_cnt_shard_before_move_db1_t1, 200)
-        self.assertEqual(row_cnt_shard_before_move_db2_t2, 200)
-        status = self.proxy.sharding.move_shard("3", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.assertEqual(row_cnt_shard_before_move_db1_t1, 20)
+        self.assertEqual(row_cnt_shard_before_move_db2_t2, 20)
+        packet = self.proxy.sharding.move_shard("3", "GROUPID6")
+        self.check_xmlrpc_command_success(packet, None, False)
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -612,7 +614,7 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
         global_table_count = int(global_table_count[0][0])
-        self.assertTrue(global_table_count == 10)
+        self.assertEqual(global_table_count, 10)
         #Verify that the data is there in the second shard.
         global_table_count = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM global.global_table",
@@ -658,13 +660,10 @@ class TestShardingPrune(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
 
-        self.assertEqual(row_cnt_shard_before_move_db1_t1, 400)
-        self.assertEqual(row_cnt_shard_before_move_db2_t2, 400)
-        status = self.proxy.sharding.move_shard("4", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.assertEqual(row_cnt_shard_before_move_db1_t1, 40)
+        self.assertEqual(row_cnt_shard_before_move_db2_t2, 40)
+        packet = self.proxy.sharding.move_shard("4", "GROUPID6")
+        self.check_xmlrpc_command_success(packet, None, False)
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -707,7 +706,7 @@ class TestShardingPrune(unittest.TestCase):
                     {"fetch" : True}
                 )
         global_table_count = int(global_table_count[0][0])
-        self.assertTrue(global_table_count == 10)
+        self.assertEqual(global_table_count, 10)
         #Verify that the data is there in the second shard.
         global_table_count = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM global.global_table",
@@ -733,65 +732,6 @@ class TestShardingPrune(unittest.TestCase):
 
 
     def tearDown(self):
-        status = self.proxy.sharding.disable_shard("1")
-        status = self.proxy.sharding.disable_shard("2")
-        status = self.proxy.sharding.disable_shard("3")
-        status = self.proxy.sharding.disable_shard("4")
-        status = self.proxy.sharding.disable_shard("5")
-        status = self.proxy.sharding.disable_shard("6")
-
-        status = self.proxy.sharding.remove_shard("1")
-        status = self.proxy.sharding.remove_shard("2")
-        status = self.proxy.sharding.remove_shard("3")
-        status = self.proxy.sharding.remove_shard("4")
-        status = self.proxy.sharding.remove_shard("5")
-        status = self.proxy.sharding.remove_shard("6")
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
-
-        status = self.proxy.sharding.remove_table("db2.t2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping_defn).")
-
-
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        self.proxy.group.demote("GROUPID4")
-        self.proxy.group.demote("GROUPID5")
-        self.proxy.group.demote("GROUPID6")
-
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3",
-            "GROUPID4", "GROUPID5", "GROUPID6"):
-            status = self.proxy.group.lookup_servers(group_id)
-            self.assertEqual(status[0], True)
-            self.assertEqual(status[1], "")
-            obtained_server_list = status[2]
-            status = \
-                self.proxy.group.remove(
-                    group_id, obtained_server_list[0]["server_uuid"]
-                )
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_remove_server).")
-            status = self.proxy.group.destroy(group_id)
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_destroy_group).")
-
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

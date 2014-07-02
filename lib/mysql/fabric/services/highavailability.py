@@ -331,13 +331,13 @@ def _do_find_candidate(group_id, event):
             try:
                 candidate.connect()
                 gtid_status = candidate.get_gtid_status()
-                master_issues = \
+                master_issues, why_master_issues = \
                     _replication.check_master_issues(candidate)
+                slave_issues = False
+                why_slave_issues = {}
                 if event == FIND_CANDIDATE_SWITCH:
-                    slave_issues = \
+                    slave_issues, why_slave_issues = \
                         _replication.check_slave_issues(candidate)
-                else:
-                    slave_issues = {}
                 has_valid_master = (master_uuid is None or \
                     _replication.slave_has_master(candidate) == master_uuid)
                 can_become_master = False
@@ -364,8 +364,8 @@ def _do_find_candidate(group_id, event):
                         "Candidate (%s) cannot become a master due to the "
                         "following reasons: issues to become a "
                         "master (%s), prerequistes as a slave (%s), valid "
-                        "master (%s).", candidate.uuid, master_issues,
-                        slave_issues, has_valid_master
+                        "master (%s).", candidate.uuid, why_master_issues,
+                        why_slave_issues, has_valid_master
                         )
             except _errors.DatabaseError as error:
                 _LOGGER.warning(
@@ -403,20 +403,20 @@ def _check_candidate_switch(group_id, slave_id):
             "Candidate slave (%s) is already master." % (slave_id, )
             )
 
-    master_issues = _replication.check_master_issues(slave)
+    master_issues, why_master_issues = _replication.check_master_issues(slave)
     if master_issues:
         raise _errors.ServerError(
             "Server (%s) is not a valid candidate slave "
             "due to the following reason(s): (%s)." %
-            (slave.uuid, master_issues)
+            (slave.uuid, why_master_issues)
             )
 
-    slave_issues = _replication.check_slave_issues(slave)
+    slave_issues, why_slave_issues = _replication.check_slave_issues(slave)
     if slave_issues:
         raise _errors.ServerError(
             "Server (%s) is not a valid candidate slave "
             "due to the following reason: (%s)." %
-            (slave.uuid, slave_issues)
+            (slave.uuid, why_slave_issues)
             )
 
     master_uuid = _replication.slave_has_master(slave)
@@ -567,12 +567,12 @@ def _check_candidate_fail(group_id, slave_id):
             "Candidate slave (%s) is already master." % (slave_id, )
             )
 
-    master_issues = _replication.check_master_issues(slave)
+    master_issues, why_master_issues = _replication.check_master_issues(slave)
     if master_issues:
         raise _errors.ServerError(
             "Server (%s) is not a valid candidate slave "
             "due to the following reason(s): (%s)." %
-            (slave.uuid, master_issues)
+            (slave.uuid, why_master_issues)
             )
 
     if slave.status not in allowed_status:

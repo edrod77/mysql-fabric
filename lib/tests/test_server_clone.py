@@ -25,21 +25,13 @@ from mysql.fabric import executor as _executor
 from mysql.fabric.server import MySQLServer, Group
 from mysql.fabric.errors import DatabaseError
 
-class TestServerClone(unittest.TestCase):
+class TestServerClone(tests.utils.TestCase):
     """Tests the mysqlfabric clone command to clone all the data in a server
     registered in Fabric into another server.  Create a Group and add some
     servers. Insert data into one of the servers. Now clone this server into
     the other servers in the group. Now start replication and ensure everything
     works fine.
     """
-
-    def assertStatus(self, status, expect):
-        """Asserts that the status obtained is similar to the status
-        expected.
-        """
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Create the setup for performing the testing of the server clone
         command.
@@ -131,10 +123,7 @@ class TestServerClone(unittest.TestCase):
 
         status = self.proxy.server.clone("GROUPID1", self.__server_3.address,
                                          None)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_restore_server).")
+        self.check_xmlrpc_command_result(status)
         rows = self.__server_3.exec_stmt(
                                     "SELECT NAME FROM db1.t1",
                                     {"fetch" : True})
@@ -163,12 +152,4 @@ class TestServerClone(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.__server_1.exec_stmt("DROP DATABASE IF EXISTS db1")
-        self.__server_1.exec_stmt("DROP DATABASE IF EXISTS db2")
-        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
-        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db2")
-        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
-        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db2")
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

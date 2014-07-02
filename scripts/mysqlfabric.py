@@ -357,7 +357,9 @@ def fire_command(command, *args):
         #optional arguments passed by the user to the argument list.
         result = command.dispatch(*(command.append_options_to_args(args)))
         if result is not None:
-            print result
+            result.emit(sys.stdout)
+        else:
+            print "No result returned"
     except TypeError:
         error_usage_text(command.group_name, command.command_name)
 

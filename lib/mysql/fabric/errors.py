@@ -45,12 +45,26 @@ class ExecutorError(Error):
     is not properly configured.
     """
 
+    pass
+
 class InvalidGtidError(Error):
     """Exception raised when the one tries to use and make operations with
     invalid GTID(s).
     """
 
+    pass
+
+class InternalError(Error):
+    """Exception raised when an internal error occurs.
+
+    Typically it is raised when an extension added does not honor the
+    internal interfaces.
+    """
+
+    pass
+
 class UuidError(Error):
+
     """Exception raised when there are problems with uuids. For example,
     if the expected uuid does not match the server's uuid.
     """
@@ -123,3 +137,9 @@ class BackupError(Error):
 class CredentialError(Error):
     """Exception raised when something is wrong with credentials"""
     pass
+
+class CommandResultError(Error):
+    """Exception raised for incorrect command result
+    """
+    pass
+

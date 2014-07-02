@@ -237,8 +237,6 @@ class TestSharding(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS prune_db")
-        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS prune_db")
         tests.utils.cleanup_environment()
 
     def test_fetch_shard_mapping(self):

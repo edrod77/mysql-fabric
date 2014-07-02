@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 import urllib2
 import httplib
 import ConfigParser
+import traceback
 
 try:
     import ssl
@@ -47,7 +48,18 @@ from SocketServer import (
 import mysql.fabric.persistence as _persistence
 import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.errors as _errors
-from mysql.fabric import credentials, __version__ as FABRIC_VERSION
+
+from mysql.fabric import (
+    credentials,
+    __version__ as FABRIC_VERSION,
+)
+
+from mysql.fabric.utils import (
+    FABRIC_UUID,
+    TTL,
+)
+
+from mysql.fabric.command import CommandResult, ResultSet
 
 _LOGGER = logging.getLogger(__name__)
 _RE_DIGEST_AUTH_HEADER = re.compile(r'\s*,(?=(?:[^"]*|"[^"]*"$))\s*')
@@ -55,6 +67,100 @@ _RE_METHODNAME = re.compile(r'<methodName>(.*)</methodName>', re.IGNORECASE)
 AUTH_EXPIRES = 2 * 60  # in seconds
 AUTH_TIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 PURGE_CLIENTS_TIMER = AUTH_EXPIRES  # in seconds
+FORMAT_VERSION = 1
+
+def _encode(result):
+    """Encode a CommandResult as an data structure for transfer over XML-RPC.
+
+    """
+
+    # Store the result sets as a list of dictionaries for transfer.
+    if result.error:
+        packet = [FORMAT_VERSION, str(result.uuid), result.ttl, result.error, []]
+    else:
+        rows = [
+            {
+                'info': {
+                    'names': [ col.name for col in rs.columns ],
+                },
+                'rows': list(rs),
+            } for rs in result.results
+        ]
+
+
+
+        packet = [FORMAT_VERSION, str(result.uuid), result.ttl, '', rows]
+    _LOGGER.debug("Encoded packet: %s", packet)
+    return packet
+
+
+def _decode(packet):
+    """Decode the data structure used with XML-RPC into a CommandResult.
+
+    Since the result sets are merged into a single list of
+    dictionaries, we separate them into result sets using the keys for
+    the dictionaries.
+
+    """
+
+    _LOGGER.debug("Decode packet: %s", packet)
+    version, fabric_uuid, ttl, error, rsets = packet
+    if version != FORMAT_VERSION:
+        raise TypeError("XML-RPC packet format version was %d, expected %d",
+                        version, FORMAT_VERSION)
+    result = CommandResult(error, uuid=fabric_uuid, ttl=ttl)
+    if len(rsets) > 0:
+        for rset in rsets:
+            # If the result set contain at least one row, use that to
+            # deduce the types for the columns. If not, assume it is
+            # all strings.
+            if len(rset['rows']) > 0:
+                types = [ type(val) for val in rset['rows'][0] ]
+            else:
+                types = [ str ] * len(rset['info']['names'])
+
+            # Create the result set and add the rows from the packet.
+            rs = ResultSet(names=rset['info']['names'], types=types)
+            for row in rset['rows']:
+                rs.append_row(row)
+            result.append_result(rs)
+    return result
+
+def _CommandExecuteAndEncode(command):
+    """Command result formatter to transform a CommandResult to a format
+    for XML-RPC transmission.
+
+    This is actually a function, but it is named as a class since it
+    behaves as a class with a __call__ function defined.
+
+    """
+
+    fqn = command.group_name + "." + command.command_name
+
+    def _wrapper(*args):
+        # Try to execute the command and return an error if an
+        # exception is thrown.
+        try:
+            result = command.execute(*args)
+        except Exception as err:
+            message = "Exception raised - '%s'\n%s" % (
+                err,
+                traceback.format_exc(),
+            )
+            return [FORMAT_VERSION, str(FABRIC_UUID), TTL, message, []]
+
+        # Check that it really is a CommandResult and return an
+        # error otherwise.
+        if not isinstance(result, CommandResult):
+            message = "Expected %s from command '%s' but got '%s'\n%s" % (
+                type(CommandResult), fqn, result,
+                traceback.format_exc(),
+            )
+            packet = [FORMAT_VERSION, str(FABRIC_UUID), TTL, message, []]
+            return packet
+        return _encode(result)
+
+    return _wrapper
 
 
 def create_rfc2617_nonce(hashfunc, private_key, secs=AUTH_EXPIRES):
@@ -215,7 +321,6 @@ class MyRequestHandler(SimpleXMLRPCRequestHandler):
         if encoding == "identity":
             match = _RE_METHODNAME.search(data)
             if match:
-                import traceback
                 try:
                     methodname = match.groups()[0]
                     if (methodname == '_some_nonexisting_method' or
@@ -317,14 +422,28 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
     def register_command(self, command):
         """Register a command with the server.
 
+        This will register the command under the name
+        *group_name*.*command_name*.
+
+        The command's execute method is expected to return a
+        CommandResult, so we need to turn it into something to
+        transport over the wire.
+
         :param command: Command to be registered.
+        :type command: Command
+
         """
+
         if not self.__configured:
             self._configure(command.config)
 
-        self.register_function(
-            command.execute, command.group_name + "." + command.command_name
-            )
+        # This is the original format that we transported over the
+        # wire, so it cannot be changed without breaking backward
+        # compatibility.
+
+        formatter = _CommandExecuteAndEncode(command)
+        fqn = command.group_name + "." + command.command_name
+        self.register_function(formatter, fqn)
 
     @property
     def hashfunc(self):
@@ -716,4 +835,5 @@ class MyClient(xmlrpclib.ServerProxy):
         xmlrpclib.ServerProxy.__init__(self, uri, allow_none=True,
                                        transport=transport)
 
-        return getattr(self, reference)(*args)
+        packet = getattr(self, reference)(*args)
+        return _decode(packet)

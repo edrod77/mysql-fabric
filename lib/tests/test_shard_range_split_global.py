@@ -31,15 +31,11 @@ from mysql.fabric.server import (
 )
 from tests.utils import MySQLInstances
 
-class TestShardingPrune(unittest.TestCase):
+class TestShardingPrune(tests.utils.TestCase):
     """Contains unit tests for testing the shard split operation and for
     verifying that the global server configuration remains constant after
     the shard split configuration.
     """
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
     def setUp(self):
         """Creates the topology for testing.
@@ -318,38 +314,22 @@ class TestShardingPrune(unittest.TestCase):
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        self.check_xmlrpc_command_result(status, returns=1)
 
         status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(
             1,
             "GROUPID2/1,GROUPID3/101,GROUPID4/1001,GROUPID5/10001",
             "ENABLED"
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
 
     def test_split_shard_1(self):
         '''Test the split of shard 1 and the global server configuration
@@ -377,10 +357,7 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(row_cnt_shard_before_split_db2_t2, 70)
 
         status = self.proxy.sharding.split_shard("1", "GROUPID6", "36")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         row_cnt_shard_after_split_db1_t1_a = self.__server_2.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -485,10 +462,7 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(row_cnt_shard_before_split_db2_t2, 200)
 
         status = self.proxy.sharding.split_shard("2", "GROUPID6", "201")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         row_cnt_shard_after_split_db1_t1_a = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -592,10 +566,7 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(row_cnt_shard_before_split_db2_t2, 200)
 
         status = self.proxy.sharding.split_shard("3", "GROUPID6", "1101")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         row_cnt_shard_after_split_db1_t1_a = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -699,10 +670,7 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(row_cnt_shard_before_split_db2_t2, 400)
 
         status = self.proxy.sharding.split_shard("4", "GROUPID6", "100001")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables_after_split).")
+        self.check_xmlrpc_command_result(status)
 
         row_cnt_shard_after_split_db1_t1_a = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -785,20 +753,14 @@ class TestShardingPrune(unittest.TestCase):
         split a shard.
         '''
         status = self.proxy.sharding.split_shard("3", "GROUPID6", "10")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_shard_information).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_split_shard_error_2(self):
         '''Test that splitting with an invalid split value fails to
         split a shard.
         '''
         status = self.proxy.sharding.split_shard("3", "GROUPID6", "1101.5")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_shard_information).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_split_shard_error_3(self):
         '''Test that splitting with an invalid split value fails to
@@ -806,10 +768,7 @@ class TestShardingPrune(unittest.TestCase):
         '''
         self.__group_6.status = Group.INACTIVE
         status = self.proxy.sharding.split_shard("3", "GROUPID6", "1101.5")
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_shard_information).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_split_shard_error_4(self):
         '''Test that splitting with an empty split value fails to
@@ -817,69 +776,9 @@ class TestShardingPrune(unittest.TestCase):
         '''
         self.__group_6.status = Group.INACTIVE
         status = self.proxy.sharding.split_shard("3", "GROUPID6", None)
-        self.assertStatus(status, _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_check_shard_information).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
     def tearDown(self):
-        status = self.proxy.sharding.disable_shard("1")
-        status = self.proxy.sharding.disable_shard("2")
-        status = self.proxy.sharding.disable_shard("3")
-        status = self.proxy.sharding.disable_shard("4")
-        status = self.proxy.sharding.disable_shard("5")
-        status = self.proxy.sharding.disable_shard("6")
-
-        status = self.proxy.sharding.remove_shard("1")
-        status = self.proxy.sharding.remove_shard("2")
-        status = self.proxy.sharding.remove_shard("3")
-        status = self.proxy.sharding.remove_shard("4")
-        status = self.proxy.sharding.remove_shard("5")
-        status = self.proxy.sharding.remove_shard("6")
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
-
-        status = self.proxy.sharding.remove_table("db2.t2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping_defn).")
-
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        self.proxy.group.demote("GROUPID4")
-        self.proxy.group.demote("GROUPID5")
-        self.proxy.group.demote("GROUPID6")
-
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3",
-            "GROUPID4", "GROUPID5", "GROUPID6"):
-            status = self.proxy.group.lookup_servers(group_id)
-            self.assertEqual(status[0], True)
-            self.assertEqual(status[1], "")
-            obtained_server_list = status[2]
-            status = self.proxy.group.remove(
-                group_id, obtained_server_list[0]["server_uuid"]
-            )
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_remove_server).")
-            status = self.proxy.group.destroy(group_id)
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_destroy_group).")
-
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

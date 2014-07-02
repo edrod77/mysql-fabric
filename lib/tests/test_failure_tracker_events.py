@@ -19,6 +19,7 @@
 import unittest
 import uuid as _uuid
 import tests.utils
+import sys
 
 import mysql.fabric.persistence as _persistence
 
@@ -46,7 +47,7 @@ OPTIONS = {
     "user" : "root"
 }
 
-class TestFailureEvents(unittest.TestCase):
+class TestFailureEvents(tests.utils.TestCase):
     """Unit test for testing FailureEvents.
     """
     def setUp(self):
@@ -58,7 +59,6 @@ class TestFailureEvents(unittest.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
         from __main__ import config
         _failure_tracker.ReportError._NOTIFICATION_INTERVAL = \
@@ -95,20 +95,21 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.create("group", "Testing group...")
         address_1 = tests.utils.MySQLInstances().get_address(0)
         address_2 = tests.utils.MySQLInstances().get_address(1)
-        self.proxy.group.add("group", address_1)
-        self.proxy.group.add("group", address_2)
+        status = self.proxy.group.add("group", address_1)
+        self.check_xmlrpc_command_result(status)
+        status = self.proxy.group.add("group", address_2)
+        self.check_xmlrpc_command_result(status)
         status_uuid = self.proxy.server.lookup_uuid(address_1)
-        uuid_1 = status_uuid[2]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        uuid_1 = info['uuid']
         status_uuid = self.proxy.server.lookup_uuid(address_2)
-        uuid_2 = status_uuid[2]
-        error_uuid = status_uuid[1]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        uuid_2 = info['uuid']
+        error_uuid = 'deadbeef-a007-feed-f00d-cab3fe13249e'
 
         # Try to report instability of a server does not exist.
         status = self.proxy.threat.report_error(error_uuid)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_report_error).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to report instability of a server that is already faulty.
         server = _server.MySQLServer.fetch(uuid_1)
@@ -116,36 +117,27 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.promote(group.group_id, str(server.uuid))
         server.status = _server.MySQLServer.FAULTY
         status = self.proxy.threat.report_error(uuid_1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_report_error).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Report instability of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.PRIMARY
         status = self.proxy.threat.report_error(uuid_1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_1]["status"], _server.MySQLServer.FAULTY
-        )
-        self.assertEqual(
-            status[2][uuid_2]["status"], _server.MySQLServer.PRIMARY
-        )
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.FAULTY,
+        }, index=0)
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.PRIMARY,
+        }, index=1)
 
         # Report instability of a server that is spare.
         # Note this is using HOST:PORT instead of UUID.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.SPARE
         status = self.proxy.threat.report_error(address_1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_report_error).")
+        self.check_xmlrpc_command_result(status)
 
     def test_report_error_update_only(self):
         """Test the mechanism used to report server's issues (i.e. errors).
@@ -160,10 +152,12 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.add("group", address_1)
         self.proxy.group.add("group", address_2)
         status_uuid = self.proxy.server.lookup_uuid(address_1)
-        uuid_1 = status_uuid[2]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        uuid_1 = info['uuid']
         status_uuid = self.proxy.server.lookup_uuid(address_2)
-        uuid_2 = status_uuid[2]
-        error_uuid = status_uuid[1]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        uuid_2 = info['uuid']
+        error_uuid = 'deadbeef-a007-feed-f00d-cab3fe13249e'
 
         # Report instability of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
@@ -171,17 +165,15 @@ class TestFailureEvents(unittest.TestCase):
         status = self.proxy.threat.report_error(
             uuid_1, "unknown", "unknown", True
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_report_error).")
+        self.check_xmlrpc_command_result(status)
+
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_1]["status"], _server.MySQLServer.FAULTY
-        )
-        self.assertEqual(
-            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
-        )
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.FAULTY,
+        }, rowcount=2, index=0)
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.SECONDARY,
+        }, rowcount=2, index=1)
 
     def test_report_failure(self):
         """Test the mechanism used to report server's issues (i.e. failures).
@@ -193,17 +185,13 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.add("group", address_1)
         self.proxy.group.add("group", address_2)
         status_uuid = self.proxy.server.lookup_uuid(address_1)
-        self.assertEqual(status_uuid[0], True)
-        self.assertEqual(status_uuid[1], "")
-        error_uuid = status_uuid[1]
-        uuid_1 = status_uuid[2]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        error_uuid = 'deadbeef-a007-feed-f00d-cab3fe13249e'
+        uuid_1 = info['uuid']
 
         # Try to report failure of a server does not exist.
         status = self.proxy.threat.report_failure(error_uuid)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_report_failure).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to report failure of a server that is already faulty.
         server = _server.MySQLServer.fetch(uuid_1)
@@ -211,31 +199,23 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.promote(group.group_id, str(server.uuid))
         server.status = _server.MySQLServer.FAULTY
         status = self.proxy.threat.report_failure(uuid_1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.ERROR)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Tried to execute action (_report_failure).")
+        self.check_xmlrpc_command_result(status, has_error=True)
 
         # Report failure of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.PRIMARY
         status = self.proxy.threat.report_failure(uuid_1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
+        self.check_xmlrpc_command_result(status)
+
         server = _server.MySQLServer.fetch(uuid_1)
         self.assertEqual(server.status, _server.MySQLServer.FAULTY)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
 
         # Report failure of a server that is a spare.
         # Note this is using HOST:PORT instead of UUID.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.SPARE
         status = self.proxy.threat.report_failure(address_1)
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_report_failure).")
+        self.check_xmlrpc_command_result(status)
 
     def test_report_failure_update_only(self):
         """Test the mechanism used to report server's issues (i.e. failures).
@@ -247,10 +227,12 @@ class TestFailureEvents(unittest.TestCase):
         self.proxy.group.add("group", address_1)
         self.proxy.group.add("group", address_2)
         status_uuid = self.proxy.server.lookup_uuid(address_1)
-        uuid_1 = status_uuid[2]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        uuid_1 = info['uuid']
         status_uuid = self.proxy.server.lookup_uuid(address_2)
-        uuid_2 = status_uuid[2]
-        error_uuid = status_uuid[1]
+        info = self.check_xmlrpc_simple(status_uuid, {})
+        uuid_2 = info['uuid']
+        error_uuid = 'deadbeef-a007-feed-f00d-cab3fe13249e'
 
         # Report failure of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
@@ -258,17 +240,15 @@ class TestFailureEvents(unittest.TestCase):
         status = self.proxy.threat.report_failure(
             uuid_1, "unknown", "unknown", True
         )
-        self.assertEqual(status[1][-1]["success"], _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_report_failure).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.health("group")
-        self.assertEqual(
-            status[2][uuid_1]["status"], _server.MySQLServer.FAULTY
-        )
-        self.assertEqual(
-            status[2][uuid_2]["status"], _server.MySQLServer.SECONDARY
-        )
+
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.FAULTY,
+        }, rowcount=2, index=0)
+        self.check_xmlrpc_simple(status, {
+            'status': _server.MySQLServer.SECONDARY,
+        }, rowcount=2, index=1)
 
 if __name__ == "__main__":
     unittest.main()

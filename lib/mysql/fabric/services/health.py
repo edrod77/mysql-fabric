@@ -26,6 +26,8 @@ from  mysql.fabric import (
 
 from mysql.fabric.command import (
     Command,
+    CommandResult,
+    ResultSet,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,42 +51,61 @@ class CheckHealth(Command):
 
         :param group_id: Group's id.
         """
-        return Command.generate_output_pattern(_health, group_id)
 
-def _health(group_id):
-    """Check which servers in a group are up and down.
-    """
-    availability = {}
+        group = _server.Group.fetch(group_id)
+        if not group:
+            raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
 
-    group = _server.Group.fetch(group_id)
-    if not group:
-        raise _errors.GroupError("Group (%s) does not exist." % (group_id, ))
+        info = ResultSet(
+            names=[
+                'uuid', 'is_alive', 'status',
+                'is_not_running', 'is_not_configured', 'io_not_running',
+                'sql_not_running', 'io_error', 'sql_error'
+            ],
+            types=[str, bool, str] + [bool] * 4 + [str, str]
+        )
+        issues = ResultSet(names=['issue'], types=[str])
 
-    for server in group.servers():
-        alive = False
-        is_master = (group.master == server.uuid)
-        thread_issues = {}
-        status = server.status
-        try:
-            server.connect()
-            alive = True
-            if not is_master:
-                slave_issues = _replication.check_slave_issues(server)
-                str_master_uuid = _replication.slave_has_master(server)
-                if (group.master is None or str(group.master) != \
-                    str_master_uuid) and not slave_issues:
-                    thread_issues = \
-                        "Group has master (%s) but server is connected " \
-                        "to master (%s)." % \
-                        (group.master, str_master_uuid)
-                elif slave_issues:
-                    thread_issues = slave_issues
-        except _errors.DatabaseError:
-            status = _server.MySQLServer.FAULTY
-        availability[str(server.uuid)] = {
-            "is_alive" : alive,
-            "status" : status,
-            "threads" : thread_issues
+        for server in group.servers():
+            alive = False
+            is_master = (group.master == server.uuid)
+            status = server.status
+            why_slave_issues = {}
+            # These are used when server is not contactable.
+            why_slave_issues = {
+                'is_not_running': False,
+                'is_not_configured': False,
+                'io_not_running': False,
+                'sql_not_running': False,
+                'io_error': False,
+                'sql_error': False,
             }
+            try:
+                server.connect()
+                alive = True
+                if not is_master:
+                    slave_issues, why_slave_issues = \
+                        _replication.check_slave_issues(server)
+                    str_master_uuid = _replication.slave_has_master(server)
+                    if (group.master is None or str(group.master) != \
+                        str_master_uuid) and not slave_issues:
+                        issues.append_row([
+                            "Group has master (%s) but server is connected " \
+                            "to master (%s)." % \
+                            (group.master, str_master_uuid)
+                        ])
+            except _errors.DatabaseError:
+                status = _server.MySQLServer.FAULTY
+            info.append_row([
+                server.uuid,
+                alive,
+                status,
+                why_slave_issues['is_not_running'],
+                why_slave_issues['is_not_configured'],
+                why_slave_issues['io_not_running'],
+                why_slave_issues['sql_not_running'],
+                why_slave_issues['io_error'],
+                why_slave_issues['sql_error'],
+            ])
 
-    return availability
+        return CommandResult(None, results=[info, issues])

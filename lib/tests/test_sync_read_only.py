@@ -27,12 +27,9 @@ from mysql.fabric import (
 )
 from mysql.fabric.server import MySQLServer
 
-class TestShardingPrune(unittest.TestCase):
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
+class TestShardingPrune(tests.utils.TestCase):
     def setUp(self):
         """Creates the following topology for testing,
 
@@ -43,110 +40,60 @@ class TestShardingPrune(unittest.TestCase):
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
         status = self.proxy.group.create("GROUPID1", "First description.")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_group).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.add(
             "GROUPID1", MySQLInstances().get_address(0)
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.add(
             "GROUPID1", MySQLInstances().get_address(1)
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.group.create("GROUPID2", "Second description.")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_group).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.add(
             "GROUPID2", MySQLInstances().get_address(2)
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status)
         status =  self.proxy.group.add(
             "GROUPID2", MySQLInstances().get_address(3),
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.group.create("GROUPID3", "Third description.")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_create_group).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.add(
             "GROUPID3", MySQLInstances().get_address(4)
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.add(
             "GROUPID3", MySQLInstances().get_address(5)
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_server).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.group.promote("GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.promote("GROUPID2")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
         status = self.proxy.group.promote("GROUPID3")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_change_to_candidate).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        self.check_xmlrpc_command_result(status, returns=1)
 
         status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(1, "GROUPID2/0",
                                                "ENABLED")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx][2]:
-                shard_uuid = obtained_server_list[idx][0]
-                self.shard_server = MySQLServer.fetch(shard_uuid)
-                self.shard_server.connect()
+        for info in self.check_xmlrpc_iter(status):
+            shard_uuid = info['server_uuid']
+            self.shard_server = MySQLServer.fetch(shard_uuid)
+            self.shard_server.connect()
         self.shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.shard_server.exec_stmt("CREATE DATABASE db1")
         self.shard_server.exec_stmt("CREATE TABLE db1.t1"
@@ -184,12 +131,9 @@ class TestShardingPrune(unittest.TestCase):
 
     def test_sync_readonly_servers(self):
         status = self.proxy.group.lookup_servers("GROUPID3")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            if obtained_server_list[idx]["status"] == MySQLServer.SECONDARY:
-                slave_uuid = obtained_server_list[idx]["server_uuid"]
+        for info in self.check_xmlrpc_iter(status):
+            if info['status'] == MySQLServer.SECONDARY:
+                slave_uuid = info['server_uuid']
                 slave_server = MySQLServer.fetch(slave_uuid)
                 slave_server.connect()
         _group_replication.setup_group_replication("GROUPID2", "GROUPID3")
@@ -206,83 +150,6 @@ class TestShardingPrune(unittest.TestCase):
         self.assertEqual(len(rows), 15)
 
     def tearDown(self):
-        self.proxy.sharding.enable_shard("1")
-
-        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            shard_uuid = obtained_server_list[idx][0]
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        self.assertEqual(status[0], True)
-        self.assertEqual(status[1], "")
-        obtained_server_list = status[2]
-        for idx in range(0, 2):
-            shard_uuid = obtained_server_list[idx][0]
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
-
-        status = self.proxy.sharding.disable_shard("1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_disable_shard).")
-
-        status = self.proxy.sharding.remove_shard("1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard).")
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping).")
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_remove_shard_mapping_defn).")
-
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3"):
-            status = self.proxy.group.lookup_servers(group_id)
-            self.assertEqual(status[0], True)
-            self.assertEqual(status[1], "")
-            obtained_server_list = status[2]
-            status = \
-                self.proxy.group.remove(
-                    group_id, obtained_server_list[0]["server_uuid"]
-                )
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_remove_server).")
-            status = \
-                self.proxy.group.remove(
-                    group_id, obtained_server_list[1]["server_uuid"]
-            )
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_remove_server).")
-            status = self.proxy.group.destroy(group_id)
-            self.assertStatus(status, _executor.Job.SUCCESS)
-            self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-            self.assertEqual(status[1][-1]["description"],
-                             "Executed action (_destroy_group).")
-
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

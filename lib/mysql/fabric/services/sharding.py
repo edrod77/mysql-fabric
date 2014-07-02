@@ -44,6 +44,12 @@ from mysql.fabric.sharding import (
 from mysql.fabric.command import (
     ProcedureShard,
     Command,
+    ResultSet,
+    CommandResult,
+)
+
+from mysql.fabric.services.server import (
+    ServerLookups,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -231,8 +237,13 @@ class ListShardMappingDefinitions(Command):
         :return: A list of shard mapping definitions
                     An Empty List if no shard mapping definition is found.
         """
-        return Command.generate_output_pattern(
-                            ShardMapping.list_shard_mapping_defn)
+        rset = ResultSet(
+            names=('mapping_id', 'type_name', 'global_group_id'),
+            types=(int, str, str),
+        )
+        for row in ShardMapping.list_shard_mapping_defn():
+            rset.append_row(row)
+        return CommandResult(None, results=rset)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
 class AddShard(ProcedureShard):
@@ -337,7 +348,7 @@ class LookupShardServers(Command):
         :return: The Group UUID that contains the range in which the key
                  belongs.
         """
-        return Command.generate_output_pattern(_lookup, table_name, key, hint)
+        return _lookup(table_name, key, hint)
 
 class DumpShardTables(Command):
     """Return information about all tables belonging to mappings
@@ -354,7 +365,16 @@ class DumpShardTables(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: shard mapping pattern.
         """
-        return ShardMapping.dump_shard_tables(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
+            types=(str, str, str, int),
+        )
+
+        for row in ShardMapping.dump_shard_tables(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class DumpShardingInformation(Command):
     """Return all the sharding information about the tables passed as patterns.
@@ -371,7 +391,17 @@ class DumpShardingInformation(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: shard table pattern.
         """
-        return ShardMapping.dump_sharding_info(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('schema_name', 'table_name', 'column_name', 'lower_bound',
+                   'shard_id', 'group_id', 'global_group_id', 'type_name'),
+            types=(str, str, str, str, int, str, str, str),
+        )
+
+        for row in ShardMapping.dump_sharding_info(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class DumpShardMappings(Command):
     """Return information about all shard mappings matching any of the
@@ -388,7 +418,16 @@ class DumpShardMappings(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: shard mapping pattern.
         """
-        return ShardMapping.dump_shard_maps(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('mapping_id', 'type_name', 'global_group_id'),
+            types=(int, str, str),
+        )
+
+        for row in ShardMapping.dump_shard_maps(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 class DumpShardIndex(Command):
     """Return information about the index for all mappings matching
@@ -406,7 +445,16 @@ class DumpShardIndex(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        return Shards.dump_shard_indexes(connector_version, patterns)
+
+        rset = ResultSet(
+            names=('lower_bound', 'mapping_id', 'shard_id', 'group_id'),
+            types=(str, int, int, str),
+        )
+
+        for row in Shards.dump_shard_indexes(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 @_events.on_event(DEFINE_SHARD_MAPPING)
 def _define_shard_mapping(type_name, global_group_id):
@@ -477,21 +525,21 @@ def _lookup_shard_mapping(table_name):
     """
     shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is not None:
-        return {"shard_mapping_id":shard_mapping.shard_mapping_id,
-                "table_name":shard_mapping.table_name,
-                "column_name":shard_mapping.column_name,
-                "type_name":shard_mapping.type_name,
-                "global_group":shard_mapping.global_group}
+        return [{"mapping_id":shard_mapping.shard_mapping_id,
+                 "table_name":shard_mapping.table_name,
+                 "column_name":shard_mapping.column_name,
+                 "type_name":shard_mapping.type_name,
+                 "global_group":shard_mapping.global_group}]
     else:
         #We return an empty shard mapping because if an Error is thrown
         #it would cause the executor to rollback which is an unnecessary
         #action. It is enough if we inform the user that the lookup returned
         #nothing.
-        return {"shard_mapping_id":"",
-                "table_name":"",
-                "column_name":"",
-                "type_name":"",
-                "global_group":""}
+        return [{"mapping_id":"",
+                 "table_name":"",
+                 "column_name":"",
+                 "type_name":"",
+                 "global_group":""}]
 
 def _list(sharding_type):
     """The method returns all the shard mappings (names) of a
@@ -517,7 +565,7 @@ def _list(sharding_type):
     shard_mappings = ShardMapping.list(sharding_type)
     for shard_mapping in shard_mappings:
         ret_shard_mappings.append({
-                    "shard_mapping_id":shard_mapping.shard_mapping_id,
+                    "mapping_id":shard_mapping.shard_mapping_id,
                     "table_name":shard_mapping.table_name,
                     "column_name":shard_mapping.column_name,
                     "type_name":shard_mapping.type_name,
@@ -670,7 +718,7 @@ def _lookup(lookup_arg, key,  hint):
                 )
         #GLOBAL lookups. There can be only one global group, hence using
         #shard_mapping[0] is safe.
-        group = Group.fetch(shard_mapping[0].global_group)
+        group_id = shard_mapping[0].global_group
     else:
         shard_mapping = ShardMapping.fetch(lookup_arg)
         if shard_mapping is None:
@@ -685,18 +733,10 @@ def _lookup(lookup_arg, key,  hint):
             raise _errors.ShardingError(SHARD_NOT_ENABLED)
         #group cannot be None since there is a foreign key on the group_id.
         #An exception will be thrown nevertheless.
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
+        group_id = shard.group_id
 
-    ret = []
-    #An empty list will be returned if the registered group has not
-    #servers.
-    for server in group.servers():
-        ret.append([str(server.uuid), server.address,
-                   group.master == server.uuid])
-    return ret
-
+    return ServerLookups().execute(group_id=group_id)
+    
 @_events.on_event(SHARD_ENABLE)
 def _enable_shard(shard_id):
     """Enable the RANGE specification mapping represented by the current

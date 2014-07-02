@@ -20,7 +20,7 @@
 import unittest
 import tests.utils
 
-class TestLoggingServices(unittest.TestCase):
+class TestLoggingServices(tests.utils.TestCase):
     "Test replication service interface."
 
     def setUp(self):
@@ -32,17 +32,14 @@ class TestLoggingServices(unittest.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_set_logging(self):
         """Test remotely setting logging configuration per file.
         """
-        self.assertFalse(
-            self.proxy.manage.logging_level("unknown", "DEBUG")
-        )
-        self.assertTrue(
-            self.proxy.manage.logging_level("mysql.fabric", "DEBUG")
-        )
+        packet = self.proxy.manage.logging_level("unknown", "DEBUG")
+        self.check_xmlrpc_simple(packet, {}, has_error=True)
+        packet = self.proxy.manage.logging_level("mysql.fabric", "DEBUG")
+        self.check_xmlrpc_simple(packet, {}, has_error=False)
 
 if __name__ == "__main__":
     unittest.main()

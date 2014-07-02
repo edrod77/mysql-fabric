@@ -20,6 +20,8 @@
 import unittest
 import tests.utils
 
+import mysql.fabric.protocols.xmlrpc as _xmlrpc
+
 from mysql.fabric import (
     errors as _errors,
     events as _events,
@@ -272,7 +274,6 @@ class TestService(unittest.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_trigger(self):
         """Test the trigger interface from the service perspective.
@@ -283,9 +284,13 @@ class TestService(unittest.TestCase):
             """
             promoted[0] = param
         _events.Handler().register(_NEW_SERVER_PROMOTED, _another_my_event)
-        jobs = self.proxy.event.trigger(
+        packet = self.proxy.event.trigger(
             "_NEW_SERVER_PROMOTED", "lock_a, lock_b", "my.example.com", ""
         )
+        result = _xmlrpc._decode(packet)
+        self.assertTrue(len(result.results) > 0)
+        self.assertEqual(result.results[0].rowcount, 2)
+        jobs = [ row[0] for row in result.results[0] ]
         try:
             self.proxy.event.wait_for_procedures(", ".join(jobs))
             self.assertEqual(promoted[0], "my.example.com")
@@ -297,14 +302,11 @@ class TestService(unittest.TestCase):
     def test_procedures(self):
         """Test the procedure interface from the service perspective.
         """
-        try:
-            self.proxy.event.wait_for_procedures(
-                "e8ca0abe-cfdf-4699-a07d-8cb481f4670b"
-                )
-            self.assertTrue(False)
-        except Exception as error:
-            if str(error).find("was not found") == -1:
-                raise
+        packet = self.proxy.event.wait_for_procedures(
+            "e8ca0abe-cfdf-4699-a07d-8cb481f4670b"
+        )
+        result = _xmlrpc._decode(packet)
+        self.assertTrue(str(result.error).find("was not found") >= 0)
 
 if __name__ == "__main__":
     unittest.main()

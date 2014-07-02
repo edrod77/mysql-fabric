@@ -30,6 +30,8 @@ from tests.utils import (
     cleanup_environment,
 )
 
+import tests.utils
+
 OPTIONS_MASTER = {
     "uuid" :  _uuid.UUID("80139491-08ed-11e2-b7bd-f0def124dcc5"),
     "address"  : MySQLInstances().get_address(0),
@@ -44,7 +46,7 @@ OPTIONS_SLAVE = {
     "passwd": MySQLInstances().passwd,
 }
 
-class TestMySQLMaster(unittest.TestCase):
+class TestMySQLMaster(tests.utils.TestCase):
     """Unit test for the configuration file handling.
     """
     def setUp(self):
@@ -88,15 +90,23 @@ class TestMySQLMaster(unittest.TestCase):
 
         # Check health as a master before calling connect.
         master.disconnect()
-        ret = check_master_issues(master)
-        self.assertEqual(ret, {'is_running': False})
+        error, result = check_master_issues(master)
+        expected_result = {
+            'is_gtid_not_enabled': False,
+            'is_slave_updates_not_enabled': False,
+            'is_not_running': True,
+            'is_binlog_not_enabled': False,
+            'no_rpl_user': False
+        }
+        self.assertEqual(error, True)
+        self.assertEqual(result, expected_result)
 
         # Check health as a master after calling connect.
         master.connect()
-        ret = check_master_issues(master)
-        self.assertEqual(ret, {})
+        error, _ = check_master_issues(master)
+        self.assertEqual(error, False)
 
-class TestMySQLSlave(unittest.TestCase):
+class TestMySQLSlave(tests.utils.TestCase):
     """Unit test for the configuration file handling.
     """
 
@@ -301,25 +311,30 @@ class TestMySQLSlave(unittest.TestCase):
         slave.disconnect()
 
         # Try to check the health when one cannot connect to the server.
-        ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'is_running': False})
+        error, ret = check_slave_issues(slave)
+        self.assertEqual(error, True)
+        self.assertEqual(ret['is_not_running'], True)
 
         # Try to check the health when change master has not been executed.
         slave.connect()
-        ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'is_configured': False})
+        error, ret = check_slave_issues(slave)
+        self.assertEqual(error, True)
+        self.assertEqual(ret['is_not_configured'], True)
 
         # Try to check the health after executing change master.
         switch_master(slave, master, MySQLInstances().user,
             MySQLInstances().passwd
         )
-        ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'io_running': False, 'sql_running': False})
+        error, ret = check_slave_issues(slave)
+        self.assertEqual(error, True)
+        self.assertEqual(ret['io_not_running'], True)
+        self.assertEqual(ret['sql_not_running'], True)
 
         # Try to check the health after starting one thread.
         start_slave(slave, wait=True, threads=(SQL_THREAD, ))
-        ret = check_slave_issues(slave)
-        self.assertEqual(ret, {'io_running': False})
+        error, ret = check_slave_issues(slave)
+        self.assertEqual(error, True)
+        self.assertEqual(ret['io_not_running'], True)
 
         # Create data and synchronize to show there is no gtid behind.
         master.exec_stmt("CREATE DATABASE IF NOT EXISTS test")
@@ -328,8 +343,15 @@ class TestMySQLSlave(unittest.TestCase):
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
         start_slave(slave, wait=True, threads=(IO_THREAD, ))
         sync_slave_with_master(slave, master, timeout=0)
-        ret = check_slave_delay(slave, master)
-        self.assertEqual(ret, {})
+        result = check_slave_delay(slave, master)
+        expected_result = {
+            'seconds_behind': 0,
+            'is_not_configured': False,
+            'gtids_behind': 0,
+            'is_not_running': False,
+            'sql_delay': 0
+        }
+        self.assertEqual(result, expected_result)
 
     def test_get_gtid_behind(self):
         """Test get_gtid_behind() function.

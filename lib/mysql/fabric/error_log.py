@@ -52,7 +52,7 @@ class ErrorLog(_persistence.Persistable):
     CREATE_SERVER_ERROR_LOG = (
         "CREATE TABLE error_log "
         "(server_uuid VARCHAR(40) NOT NULL, "
-        "reported TIMESTAMP(6) NOT NULL, "
+        "reported TIMESTAMP /*!50604 (6) */ NOT NULL, "
         "reporter VARCHAR(64) NOT NULL, "
         "error TEXT, "
         "INDEX key_server_uuid_reported (server_uuid, reported), "

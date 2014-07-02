@@ -33,16 +33,11 @@ from mysql.fabric.server import (
 )
 from tests.utils import MySQLInstances
 
-class TestHashMoveGlobal(unittest.TestCase):
+class TestHashMoveGlobal(tests.utils.TestCase):
     """Contains unit tests for testing the shard move operation and for
     verifying that the global server configuration remains constant after
     the shard move configuration.
     """
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Configure the existing environment
         """
@@ -221,39 +216,23 @@ class TestHashMoveGlobal(unittest.TestCase):
         tests.utils.configure_decoupled_master(self.__group_6, self.__server_6)
 
         status = self.proxy.sharding.create_definition("HASH", "GROUPID1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_define_shard_mapping).")
-        self.assertEqual(status[2], 1)
+        self.check_xmlrpc_command_result(status, returns=1)
 
         status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard_mapping).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(
             1,
             "GROUPID2,GROUPID3,GROUPID4,GROUPID5",
             "ENABLED"
         )
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_add_shard).")
+        self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
 
     def test_move_shard_1(self):
         '''Test the move of shard 1 and the global server configuration
@@ -277,10 +256,7 @@ class TestHashMoveGlobal(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move_shard("1", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.check_xmlrpc_command_result(status)
         self.__server_6.connect()
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -371,10 +347,7 @@ class TestHashMoveGlobal(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move_shard("2", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.check_xmlrpc_command_result(status)
         self.__server_6.connect()
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -465,10 +438,7 @@ class TestHashMoveGlobal(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move_shard("3", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.check_xmlrpc_command_result(status)
         self.__server_6.connect()
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -559,10 +529,7 @@ class TestHashMoveGlobal(unittest.TestCase):
         row_cnt_shard_before_move_db2_t2 = \
             int(row_cnt_shard_before_move_db2_t2[0][0])
         status = self.proxy.sharding.move_shard("4", "GROUPID6")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_setup_resharding_switch).")
+        self.check_xmlrpc_command_result(status)
         self.__server_6.connect()
         row_cnt_shard_after_move_db1_t1 = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -634,20 +601,4 @@ class TestHashMoveGlobal(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.proxy.sharding.disable_shard(1)
-        self.proxy.sharding.remove_shard(1)
-
-        self.proxy.sharding.disable_shard(2)
-        self.proxy.sharding.remove_shard(2)
-
-        self.proxy.sharding.disable_shard(3)
-        self.proxy.sharding.remove_shard(3)
-
-        self.proxy.sharding.disable_shard(4)
-        self.proxy.sharding.remove_shard(4)
-
-        self.proxy.sharding.disable_shard(5)
-        self.proxy.sharding.remove_shard(5)
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

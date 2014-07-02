@@ -163,7 +163,6 @@ class TestManageServices(unittest.TestCase):
         """
         sys.stderr = self.old_stderr
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
         _command.unregister_command("test", "non_doc_command_1")
         _command.unregister_command("test", "non_dot_command_1")

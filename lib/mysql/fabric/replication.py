@@ -100,14 +100,15 @@ def check_master_issues(server):
 
     The dictionary returned may have the following keys::
 
-      status["is_running"] = False
-      status["is_binlog_enabled"] = False
-      status["is_gtid_enabled"] = False
-      status["is_slave_updates_enabled"] = False
-      status["rpl_user"] = False
+      status['is_not_running'] = False
+      status['is_binlog_not_enabled'] = False
+      status['is_gtid_not_enabled'] = False
+      status['is_slave_updates_not_enabled'] = False
+      status['no_rpl_user'] = False
 
     :param server: MySQL Server.
-    :return: A dictionary with issues, if there is any.
+    :return: Whether there is an issue or not and a dictionary with issues,
+             if there is any.
 
     .. note::
 
@@ -116,29 +117,36 @@ def check_master_issues(server):
        characteristics before considering a server eligible for becoming a
        master.
     """
-    status = {}
+    status = {
+        'is_not_running' : False,
+        'is_binlog_not_enabled' : False,
+        'is_gtid_not_enabled' : False,
+        'is_slave_updates_not_enabled' : False,
+        'no_rpl_user' : False
+    }
 
     if not server.is_connected():
-        status["is_running"] = False
-        return status
+        status["is_not_running"] = True
+        return True, status
 
     # Check for binlog.
     if not server.binlog_enabled:
-        status["is_binlog_enabled"] = False
+        status["is_binlog_not_enabled"] = True
 
     # Check for gtid.
     if not server.gtid_enabled:
-        status["is_gtid_enabled"] = False
+        status["is_gtid_not_enabled"] = True
 
     # Check for slave updates.
     if not server.get_variable("LOG_SLAVE_UPDATES"):
-        status["is_slave_updates_enabled"] = False
+        status["is_slave_updates_not_enabled"] = True
 
     # See if the current user has the appropriate replication privilege(s)
     if not has_appropriate_privileges(server):
-        status["rpl_user"] = False
+        status["no_rpl_user"] = True
 
-    return status
+    error = not all([v is False for v in status.itervalues()])
+    return error, status
 
 @_server.server_logging
 def get_slave_status(server, options=None):
@@ -516,39 +524,47 @@ def check_slave_issues(server):
 
     The dictionary returned may have the following keys::
 
-      status["is_running"] = False
-      status["is_configured"] = False
-      status["io_running"] = False
-      status["sql_running"] = False
+      status["is_not_running"] = False
+      status["is_not_configured"] = False
+      status["io_not_running"] = False
+      status["sql_not_running"] = False
       status["io_error"] = False
       status["sql_error"] = False
 
     :param server: MySQL Server.
-    :return: A dictionary with issues, if there is any.
+    :return: Whether there is an issue or not and a dictionary with the
+             issues, if there is any.
     """
-    status = {}
+    status = {
+        'is_not_running': False,
+        'is_not_configured': False,
+        'io_not_running': False,
+        'sql_not_running': False,
+        'io_error': False,
+        'sql_error': False
+    }
 
     if not server.is_connected():
-        status["is_running"] = False
-        return status
+        status["is_not_running"] = True
+        return True, status
 
     ret = get_slave_status(server)
 
     if not ret:
-        status["is_configured"] = False
-        return status
+        status["is_not_configured"] = True
+        return True, status
 
-    # Check slave status for errors, threads activity
     if ret[0].Slave_IO_Running.upper() != "YES":
-        status["io_running"] = False
+        status["io_not_running"] = True
     if ret[0].Slave_SQL_Running.upper() != "YES":
-        status["sql_running"] = False
+        status["sql_not_running"] = True
     if ret[0].Last_IO_Errno > 0:
         status["io_error"] = ret[0].Last_IO_Error
     if ret[0].Last_SQL_Errno > 0:
         status["sql_error"] = ret[0].Last_SQL_Error
 
-    return status
+    error = not all([v is False for v in status.itervalues()])
+    return error, status
 
 @_server.server_logging
 def check_slave_delay(slave, master):
@@ -557,32 +573,36 @@ def check_slave_delay(slave, master):
     It checks if both the master and slave are alive and kicking, whether
     the `SQL_THREAD` and `IO_THREAD` are running or not. It reports the
     `SQL_Delay`, `Seconds_Behind_Master` and finally if GTIDs are enabled
-    the number of transactions behind master or the number of bytes behind
-    master otherwise.
+    the number of transactions behind master.
 
     The dictionary returned may have the following keys::
 
-      status["is_running"] = False
-      status["is_configured"] = False
+      status["is_not_running"] = False
+      status["is_not_configured"] = False
       status["sql_delay"] = Value
       status["seconds_behind"] = Value
-      status["bytes_behind"] = Value
       status["gtids_behind"] = Value
 
     :param slave: Reference to a slave (MySQL Server).
     :param master: Reference to the master (MySQL Server).
     :return: A dictionary with delays, if there is any.
     """
-    status = {}
+    status = {
+        'is_not_running': False,
+        'is_not_configured': False,
+        'sql_delay': 0,
+        'seconds_behind': 0,
+        'gtids_behind': 0
+    }
 
     if not slave.is_connected() or not master.is_connected():
-        status["is_running"] = False
+        status["is_not_running"] = True
         return status
 
     slave_status = get_slave_status(slave)
 
     if not slave_status:
-        status["is_configured"] = False
+        status["is_not_configured"] = True
         return status
 
     # Check if the slave must lag behind the master.

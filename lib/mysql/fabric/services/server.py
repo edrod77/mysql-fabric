@@ -83,6 +83,8 @@ from mysql.fabric import (
 from mysql.fabric.command import (
     ProcedureGroup,
     Command,
+    ResultSet,
+    CommandResult,
 )
 
 from mysql.fabric.utils import (
@@ -109,9 +111,34 @@ class GroupLookups(Command):
         :return: List with {"group_id" : group_id, "failure_detector": ON/OFF,
                  "description" : description}.
         """
-        return Command.generate_output_pattern(
-            _lookup_groups, group_id)
 
+        if group_id is None:
+            gids = _server.Group.groups()
+        else:
+            gids = [group_id]
+
+        _LOGGER.debug("Group IDs: %s", gids)
+
+        # Fetch all the groups before building the result set since an
+        # exception can be thrown and there is little point in trying
+        # to build a result set before all groups can be fetched.
+        groups = [ _retrieve_group(gid) for gid in gids ]
+
+        rset = ResultSet(
+            names=('group_id', 'description', 'failure_detector', 'master_uuid'),
+            types=(str, str, bool, str)
+        )
+
+        for group in groups:
+            rset.append_row([
+                group.group_id,          # group_id
+                group.description,       # description
+                group.status,            # failure_detector
+                group.master,            # master_uuid
+            ])
+
+        return CommandResult(None, results=rset)
+            
 CREATE_GROUP = _events.Event()
 class GroupCreate(ProcedureGroup):
     """Create a group.
@@ -194,9 +221,41 @@ class ServerLookups(Command):
         :return: Information on servers.
         :rtype: List with [uuid, address, status, mode, weight]
         """
-        return Command.generate_output_pattern(
-            _lookup_servers, group_id, server_id, status, mode
+        # Determine the set of servers to iterate through.
+        group = _retrieve_group(group_id)
+        if server_id is None:
+            servers = [server for server in group.servers()]
+        else:
+            servers = [_retrieve_server(server_id, group_id)]
+
+        # Determine the set of status to check upon.
+        if status is None:
+            status = _server.MySQLServer.SERVER_STATUS
+        else:
+            status = [_retrieve_server_status(status)]
+
+        # Determine the set of modes to check upon.
+        if mode is None:
+            mode = _server.MySQLServer.SERVER_MODE
+        else:
+            mode = [_retrieve_server_mode(mode)]
+
+        # Create result set.
+        rset = ResultSet(
+            names=('server_uuid', 'address', 'status', 'mode', 'weight'),
+            types=(str, str, str, str, float),
         )
+        for server in servers:
+            if server.status in status and server.mode in mode:
+                rset.append_row([
+                    str(server.uuid),
+                    server.address,
+                    server.status,
+                    server.mode,
+                    server.weight
+                ])
+
+        return CommandResult(None, results=rset)
 
 class ServerUuid(Command):
     """Return server's uuid.
@@ -212,7 +271,9 @@ class ServerUuid(Command):
                         if the UUID is not retrieved.
         :return: UUID.
         """
-        return Command.generate_output_pattern(_lookup_uuid, address, timeout)
+        rset = ResultSet(names=['uuid'], types=[str])
+        rset.append_row([_lookup_uuid(address, timeout)])
+        return CommandResult(None, results=rset)
 
 ADD_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
@@ -326,7 +387,16 @@ class DumpServers(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        return _server.MySQLServer.dump_servers(connector_version, patterns)
+        
+        rset = ResultSet(
+            names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
+            types=(str, str, str, int, int, int, float)
+        )
+        
+        for row in _server.MySQLServer.dump_servers(connector_version, patterns):
+            rset.append_row(row)
+
+        return CommandResult(None, results=rset)
 
 SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):
@@ -491,29 +561,6 @@ class CloneServer(ProcedureGroup):
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-def _lookup_groups(group_id=None):
-    """Return a list of existing group(s).
-    """
-    info = []
-    if group_id is None:
-        for group_id in _server.Group.groups():
-            _group_information(_server.Group.fetch(group_id[0]), info)
-    else:
-        group = _retrieve_group(group_id)
-        _group_information(group, info)
-    return info
-
-def _group_information(group, info):
-    """Get information on group and append it into to a list.
-    """
-    master = str(group.master) if group.master else ""
-    info.append({
-        "group_id" : group.group_id,
-        "description" : group.description or "",
-        "failure_detector" : True if group.status else False,
-        "master_uuid" : master
-    })
-
 @_events.on_event(CREATE_GROUP)
 def _create_group(group_id, description):
     """Create a group.
@@ -570,45 +617,6 @@ def _destroy_group(group_id, force):
     _detector.FailureDetector.unregister_group(group_id)
     _server.Group.remove(group)
     _LOGGER.debug("Removed group (%s).", group)
-
-def _lookup_servers(group_id, server_id=None, status=None, mode=None):
-    """Return existing servers in a group or information on a server.
-    """
-    group = _retrieve_group(group_id)
-
-    status = _retrieve_server_status(status) if status is not None else None
-    if status is None:
-        status = _server.MySQLServer.SERVER_STATUS
-    else:
-        status = [status]
-
-    mode = _retrieve_server_mode(mode) if mode is not None else None
-    if mode is None:
-        mode = _server.MySQLServer.SERVER_MODE
-    else:
-        mode = [mode]
-
-    info = []
-    if server_id is None:
-        for server in group.servers():
-            if server.status in status and server.mode in mode:
-                _server_information(server, info)
-    else:
-        server = _retrieve_server(server_id, group_id)
-        _server_information(server, info)
-
-    return info
-
-def _server_information(server, info):
-    """Get information on server and append it into to a list.
-    """
-    info.append({
-        "server_uuid" : str(server.uuid),
-        "address" : server.address,
-        "status" : server.status,
-        "mode" : server.mode,
-        "weight" : server.weight,
-    })
 
 def _lookup_uuid(address, timeout):
     """Return server's uuid.

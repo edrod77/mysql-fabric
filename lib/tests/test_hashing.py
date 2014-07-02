@@ -34,11 +34,7 @@ from tests.utils import (
     MySQLInstances,
 )
 
-class TestHashSharding(unittest.TestCase):
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
+class TestHashSharding(tests.utils.TestCase):
     def setUp(self):
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
 
@@ -371,10 +367,7 @@ class TestHashSharding(unittest.TestCase):
         self.assertTrue(int(rows[0][0]) == 500)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_prune_shard_tables).")
+        self.check_xmlrpc_command_result(status)
 
         rows =  self.__server_2.exec_stmt(
                                             "SELECT COUNT(*) FROM db1.t1",
@@ -502,16 +495,4 @@ class TestHashSharding(unittest.TestCase):
     def tearDown(self):
         """Tear down the state store setup.
         """
-        self.__server_2.exec_stmt("DROP TABLE db1.t1")
-        self.__server_2.exec_stmt("DROP DATABASE db1")
-        self.__server_3.exec_stmt("DROP TABLE db1.t1")
-        self.__server_3.exec_stmt("DROP DATABASE db1")
-        self.__server_4.exec_stmt("DROP TABLE db1.t1")
-        self.__server_4.exec_stmt("DROP DATABASE db1")
-        self.__server_5.exec_stmt("DROP TABLE db1.t1")
-        self.__server_5.exec_stmt("DROP DATABASE db1")
-        self.__server_6.exec_stmt("DROP TABLE db1.t1")
-        self.__server_6.exec_stmt("DROP DATABASE db1")
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
