@@ -21,8 +21,7 @@ class for implementing the concrete class for doing backup using
 mysqldump.
 """
 
-from abc import ABCMeta, abstractmethod
-
+from abc import ABCMeta
 import logging
 import shlex
 
@@ -294,7 +293,7 @@ class MySQLDump(BackupMethod):
             )
 
     @staticmethod
-    def restore_fabric_server(server, image,config_file, mysqlclient_binary):
+    def restore_fabric_server(server, image, config_file, mysqlclient_binary):
         """Restore the backup from the image to a server within the
         fabric farm and managed by the Fabric server.
 

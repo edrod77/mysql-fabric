@@ -30,7 +30,6 @@ from mysql.fabric import (
 
 from mysql.fabric.server import (
     Group,
-    MySQLServer,
 )
 
 from mysql.fabric.sharding import (
@@ -38,8 +37,6 @@ from mysql.fabric.sharding import (
     RangeShardingSpecification,
     HashShardingSpecification,
     Shards,
-    RangeShardingIntegerHandler,
-    HashShardingIntegerHandler,
     SHARDING_DATATYPE_HANDLER,
     SHARDING_SPECIFICATION_HANDLER,
 )
@@ -177,7 +174,9 @@ class RemoveShardMappingDefn(ProcedureShard):
                             or not.
         """
         procedures = _events.trigger(
-            REMOVE_SHARD_MAPPING_DEFN, self.get_lockable_objects(), shard_mapping_id
+            REMOVE_SHARD_MAPPING_DEFN,
+            self.get_lockable_objects(),
+            shard_mapping_id
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -555,7 +554,7 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
     if len(RangeShardingSpecification.list(shard_mapping_id)) != 0:
         raise _errors.ShardingError(SHARDS_ALREADY_EXIST)
 
-    group_id_list, lower_bound_list =\
+    group_id_list, lower_bound_list = \
         _utils.get_group_lower_bound_list(groupid_lb_list)
 
     if (len(group_id_list) != len(lower_bound_list)) and\
@@ -565,7 +564,7 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
     if len(lower_bound_list) != 0 and schema_type == "HASH":
         raise _errors.ShardingError(LOWER_BOUND_AUTO_GENERATED)
 
-    if schema_type == "RANGE":
+    if schema_type in Shards.VALID_RANGE_SHARDING_TYPES:
         for lower_bound in lower_bound_list:
             if(not SHARDING_DATATYPE_HANDLER[schema_type].\
                         is_valid_lower_bound(lower_bound)):
@@ -581,19 +580,7 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
 
         shard_id = shard.shard_id
 
-        if schema_type == "RANGE":
-            range_sharding_specification = RangeShardingSpecification.add(
-                                                shard_mapping_id,
-                                                lower_bound_list[index],
-                                                shard_id
-                                            )
-            _LOGGER.debug(
-                "Added Shard (map id = %s, lower bound = %s, id = %s).",
-                range_sharding_specification.shard_mapping_id,
-                range_sharding_specification.lower_bound,
-                range_sharding_specification.shard_id
-            )
-        elif schema_type == "HASH":
+        if schema_type == "HASH":
             HashShardingSpecification.add(
                 shard_mapping_id,
                 shard_id
@@ -604,7 +591,18 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
                 shard_id
             )
         else:
-            raise _errors.ShardingError(INVALID_SHARDING_TYPE % (schema_type, ))
+            range_sharding_specification = \
+                SHARDING_SPECIFICATION_HANDLER[schema_type].add(
+                                                shard_mapping_id,
+                                                lower_bound_list[index],
+                                                shard_id
+                                            )
+            _LOGGER.debug(
+                "Added Shard (map id = %s, lower bound = %s, id = %s).",
+                range_sharding_specification.shard_mapping_id,
+                range_sharding_specification.lower_bound,
+                range_sharding_specification.shard_id
+            )
 
         #If the shard is added in a DISABLED state  do not setup replication
         #with the primary of the global group. Basically setup replication only
@@ -677,7 +675,7 @@ def _lookup(lookup_arg, key,  hint):
         shard_mapping = ShardMapping.fetch(lookup_arg)
         if shard_mapping is None:
             raise _errors.ShardingError(TABLE_NAME_NOT_FOUND % (lookup_arg,  ))
-        sharding_specification =\
+        sharding_specification = \
             SHARDING_SPECIFICATION_HANDLER[shard_mapping.type_name].\
             lookup(key, shard_mapping.shard_mapping_id, shard_mapping.type_name)
         if sharding_specification is None:

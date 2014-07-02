@@ -214,7 +214,7 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
     if cmd == "SPLIT":
         range_sharding_spec, _, shard_mappings, _ = \
             _services_sharding.verify_and_fetch_shard(shard_id)
-        upper_bound =\
+        upper_bound = \
             SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
                         get_upper_bound(
                             range_sharding_spec.lower_bound,
@@ -239,14 +239,13 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
                 upper_bound = HashShardingSpecification.fetch_max_key(shard_id)
 
             #Calculate the split value.
-            split_value =\
+            split_value = \
                 SHARDING_DATATYPE_HANDLER[shard_mappings[0].type_name].\
                 split_value(
                     range_sharding_spec.lower_bound,
                     upper_bound
                 )
-        elif shard_mappings[0].type_name == "RANGE" and\
-            split_value is not None:
+        elif split_value is not None:
             if not (SHARDING_DATATYPE_HANDLER[shard_mappings[0].type_name].\
                     is_valid_split_value(
                         split_value, range_sharding_spec.lower_bound,
@@ -257,7 +256,7 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
                     _services_sharding.INVALID_LOWER_BOUND_VALUE %
                     (split_value, )
                 )
-        elif shard_mappings[0].type_name == "RANGE" and split_value is None:
+        elif split_value is None:
             raise _errors.ShardingError(
                 _services_sharding.SPLIT_VALUE_NOT_DEFINED
             )
