@@ -199,7 +199,7 @@ class TestShardingPrune(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1,  "LOCAL")
-        row = self.check_xmlrpc_simple(status, {})
+        row = self.check_xmlrpc_simple(status, {}, rowcount=1)
         shard_server = MySQLServer.fetch(row['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
@@ -216,7 +216,7 @@ class TestShardingPrune(tests.utils.TestCase):
         self.assertTrue(int(rows[0][0]) == 1)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 101,  "LOCAL")
-        row = self.check_xmlrpc_simple(status, {})
+        row = self.check_xmlrpc_simple(status, {}, rowcount=1)
         shard_server = MySQLServer.fetch(row['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
@@ -233,7 +233,7 @@ class TestShardingPrune(tests.utils.TestCase):
         self.assertTrue(int(rows[0][0]) == 101)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 202,  "LOCAL")
-        row = self.check_xmlrpc_simple(status, {})
+        row = self.check_xmlrpc_simple(status, {}, rowcount=1)
         shard_server = MySQLServer.fetch(row['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
@@ -250,7 +250,7 @@ class TestShardingPrune(tests.utils.TestCase):
         self.assertTrue(int(rows[0][0]) == 201)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 303,  "LOCAL")
-        row = self.check_xmlrpc_simple(status, {})
+        row = self.check_xmlrpc_simple(status, {}, rowcount=1)
         shard_server = MySQLServer.fetch(row['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
@@ -267,7 +267,7 @@ class TestShardingPrune(tests.utils.TestCase):
         self.assertTrue(int(rows[0][0]) == 301)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 404,  "LOCAL")
-        row = self.check_xmlrpc_simple(status, {})
+        row = self.check_xmlrpc_simple(status, {}, rowcount=1)
         shard_server = MySQLServer.fetch(row['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
