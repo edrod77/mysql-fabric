@@ -59,24 +59,24 @@ class CheckHealth(Command):
         info = ResultSet(
             names=[
                 'uuid', 'is_alive', 'status',
-                'is_running', 'is_configured', 'io_running',
-                'sql_running', 'io_error', 'sql_error',
+                'is_not_running', 'is_not_configured', 'io_not_running',
+                'sql_not_running', 'io_error', 'sql_error'
             ],
-            types=[str, bool, str] + [bool] * 6
+            types=[str, bool, str] + [bool] * 4 + [str, str]
         )
-
         issues = ResultSet(names=['issue'], types=[str])
 
         for server in group.servers():
             alive = False
             is_master = (group.master == server.uuid)
             status = server.status
+            why_slave_issues = {}
             # These are used when server is not contactable.
-            slave_issues = {
-                'is_running': False,
-                'is_configured': False,
-                'io_running': False,
-                'sql_running': False,
+            why_slave_issues = {
+                'is_not_running': False,
+                'is_not_configured': False,
+                'io_not_running': False,
+                'sql_not_running': False,
                 'io_error': False,
                 'sql_error': False,
             }
@@ -84,7 +84,8 @@ class CheckHealth(Command):
                 server.connect()
                 alive = True
                 if not is_master:
-                    slave_issues = _replication.check_slave_issues(server)
+                    slave_issues, why_slave_issues = \
+                        _replication.check_slave_issues(server)
                     str_master_uuid = _replication.slave_has_master(server)
                     if (group.master is None or str(group.master) != \
                         str_master_uuid) and not slave_issues:
@@ -97,14 +98,14 @@ class CheckHealth(Command):
                 status = _server.MySQLServer.FAULTY
             info.append_row([
                 server.uuid,
-                alive, 
+                alive,
                 status,
-                slave_issues['is_running'],
-                slave_issues['is_configured'],
-                slave_issues['io_running'],
-                slave_issues['sql_running'],
-                slave_issues['io_error'],
-                slave_issues['sql_error'],
+                why_slave_issues['is_not_running'],
+                why_slave_issues['is_not_configured'],
+                why_slave_issues['io_not_running'],
+                why_slave_issues['sql_not_running'],
+                why_slave_issues['io_error'],
+                why_slave_issues['sql_error'],
             ])
 
         return CommandResult(None, results=[info, issues])

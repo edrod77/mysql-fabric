@@ -59,7 +59,6 @@ class TestFailureEvents(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
         from __main__ import config
         _failure_tracker.ReportError._NOTIFICATION_INTERVAL = \

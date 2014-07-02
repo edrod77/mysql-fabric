@@ -32,14 +32,6 @@ class TestServerClone(tests.utils.TestCase):
     the other servers in the group. Now start replication and ensure everything
     works fine.
     """
-
-    def assertStatus(self, status, expect):
-        """Asserts that the status obtained is similar to the status
-        expected.
-        """
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Create the setup for performing the testing of the server clone
         command.
@@ -160,12 +152,4 @@ class TestServerClone(tests.utils.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.__server_1.exec_stmt("DROP DATABASE IF EXISTS db1")
-        self.__server_1.exec_stmt("DROP DATABASE IF EXISTS db2")
-        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
-        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db2")
-        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
-        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db2")
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

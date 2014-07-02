@@ -62,7 +62,6 @@ class TestHandlerServices(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_statistics_node(self):
         """Test node view.

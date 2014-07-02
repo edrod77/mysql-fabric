@@ -30,11 +30,6 @@ from mysql.fabric.server import MySQLServer
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
 class TestShardingPrune(tests.utils.TestCase):
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Creates the following topology for testing,
 
@@ -155,52 +150,6 @@ class TestShardingPrune(tests.utils.TestCase):
         self.assertEqual(len(rows), 15)
 
     def tearDown(self):
-        self.proxy.sharding.enable_shard("1")
-
-        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        result = _xmlrpc._decode(status)
-        for row in result.results[0]:
-            shard_uuid = row[0]
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        result = _xmlrpc._decode(status)
-        for row in result.results[0]:
-            shard_uuid = row[0]
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
-
-        status = self.proxy.sharding.disable_shard("1")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_shard("1")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.check_xmlrpc_command_result(status)
-
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3"):
-            status = self.proxy.group.lookup_servers(group_id)
-            info = self.check_xmlrpc_simple(status, {}, rowcount=2, index=0)
-            packet = self.proxy.group.remove(group_id, info["server_uuid"])
-            self.check_xmlrpc_command_result(packet)
-
-            info = self.check_xmlrpc_simple(status, {}, rowcount=2, index=1)
-            packet = self.proxy.group.remove(group_id, info["server_uuid"])
-            self.check_xmlrpc_command_result(packet)
-            packet = self.proxy.group.destroy(group_id)
-            self.check_xmlrpc_command_result(packet)
-
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

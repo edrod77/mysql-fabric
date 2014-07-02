@@ -88,10 +88,7 @@ class TestBackupMySQLDump(unittest.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.__server_1.exec_stmt("DROP DATABASE IF EXISTS backup_db")
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
 if __name__ == "__main__":
     unittest.main()

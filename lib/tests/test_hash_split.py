@@ -27,11 +27,6 @@ from mysql.fabric.server import MySQLServer
 from mysql.fabric.sharding import HashShardingSpecification
 
 class TestShardSplit(tests.utils.TestCase):
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Creates the following topology for testing,
 
@@ -123,7 +118,7 @@ class TestShardSplit(tests.utils.TestCase):
                 for info in self.check_xmlrpc_iter(status)
             ]
             obtained_address_list = [
-                "%s:%s" % (info['host'], info['port']) 
+                info['address']
                 for info in self.check_xmlrpc_iter(status)
             ]
             try:
@@ -173,63 +168,6 @@ class TestShardSplit(tests.utils.TestCase):
             HashShardingSpecification.fetch(3)))
 
     def tearDown(self):
-        self.proxy.sharding.enable_shard("2")
-
-        status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
-        for info in self.check_xmlrpc_iter(status):
-            shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
-        for info in self.check_xmlrpc_iter(status):
-            shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
-
-        status = self.proxy.sharding.lookup_servers("db1.t1", 800,  "LOCAL")
-        for info in self.check_xmlrpc_iter(status):
-            shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
-            shard_server.connect()
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS global_db")
-            shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
-
-        status = self.proxy.sharding.disable_shard("2")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.disable_shard("3")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_shard("2")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_shard("3")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.check_xmlrpc_command_result(status)
-
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3"):
-            status = self.proxy.group.lookup_servers(group_id)
-            for info in self.check_xmlrpc_iter(status):
-                shard_uuid = info['server_uuid']
-                packet = self.proxy.group.remove(
-                    group_id, shard_uuid
-                )
-                self.check_xmlrpc_command_result(packet)
-
-            status = self.proxy.group.destroy(group_id)
-            self.check_xmlrpc_command_result(status)
-
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

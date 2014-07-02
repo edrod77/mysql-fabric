@@ -38,11 +38,6 @@ class TestHashMoveGlobal(tests.utils.TestCase):
     verifying that the global server configuration remains constant after
     the shard move configuration.
     """
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Configure the existing environment
         """
@@ -606,20 +601,4 @@ class TestHashMoveGlobal(tests.utils.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.proxy.sharding.disable_shard(1)
-        self.proxy.sharding.remove_shard(1)
-
-        self.proxy.sharding.disable_shard(2)
-        self.proxy.sharding.remove_shard(2)
-
-        self.proxy.sharding.disable_shard(3)
-        self.proxy.sharding.remove_shard(3)
-
-        self.proxy.sharding.disable_shard(4)
-        self.proxy.sharding.remove_shard(4)
-
-        self.proxy.sharding.disable_shard(5)
-        self.proxy.sharding.remove_shard(5)
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

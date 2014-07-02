@@ -221,20 +221,39 @@ class ServerLookups(Command):
         :return: Information on servers.
         :rtype: List with [uuid, address, status, mode, weight]
         """
+        # Determine the set of servers to iterate through.
+        group = _retrieve_group(group_id)
+        if server_id is None:
+            servers = [server for server in group.servers()]
+        else:
+            servers = [_retrieve_server(server_id, group_id)]
 
+        # Determine the set of status to check upon.
+        if status is None:
+            status = _server.MySQLServer.SERVER_STATUS
+        else:
+            status = [_retrieve_server_status(status)]
+
+        # Determine the set of modes to check upon.
+        if mode is None:
+            mode = _server.MySQLServer.SERVER_MODE
+        else:
+            mode = [_retrieve_server_mode(mode)]
+
+        # Create result set.
         rset = ResultSet(
             names=('server_uuid', 'address', 'status', 'mode', 'weight'),
             types=(str, str, str, str, float),
         )
-
-        for item in _lookup_servers(group_id, server_id, status, mode):
-            rset.append_row([
-                item['server_uuid'],
-                item['address'],
-                item['status'],
-                item['mode'],
-                item['weight'],
-            ])
+        for server in servers:
+            if server.status in status and server.mode in mode:
+                rset.append_row([
+                    str(server.uuid),
+                    server.address,
+                    server.status,
+                    server.mode,
+                    server.weight
+                ])
 
         return CommandResult(None, results=rset)
 
@@ -598,45 +617,6 @@ def _destroy_group(group_id, force):
     _detector.FailureDetector.unregister_group(group_id)
     _server.Group.remove(group)
     _LOGGER.debug("Removed group (%s).", group)
-
-def _lookup_servers(group_id, server_id=None, status=None, mode=None):
-    """Return existing servers in a group or information on a server.
-    """
-    group = _retrieve_group(group_id)
-
-    status = _retrieve_server_status(status) if status is not None else None
-    if status is None:
-        status = _server.MySQLServer.SERVER_STATUS
-    else:
-        status = [status]
-
-    mode = _retrieve_server_mode(mode) if mode is not None else None
-    if mode is None:
-        mode = _server.MySQLServer.SERVER_MODE
-    else:
-        mode = [mode]
-
-    info = []
-    if server_id is None:
-        for server in group.servers():
-            if server.status in status and server.mode in mode:
-                _server_information(server, info)
-    else:
-        server = _retrieve_server(server_id, group_id)
-        _server_information(server, info)
-
-    return info
-
-def _server_information(server, info):
-    """Get information on server and append it into to a list.
-    """
-    info.append({
-        "server_uuid" : str(server.uuid),
-        "address" : server.address,
-        "status" : server.status,
-        "mode" : server.mode,
-        "weight" : server.weight,
-    })
 
 def _lookup_uuid(address, timeout):
     """Return server's uuid.

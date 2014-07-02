@@ -206,6 +206,7 @@ class TestDecorator(unittest.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
+        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_decorator(self):
         """Test decorator related to events.

@@ -34,12 +34,7 @@ import mysql.fabric.protocols.xmlrpc as _xmlrpc
 class TestServerServices(tests.utils.TestCase):
     """Test server service interface.
     """
-
     uuid_cre = re.compile('\w{8}(-\w{4}){3}-\w{12}')
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
     def check_xmlrpc_command_result(self, packet, has_error, is_syncronous=False):
         "Check that a packet from a procedure execution is sane."
@@ -90,7 +85,6 @@ class TestServerServices(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_create_group_events(self):
         """Test creating a group by calling group.create().
@@ -671,7 +665,7 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             'status': _server.MySQLServer.SECONDARY,
-            'is_configured': False,
+            'is_not_configured': True,
         })
 
         self.proxy.group.remove("group", uuid_1)
@@ -679,7 +673,7 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SECONDARY,
-            "is_configured" : False,
+            "is_not_configured" : True,
         })
 
         # Try to make the previous server a master, i.e. --update-only = False.
@@ -701,7 +695,7 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SECONDARY,
-            "is_configured" : False,
+            "is_not_configured" : True,
         }, rowcount=2, index=1)
 
         # Properly configure the previous slave.
@@ -730,8 +724,8 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             'status': _server.MySQLServer.FAULTY,
-            "io_running": False,
-            "sql_running": False
+            "io_not_running": True,
+            "sql_not_running": True,
         }, rowcount=3, index=2)
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.SPARE
@@ -749,8 +743,8 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.FAULTY,
-            "io_running": False,
-            "sql_running": False,
+            "io_not_running": True,
+            "sql_not_running": True,
         }, rowcount=3, index=2)
         status = self.proxy.server.set_status(
             uuid_3, _server.MySQLServer.SPARE, True
@@ -758,8 +752,8 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SPARE,
-            "io_running": False,
-            "sql_running": False,
+            "io_not_running": True,
+            "sql_not_running": True,
         }, rowcount=3, index=2)
 
         # Try to set slave's status to faulty, i.e. --update-only = False.
@@ -770,8 +764,8 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SPARE,
-            "io_running": False,
-            "sql_running": False,
+            "io_not_running": True,
+            "sql_not_running": True,
         }, rowcount=3, index=2)
 
         # Try to set slave's status to faulty, i.e. --update-only = True.
@@ -782,8 +776,8 @@ class TestServerServices(tests.utils.TestCase):
         status = self.proxy.group.health("group")
         self.check_xmlrpc_simple(status, {
             "status": _server.MySQLServer.SPARE,
-            "io_running": False,
-            "sql_running": False,
+            "io_not_running": True,
+            "sql_not_running": True,
         }, rowcount=3, index=2)
 
     def test_lookup_servers(self):

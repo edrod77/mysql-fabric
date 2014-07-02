@@ -99,6 +99,7 @@ def make_servers_lookup_result(rows):
         types=(str, str, str, str, float),
         rows=rows,
     )
+
 def configure_decoupled_master(group, master):
     """Configure master in a group by changing the group.master and
     mode and status properties without redirecting slaves to the
@@ -361,11 +362,6 @@ def setup_xmlrpc():
         allow_none=True
     )
     return (None, proxy)
-
-def teardown_xmlrpc(manager, proxy):
-    """Clean up XML-RPC.
-    """
-    pass
 
 class TestCase(unittest.TestCase):
     """Test case class that defines some convenience methods for MySQL

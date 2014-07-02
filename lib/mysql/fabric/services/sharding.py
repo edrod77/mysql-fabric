@@ -51,6 +51,10 @@ from mysql.fabric.command import (
     CommandResult,
 )
 
+from mysql.fabric.services.server import (
+    ServerLookups,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 #Error messages
@@ -522,7 +526,7 @@ def _lookup_shard_mapping(table_name):
     """
     shard_mapping = ShardMapping.fetch(table_name)
     if shard_mapping is not None:
-        return [{"shard_mapping_id":shard_mapping.shard_mapping_id,
+        return [{"mapping_id":shard_mapping.shard_mapping_id,
                  "table_name":shard_mapping.table_name,
                  "column_name":shard_mapping.column_name,
                  "type_name":shard_mapping.type_name,
@@ -532,7 +536,7 @@ def _lookup_shard_mapping(table_name):
         #it would cause the executor to rollback which is an unnecessary
         #action. It is enough if we inform the user that the lookup returned
         #nothing.
-        return [{"shard_mapping_id":"",
+        return [{"mapping_id":"",
                  "table_name":"",
                  "column_name":"",
                  "type_name":"",
@@ -716,7 +720,7 @@ def _lookup(lookup_arg, key,  hint):
                 )
         #GLOBAL lookups. There can be only one global group, hence using
         #shard_mapping[0] is safe.
-        group = Group.fetch(shard_mapping[0].global_group)
+        group_id = shard_mapping[0].global_group
     else:
         shard_mapping = ShardMapping.fetch(lookup_arg)
         if shard_mapping is None:
@@ -731,25 +735,10 @@ def _lookup(lookup_arg, key,  hint):
             raise _errors.ShardingError(SHARD_NOT_ENABLED)
         #group cannot be None since there is a foreign key on the group_id.
         #An exception will be thrown nevertheless.
-        group = Group.fetch(shard.group_id)
-        if group is None:
-            raise _errors.ShardingError(SHARD_LOCATION_NOT_FOUND)
+        group_id = shard.group_id
 
-    rset = ResultSet(
-        names=('server_uuid', 'host', 'port', 'is_master'),
-        types=(str, str, int, bool),
-    )
-
-    for server in group.servers():
-        host, port = server.address.split(":")
-        rset.append_row([
-            str(server.uuid),   # server_uuid
-            host,               # host
-            port,               # port
-            group.master == server.uuid, # is_master
-        ])
-    return CommandResult(None, results=rset)
-
+    return ServerLookups().execute(group_id=group_id)
+    
 @_events.on_event(SHARD_ENABLE)
 def _enable_shard(shard_id):
     """Enable the RANGE specification mapping represented by the current

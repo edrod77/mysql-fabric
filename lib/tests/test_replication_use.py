@@ -40,11 +40,6 @@ class TestReplicationUse(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
-
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
 
     def test_reset_promote(self):
         """Check the sequence reset master on a slave and promote it to master.
@@ -179,12 +174,12 @@ class TestReplicationUse(tests.utils.TestCase):
         # Check replication.
         status = self.proxy.group.health("group_id")
         for info in self.check_xmlrpc_iter(status):
-            if info['uuid'] in (slave_1.uuid, slave_2.uuid):
+            if info['uuid'] in (str(slave_1.uuid), str(slave_2.uuid)):
                 self.assertEqual(
                     info['status'], 
                     _server.MySQLServer.SECONDARY
                 )
-            elif info['uuid'] == master.uuid:
+            elif info['uuid'] == str(master.uuid):
                 self.assertEqual(
                     info['status'], 
                     _server.MySQLServer.PRIMARY
@@ -219,18 +214,18 @@ class TestReplicationUse(tests.utils.TestCase):
         # Check replication.
         status = self.proxy.group.health("group_id")
         for info in self.check_xmlrpc_iter(status, rowcount=3):
-            if info['uuid'] == slave_1.uuid:
+            if info['uuid'] == str(slave_1.uuid):
                 self.assertEqual(
                     info['status'], 
                     _server.MySQLServer.SECONDARY
                 )
-                self.assertEqual(info['sql_running'], False)
-            elif info['uuid'] == slave_2.uuid:
+                self.assertEqual(info['sql_not_running'], True)
+            elif info['uuid'] == str(slave_2.uuid):
                 self.assertEqual(
                     info['status'], 
                     _server.MySQLServer.SECONDARY
                 )
-            elif info['uuid'] == master.uuid:
+            elif info['uuid'] == str(master.uuid):
                 self.assertEqual(
                     info['status'],
                     _server.MySQLServer.PRIMARY
@@ -251,18 +246,24 @@ class TestReplicationUse(tests.utils.TestCase):
 
         # Check replication.
         status = self.proxy.group.health("group_id")
-        self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
-            {"sql_running": False, "sql_error": "Error 'Table 'test' "
-            "already exists' on query. Default database: 'test'. Query: "
-            "'CREATE TABLE test (id INTEGER)'"}
-            )
-        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
-                         _server.MySQLServer.SECONDARY)
-        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
-                         _server.MySQLServer.PRIMARY)
-        self.assertEqual(status[2][str(master.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(master.uuid)]["status"],
-                         _server.MySQLServer.SECONDARY)
+        for info in self.check_xmlrpc_iter(status):
+            if info['uuid'] == str(slave_1.uuid):
+                self.assertEqual(
+                    info['status'], 
+                    _server.MySQLServer.SECONDARY
+                )
+                self.assertEqual(info['sql_not_running'], True)
+            elif info['uuid'] == str(slave_2.uuid):
+                self.assertEqual(
+                    info['status'], 
+                    _server.MySQLServer.PRIMARY
+                )
+            elif info['uuid'] == str(master.uuid):
+                self.assertEqual(
+                    info['status'], 
+                    _server.MySQLServer.SECONDARY
+                )
+                self.assertEqual(info['sql_not_running'], False)
 
         # Choose a new master.
         status = self.proxy.group.promote("group_id")
@@ -275,18 +276,23 @@ class TestReplicationUse(tests.utils.TestCase):
 
         # Check replication.
         status = self.proxy.group.health("group_id")
-        self.assertEqual(status[2][str(slave_1.uuid)]["threads"],
-            {"sql_running": False, "sql_error": "Error 'Table 'test' "
-            "already exists' on query. Default database: 'test'. Query: "
-            "'CREATE TABLE test (id INTEGER)'"}
-            )
-        self.assertEqual(status[2][str(slave_1.uuid)]["status"],
-                         _server.MySQLServer.SECONDARY)
-        self.assertEqual(status[2][str(slave_2.uuid)]["threads"], {})
-        self.assertEqual(status[2][str(slave_2.uuid)]["status"],
-                         _server.MySQLServer.SECONDARY)
-        self.assertEqual(status[2][str(master.uuid)]["status"],
-                         _server.MySQLServer.PRIMARY)
+        for info in self.check_xmlrpc_iter(status):
+            if info['uuid'] == str(slave_1.uuid):
+                self.assertEqual(
+                    info['status'], 
+                    _server.MySQLServer.SECONDARY
+                )
+                self.assertEqual(info['sql_not_running'], True)
+            elif info['uuid'] == str(slave_2.uuid):
+                self.assertEqual(
+                    info['status'], 
+                    _server.MySQLServer.SECONDARY
+                )
+            elif info['uuid'] == str(master.uuid):
+                self.assertEqual(
+                    info['status'], 
+                    _server.MySQLServer.PRIMARY
+                )
 
     def test_check_no_healthy_slave(self):
         """Test promoting when there is no healthy slave.
@@ -352,13 +358,13 @@ class TestReplicationUse(tests.utils.TestCase):
         # Check replication.
         status = self.proxy.group.health("group_id")
         for info in self.check_xmlrpc_iter(status):
-            if info['uuid'] in (slave_2.uuid, slave_1.uuid):
+            if info['uuid'] in (str(slave_2.uuid), str(slave_1.uuid)):
                 self.assertEqual(
                     info['status'], 
                     _server.MySQLServer.SECONDARY
                 )
-                self.assertEqual(info['sql_running'], False)
-            elif info['uuid'] == master.uuid:
+                self.assertEqual(info['sql_not_running'], True)
+            elif info['uuid'] == str(master.uuid):
                 self.assertEqual(
                     info['status'],
                     _server.MySQLServer.PRIMARY
@@ -389,11 +395,11 @@ class TestReplicationUse(tests.utils.TestCase):
         status = self.proxy.group.health("group_id")
         self.check_xmlrpc_simple(status, {
             'status':  _server.MySQLServer.SECONDARY,
-            "sql_running": False,
+            "sql_not_running": True,
         }, index=2, rowcount=3)
         self.check_xmlrpc_simple(status, {
             'status':  _server.MySQLServer.SECONDARY,
-            "sql_running": False,
+            "sql_not_running": True,
         }, index=1, rowcount=3)
         self.check_xmlrpc_simple(status, {
             'status':  _server.MySQLServer.PRIMARY,
@@ -420,13 +426,13 @@ class TestReplicationUse(tests.utils.TestCase):
         # Check replication.
         status = self.proxy.group.health("group_id")
         for info in self.check_xmlrpc_iter(status, rowcount=3):
-            if info['uuid'] in (slave_2.uuid, slave_1.uuid):
+            if info['uuid'] in (str(slave_2.uuid), str(slave_1.uuid)):
                 self.assertEqual(
                     info['status'], 
                     _server.MySQLServer.SECONDARY
                 )
-                self.assertEqual(info['sql_running'], False)
-            elif info['uuid'] == master.uuid:
+                self.assertEqual(info['sql_not_running'], False)
+            elif info['uuid'] == str(master.uuid):
                 self.assertEqual(
                     info['status'],
                     _server.MySQLServer.PRIMARY

@@ -779,46 +779,6 @@ class TestShardingPrune(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status, has_error=True)
 
     def tearDown(self):
-        status = self.proxy.sharding.disable_shard("1")
-        status = self.proxy.sharding.disable_shard("2")
-        status = self.proxy.sharding.disable_shard("3")
-        status = self.proxy.sharding.disable_shard("4")
-        status = self.proxy.sharding.disable_shard("5")
-        status = self.proxy.sharding.disable_shard("6")
-
-        status = self.proxy.sharding.remove_shard("1")
-        status = self.proxy.sharding.remove_shard("2")
-        status = self.proxy.sharding.remove_shard("3")
-        status = self.proxy.sharding.remove_shard("4")
-        status = self.proxy.sharding.remove_shard("5")
-        status = self.proxy.sharding.remove_shard("6")
-
-        status = self.proxy.sharding.remove_table("db1.t1")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_table("db2.t2")
-        self.check_xmlrpc_command_result(status)
-
-        status = self.proxy.sharding.remove_definition("1")
-        self.check_xmlrpc_command_result(status)
-
-        self.proxy.group.demote("GROUPID1")
-        self.proxy.group.demote("GROUPID2")
-        self.proxy.group.demote("GROUPID3")
-        self.proxy.group.demote("GROUPID4")
-        self.proxy.group.demote("GROUPID5")
-        self.proxy.group.demote("GROUPID6")
-
-        for group_id in ("GROUPID1", "GROUPID2", "GROUPID3",
-            "GROUPID4", "GROUPID5", "GROUPID6"):
-            status = self.proxy.group.lookup_servers(group_id)
-            for info in self.check_xmlrpc_iter(status):
-                status = self.proxy.group.remove(
-                    group_id, info["server_uuid"]
-                )
-                self.check_xmlrpc_command_result(status)
-            status = self.proxy.group.destroy(group_id)
-            self.check_xmlrpc_command_result(status)
-
+        """Clean up the existing environment
+        """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)

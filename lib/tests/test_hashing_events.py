@@ -28,10 +28,6 @@ from tests.utils import MySQLInstances
 
 class TestShardingServices(tests.utils.TestCase):
 
-    def assertStatus(self, status, expect):
-        items = (item['diagnosis'] for item in status[1] if item['diagnosis'])
-        self.assertEqual(status[1][-1]["success"], expect, "\n".join(items))
-
     def setUp(self):
         """Configure the existing environment
         """
@@ -152,23 +148,7 @@ class TestShardingServices(tests.utils.TestCase):
     def tearDown(self):
         """Clean up the existing environment
         """
-        self.proxy.sharding.disable_shard(1)
-        self.proxy.sharding.remove_shard(1)
-
-        self.proxy.sharding.disable_shard(2)
-        self.proxy.sharding.remove_shard(2)
-
-        self.proxy.sharding.disable_shard(3)
-        self.proxy.sharding.remove_shard(3)
-
-        self.proxy.sharding.disable_shard(4)
-        self.proxy.sharding.remove_shard(4)
-
-        self.proxy.sharding.disable_shard(5)
-        self.proxy.sharding.remove_shard(5)
-
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_add_shard_cannot_add_when_shards_exist_exception(self):
         status = self.proxy.sharding.add_shard(1, "NON_EXISTENT_GROUP",
@@ -260,7 +240,7 @@ class TestShardingServices(tests.utils.TestCase):
     def test_lookup_shard_mapping(self):
         status = self.proxy.sharding.lookup_table("db1.t1")
         self.check_xmlrpc_simple(status, {
-            "shard_mapping_id": 1,
+            "mapping_id": 1,
             "table_name": "db1.t1",
             "column_name": "userID1",
             "type_name": "HASH",
@@ -270,7 +250,7 @@ class TestShardingServices(tests.utils.TestCase):
     def test_list(self):
         status = self.proxy.sharding.list_tables("HASH")
         self.check_xmlrpc_simple(status, {
-            "shard_mapping_id": 1,
+            "mapping_id": 1,
             "table_name": "db1.t1",
             "column_name": "userID1",
             "type_name": "HASH",

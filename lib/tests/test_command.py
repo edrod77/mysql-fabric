@@ -266,7 +266,6 @@ class TestCommand(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
         _command.unregister_command("test", "procedure_command_0")
         _command.unregister_command("test", "procedure_command_1")
