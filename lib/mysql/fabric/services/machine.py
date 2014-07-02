@@ -382,7 +382,7 @@ def _preprocess_paramaters(parameters, machine_group_uuid, provider):
     if parameters['image']:
        parameters['image'] = _kv_to_dict(parameters['image'])
     elif provider.default_image:
-       parameters['image'] = "=".join(["name", provider.default_image])
+       parameters['image'] = { 'name' : provider.default_image }
     if not parameters['image']:
         raise _errors.MachineError("No valid image hasn't been found.")
 
@@ -390,7 +390,7 @@ def _preprocess_paramaters(parameters, machine_group_uuid, provider):
     if parameters['flavor']:
        parameters['flavor'] = _kv_to_dict(parameters['flavor'])
     elif provider.default_flavor:
-       parameters['flavor'] = "=".join(["name", provider.default_flavor])
+       parameters['flavor'] = { 'name' : provider.default_flavor }
     if not parameters['flavor']:
         raise _errors.MachineError("No valid flavor hasn't been found.")
 
