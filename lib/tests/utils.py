@@ -368,8 +368,8 @@ class TestCase(unittest.TestCase):
     Fabric test cases.
 
     """
-
-    def check_xmlrpc_simple(self, packet, checks, has_error=False, index=0, rowcount=None):
+    def check_xmlrpc_simple(self, packet, checks, has_error=False,
+                            index=0, rowcount=None):
         """Perform assertion checks on a row of a result set.
 
         This will perform basic assertion checks on a command result
@@ -387,7 +387,7 @@ class TestCase(unittest.TestCase):
         False otherwise. Default to False.
 
         :param index: Index of row to check. Default to the first row
-        of the result set.
+        of the result set, if there is any.
 
         :param rowcount: Number of rows expected in the result set, or
         None if no check should be done.
@@ -410,18 +410,18 @@ class TestCase(unittest.TestCase):
             if rowcount is not None:
                 self.assertEqual(result.results[0].rowcount, rowcount, str(result))
 
-            # If rowcount is given and is zero, no additional checks
-            # are done since there is no row to check.
-            if rowcount is not None and rowcount == 0:
+            if result.results[0].rowcount == 0:
                 return {}
-            
+
             # Check that there is enough rows in the first result set
-            self.assertTrue(result.results[0].rowcount > index, str(result))
+            self.assertTrue(
+                result.results[0].rowcount > index, str(result)
+            )
 
             # Create a dictionary from this row.
             info = dict(
-                zip([ col.name for col in result.results[0].columns],
-                    result.results[0][index])
+                zip([col.name for col in result.results[0].columns],
+                result.results[0][index])
             )
 
             for key, value in checks.items():
@@ -430,7 +430,8 @@ class TestCase(unittest.TestCase):
                     info[key], value, str(result))
                 )
 
-            # For convenience, allowing the simple result to be used by callers.
+            # For convenience, allowing the simple result to be used
+            # by callers.
             return info
         return {}
 

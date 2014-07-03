@@ -143,3 +143,14 @@ class CommandResultError(Error):
     """
     pass
 
+class ProviderError(ServiceError):
+    """Exception raised when something is wrong while accessing a
+    cloud provider.
+    """
+    pass
+
+class MachineError(ServiceError):
+    """Exception while processing a request that requires access to
+    provider's machine.
+    """
+    pass

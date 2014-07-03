@@ -275,7 +275,7 @@ class TestCommand(tests.utils.TestCase):
         """Create a command and check its basic properties.
         """
         # Create command.
-        from optparse import OptionParser
+        from mysql.fabric.options import OptionParser
         cmd = NewCommand()
 
         # Setup client-side data.

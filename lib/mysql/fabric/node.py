@@ -17,7 +17,9 @@
 """Provides an abstraction that represents the Fabric Node.
 """
 import uuid as _uuid
+
 from mysql.fabric.utils import Singleton
+from mysql.fabric import __version__
 
 class FabricNode(Singleton):
     """An abstraction that represents the Fabric Node.
@@ -32,10 +34,23 @@ class FabricNode(Singleton):
         # This is temporary set to 0 to make it compatible with FABRIC_UUID in
         # utils.py.
         self.__uuid = 0
+        self.__group_uuid = 0
         self.startup = None
 
     @property
+    def group_uuid(self):
+        """Return Fabric Group Identification.
+        """
+        return self.__group_uuid
+
+    @property
     def uuid(self):
-        """Return Fabric identification which represented as a UUID.
+        """Return Fabric Identification.
         """
         return self.__uuid
+
+    @property
+    def version(self):
+        """Return Fabric version.
+        """
+        return __version__

@@ -532,13 +532,13 @@ class TestGroup(unittest.TestCase):
         """Test adding server to a group.
         """
         options_1 = {
-            "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
+            "uuid" :  _uuid.UUID("bb75b12b-98d1-414c-96af-9e9d4b179678"),
             "address"  : "server_1.mysql.com:3060",
         }
         server_1 = MySQLServer(**options_1)
         MySQLServer.add(server_1)
         options_2 = {
-            "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
+            "uuid" :  _uuid.UUID("aa75a12a-98d1-414c-96af-9e9d4b179678"),
             "address"  : "server_2.mysql.com:3060",
         }
         server_2 = MySQLServer(**options_2)

@@ -942,7 +942,7 @@ def _do_set_server_mode(server, mode, allowed_mode):
     server.mode = mode
 
 def _retrieve_server(server_id, group_id=None):
-    """Return a MySQLServer object from a UUID or an HOST:PORT.
+    """Return a MySQLServer object from a UUID or a HOST:PORT.
     """
     uuid = _retrieve_uuid_object(server_id)
 
@@ -995,7 +995,7 @@ def _check_shard_exists(group_id):
     shard_id = _sharding.Shards.lookup_shard_id(group_id)
     if shard_id:
         raise _errors.GroupError(
-            "Cannot erase a group (%s) which is associated to a shard (%s)." % 
+            "Cannot erase a group (%s) which is associated to a shard (%s)." %
             (group_id, shard_id)
         )
 
