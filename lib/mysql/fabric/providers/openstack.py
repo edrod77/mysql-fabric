@@ -56,18 +56,50 @@ from mysql.fabric.machine import (
 
 _LOGGER = logging.getLogger(__name__)
 
+SEARCH_PROPERTIES = {
+    'mindisk' : ('minDisk', int),
+    'minram' : ('minRam', int),
+    'ram' : ('ram', int),
+    'vcpus' : ('vcpus', int),
+    'swap' : ('swap', int),
+    'disk' : ('disk', int),
+    'rxtx_factor' : ('rxtx_factor', float),
+}
+
+def preprocess_meta(meta):
+    """Preprocess parameters that will be used to search for resources in
+    the cloud.
+
+    This is necessary because the parameters are strings and some of them
+    need to be converted to integers or floats. Besides the parameter names
+    are case sensitive and must be changed.
+    """
+    proc_meta = {}
+    for key, value in meta.iteritems():
+        key = key.lower()
+        if key in SEARCH_PROPERTIES:
+            key, convert = SEARCH_PROPERTIES[key]
+            try:
+                value = convert(value)
+            except ValueError as error:
+                raise _errors.MachineError(error)
+        proc_meta[key] = value
+    return proc_meta
+
 def find_resource(meta, finder):
     """Find a resource based on some meta information.
     """
-    resources = finder(**meta)
+    proc_meta = preprocess_meta(meta)
+    resources = finder(**proc_meta)
     if not resources:
         raise _errors.ConfigurationError(
-            "There is no image with the requested properties: %s" % (meta, )
+            "There is no image with the requested properties: %s" %
+            (proc_meta, )
         )
     elif len(resources) > 1:
         _LOGGER.warning(
             "There are more than one image with the requested properties: "
-            "(%s). Using (%s).", meta, resources[0]
+            "(%s). Using (%s).", proc_meta, resources[0]
         )
     _LOGGER.info("Using resource (%s).", resources[0])
     return resources[0]
