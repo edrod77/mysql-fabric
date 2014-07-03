@@ -28,7 +28,7 @@ import uuid
 
 TTL = 0
 VERSION_TOKEN = 0
-FABRIC_UUID = uuid.UUID('deadbeef-a007-feed-f00d-cab3fe13249e')
+FABRIC_UUID = uuid.UUID('5ca1ab1e-a007-feed-f00d-cab3fe13249e')
 
 class SingletonMeta(type):
     """Define a Singleton.
