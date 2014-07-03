@@ -276,12 +276,22 @@ class MachineManager(AbstractMachineManager):
         :param machine: Reference to a machine.
         """
         addresses = json.dumps(machine.networks)
-        av_host = getattr(machine, "OS-EXT-SRV-ATTR:hypervisor_hostname")
-        av_zone = getattr(machine, "OS-EXT-AZ:availability_zone")
+
+        av_host = "-"
+        try:
+            av_host = getattr(machine, "OS-EXT-SRV-ATTR:hypervisor_hostname")
+        except AttributeError:
+            pass
+
+        av_zone = "-"
+        try:
+            av_zone = getattr(machine, "OS-EXT-AZ:availability_zone")
+        except AttributeError:
+            pass
+
         new = Machine(uuid=_uuid.UUID(machine.id),
             provider_id=self.provider.provider_id,
             av_zone=":".join([av_zone, av_host]),
             addresses=addresses
         )
-
         return new
