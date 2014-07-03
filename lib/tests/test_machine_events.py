@@ -58,7 +58,6 @@ class TestMachineServices(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_machine(self):
         """Test creating/destroying a machine
@@ -181,7 +180,7 @@ class TestMachineServices(tests.utils.TestCase):
         
         # Check if there is any reference to the machine in the state store.
         status = self.proxy.machine.list(PROVIDER_ID)
-        self.check_xmlrpc_simple(status, {})
+        self.check_xmlrpc_simple(status, {}, rowcount=0)
 
         # Try to destroy the machine. The operation fails because there is
         # no reference to the machine in the state store. Note that we can
@@ -218,7 +217,6 @@ class TestSnapshotServices(tests.utils.TestCase):
         """Clean up the existing environment.
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_snapshot(self):
         """Test creating/destroying a snapshot machine.

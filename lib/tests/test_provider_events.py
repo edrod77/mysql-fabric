@@ -55,14 +55,13 @@ class TestProviderServices(tests.utils.TestCase):
         """Clean up the existing environment
         """
         tests.utils.cleanup_environment()
-        tests.utils.teardown_xmlrpc(self.manager, self.proxy)
 
     def test_provider(self):
         """Test registering/unregistring a provider
         """
         # Look up providers.
         status = self.proxy.provider.list()
-        self.check_xmlrpc_simple(status, {})
+        self.check_xmlrpc_simple(status, {}, rowcount=0)
 
         # Register a new provider.
         status = self.proxy.provider.register(
@@ -127,7 +126,7 @@ class TestProviderServices(tests.utils.TestCase):
 
         # Look up providers.
         status = self.proxy.provider.list()
-        self.check_xmlrpc_simple(status, {})
+        self.check_xmlrpc_simple(status, {}, rowcount=0)
 
 if __name__ == "__main__":
     unittest.main()
