@@ -31,3 +31,10 @@ Contents
    error_log
    failure_tracker
    credentials
+   machine
+   machine_services
+   provider
+   provider_null
+   provider_openstack
+   provider_services
+
