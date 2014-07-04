@@ -129,7 +129,7 @@ def keep_waiting(obj, get_info, status):
     if obj.status != 'ACTIVE':
         raise _errors.MachineError(
             "Unexpected status (%s) when valid statuses were (%s). "
-            "Error creating resource (%).", obj.status, status, str(obj.id)
+            "Error creating resource (%)." % (obj.status, status, str(obj.id))
         )
 
 def configure_provider():
