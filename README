@@ -8,7 +8,7 @@ Installing
 
 You can install the MySQL Fabric from source code using:
 
-    python setup.pt install
+    python setup.py install
 
 This will install the `mysql.fabric` package (and all sub-packages), a
 command-line script (i.e. `mysqlfabric`) that is used to administer
