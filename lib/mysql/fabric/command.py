@@ -42,16 +42,7 @@ import logging
 import functools
 import traceback
 
-import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
-
-from mysql.fabric.sharding import (
-    MappingShardsGroups,
-)
-
-from mysql.fabric import (
-    persistence as _persistence,
-)
 
 from mysql.fabric.handler import (
     MySQLHandler,
@@ -391,12 +382,6 @@ class Command(object):
         """
         status = self.client.dispatch(self, *args)
         return self.command_status(status)
-
-    def execute(self):
-        """Any command derived from this class must redefine this
-        method.
-        """
-        raise _errors.ProgrammingError("The execute method is not defined.")
 
     @staticmethod
     def command_status(status, details=False):
