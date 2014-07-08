@@ -1072,6 +1072,18 @@ class RangeShardingSpecification(_persistence.Persistable):
         " WHERE shard_id = %s"
     )
 
+    PRUNE_LIMIT = 10000
+
+    PRUNE_WITH_UPPER_BOUND = (
+        "DELETE FROM %s WHERE %s < %s OR %s >= %s LIMIT {prune_limit}".\
+            format(prune_limit=PRUNE_LIMIT)
+    )
+
+    PRUNE_WITHOUT_UPPER_BOUND = (
+        "DELETE FROM %s WHERE %s < %s LIMIT {prune_limit}".\
+            format(prune_limit=PRUNE_LIMIT)
+    )
+
     def __init__(self, shard_mapping_id, lower_bound, shard_id):
         """Initialize a given RANGE sharding mapping specification.
 
@@ -1338,7 +1350,8 @@ class RangeShardingSpecification(_persistence.Persistable):
             table_name = shard_mapping.table_name
 
             if upper_bound is not None:
-                delete_query = ("DELETE FROM %s WHERE %s < %s OR %s >= %s") % (
+                delete_query = \
+                RangeShardingSpecification.PRUNE_WITH_UPPER_BOUND % (
                     table_name,
                     shard_mapping.column_name,
                     range_sharding_spec.lower_bound,
@@ -1346,7 +1359,8 @@ class RangeShardingSpecification(_persistence.Persistable):
                     upper_bound
                 )
             else:
-                delete_query = ("DELETE FROM %s WHERE %s < %s") % (
+                delete_query = \
+                RangeShardingSpecification.PRUNE_WITHOUT_UPPER_BOUND % (
                     table_name,
                     shard_mapping.column_name,
                     range_sharding_spec.lower_bound
@@ -1379,9 +1393,16 @@ class RangeShardingSpecification(_persistence.Persistable):
             #failing. Hence we need to disable foreign key checks during the
             #pruning process.
             master.set_foreign_key_checks(False)
-            #Perform the pruning of the table
-            master.exec_stmt(delete_query)
-            #Enable Foreign Key Checking
+            deleted = RangeShardingSpecification.PRUNE_LIMIT
+            while deleted == RangeShardingSpecification.PRUNE_LIMIT:
+                delete_cursor = master.exec_stmt(
+                     delete_query,
+                     {
+                         "raw":False,
+                         "fetch":False
+                     }
+                )
+                deleted = delete_cursor.rowcount
             master.set_foreign_key_checks(True)
 
 class HashShardingSpecification(RangeShardingSpecification):
@@ -1438,6 +1459,18 @@ class HashShardingSpecification(RangeShardingSpecification):
         "shard_ranges "
         "WHERE shard_mapping_id = %s"
         )
+
+    PRUNE_WITH_UPPER_BOUND = (
+        "DELETE FROM %s WHERE MD5(%s) < '%s' OR MD5(%s) >= '%s' "
+        "LIMIT {prune_limit}".
+        format(prune_limit=RangeShardingSpecification.PRUNE_LIMIT)
+    )
+
+    PRUNE_WITHOUT_UPPER_BOUND = (
+        "DELETE FROM %s WHERE MD5(%s) >= '%s' AND MD5(%s) < '%s' "
+        "LIMIT {prune_limit}".
+        format(prune_limit=RangeShardingSpecification.PRUNE_LIMIT)
+    )
 
     def __init__(self, shard_mapping_id, lower_bound, shard_id):
         """Initialize a given HASH sharding mapping specification.
@@ -1778,30 +1811,21 @@ class HashShardingSpecification(RangeShardingSpecification):
             table_name = shard_mapping.table_name
 
             if upper_bound is not None:
-                delete_query = (
-                    "DELETE FROM %s "
-                    "WHERE "
-                    "MD5(%s) < '%s' "
-                    "OR "
-                    "MD5(%s) >= '%s'"
-                ) % (
+                delete_query = \
+                    HashShardingSpecification.PRUNE_WITH_UPPER_BOUND  % (
                     table_name,
                     shard_mapping.column_name,
                     hash_sharding_spec.lower_bound,
                     shard_mapping.column_name,
                     upper_bound
-                )
+                    )
             else:
                 #HASH based sharding forms a circular ring. Hence
                 #when there is no upper_bound, all the values, that
                 #circle around from the largest lower_bound to the
                 #least upper_bound need to be present in this shard.
-                delete_query = ("DELETE FROM %s "
-                    "WHERE "
-                    "MD5(%s) >= '%s' "
-                    "AND "
-                    "MD5(%s) < '%s'"
-                ) % (
+                delete_query = \
+                    HashShardingSpecification.PRUNE_WITHOUT_UPPER_BOUND % (
                     table_name,
                     shard_mapping.column_name,
                     HashShardingSpecification.fetch_least_lower_bound(
@@ -1809,7 +1833,7 @@ class HashShardingSpecification(RangeShardingSpecification):
                     ),
                     shard_mapping.column_name,
                     hash_sharding_spec.lower_bound
-                )
+                    )
 
             shard = Shards.fetch(hash_sharding_spec.shard_id)
             if shard is None:
@@ -1835,7 +1859,16 @@ class HashShardingSpecification(RangeShardingSpecification):
             master.connect()
 
             master.set_foreign_key_checks(False)
-            master.exec_stmt(delete_query)
+            deleted = RangeShardingSpecification.PRUNE_LIMIT
+            while deleted == RangeShardingSpecification.PRUNE_LIMIT:
+                delete_cursor = master.exec_stmt(
+                     delete_query,
+                     {
+                         "raw":False,
+                         "fetch":False
+                     }
+                )
+                deleted = delete_cursor.rowcount
             master.set_foreign_key_checks(True)
 
 class MappingShardsGroups(_persistence.Persistable):
