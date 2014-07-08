@@ -52,14 +52,6 @@ from mysql.fabric.utils import (
     TTL,
 )
 
-from mysql.fabric.sharding import (
-    MappingShardsGroups,
-)
-
-from mysql.fabric import (
-    persistence as _persistence,
-)
-
 from mysql.fabric.handler import (
     MySQLHandler,
 )
@@ -427,12 +419,6 @@ class Command(object):
         :param args: The arguments for the command dispatch.
         """
         return self.client.dispatch(self, *args)
-
-    def execute(self):
-        """Any command derived from this class must redefine this
-        method.
-        """
-        raise _errors.ProgrammingError("The execute method is not defined.")
 
     @classmethod
     def get_signature(cls):
