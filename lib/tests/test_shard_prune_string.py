@@ -373,77 +373,82 @@ class TestShardingPrune(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", "a3",  "LOCAL")
-        info = self.check_xmlrpc_simple(status, {})
-        shard_server = MySQLServer.fetch(info['server_uuid'])
-        shard_server.connect()
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db1.t1",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 70)
+        for info in self.check_xmlrpc_iter(status):
+            if info['status'] == MySQLServer.PRIMARY:
+                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server.connect()
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 70)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", "b12",  "LOCAL")
-        info = self.check_xmlrpc_simple(status, {})
-        shard_server = MySQLServer.fetch(info['server_uuid'])
-        shard_server.connect()
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db1.t1",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 300)
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db2.t2",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 300)
+        for info in self.check_xmlrpc_iter(status):
+            if info['status'] == MySQLServer.PRIMARY:
+                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server.connect()
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 300)
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 300)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", "c35",  "LOCAL")
-        info = self.check_xmlrpc_simple(status, {})
-        shard_server = MySQLServer.fetch(info['server_uuid'])
-        shard_server.connect()
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db1.t1",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 200)
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db2.t2",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 200)
+        for info in self.check_xmlrpc_iter(status):
+            if info['status'] == MySQLServer.PRIMARY:
+                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server.connect()
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 200)
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 200)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", "d21",  "LOCAL")
-        info = self.check_xmlrpc_simple(status, {})
-        shard_server = MySQLServer.fetch(info['server_uuid'])
-        shard_server.connect()
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db1.t1",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 600)
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db2.t2",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 600)
+        for info in self.check_xmlrpc_iter(status):
+            if info['status'] == MySQLServer.PRIMARY:
+                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server.connect()
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 600)
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 600)
 
         status = self.proxy.sharding.prune_shard("db1.t1")
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.lookup_servers("db1.t1", "e31",  "LOCAL")
-        info = self.check_xmlrpc_simple(status, {})
-        shard_server = MySQLServer.fetch(info['server_uuid'])
-        shard_server.connect()
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db1.t1",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 800)
-        rows = shard_server.exec_stmt(
-                                    "SELECT COUNT(*) FROM db2.t2",
-                                    {"fetch" : True})
-        self.assertTrue(int(rows[0][0]) == 800)
+        for info in self.check_xmlrpc_iter(status):
+            if info['status'] == MySQLServer.PRIMARY:
+                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server.connect()
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 800)
+                rows = shard_server.exec_stmt(
+                    "SELECT COUNT(*) FROM db2.t2", {"fetch" : True}
+                )
+                self.assertTrue(int(rows[0][0]) == 800)
 
     def tearDown(self):
         """Clean up the existing environment
