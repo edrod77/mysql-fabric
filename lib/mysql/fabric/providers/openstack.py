@@ -42,8 +42,7 @@ except:
     pass
 
 from mysql.fabric import (
-    server as _server,
-    errors as _errors
+    errors as _errors,
 )
 
 from mysql.fabric.providers import (
@@ -109,6 +108,8 @@ def catch_exception(function):
     """
     @functools.wraps(function)
     def wrapper_catch_exception(*args, **kwargs):
+        """Wrapper to catch OpenStack exceptions.
+        """
         try:
             return function(*args, **kwargs)
         except (UnsupportedVersion, CommandError, AuthorizationFailure,
@@ -205,7 +206,7 @@ class MachineManager(AbstractMachineManager):
         if wait_spawning:
             for machine in machines:
                 keep_waiting(
-                    machine, self.__cs.servers.get, ('QUEUED','BUILD')
+                    machine, self.__cs.servers.get, ('QUEUED', 'BUILD')
                 )
 
         ret = []
@@ -223,7 +224,7 @@ class MachineManager(AbstractMachineManager):
         """
         _LOGGER.debug(
             "Searching for machines using generic filters (%s) and "
-            "meta filters (%s)." % (generic_filters, meta_filters)
+            "meta filters (%s).", generic_filters, meta_filters
         )
 
         match = []
@@ -235,7 +236,7 @@ class MachineManager(AbstractMachineManager):
             if checked and all(checked):
                 match.append(machine)
 
-        _LOGGER.debug("Found machines (%s)."  % (match, ))
+        _LOGGER.debug("Found machines (%s).", match)
 
         ret = []
         for machine in match:
@@ -289,7 +290,7 @@ class MachineManager(AbstractMachineManager):
         snapshot_id = machine.create_image(snapshot_name)
         if wait_spawning:
             image = self.__cs.images.get(snapshot_id)
-            keep_waiting(image, self.__cs.images.get, ('QUEUED','SAVING'))
+            keep_waiting(image, self.__cs.images.get, ('QUEUED', 'SAVING'))
         return snapshot_name
 
     @catch_exception

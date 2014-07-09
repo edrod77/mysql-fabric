@@ -107,8 +107,8 @@ class CreateMachine(ProcedureCommand):
         :rtype meta: list of key/value pairs
         :param skip_store: Do not store information on machine(s) into the
                            state store. Default is False.
-        :param wait_spwaning: Whether one should wait until the provider finishes
-                              its task or not.
+        :param wait_spwaning: Whether one should wait until the provider
+                              finishes its task or not.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         """
@@ -240,8 +240,8 @@ class SnapshotCreate(ProcedureCommand):
         :param machine_uuid: Machine's uuid.
         :param skip_store: Proceed anyway if there is no information on
                            the machine in the state store. Default is False.
-        :param wait_spwaning: Whether one should wait until the provider finishes
-                              its task or not.
+        :param wait_spwaning: Whether one should wait until the provider
+                              finishes its task or not.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         :return: Tuple with job's uuid and status.
@@ -267,8 +267,8 @@ class SnapshotDestroy(ProcedureCommand):
         :param machine_uuid: Machine's uuid.
         :param skip_store: Proceed anyway if there is no information on
                            the machine in the state store. Default is False.
-        :param wait_spwaning: Whether one should wait until the provider finishes
-                              its task or not.
+        :param wait_spwaning: Whether one should wait until the provider
+                              finishes its task or not.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         :return: Tuple with job's uuid and status.
@@ -345,7 +345,7 @@ def _destroy_snapshot(provider_id, machine_uuid, skip_store):
 def _retrieve_machine(provider_id, machine_uuid, skip_store):
     """Return a machine object from an id.
     """
-    machine= Machine.fetch(machine_uuid)
+    machine = Machine.fetch(machine_uuid)
 
     if not machine and not skip_store:
         raise _errors.MachineError(
@@ -380,9 +380,9 @@ def _preprocess_paramaters(parameters, machine_group_uuid, provider):
     """
     # 1. Put image parameter in the appropriate format.
     if parameters['image']:
-       parameters['image'] = _kv_to_dict(parameters['image'])
+        parameters['image'] = _kv_to_dict(parameters['image'])
     elif provider.default_image:
-       parameters['image'] = { 'name' : provider.default_image }
+        parameters['image'] = { 'name' : provider.default_image }
     if not parameters['image']:
         raise _errors.MachineError("No valid image hasn't been found.")
 
@@ -476,7 +476,7 @@ def _preprocess_paramaters(parameters, machine_group_uuid, provider):
         'True', str(FabricNode().version), str(FabricNode().uuid),
         str(FabricNode().group_uuid), machine_group_uuid
     )
-    assert(len(reserved_meta) == len(reserved_value))
+    assert len(reserved_meta) == len(reserved_value)
     if parameters['meta']:
         parameters['meta'] = _kv_to_dict(parameters['meta'])
         if any([key in reserved_meta for key in parameters['meta'].iterkeys()]):
@@ -486,7 +486,7 @@ def _preprocess_paramaters(parameters, machine_group_uuid, provider):
                 (str(reserved_meta), )
             )
     else:
-       parameters['meta'] = {}
+        parameters['meta'] = {}
 
     meta = dict(zip(reserved_meta, reserved_value))
     parameters['meta'].update(meta)

@@ -27,7 +27,6 @@ import uuid as _uuid
 import logging
 
 from mysql.fabric import (
-    errors as _errors,
     persistence as _persistence,
 )
 
@@ -79,7 +78,7 @@ class Machine(_persistence.Persistable):
     def __init__(self, uuid, provider_id, av_zone=None, addresses=None):
         """Constructor for the Machine.
         """
-        assert(isinstance(uuid, _uuid.UUID))
+        assert isinstance(uuid, _uuid.UUID)
 
         super(Machine, self).__init__()
         self.__uuid = uuid
@@ -87,7 +86,7 @@ class Machine(_persistence.Persistable):
         self.__av_zone = av_zone
         self.__addresses = addresses
 
-    def __eq__(self,  other):
+    def __eq__(self, other):
         """Two machines are equal if they have the same uuid.
         """
         return isinstance(other, Machine) and self.__uuid == other.uuid

@@ -20,7 +20,6 @@ providers.
 import logging
 
 from mysql.fabric import (
-    errors as _errors,
     persistence as _persistence,
 )
 
@@ -102,7 +101,7 @@ class Provider(_persistence.Persistable):
         self.__default_image = default_image
         self.__default_flavor = default_flavor
 
-    def __eq__(self,  other):
+    def __eq__(self, other):
         """Two providers are equal if they have the same id.
         """
         return isinstance(other, Provider) and \

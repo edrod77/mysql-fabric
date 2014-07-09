@@ -258,25 +258,25 @@ class Command(object):
 
     def __init__(self):
         """Constructor.
-        
+
         See class description for information.
         """
         self.__client = None
         self.__server = None
         self.__options = None
         self.__config = None
+
+        try:
+            self.command_options
+        except AttributeError:
+            self.command_options = []
+
         self.generate_options()
 
     def generate_options(self):
         """Use the execute / dispatch method signature to build the
         optional argument list passed to the command line parser.
         """
-        # Define command_options if it was not done already.
-        try:
-            self.command_options
-        except AttributeError:
-            self.command_options = []
-
         # Extract the default values from the method signature and build
         # the optional argument list.
         try:
@@ -487,11 +487,13 @@ class Command(object):
         """
 
         status = func(*params)
-        _LOGGER.debug("Status from execution of '%s': %s", func.__name__, status)
+        _LOGGER.debug(
+            "Status from execution of '%s': %s", func.__name__, status
+        )
         if len(status) > 0:
             rset = ResultSet(
                 names=status[0].keys(),
-                types=[ type(v) for v in status[0].values() ],
+                types=[type(v) for v in status[0].values()],
             )
             for entry in status:
                 rset.append_row(entry.values())
@@ -551,7 +553,7 @@ class ProcedureCommand(Command):
         :return: A :class:`CommandResult` instance with the execution result.
         :rtype: CommandResult
         """
-        assert(len(procedure_param) == 1)
+        assert len(procedure_param) == 1
         synchronous = str(synchronous).upper() not in ("FALSE", "0")
         if not synchronous:
             info = ResultSet(names=['uuid'], types=[str])
@@ -603,7 +605,7 @@ class ProcedureCommand(Command):
             return CommandResult(None, results=[info, rset])
         else:
             # The error message is the last line of the diagnosis, so
-            # we get it from there. 
+            # we get it from there.
             error = operation['diagnosis'].split("\n")[-2]
             _LOGGER.debug("Failure: error='%s'", error)
             return CommandResult(error)
@@ -678,7 +680,8 @@ class ResultSet(object):
         # tuple, even if other types of iterables are passed to the
         # function.
         assert len(names) == len(types)
-        self.__columns = tuple(ResultSetColumn(nm, tp) for nm, tp in zip(names, types))
+        self.__columns = \
+            tuple(ResultSetColumn(nm, tp) for nm, tp in zip(names, types))
         self.__rows = []
 
     def table_rows(self):
@@ -697,16 +700,19 @@ class ResultSet(object):
           3   4
 
         """
-
-        header = [ col.name for col in self.__columns ]
-        all_rows = [ header ]
+        header = [col.name for col in self.__columns]
+        all_rows = [header]
         all_rows.extend(self.__rows)
         width = [max(len(str(r)) for r in col) for col in zip(*all_rows)]
         def _mkline(row):
-                return " ".join("{0:>{1}}".format(x, width[i]) for i, x in enumerate(row))
+            """Create an output string per row.
+            """
+            return " ".join(
+                "{0:>{1}}".format(x, width[i]) for i, x in enumerate(row)
+            )
 
-        result = [ _mkline(header) ]
-        result.append(_mkline([ '-' * w for w in width ]))
+        result = [_mkline(header)]
+        result.append(_mkline(['-' * w for w in width]))
         for row in self.__rows:
             result.append(_mkline(row))
         return result
@@ -878,13 +884,15 @@ class CommandResult(object):
         """Append a result set to the list of result sets.
 
         :param result: Result set to add last to the list of result sets.
-
         """
-
         if not isinstance(result, ResultSet):
-            raise _errors.CommandResultError('Result have to be an instance of ResultSet')
+            raise _errors.CommandResultError(
+                "Result have to be an instance of ResultSet"
+            )
         if self.error:
-            raise _errors.CommandResultError('result sets cannot be added for error results')
+            raise _errors.CommandResultError(
+                "Result sets cannot be added for error results"
+            )
         self.__results.append(result)
 
 if __name__ == '__main__':

@@ -18,7 +18,6 @@
 necessary means to register, unresgister and list providers.
 """
 import logging
-import uuid as _uuid
 
 from mysql.fabric.command import (
     ProcedureCommand,
