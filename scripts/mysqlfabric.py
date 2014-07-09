@@ -409,6 +409,8 @@ def main():
             if os.name == 'posix' and prefix in ('/', '/usr'):
                 config_file = '/etc/mysql/fabric.cfg'
             else:
+                if hasattr(sys, 'frozen'):
+                    prefix = os.path.realpath(directory)
                 config_file = os.path.join(prefix, 'etc', 'mysql', 'fabric.cfg')
             options.config_file = os.path.normpath(config_file)
 
