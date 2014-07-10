@@ -3,6 +3,14 @@ ChangeLog for Fabric
 ####################
 
 
+Release 1.4.4 (released July 10, 2014)
+--------------------------------------
+
+* BUG#72818: BUG#18874603: THE --DAEMONIZE OPTION IN "MYSQLFABRIC MANAGE
+  START" IS BROKEN
+* BUG#18669231: SHARDING PRUNE ISSUE WITH 20MN RECORDS
+* BUG#18904014: mysqlfabric manage setup can't find configuration file
+
 Release 1.4.3 (released May 23, 2014)
 -------------------------------------
 
