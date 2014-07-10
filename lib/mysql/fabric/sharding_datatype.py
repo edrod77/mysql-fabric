@@ -109,12 +109,12 @@ class RangeShardingIntegerHandler(ShardingDatatypeHandler):
 
     #Prune shard with upper bound
     PRUNE_SHARD_WITH_UPPER_BOUND = (
-        "DELETE FROM %s WHERE %s < %s OR %s >= %s"
+        "DELETE FROM %s WHERE %s < %s OR %s >= %s LIMIT %s"
     )
 
     #Prune shard without upper bound
     PRUNE_SHARD_WITHOUT_UPPER_BOUND = (
-        "DELETE FROM %s WHERE %s < %s"
+        "DELETE FROM %s WHERE %s < %s LIMIT %s"
     )
 
     @staticmethod
@@ -169,7 +169,7 @@ class RangeShardingIntegerHandler(ShardingDatatypeHandler):
                 return False
         return True
 
-class RangeShardingStringHandler(_persistence.Persistable):
+class RangeShardingStringHandler(ShardingDatatypeHandler):
     """Contains the members that are required to handle a sharding definition
     based on an STRING datatype.
     """
@@ -229,16 +229,18 @@ class RangeShardingStringHandler(_persistence.Persistable):
         "WHERE "
         "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) < '%s' "
         "OR "
-        "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) >= '%s'"
+        "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) >= '%s' "
+        "LIMIT %s"
         .format(SHARDING_CHARACTER_SET=CHARACTER_SET,
-                         SHARDING_COLLATION=COLLATION)
+                SHARDING_COLLATION=COLLATION)
     )
 
     #Prune shard without upper bound
     PRUNE_SHARD_WITHOUT_UPPER_BOUND = (
         "DELETE FROM %s "
         "WHERE "
-        "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) < '%s'"
+        "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) < '%s' "
+        "LIMIT %s"
         .format(SHARDING_CHARACTER_SET=CHARACTER_SET,
                          SHARDING_COLLATION=COLLATION)
     )
@@ -367,12 +369,14 @@ class HashShardingHandler(ShardingDatatypeHandler):
 
     #Prune shard with upper bound
     PRUNE_SHARD_WITH_UPPER_BOUND = (
-        "DELETE FROM %s WHERE MD5(%s) < '%s' OR MD5(%s) >= '%s'"
+        "DELETE FROM %s WHERE MD5(%s) < '%s' OR MD5(%s) >= '%s' "
+        "LIMIT %s"
     )
 
     #Prune shard without upper bound
     PRUNE_SHARD_WITHOUT_UPPER_BOUND = (
-        "DELETE FROM %s WHERE MD5(%s) >= '%s' AND MD5(%s) < '%s'"
+        "DELETE FROM %s WHERE MD5(%s) >= '%s' AND MD5(%s) < '%s' "
+        "LIMIT %s"
     )
 
     @staticmethod
@@ -468,14 +472,16 @@ class RangeShardingDateTimeHandler(ShardingDatatypeHandler):
         "CAST(%s AS DATETIME) < "
         "CAST('%s' AS DATETIME) OR "
         "CAST(%s AS DATETIME) >= "
-        "CAST('%s' AS DATETIME)"
+        "CAST('%s' AS DATETIME) "
+        "LIMIT %s"
     )
 
     #Prune shard without upper bound
     PRUNE_SHARD_WITHOUT_UPPER_BOUND = (
         "DELETE FROM %s WHERE "
         "CAST(%s AS DATETIME) < "
-        "CAST('%s' AS DATETIME)"
+        "CAST('%s' AS DATETIME) "
+        "LIMIT %s"
     )
 
     #Verify if the value used for splitting a shard falls within

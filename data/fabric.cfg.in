@@ -33,6 +33,7 @@ url = file:///var/log/fabric.log
 [sharding]
 mysqldump_program = /usr/bin/mysqldump
 mysqlclient_program = /usr/bin/mysql
+prune_limit = 10000
 
 [statistics]
 prune_time = 3600

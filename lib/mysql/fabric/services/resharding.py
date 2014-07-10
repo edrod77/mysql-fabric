@@ -73,8 +73,16 @@ class PruneShardTables(ProcedureShard):
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         """
+        prune_limit =   _services_utils.read_config_value(
+                                self.config,
+                                'sharding',
+                                'prune_limit'
+                            )
         procedures = _events.trigger(
-            PRUNE_SHARD_TABLES, self.get_lockable_objects(), table_name
+            PRUNE_SHARD_TABLES,
+            self.get_lockable_objects(),
+            table_name,
+            prune_limit
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -121,7 +129,7 @@ class MoveShardServer(ProcedureShard):
         procedures = _events.trigger(
             CHECK_SHARD_INFORMATION, self.get_lockable_objects(), shard_id,
             group_id, mysqldump_binary, mysqlclient_binary, None, config_file,
-            "MOVE", update_only
+            "", "MOVE", update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -160,17 +168,22 @@ class SplitShardServer(ProcedureShard):
                                 'sharding',
                                 'mysqlclient_program'
                             )
+        prune_limit =   _services_utils.read_config_value(
+                                self.config,
+                                'sharding',
+                                'prune_limit'
+                            )
         config_file = self.config.config_file if self.config.config_file else ""
 
         procedures = _events.trigger(
             CHECK_SHARD_INFORMATION, self.get_lockable_objects(),
             shard_id, group_id, mysqldump_binary, mysqlclient_binary,
-            split_value, config_file, "SPLIT", update_only)
+            split_value, config_file, prune_limit, "SPLIT", update_only)
         return self.wait_for_procedures(procedures, synchronous)
 
 
 @_events.on_event(PRUNE_SHARD_TABLES)
-def _prune_shard_tables(table_name):
+def _prune_shard_tables(table_name, prune_limit):
     """Delete the data from the copied data directories based on the
     sharding configuration uploaded in the sharding tables of the state
     store. The basic logic consists of
@@ -181,14 +194,16 @@ def _prune_shard_tables(table_name):
         server.
 
     :param table_name: The table_name who's shards need to be pruned.
+    :param prune_limit: The number of DELETEs that should be
+                    done in one batch.
     """
     shard_mapping = ShardMapping.fetch(table_name)
     SHARDING_SPECIFICATION_HANDLER[shard_mapping.type_name].\
-        delete_from_shard_db(table_name, shard_mapping.type_name)
+        delete_from_shard_db(table_name, shard_mapping.type_name, prune_limit)
 
 @_events.on_event(CHECK_SHARD_INFORMATION)
 def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
-                             mysqlclient_binary, split_value, config_file, cmd,
+                             mysqlclient_binary, split_value, config_file, prune_limit, cmd,
                              update_only):
     """Verify the sharding information before starting a re-sharding operation.
 
@@ -200,6 +215,8 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
                         should be split.
     :param config_file: The complete path to the fabric configuration
                         file.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     :param cmd: Indicates if it is a split or a move being executed.
     :param update_only: If the operation is a update only operation.
     """
@@ -288,18 +305,18 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
         _events.trigger_within_procedure(
             BACKUP_SOURCE_SHARD, shard_id, source_group_id, destn_group_id,
             mysqldump_binary, mysqlclient_binary, split_value, config_file,
-            cmd, update_only
+            prune_limit, cmd, update_only
         )
     else:
         _events.trigger_within_procedure(
             SETUP_RESHARDING_SWITCH, shard_id, source_group_id, destn_group_id,
-            split_value, cmd, update_only
+            split_value, prune_limit, cmd, update_only
         )
 
 @_events.on_event(BACKUP_SOURCE_SHARD)
 def _backup_source_shard(shard_id, source_group_id, destn_group_id,
                          mysqldump_binary, mysqlclient_binary, split_value,
-                         config_file, cmd, update_only):
+                         config_file, prune_limit, cmd, update_only):
     """Backup the source shard.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
@@ -312,6 +329,8 @@ def _backup_source_shard(shard_id, source_group_id, destn_group_id,
                         particular shard will be split. Will be set only
                         for shard split operations.
     :param config_file: The complete path to the fabric configuration file.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     :param cmd: Indicates the type of re-sharding operation (move, split)
     :update_only: Only update the state store and skip provisioning.
     """
@@ -336,13 +355,14 @@ def _backup_source_shard(shard_id, source_group_id, destn_group_id,
                                      backup_image.path,
                                      split_value,
                                      config_file,
+                                     prune_limit,
                                      cmd
                                      )
 
 @_events.on_event(RESTORE_SHARD_BACKUP)
 def _restore_shard_backup(shard_id, source_group_id, destn_group_id,
                             mysqlclient_binary, backup_image,
-                            split_value, config_file, cmd):
+                            split_value, config_file, prune_limit, cmd):
     """Restore the backup on the destination Group.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
@@ -356,6 +376,8 @@ def _restore_shard_backup(shard_id, source_group_id, destn_group_id,
                         particular shard will be split. Will be set only
                         for shard split operations.
     :param config_file: The complete path to the fabric configuration file.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     :param cmd: Indicates the type of re-sharding operation
     """
     destn_group = Group.fetch(destn_group_id)
@@ -382,12 +404,13 @@ def _restore_shard_backup(shard_id, source_group_id, destn_group_id,
                                      source_group_id,
                                      destn_group_id,
                                      split_value,
+                                     prune_limit,
                                      cmd
                                      )
 
 @_events.on_event(SETUP_MOVE_SYNC)
 def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
-                                        cmd):
+                                        prune_limit, cmd):
     """Setup replication between the source and the destination groups and
     ensure that they are in sync.
 
@@ -398,6 +421,8 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
     :param split_value: Indicates the value at which the range for the
                         particular shard will be split. Will be set only
                         for shard split operations.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     :param cmd: Indicates the type of re-sharding operation
     """
     source_group = Group.fetch(source_group_id)
@@ -446,12 +471,13 @@ def _setup_move_sync(shard_id, source_group_id, destn_group_id, split_value,
                                      source_group_id,
                                      destn_group_id,
                                      split_value,
+                                     prune_limit,
                                      cmd
                                      )
 
 @_events.on_event(SETUP_RESHARDING_SWITCH)
 def _setup_resharding_switch(shard_id, source_group_id, destination_group_id,
-                             split_value, cmd, update_only=False):
+                             split_value, prune_limit, cmd, update_only=False):
     """Setup the shard move or shard split workflow based on the command
     argument.
 
@@ -460,8 +486,8 @@ def _setup_resharding_switch(shard_id, source_group_id, destination_group_id,
     :param destination_group_id: The ID of the destination group.
     :param split_value: The value at which the shard needs to be split
                         (in the case of a shard split operation).
-    :param cmd: whether the operation that needs to be split is a
-                MOVE or a SPLIT operation.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     :param cmd: whether the operation that needs to be split is a
                 MOVE or a SPLIT operation.
     :update_only: Only update the state store and skip provisioning.
@@ -474,11 +500,11 @@ def _setup_resharding_switch(shard_id, source_group_id, destination_group_id,
     elif cmd == "SPLIT":
         _setup_shard_switch_split(
             shard_id, source_group_id, destination_group_id, split_value,
-            cmd, update_only
+            prune_limit, cmd, update_only
         )
 
 def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
-                              split_value, cmd, update_only):
+                              split_value, prune_limit, cmd, update_only):
     """Setup the moved shard to map to the new group.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
@@ -488,6 +514,8 @@ def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
     :param split_value: Indicates the value at which the range for the
                         particular shard will be split. Will be set only
                         for shard split operations.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     :param cmd: Indicates the type of re-sharding operation.
     :update_only: Only update the state store and skip provisioning.
     """
@@ -565,15 +593,17 @@ def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
     #Trigger changing the mappings for the shard that was copied
     if not update_only:
         _events.trigger_within_procedure(
-            PRUNE_SHARDS, new_shard_1.shard_id, new_shard_2.shard_id
+            PRUNE_SHARDS, new_shard_1.shard_id, new_shard_2.shard_id, prune_limit
         )
 
 @_events.on_event(PRUNE_SHARDS)
-def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
+def _prune_shard_tables_after_split(shard_id_1, shard_id_2, prune_limit):
     """Prune the two shards generated after a split.
 
     :param shard_id_1: The first shard id after the split.
     :param shard_id_2: The second shard id after the split.
+    :param prune_limit: The number of DELETEs that should be
+                        done in one batch.
     """
     #Fetch the Range sharding specification. When we start implementing
     #heterogenous sharding schemes, we need to find out the type of
@@ -585,9 +615,9 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2):
     #All the shard mappings associated with this shard_id should be
     #of the same type. Hence it is safe to use one of them.
     SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
-    prune_shard_id(shard_id_1, shard_mappings[0].type_name)
+    prune_shard_id(shard_id_1, shard_mappings[0].type_name, prune_limit)
     SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
-    prune_shard_id(shard_id_2, shard_mappings[0].type_name)
+    prune_shard_id(shard_id_2, shard_mappings[0].type_name, prune_limit)
 
 def _setup_shard_switch_move(shard_id, source_group_id, destination_group_id,
                              update_only):

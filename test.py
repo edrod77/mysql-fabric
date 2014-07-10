@@ -119,6 +119,7 @@ def get_config(options, env_options):
         'sharding': {
             'mysqldump_program': env_options["mysqldump_path"],
             'mysqlclient_program': env_options["mysqlclient_path"],
+            'prune_limit':'10000',
             },
         'failure_tracking': {
             'notifications' : '1',

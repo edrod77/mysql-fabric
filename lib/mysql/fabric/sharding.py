@@ -1113,7 +1113,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         return row[0]
 
     @staticmethod
-    def delete_from_shard_db(table_name, type_name):
+    def delete_from_shard_db(table_name, type_name, prune_limit):
         """Delete the data from the copied data directories based on the
         sharding configuration uploaded in the sharding tables of the state
         store. The basic logic consists of
@@ -1127,6 +1127,9 @@ class RangeShardingSpecification(_persistence.Persistable):
           server.
 
         :param table_name: The table being sharded.
+        :param type_name: The type of the sharding definition.
+        :param prune_limit: The number of DELETEs that should be
+                            done in one batch.
         """
 
         shard_mapping = ShardMapping.fetch(table_name)
@@ -1141,15 +1144,19 @@ class RangeShardingSpecification(_persistence.Persistable):
                                                          " shard mapping ID.")
 
         for shard in shards:
-            RangeShardingSpecification.prune_shard_id(shard.shard_id, type_name)
+            RangeShardingSpecification.prune_shard_id(shard.shard_id,
+                                                      type_name, prune_limit)
 
     @staticmethod
-    def prune_shard_id(shard_id, type_name):
+    def prune_shard_id(shard_id, type_name, prune_limit):
         """Remove the rows in the shard that do not match the metadata
         in the shard_range tables. When the rows are being removed
         foreign key checks will be disabled.
 
         :param shard_id: The ID of the shard that needs to be pruned.
+        :param type_name: The type of the sharding definition.
+        :param prune_limit: The number of DELETEs that should be
+                            done in one batch.
         """
 
         range_sharding_spec = RangeShardingSpecification.fetch(shard_id)
@@ -1183,7 +1190,8 @@ class RangeShardingSpecification(_persistence.Persistable):
                     shard_mapping.column_name,
                     range_sharding_spec.lower_bound,
                     shard_mapping.column_name,
-                    upper_bound
+                    upper_bound,
+                    prune_limit
                 )
             else:
                 delete_query = (
@@ -1191,7 +1199,8 @@ class RangeShardingSpecification(_persistence.Persistable):
                         PRUNE_SHARD_WITHOUT_UPPER_BOUND) % (
                     table_name,
                     shard_mapping.column_name,
-                    range_sharding_spec.lower_bound
+                    range_sharding_spec.lower_bound,
+                    prune_limit
                 )
 
             shard = Shards.fetch(range_sharding_spec.shard_id)
@@ -1221,8 +1230,17 @@ class RangeShardingSpecification(_persistence.Persistable):
             #failing. Hence we need to disable foreign key checks during the
             #pruning process.
             master.set_foreign_key_checks(False)
-            #Perform the pruning of the table
-            master.exec_stmt(delete_query)
+            prune_limit = int(prune_limit)
+            deleted = prune_limit
+            while deleted == prune_limit:
+                delete_cursor = master.exec_stmt(
+                                              delete_query,
+                                              {
+                                                "raw":False,
+                                                "fetch":False
+                                                }
+                )
+                deleted = delete_cursor.rowcount
             #Enable Foreign Key Checking
             master.set_foreign_key_checks(True)
 
@@ -1533,7 +1551,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         pass
 
     @staticmethod
-    def delete_from_shard_db(table_name, type_name):
+    def delete_from_shard_db(table_name, type_name, prune_limit):
         """Delete the data from the copied data directories based on the
         sharding configuration uploaded in the sharding tables of the state
         store. The basic logic consists of
@@ -1547,6 +1565,9 @@ class HashShardingSpecification(RangeShardingSpecification):
           server.
 
         :param table_name: The table being sharded.
+        :param type_name: The type of the sharding definition.
+        :param prune_limit: The number of DELETEs that should be
+                            done in one batch.
         """
 
         shard_mapping = ShardMapping.fetch(table_name)
@@ -1559,9 +1580,9 @@ class HashShardingSpecification(RangeShardingSpecification):
         if not shards:
             raise _errors.ShardingError("No shards associated with this"
                                         " shard mapping ID.")
-
         for shard in shards:
-            HashShardingSpecification.prune_shard_id(shard.shard_id, type_name)
+            HashShardingSpecification.prune_shard_id(shard.shard_id, type_name,
+                                                     prune_limit)
 
     @staticmethod
     def get_upper_bound(lower_bound, shard_mapping_id, type, persister=None):
@@ -1591,11 +1612,14 @@ class HashShardingSpecification(RangeShardingSpecification):
         return row[0]
 
     @staticmethod
-    def prune_shard_id(shard_id, type_name):
+    def prune_shard_id(shard_id, type_name, prune_limit):
         """Remove the rows in the shard that do not match the metadata
         in the shard_range tables.
 
         :param shard_id: The ID of the shard that needs to be pruned.
+        :param type_name: The type of the sharding definition.
+        :param prune_limit: The number of DELETEs that should be
+                            done in one batch.
         """
 
         hash_sharding_spec = HashShardingSpecification.fetch(shard_id)
@@ -1628,7 +1652,8 @@ class HashShardingSpecification(RangeShardingSpecification):
                     shard_mapping.column_name,
                     hash_sharding_spec.lower_bound,
                     shard_mapping.column_name,
-                    upper_bound
+                    upper_bound,
+                    prune_limit
                 )
             else:
                 #HASH based sharding forms a circular ring. Hence
@@ -1645,7 +1670,8 @@ class HashShardingSpecification(RangeShardingSpecification):
                         shard_mapping.shard_mapping_id
                     ),
                     shard_mapping.column_name,
-                    hash_sharding_spec.lower_bound
+                    hash_sharding_spec.lower_bound,
+                    prune_limit
                 )
 
             shard = Shards.fetch(hash_sharding_spec.shard_id)
@@ -1671,8 +1697,22 @@ class HashShardingSpecification(RangeShardingSpecification):
 
             master.connect()
 
+            #Dependencies between tables being pruned may lead to the prune
+            #failing. Hence we need to disable foreign key checks during the
+            #pruning process.
             master.set_foreign_key_checks(False)
-            master.exec_stmt(delete_query)
+            prune_limit = int(prune_limit)
+            deleted = prune_limit
+            while deleted == prune_limit:
+                delete_cursor = master.exec_stmt(
+                                              delete_query,
+                                              {
+                                                "raw":False,
+                                                "fetch":False
+                                                }
+                )
+                deleted = delete_cursor.rowcount
+            #Enable the Foreign Key checks after the prune.
             master.set_foreign_key_checks(True)
 
 class MappingShardsGroups(_persistence.Persistable):
