@@ -334,7 +334,7 @@ META_INFO = {
         '': 'lib',
         },
     'requires': [
-        'mysql.connector (>=1.0)',
+        'mysql.connector (>=1.2.2)',
         ],
     'scripts': [
         'scripts/mysqlfabric.py',
