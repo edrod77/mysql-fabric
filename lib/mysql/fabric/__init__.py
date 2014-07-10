@@ -19,7 +19,7 @@
 """
 
 # Version info as a tuple (major, minor, patch, extra)
-__version_info__ = (1, 4, 3, "")
+__version_info__ = (1, 4, 4, "")
 
 # MySQL Fabric version:
 # `PEP-386 <http://www.python.org/dev/peps/pep-0386>`__ format
