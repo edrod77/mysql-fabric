@@ -140,6 +140,20 @@ class TestShardingServices(tests.utils.TestCase):
         """
         tests.utils.cleanup_environment()
 
+    def test_fail_duplicate_add_shard_mapping_id(self):
+        """Verify that a duplicate shard mapping ID inserted
+        results in an error.
+        """
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID1")
+        self.check_xmlrpc_command_result(status, has_error=True)
+
+    def test_fail_non_existent_shard_mapping_id(self):
+        """Verify that adding a table to a shard mapping ID that does not
+        exist does not pass.
+        """
+        status = self.proxy.sharding.add_table(3, "db2.t2", "userID2")
+        self.check_xmlrpc_command_result(status, has_error=True)
+
     def test_fail_duplicate_add_shard(self):
         """Tests that addition of an existing lower_bound to a
         shard mapping fails. Also test adding lower_bounds with

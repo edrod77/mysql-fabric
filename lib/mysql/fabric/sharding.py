@@ -457,6 +457,21 @@ class ShardMapping(_persistence.Persistable):
         return ShardMapping.fetch(table_name)
 
     @staticmethod
+    def add_constraints(persister=None):
+        """Add the constraints on the tables that stores the list of registered
+        sharded tables.
+
+        :param persister: The DB server that can be used to access the
+                          state store.
+        """
+        persister.exec_stmt(
+            ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_GLOBAL_GROUP
+        )
+        persister.exec_stmt(
+            ShardMapping.ADD_FOREIGN_KEY_CONSTRAINT_SHARD_MAPPING_ID
+        )
+
+    @staticmethod
     def dump_shard_tables(version=None, patterns="", persister=None):
         """Return the list of shard tables that belong to the shard mappings
         listed in the patterns strings separated by comma.
