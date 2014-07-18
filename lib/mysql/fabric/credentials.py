@@ -38,6 +38,8 @@ FABRIC_PROTOCOL_DEFAULTS = {
     'protocol.xmlrpc': {
         'realm': FABRIC_REALM_XMLRPC,
     },
+    'protocol.mysql': {
+    }
 }
 
 # This sequence is used when creating an dropping tables
@@ -108,6 +110,7 @@ _SQL_CONSTRAINTS = [
 _USERS = [
     # user_id, username, protocol, password
     (1, 'admin', 'xmlrpc', None),
+    (2, 'admin', 'mysql', None),
 ]
 
 _PERMISSIONS = [
@@ -132,6 +135,7 @@ _ROLE_PERMISSIONS = {
 
 _USER_ROLES = [
     (1, 1),  # admin in superadmin role
+    (2, 1),  # admin in superadmin role
 ]
 
 _SQL_FETCH_USER = """
@@ -333,7 +337,7 @@ class User(_persistence.Persistable):
                                persister=persister)
 
     @staticmethod
-    def fetch_user(username, protocol, realm, persister=None):
+    def fetch_user(username, protocol, persister=None):
         """Fetch the information about a user using particular protocol
 
         :param username: Username being queried.
@@ -408,7 +412,7 @@ def _hash_password(username, password, protocol, config, realm=None):
     """
     if not password:
         return
-    if not realm and config:
+    if protocol in ('xmlrpc',) and not realm and config:
         section = 'protocol.' + protocol
         realm = config.get(section, 'realm',
                            vars=FABRIC_PROTOCOL_DEFAULTS[section])
@@ -417,6 +421,8 @@ def _hash_password(username, password, protocol, config, realm=None):
         return hashlib.md5('{user}:{realm}:{secret}'.format(
             user=username, realm=FABRIC_REALM_XMLRPC,
             secret=password)).hexdigest()
+    elif protocol == 'mysql':
+        return hashlib.sha1(hashlib.sha1(password).digest()).hexdigest().upper()
 
     raise _errors.CredentialError(
         "Password hasing for protocol '{0}' is not implemented.".format(
@@ -483,11 +489,11 @@ def check_initial_setup(config, persister, check_only=False):
             tmp = key.split('.', 2)[1]
             if tmp not in protocols:
                 user = get_user('admin', tmp, persister)
-                if not user.password:
+                if not user or not user.password:
                     protocols.append(tmp)
 
     # Try setting password for 'admin' user from configuration file
-    for protocol in protocols:
+    for protocol in tuple(protocols):  # we change protocols, loop over copy
         section = 'protocol.' + protocol
         try:
             username = config.get(section, 'user')
@@ -503,7 +509,7 @@ def check_initial_setup(config, persister, check_only=False):
                 break
         except _config.NoOptionError:
             # No password, so we have to ask for one
-            break
+            continue
 
         persister.begin()
         try:
@@ -536,6 +542,7 @@ def check_initial_setup(config, persister, check_only=False):
         else:
             # No need to ask for password later for this protocol
             protocols.remove(protocol)
+
 
     if not protocols:
         # Passwords are set
@@ -1292,7 +1299,7 @@ def check_credentials(group, command, config, protocol):
     password = config.get(section, 'password')
     realm = config.get(section, 'realm', vars=FABRIC_PROTOCOL_DEFAULTS)
 
-    user = User.fetch_user(username, protocol=protocol, realm=realm)
+    user = User.fetch_user(username, protocol=protocol)
     password_hash = _hash_password(username, password, protocol, config, realm)
 
     if user is None or user.password_hash != password_hash:

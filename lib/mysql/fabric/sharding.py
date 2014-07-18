@@ -1397,7 +1397,7 @@ class HashShardingSpecification(RangeShardingSpecification):
             row = cur.fetchone()
 
             if row is not None:
-                max_keys.append(row[0])
+                max_keys.append(str(row[0]))
 
         #max_keys stores  all the maximum values in all the tables. We will
         #fetch the maximum values among all these values and use it as the

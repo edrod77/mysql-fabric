@@ -853,6 +853,8 @@ class TestServerServices(tests.utils.TestCase):
         self.check_xmlrpc_simple(status, {
             'host': "localhost",
             'port': int(xmlrpc_next_port),
+            'host': "localhost",
+            'port': int(xmlrpc_next_port) + 1,
         })
 
 if __name__ == "__main__":

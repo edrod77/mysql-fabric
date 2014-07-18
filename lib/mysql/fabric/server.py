@@ -801,13 +801,13 @@ class MySQLServer(_persistence.Persistable):
         passwd = passwd or MySQLServer.PASSWD
         cnx = _server_utils.create_mysql_connection(
             user=user, passwd=passwd, host=host, port=port, autocommit=True,
-            use_unicode=False, connection_timeout=connection_timeout
+            use_unicode=True, connection_timeout=connection_timeout
         )
 
         try:
             row = _server_utils.exec_mysql_stmt(cnx,
                 "SELECT @@GLOBAL.SERVER_UUID")
-            server_uuid = row[0][0]
+            server_uuid = str(row[0][0])
         finally:
             _server_utils.destroy_mysql_connection(cnx)
 
@@ -924,10 +924,10 @@ class MySQLServer(_persistence.Persistable):
         for row in ret:
             res = check.match(row[0])
             if res:
-                privileges = [ privilege.strip() \
+                privileges = [ str(privilege).strip() \
                       for privilege in res.group("privileges").split(",")
                 ]
-                level = res.group("level").replace('`', "")
+                level = str(res.group("level")).replace('`', "")
                 if (all_privileges in privileges and all_level == level) or \
                     (required_privileges.issubset(set(privileges)) and \
                     required_level == level):
@@ -1304,7 +1304,7 @@ class MySQLServer(_persistence.Persistable):
         assert(context in MySQLServer.CONTEXTS)
         ret = self.exec_stmt("SELECT @@%s.%s as %s" %
                              (context, variable, variable))
-        return ret[0][0]
+        return str(ret[0][0])
 
     def set_variable(self, variable, value, context=None):
         """Execute the SET command for the client and return a result set.

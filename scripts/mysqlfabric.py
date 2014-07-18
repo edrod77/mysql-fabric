@@ -361,6 +361,8 @@ def fire_command(command, *args):
         else:
             print "No result returned"
     except TypeError:
+        import traceback
+        traceback.print_exc()
         error_usage_text(command.group_name, command.command_name)
 
 def main():

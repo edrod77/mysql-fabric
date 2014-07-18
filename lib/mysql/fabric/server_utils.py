@@ -21,8 +21,9 @@ import logging
 import collections
 import mysql.connector
 
-from mysql.connector.cursor import MySQLCursor, MySQLCursorRaw
-
+from mysql.connector.cursor import (
+    MySQLCursor, MySQLCursorRaw, MySQLCursorNamedTuple
+)
 import mysql.fabric.errors as _errors
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,20 +81,6 @@ def _do_row_to_python(self, convert, rowdata, desc=None):
             "Failed converting row to Python types; %s" % (error, )
         )
 
-class MySQLCursorNamedTuple(MySQLCursor):
-    """Create a cursor with named columns and non-raw data.
-    """
-    def _row_to_python(self, rowdata, desc=None):
-        return _do_row_to_python(self,
-                                 self._connection.converter.to_python,
-                                 rowdata, desc)
-
-class MySQLCursorRawNamedTuple(MySQLCursor):
-    """Create a cursor with named columns and raw data.
-    """
-    def _row_to_python(self, rowdata, desc=None):
-        return _do_row_to_python(self, _null_converter, rowdata, desc)
-
 def exec_mysql_stmt(cnx, stmt_str, options=None):
     """Execute a statement for the client and return a result set or a
     cursor.
@@ -124,10 +111,10 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     params = options.get('params', ())
     columns = options.get('columns', False)
     fetch = options.get('fetch', True)
-    raw = options.get('raw', True)
+    raw = options.get('raw', False)
 
     if raw and columns:
-        cursor_class = MySQLCursorRawNamedTuple
+        raise TypeError("No raw cursor available returning named tuple")
     elif not raw and columns:
         cursor_class = MySQLCursorNamedTuple
     elif raw and not columns:
@@ -141,7 +128,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
 
     cur = None
     try:
-        cur = cnx.cursor(cursor_class=cursor_class)
+        cur = cnx.cursor(raw=raw, named_tuple=columns)
         cur.execute(stmt_str, params)
     except mysql.connector.Error as error:
         if cur:

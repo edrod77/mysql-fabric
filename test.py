@@ -103,6 +103,11 @@ def get_config(options, env_options):
             'threads': '5',
             'disable_authentication' : 'yes',
             },
+        'protocol.mysql': {
+            'address': 'localhost:{0}'.format(env_options["mysqlrpc_next_port"]),
+            'threads': '5',
+            'disable_authentication' : 'yes',
+            },
         'executor': {
             'executors': '5',
             },
@@ -334,12 +339,14 @@ if __name__ == '__main__':
     options, args = get_options()
     configure_path(options)
     xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
+    mysqlrpc_next_port = xmlrpc_next_port + 1
     mysqldump_path = os.getenv("MYSQLDUMP", "")
     mysqlclient_path = os.getenv("MYSQLCLIENT", "")
     env_options = {
         "xmlrpc_next_port" : xmlrpc_next_port,
         "mysqldump_path" : mysqldump_path,
         "mysqlclient_path" : mysqlclient_path,
+        "mysqlrpc_next_port": mysqlrpc_next_port,
     }
     config = get_config(options, env_options)
 

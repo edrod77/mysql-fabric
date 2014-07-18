@@ -387,7 +387,6 @@ class DumpServers(Command):
         :param connector_version: The connectors version of the data.
         :param patterns: group pattern.
         """
-        
         rset = ResultSet(
             names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
             types=(str, str, str, int, int, int, float)
@@ -397,6 +396,7 @@ class DumpServers(Command):
             rset.append_row(row)
 
         return CommandResult(None, results=rset)
+
 
 SET_SERVER_STATUS = _events.Event()
 class SetServerStatus(ProcedureGroup):

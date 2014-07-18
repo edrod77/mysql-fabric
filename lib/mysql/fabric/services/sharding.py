@@ -76,8 +76,6 @@ SHARD_MOVE_DESTINATION_NOT_EMPTY = "Shard move destination %s already "\
     "hosts a shard"
 INVALID_SHARD_SPLIT_VALUE = "The chosen split value must be between the " \
                             "lower bound and upper bound of the shard"
-INVALID_LOWER_BOUND = "Invalid lower_bound value for RANGE sharding " \
-    "specification"
 INVALID_LOWER_BOUND_VALUE = "Invalid lower_bound value for RANGE sharding " \
     "specification %s"
 SHARDS_ALREADY_EXIST = "Shards are already present in the definition, "\
@@ -614,8 +612,8 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
 
     if schema_type in Shards.VALID_RANGE_SHARDING_TYPES:
         for lower_bound in lower_bound_list:
-            if(not SHARDING_DATATYPE_HANDLER[schema_type].\
-                        is_valid_lower_bound(lower_bound)):
+            if not SHARDING_DATATYPE_HANDLER[schema_type].\
+                        is_valid_lower_bound(lower_bound):
                 raise _errors.ShardingError(
                                 INVALID_LOWER_BOUND_VALUE % (lower_bound, ))
 

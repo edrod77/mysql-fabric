@@ -282,7 +282,7 @@ class RangeShardingStringHandler(ShardingDatatypeHandler):
 
         :param lower_bound: The value that needs to be verified.
         """
-        return (type(lower_bound) is str)
+        return type(lower_bound) is str
 
     @staticmethod
     def split_value(lower_bound, upper_bound):
@@ -320,7 +320,7 @@ class RangeShardingStringHandler(ShardingDatatypeHandler):
                 VERIFY_SPLIT_VALUE_VALID_WITHOUT_UPPER_BOUND,
                 {"params":(lower_bound, split_value,),
                 "fetch" : True})
-        return True if row[0][0] == '1' else False
+        return row[0][0] == 1
 
 class HashShardingHandler(ShardingDatatypeHandler):
     """Contains the members that are required to handle a hash based
@@ -399,8 +399,8 @@ class HashShardingHandler(ShardingDatatypeHandler):
         #Retrieve an integer representation of the hexadecimal
         #lower_bound. The value is actually a long. Python automatically
         #returns a long value.
-        lower_bound = int(lower_bound,  16)
-        upper_bound = int(upper_bound, 16)
+        lower_bound = int(str(lower_bound), 16)
+        upper_bound = int(str(upper_bound), 16)
         #split value after the below computation is actually a long.
         split_value = lower_bound + (upper_bound - lower_bound) / 2
         #split_value after the hex computation gets stored with a prefix
@@ -530,7 +530,7 @@ class RangeShardingDateTimeHandler(ShardingDatatypeHandler):
         row = persister.exec_stmt(
             RangeShardingDateTimeHandler.VERIFY_DATE_TIME_VALID,
             {"params":(lower_bound,), "fetch" : True})
-        return False if row[0][0] == 'NULL' else True
+        return row[0][0] is not None
 
     @staticmethod
     def is_valid_split_value(split_value, lower_bound, upper_bound,
@@ -559,4 +559,4 @@ class RangeShardingDateTimeHandler(ShardingDatatypeHandler):
                     VERIFY_SPLIT_VALUE_VALID_WITHOUT_UPPER_BOUND,
                 {"params":(lower_bound, split_value,),
                 "fetch" : True})
-        return True if row[0][0] == '1' else False
+        return row[0][0] == 1

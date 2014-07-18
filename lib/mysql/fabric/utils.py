@@ -175,6 +175,26 @@ def get_group_lower_bound_list(input_string):
             lower_bound_list.append(lower_bound)
     return group_id_list, lower_bound_list
 
+def dequote(value):
+    """Removes single, double or backtick quotes around the value.
+
+    If the value is  "spam", spam without quotes will be returned. Similar
+    with single and backtick quotes. If quotes do not match, or the first
+    character is not single, double or backtick, the value is returned
+    unchanged.
+
+    If value is not a string, the value is simply returned.
+
+    :param value: A string.
+    :return: A string with quotes removed.
+    """
+    if not isinstance(value, basestring):
+        return value
+
+    if value[0] in '\'"`' and value[-1] == value[0]:
+        return value[1:-1]
+    return value
+
 def check_number_threads(increasing=0):
     """Check the number of threads that are running and whether the maximum
     number of connections in the state store is configured accordingly.

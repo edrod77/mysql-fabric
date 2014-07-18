@@ -292,25 +292,44 @@ def _configure_connections(config):
     executor = _executor.Executor()
     executor.set_number_executors(number_executors)
 
-    # Fetch options to configure the XML-RPC.
-    address = config.get('protocol.xmlrpc', "address")
-
-    # Configure the number of concurrent threads.
-    try:
-        number_threads = config.get('protocol.xmlrpc', "threads")
-        number_threads = int(number_threads)
-    except (_config.NoOptionError, ValueError):
-        number_threads = DEFAULT_N_THREADS
-
+    services = {}
     ssl_config = {}
-    try:
-        for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
-            ssl_config[option] = config.get('protocol.xmlrpc', option)
-    except (_config.NoOptionError):
-        ssl_config = {}
 
-    # Define XML-RPC configuration.
-    _services.ServiceManager(address, number_threads, ssl_config)
+    # XML-RPC service
+    try:
+        services['protocol.xmlrpc'] = config.get('protocol.xmlrpc', "address")
+
+        try:
+            number_threads = config.get('protocol.xmlrpc', "threads")
+            number_threads = int(number_threads)
+        except (_config.NoOptionError, ValueError):
+            number_threads = DEFAULT_N_THREADS
+
+        try:
+            for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
+                ssl_config[option] = config.get('protocol.xmlrpc', option)
+        except _config.NoOptionError:
+            ssl_config = {}
+    except _config.NoSectionError:
+        raise _errors.ConfigurationError(
+            'Configuration for protocol.xmlrpc is required')
+
+    # MySQL-RPC service
+    try:
+        services['protocol.mysql'] = config.get('protocol.mysql', "address")
+
+        try:
+            number_threads = config.get('protocol.mysql', "threads")
+            number_threads = int(number_threads)
+        except (_config.NoOptionError, ValueError):
+            number_threads = DEFAULT_N_THREADS
+
+    except _config.NoSectionError:
+        # No MySQL-RPC configured
+        pass
+
+    # Define service configuration
+    _services.ServiceManager(services, number_threads, ssl_config)
 
     # Fetch options to configure the state store.
     address = config.get('storage', 'address')
@@ -454,7 +473,7 @@ class FabricLookups(Command):
     group_name = "dump"
     command_name = "fabric_nodes"
 
-    def execute(self):
+    def execute(self, protocol=None):
         """Return a list with all the available Fabric Servers.
 
         :return: List with existing Fabric Servers.
@@ -462,5 +481,6 @@ class FabricLookups(Command):
         """
         service = _services.ServiceManager()
         rset = ResultSet(names=('host', 'port'),types=(str, int))
-        rset.append_row(service.address.split(":"))
+        for _, address in service.address(protocol).items():
+            rset.append_row(address.split(":"))
         return CommandResult(None, results=rset)

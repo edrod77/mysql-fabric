@@ -39,6 +39,8 @@ from mysql.fabric.sharding import (
     HashShardingSpecification,
 )
 
+import mysql.connector
+
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
 
 _LOGGER = logging.getLogger(__name__)
@@ -362,6 +364,15 @@ def setup_xmlrpc():
         allow_none=True
     )
     return (None, proxy)
+
+def setup_mysqlrpc():
+    """Configure MySQL-RPC
+    """
+    from __main__ import mysqlrpc_next_port
+
+    cnx = mysql.connector.connect(host='localhost', port=mysqlrpc_next_port)
+
+    return cnx
 
 class TestCase(unittest.TestCase):
     """Test case class that defines some convenience methods for MySQL

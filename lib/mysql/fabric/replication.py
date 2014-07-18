@@ -183,8 +183,9 @@ def slave_has_master(server):
     ret = get_slave_status(server)
     if ret:
         try:
-            _uuid.UUID(ret[0].Master_UUID)
-            return ret[0].Master_UUID
+            str_uuid = str(ret[0].Master_UUID)
+            _uuid.UUID(str_uuid)
+            return str_uuid
         except ValueError:
             pass
     return None

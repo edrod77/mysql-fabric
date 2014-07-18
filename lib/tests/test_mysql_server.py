@@ -352,6 +352,7 @@ class TestMySQLServer(unittest.TestCase):
         server.exec_stmt(
             "CREATE USER 'jeffrey'@'%%' IDENTIFIED BY 'mypass'"
         )
+        server.exec_stmt("FLUSH PRIVILEGES")
 
         # Check if jeffrey (temporary user) has the appropriate privileges.
         # There is not privilege associate to jeffrey.

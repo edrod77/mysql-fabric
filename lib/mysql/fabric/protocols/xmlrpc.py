@@ -71,9 +71,7 @@ FORMAT_VERSION = 1
 
 def _encode(result):
     """Encode a CommandResult as an data structure for transfer over XML-RPC.
-
     """
-
     # Store the result sets as a list of dictionaries for transfer.
     if result.error:
         packet = [FORMAT_VERSION, str(result.uuid), result.ttl, result.error, []]
@@ -86,10 +84,8 @@ def _encode(result):
                 'rows': list(rs),
             } for rs in result.results
         ]
-
-
-
         packet = [FORMAT_VERSION, str(result.uuid), result.ttl, '', rows]
+
     _LOGGER.debug("Encoded packet: %s", packet)
     return packet
 
@@ -276,8 +272,8 @@ class MyRequestHandler(SimpleXMLRPCRequestHandler):
             nonce = attrs['nonce']
 
             store = _persistence.current_persister()
-            user = credentials.User.fetch_user(
-                attrs['username'], protocol='xmlrpc', realm=attrs['realm'])
+            user = credentials.User.fetch_user(attrs['username'],
+                                               protocol='xmlrpc')
             if not user:
                 _LOGGER.error("Authentication failed for {user}@{host}".format(
                     user=attrs['username'], host=self._client_address[0]))
@@ -553,7 +549,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
                 _LOGGER.error("Error starting thread: (%s).", error)
 
     def __add_client(self, nonce, client_address, username, realm):
-        """Adds new client to collection of authenticated clients
+        """Adds new client to collection of _authenticated clients
 
         :param nonce: Nonce (see RFC2617).
         :param client_address: Tuple holding host address and TCP port.
