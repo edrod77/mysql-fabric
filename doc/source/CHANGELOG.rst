@@ -3,13 +3,17 @@ ChangeLog for Fabric
 ####################
 
 
-Release 1.5.1 (released July 10, 2014)
+Release 1.5.1 (released July 18, 2014)
 --------------------------------------
  
 * WL#6432: MySQL Fabric: Provisioning
-* WL#7523: WL#7539:Supporting DATETIME and STRING as sharding keys in
+* WL#7523: WL#7539: Supporting DATETIME and STRING as sharding keys in
   Fabric.
 * WL#7760: Command result interface to protocol classes
+* WL#7600: New interface using the MySQL Protocol
+* BUG#19226122: TTL VALUE 0 EVERYTIME
+* BUG#19226319: STATISTICS PROCEDURE CALL_ABORT ERROR
+* BUG#19233515: FAIL TO ADD/MODIFY ADD_SHARD
 
 Release 1.4.4 (released July 10, 2014)
 --------------------------------------
