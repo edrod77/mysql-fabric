@@ -153,7 +153,7 @@ class TestHandlerServices(tests.utils.TestCase):
         self.check_xmlrpc_simple(res, {
             'proc_name': 'test.execution_event',
             'call_count': 1,
-            'call_abort': 0,
+            'call_abort': 1,
         }, rowcount=1)
 
         # Check statistics on procedures that are asynchronously executed and
@@ -164,7 +164,7 @@ class TestHandlerServices(tests.utils.TestCase):
         self.check_xmlrpc_simple(res, {
             'proc_name': 'test.execution_event',
             'call_count': 2,
-            'call_abort': 0,
+            'call_abort': 1,
         }, rowcount=1)
 
         # Check statistics on procecures executed so far, i.e. all procedures.
@@ -182,7 +182,7 @@ class TestHandlerServices(tests.utils.TestCase):
         self.check_xmlrpc_simple(res, {
             'proc_name': 'test.execution_event',
             'call_count': 2,
-            'call_abort': 0,
+            'call_abort': 1,
         }, index=2, rowcount=3)
 
 if __name__ == "__main__":

@@ -155,7 +155,6 @@ class CommandMeta(type):
             group = obj.group_name
             command = obj.command_name
             subject = ".".join([group, command])
-            success = True
             try:
                 _LOGGER.debug(
                     "Started command (%s, %s).", group, command,
@@ -182,20 +181,15 @@ class CommandMeta(type):
                             ret,
                         )
                     )
-
-                if isinstance(obj, ProcedureCommand):
-                    success = ProcedureCommand.succeeded(ret)
-            except:
-                success = False
-                raise
-
+            except Exception as error:
+                ret = CommandResult(error=str(error))
             finally:
                 _LOGGER.debug("Finished command (%s, %s).", group, command,
                     extra={
                         "subject" : subject,
                         "category" : MySQLHandler.PROCEDURE,
-                        "type" : MySQLHandler.STOP if success else \
-                                 MySQLHandler.ABORT
+                        "type" : MySQLHandler.ABORT if ret.error else \
+                                 MySQLHandler.STOP
                     }
                 )
             return ret
@@ -609,20 +603,6 @@ class ProcedureCommand(Command):
             error = operation['diagnosis'].split("\n")[-2]
             _LOGGER.debug("Failure: error='%s'", error)
             return CommandResult(error)
-
-    @staticmethod
-    def succeeded(status):
-        """Check whether a procedure has succeeded or not.
-        """
-        ret = True
-
-        try:
-            ret = (status[1][-1]["success"] == _executor.Job.SUCCESS)
-        except TypeError:
-            # This may happen if the procedure is asynchronously executed.
-            pass
-
-        return ret
 
     def get_lockable_objects(self, variable=None, function=None):
         """Return the set of lockable objects by extracting information
