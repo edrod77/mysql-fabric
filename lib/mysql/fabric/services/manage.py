@@ -129,9 +129,6 @@ class Start(Command):
         # Configure connections.
         _configure_connections(self.config)
 
-        #Configure TTL
-        _setup_ttl(self.config)
-
         try:
             credentials.check_initial_setup(self.config,
                                             _persistence.MySQLPersister(),
@@ -166,9 +163,6 @@ class Setup(Command):
         # Configure connections.
         _configure_connections(self.config)
 
-        #Configure TTL
-        _setup_ttl(self.config)
-
         # Create database and objects.
         _persistence.setup(config=self.config)
 
@@ -192,9 +186,6 @@ class Teardown(Command):
 
         # Configure connections.
         _configure_connections(self.config)
-
-        #Configure TTL
-        _setup_ttl(self.config)
 
         # Drop database and objects.
         _persistence.teardown()
@@ -385,6 +376,9 @@ def _setup_ttl(config):
 def _start(options, config):
     """Start Fabric server.
     """
+    #Configure TTL
+    _setup_ttl(config)
+
     # Configure modules that are not dynamic loaded.
     _server.configure(config)
     _error_log.configure(config)

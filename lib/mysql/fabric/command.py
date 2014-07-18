@@ -44,12 +44,12 @@ import collections
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
+import mysql.fabric.utils as _utils
 
 from cStringIO import StringIO
 
 from mysql.fabric.utils import (
     FABRIC_UUID,
-    TTL,
 )
 
 from mysql.fabric.handler import (
@@ -793,17 +793,23 @@ class CommandResult(object):
 
     """
 
-    def __init__(self, error, results=None, uuid=FABRIC_UUID, ttl=TTL):
+    def __init__(self, error, results=None, uuid=FABRIC_UUID, ttl=None):
         """Constructor.
 
         See class description for information.
-
         """
-
         self.__error = error
         self.__uuid = uuid
-        self.__ttl = ttl
+        self.__ttl = _utils.TTL
         self.__results = []
+
+        # Check the TTL information if there is any. Otherwise, use
+        # the value specified in the configuration file.
+        if ttl is not None:
+            try:
+                self.__ttl = int(ttl)
+            except ValueError:
+                pass
 
         # Ensure that results is a list of results even if a single
         # result (or None) was passed as value.

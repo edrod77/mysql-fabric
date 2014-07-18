@@ -25,10 +25,10 @@ import mysql.fabric.config as _config
 import mysql.fabric.errors as _errors
 import mysql.fabric.events as _events
 import mysql.fabric.executor as _executor
+import mysql.fabric.utils as utils
 
 from mysql.fabric.utils import (
     FABRIC_UUID,
-    TTL,
 )
 
 from mysql.fabric.command import (
@@ -269,7 +269,7 @@ class TestCommand(tests.utils.TestCase):
 
         _command.unregister_command("test", "procedure_command_0")
         _command.unregister_command("test", "procedure_command_1")
-            
+
 
     def test_command(self):
         """Create a command and check its basic properties.
@@ -453,7 +453,7 @@ class TestResultSet(unittest.TestCase):
         self.result = ResultSet(names=names, types=types)
         self.names = names
         self.types = types
-        
+
     def test_definition(self):
         "Check that the types and number of columns are correct."
         self.assertEqual(len(self.result.columns), 2)
@@ -514,7 +514,7 @@ class TestResultSet(unittest.TestCase):
                           self.result.append_row, [])
         self.assertRaises(ValueError, self.result.append_row, [1, 'ERROR'])
         self.assertRaises(ValueError, self.result.append_row, ['ERROR', 2.0])
-        
+
 
 class TestCommandResult(unittest.TestCase):
     "Test command result"
@@ -555,8 +555,8 @@ class TestCommandResult(unittest.TestCase):
         packet = cmd()
         self.assertEqual(packet, [
             _xmlrpc.FORMAT_VERSION,
-            str(FABRIC_UUID), 
-            TTL,
+            str(FABRIC_UUID),
+            utils.TTL,
             '',                 # No error
             [                   # One result set with one row
                 {
@@ -578,7 +578,7 @@ class TestCommandResult(unittest.TestCase):
         results = [
             CommandResult(None),
         ]
-        
+
         for result in results:
             self.assertEqual(str(result),
                              str(_xmlrpc._decode(_xmlrpc._encode(result))))

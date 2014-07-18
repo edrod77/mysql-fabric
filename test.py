@@ -131,7 +131,10 @@ def get_config(options, env_options):
             'detection_timeout' : '1',
             'prune_time' :  '60',
             },
+        'connector': {
+            'ttl' : '1'
         }
+    }
     config = _config.Config(None, params)
     config.config_file = ""
     return config
