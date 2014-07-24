@@ -204,7 +204,7 @@ class TestProtocolMySQLRPC(tests.utils.TestCase):
     def test_dump_servers(self):
         cur = self.cnx.cursor()
         exp_results = [
-            [(unicode(FABRIC_UUID), 0, None)],
+            [(unicode(FABRIC_UUID), 1, None)],
             [],
         ]
         results = []
@@ -234,7 +234,7 @@ class TestProtocolMySQLRPC(tests.utils.TestCase):
 
         cur.execute("CALL dump.servers(patterns=%)")
         exp = [[{u'message': None,
-                 u'fabric_uuid': unicode(FABRIC_UUID), u'ttl': 0}], []]
+                 u'fabric_uuid': unicode(FABRIC_UUID), u'ttl': 1}], []]
         self.assertEqual(exp, json.loads(cur.fetchone()[0]))
 
     def test_format_unknown(self):
@@ -320,7 +320,7 @@ class TestProtocolMySQLRPC(tests.utils.TestCase):
             if not exp[0][0] == unicode(FABRIC_UUID):
                 raise IndexError
         except IndexError:
-            exp.insert(0, (unicode(FABRIC_UUID), 0, None))
+            exp.insert(0, (unicode(FABRIC_UUID), 1, None))
 
         for i, case in enumerate(cases):
             self.assertEqual(exp[i], case,

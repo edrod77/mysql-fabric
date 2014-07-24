@@ -550,9 +550,9 @@ class ShardMapping(_persistence.Persistable):
                     row[1],     # column_name
                     row[2],     # lower_bound
                     row[3],     # shard_id
-                    row[4],     # group_id
-                    row[5],     # global_group
-                    row[6],     # type_name
+                    row[4],     # type_name
+                    row[5],     # group_id
+                    row[6],     # global_group
                 )
 
     @staticmethod

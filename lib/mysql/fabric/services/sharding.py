@@ -392,7 +392,7 @@ class DumpShardingInformation(Command):
 
         rset = ResultSet(
             names=('schema_name', 'table_name', 'column_name', 'lower_bound',
-                   'shard_id', 'group_id', 'global_group_id', 'type_name'),
+                   'shard_id', 'type_name', 'group_id', 'global_group'),
             types=(str, str, str, str, int, str, str, str),
         )
 
