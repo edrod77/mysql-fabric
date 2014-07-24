@@ -3,7 +3,7 @@ ChangeLog for Fabric
 ####################
 
 
-Release 1.5.1 (released July 18, 2014)
+Release 1.5.1 (released July 25, 2014)
 --------------------------------------
  
 * WL#6432: MySQL Fabric: Provisioning
@@ -14,6 +14,8 @@ Release 1.5.1 (released July 18, 2014)
 * BUG#19226122: TTL VALUE 0 EVERYTIME
 * BUG#19226319: STATISTICS PROCEDURE CALL_ABORT ERROR
 * BUG#19233515: FAIL TO ADD/MODIFY ADD_SHARD
+* BUG#19277230: UPDATE THE REPOSITORY TO MAKE A STAND ALONE RELEASE
+* BUG#19289261: DATA IN THE DUMP.SHARDING_INFORMATION IS MISPLACED
 
 Release 1.4.4 (released July 10, 2014)
 --------------------------------------
