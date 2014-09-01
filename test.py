@@ -142,6 +142,10 @@ def get_config(options, env_options):
     }
     config = _config.Config(None, params)
     config.config_file = ""
+
+    if options.password is None:
+        options.password = getpass.getpass()
+
     return config
 
 def configure_path(options):
@@ -205,36 +209,48 @@ def configure_servers(options):
                 server.disconnect()
                 ConnectionPool().purge_connections(server.uuid)
         if servers.get_number_addresses() < NUMBER_OF_SERVERS:
-            print "<<<<<<<<<< Some unit tests need %s MySQL Instances. " \
-              ">>>>>>>>>> " % (NUMBER_OF_SERVERS, )
+            print >> sys.stderr, "<<<<<<<<<< Some unit tests need {0} MySQL " \
+                "Instances. >>>>>>>>>> ".format(NUMBER_OF_SERVERS)
             return False
     except Exception as error:
-        print "Error configuring servers:", error
+        print >> sys.stderr, "Error configuring servers:", error
         return False
 
     return True
 
 def check_connector():
-    """Check if the connector is properly configured.
+    """Check whether the connector python is installed or not.
     """
+    from mysql.fabric import (
+        check_connector
+    )
+    from mysql.fabric.errors import (
+        ConfigurationError
+    )
     try:
-        import mysql.connector
-    except Exception as error:
-        import mysql
-        path = os.path.dirname(mysql.__file__)
-        print "Tried to look for mysql.connector at (%s)" % (path, )
-        print "Error:", error
-        return False
-    return True
+        check_connector()
+        return True
+    except ConfigurationError as error:
+        print >> sys.stderr, error
+
+    return False
 
 def run_tests(pkg, options, args, config):
+    # Check whether the connector python is installed or not.
+    if not check_connector():
+        return None
+
+    # Configure logging.
+    configure_logging(options)
+
+    # Configure MySQL Instances that might be used in the tests.
+    if not configure_servers(options):
+        return None
+
+    # Fetch the tests that will be executed.
     import tests
     if len(args) == 0:
         args = tests.__all__
-
-    # Find out which MySQL Instances can be used for the tests.
-    if not check_connector() or not configure_servers(options):
-        return None
 
     # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
@@ -278,11 +294,16 @@ def teardown_xmlrpc(proxy):
     persistence.deinit_thread()
     persistence.teardown()
 
-def configure_logging(level):
+def configure_logging(options):
     from mysql.fabric.handler import MySQLHandler
 
     handler = None
     mysql_handler = None
+
+    if options.log_level:
+        level = options.log_level.upper()
+    else:
+        level = "DEBUG"
 
     formatter = logging.Formatter(
         "[%(levelname)s] %(created)f - %(threadName)s - %(message)s"
@@ -337,7 +358,11 @@ if __name__ == '__main__':
     # "options" and "args". They are used in the test modules to pull in user
     # options.
     options, args = get_options()
+
+    # Configure path to mysql.fabric.
     configure_path(options)
+
+    # Configure options.
     xmlrpc_next_port = int(os.getenv("HTTP_PORT", 15500))
     mysqlrpc_next_port = xmlrpc_next_port + 1
     mysqldump_path = os.getenv("MYSQLDUMP", "")
@@ -349,16 +374,6 @@ if __name__ == '__main__':
         "mysqlrpc_next_port": mysqlrpc_next_port,
     }
     config = get_config(options, env_options)
-
-    if options.password is None:
-        options.password = getpass.getpass()
-
-    # Configure logging.
-    if options.log_level:
-        level = options.log_level.upper()
-    else:
-        level = "DEBUG"
-    configure_logging(level)
 
     # Run tests.
     result = run_tests('tests', options, args, config)

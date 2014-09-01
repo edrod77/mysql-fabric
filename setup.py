@@ -35,6 +35,12 @@ def fetch_version(module_name):
     mod = __import__(module_name, globals(), locals(), ['__version__'])
     return mod.__version__
 
+def fetch_cpy_version(module_name):
+    """Retrieve information on Connector Python version required by Fabric.
+    """
+    mod = __import__(module_name, globals(), locals(), ['__cpy_version__'])
+    return mod.__cpy_version__
+
 def find_packages(*args, **kwrds):
     """Find all packages and sub-packages and return a list of them.
 
@@ -124,7 +130,7 @@ def check_fabric():
     except ImportError as error:
         return False, path_mysql, path_fabric
 
-def check_path_for_docs(directory):
+def check_prerequisite_for_docs(directory):
     """Set the path to ** when documentation is being generated and
     check whether fabric and connector python are properly installed
     or not.
@@ -134,26 +140,35 @@ def check_path_for_docs(directory):
     result, path_mysql, path_connector = check_connector()
     if not result:
         sys.stderr.write(
-            "Tried to look for mysql.connector at (%s).\n" % \
-            (path_mysql, )
-            )
+            "Tried to look for mysql.connector at ({0}).\n".format(path_mysql)
+        )
         sys.stderr.write(
-            "Sphinx was supposed to use (%s).\n" % \
-            (sys.path[0])
-            )
+            "Sphinx was supposed to use ({0}).\n".format(sys.path[0])
+        )
         exit(1)
 
     result, path_myql, path_fabric = check_fabric()
     if not result:
         sys.stderr.write(
-            "Tried to look for mysql.fabric at (%s).\n" % \
-            (path_mysql, )
-            )
+            "Tried to look for mysql.fabric at ({0}).\n".format(path_mysql)
+        )
         sys.stderr.write(
-            "Sphinx was supposed to use (%s).\n" % \
-            (sys.path[0])
-            )
+            "Sphinx was supposed to use ({0}).\n".format(sys.path[0])
+        )
         exit(1)
+
+    import mysql.connector as cpy
+    import mysql.fabric as fabric
+    try:
+        if cpy.version.VERSION < fabric.__cpy_version_info__:
+            sys.stderr.write(
+                "Connector python has ({0}) version but Fabric requires ({1}) "
+                "or a later version.\n".format(cpy.version.VERSION,
+                fabric.__cpy_version_info__)
+            )
+            exit(1)
+    except AttributeError:
+        pass
 
 def fix_path(directory):
     """Fix path by pointing to the appropriate directory.
@@ -191,7 +206,7 @@ if result:
                 self.use_directory = self.code_dir
 
         def run(self):
-            check_path_for_docs(self.use_directory)
+            check_prerequisite_for_docs(self.use_directory)
             _sphinx.BuildDoc.run(self)
 else:
     class build_docs(Command):
@@ -333,9 +348,6 @@ META_INFO = {
     'package_dir': {
         '': 'lib',
         },
-    'requires': [
-        'mysql.connector (>=1.2.2)',
-        ],
     'scripts': [
         'scripts/mysqlfabric.py',
         ],
@@ -374,5 +386,9 @@ if os.name != "nt":
 #
 if "build_docs" not in sys.argv:
     fix_path("lib")
-    META_INFO ['version'] = fetch_version('mysql.fabric')
+    META_INFO['version'] = fetch_version('mysql.fabric')
+    META_INFO['requires'] = [
+        'mysql.connector (>={0})'.format(fetch_cpy_version('mysql.fabric'))
+    ]
+
 setup(**META_INFO)
