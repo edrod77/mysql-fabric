@@ -198,8 +198,16 @@ def _prune_shard_tables(table_name, prune_limit):
                     done in one batch.
     """
     shard_mapping = ShardMapping.fetch(table_name)
-    SHARDING_SPECIFICATION_HANDLER[shard_mapping.type_name].\
-        delete_from_shard_db(table_name, shard_mapping.type_name, prune_limit)
+    try:
+        SHARDING_SPECIFICATION_HANDLER[shard_mapping.type_name].\
+            delete_from_shard_db(table_name, shard_mapping.type_name, prune_limit)
+    except _errors.DatabaseError as error:
+        if len(error.args) >= 2 and error.args[1] == 1146:
+            #Error happens because the actual tables are not present in the
+            #server. We will ignore this.
+            pass
+        else:
+            raise error
 
 @_events.on_event(CHECK_SHARD_INFORMATION)
 def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
@@ -614,10 +622,27 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2, prune_limit):
 
     #All the shard mappings associated with this shard_id should be
     #of the same type. Hence it is safe to use one of them.
-    SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
-    prune_shard_id(shard_id_1, shard_mappings[0].type_name, prune_limit)
-    SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
-    prune_shard_id(shard_id_2, shard_mappings[0].type_name, prune_limit)
+    try:
+        SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
+        prune_shard_id(shard_id_1, shard_mappings[0].type_name, prune_limit)
+    except _errors.DatabaseError as error:
+        if len(error.args) >= 2 and error.args[1] == 1146:
+            #Error happens because the actual tables are not present in the
+            #server. We will ignore this.
+            pass
+        else:
+            raise error
+
+    try:
+        SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
+        prune_shard_id(shard_id_2, shard_mappings[0].type_name, prune_limit)
+    except _errors.DatabaseError as error:
+        if len(error.args) >= 2 and error.args[1] == 1146:
+            #Error happens because the actual tables are not present in the
+            #server. We will ignore this.
+            pass
+        else:
+            raise error
 
 def _setup_shard_switch_move(shard_id, source_group_id, destination_group_id,
                              update_only):

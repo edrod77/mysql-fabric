@@ -111,6 +111,20 @@ class TestShardSplit(tests.utils.TestCase):
                                   "VALUES(704, 'TEST 7')")
         self.split_fail = False
 
+    def test_split_table_not_exists(self):
+        """Delete the database in the shard server and verify that the split
+        does not fail once the database on which the prune is being done
+        has been removed.
+        """
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
+        for info in self.check_xmlrpc_iter(status):
+            shard_uuid = info['server_uuid']
+            shard_server = MySQLServer.fetch(shard_uuid)
+            shard_server.connect()
+        shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")        
+        status = self.proxy.sharding.split_shard("1", "GROUPID3", "600")
+        self.check_xmlrpc_command_result(status)
+
     def test_shard_split_fail_GTID_EXECUTED(self):
         self.split_fail = True
         status = self.proxy.group.lookup_servers("GROUPID3")
