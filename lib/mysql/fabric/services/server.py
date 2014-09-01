@@ -78,6 +78,7 @@ from mysql.fabric import (
     group_replication as _group_replication,
     sharding as _sharding,
     server_utils as _server_utils,
+    config as _config,
 )
 
 from mysql.fabric.command import (
@@ -96,6 +97,10 @@ _LOGGER = logging.getLogger(__name__)
 SERVER_NOT_FOUND = "Server with UUID %s not found."
 MYSQLDUMP_NOT_FOUND = "Unable to find MySQLDump in location %s"
 MYSQLCLIENT_NOT_FOUND = "Unable to find MySQL Client in location %s"
+
+MIN_UNREACHABLE_TIMEOUT = 1
+MAX_UNREACHABLE_TIMEOUT = 60
+DEFAULT_UNREACHABLE_TIMEOUT = 5
 
 class GroupLookups(Command):
     """Return information on existing group(s).
@@ -263,7 +268,7 @@ class ServerUuid(Command):
     group_name = "server"
     command_name = "lookup_uuid"
 
-    def execute(self, address, timeout=5):
+    def execute(self, address, timeout=None):
         """Return server's UUID.
 
         :param address: Server's address.
@@ -289,7 +294,7 @@ class ServerAdd(ProcedureGroup):
     group_name = "group"
     command_name = "add"
 
-    def execute(self, group_id, address, timeout=5, update_only=False,
+    def execute(self, group_id, address, timeout=None, update_only=False,
                 synchronous=True):
         """Add a server into a group.
 
@@ -490,31 +495,27 @@ class CloneServer(ProcedureGroup):
     group_name = "server"
     command_name = "clone"
 
-    def execute(self, group_id, destn_address, server_uuid=None,
+    def execute(self, group_id, destn_address, server_id=None, timeout=None,
                 synchronous=True):
         """Clone the objects of a given server into a destination server.
 
         :param group_id: The ID of the source group.
-        :param destn_address: The address of the MySQL Server to which
-            the clone needs to happen.
-        :param server_uuid: The UUID of the source MySQL Server.
+        :param destn_address: The address of the destination MySQL Server.
+        :param source_id: The address or UUID of the source MySQL Server.
+        :param timeout: Time in seconds after which an error is reported
+                        if the destination server is unreachable.
         :param synchronous: Whether one should wait until the execution
                             finishes or not.
         """
-        #If the destination server is already part of a Fabric Group, raise
-        #an error
-        if destn_address:
-            destn_server_uuid = _server.MySQLServer.\
-                discover_uuid(destn_address)
-            destn_server = _server.MySQLServer.fetch(destn_server_uuid)
-            #we should check for both the presence of the server object
-            #and its associated group ID. Checking its association with
-            #a group ID would verify that a server that is part of Fabric
-            #but is not part of a group can also be cloned into.
-            if destn_server and destn_server.group_id:
-                raise _errors.ServerError("The Destination server is already "\
-                    "part of Group (%s)" % (destn_server.group_id,))
+        # If the destination server is already part of a Fabric Group, raise
+        # an error
+        destn_server_uuid = _lookup_uuid(destn_address, timeout)
+        _check_server_not_in_any_group(destn_server_uuid)
+        host, port = _server_utils.split_host_port(
+            destn_address, _backup.MySQLDump.MYSQL_DEFAULT_PORT
+        )
 
+        # Fetch information on backup and restore programs.
         config_file = self.config.config_file if self.config.config_file else ""
 
         mysqldump_binary = _utils.read_config_value(
@@ -534,25 +535,18 @@ class CloneServer(ProcedureGroup):
         if not _utils.is_valid_binary(mysqlclient_binary):
             raise _errors.ServerError(MYSQLCLIENT_NOT_FOUND % mysqlclient_binary)
 
-        if server_uuid:
-            server = _server.MySQLServer.fetch(server_uuid)
-            if group_id != server.group_id:
-                raise _errors.ServerError("The server %s was not found in "\
-                                          "group %s" % (server_uuid, group_id, ))
-        elif not server_uuid:
-            group = _server.Group.fetch(group_id)
+        # Fetch a reference to source server.
+        if server_id:
+            server = _retrieve_server(server_id, group_id)
+        else:
+            group = _retrieve_group(group_id)
             server = _utils.fetch_backup_server(group)
-            server_uuid = str(server.uuid)
 
-        host, port = _server_utils.split_host_port(
-                                destn_address,
-                                _backup.MySQLDump.MYSQL_DEFAULT_PORT
-                            )
-
+        # Schedule the clone operation through the executor.
         procedures = _events.trigger(
             BACKUP_SERVER,
             self.get_lockable_objects(),
-            server_uuid,
+            str(server.uuid),
             host,
             port,
             mysqldump_binary,
@@ -621,6 +615,7 @@ def _destroy_group(group_id, force):
 def _lookup_uuid(address, timeout):
     """Return server's uuid.
     """
+    timeout = timeout or DEFAULT_UNREACHABLE_TIMEOUT
     try:
         return _server.MySQLServer.discover_uuid(
             address=address, connection_timeout=timeout
@@ -944,23 +939,23 @@ def _do_set_server_mode(server, mode, allowed_mode):
 def _retrieve_server(server_id, group_id=None):
     """Return a MySQLServer object from a UUID or a HOST:PORT.
     """
-    uuid = _retrieve_uuid_object(server_id)
+    server = _server.MySQLServer.fetch(server_id)
 
-    server = _server.MySQLServer.fetch(uuid)
     if not server:
         raise _errors.ServerError(
-            "Server (%s) does not exist." % (uuid, )
+            "Server (%s) does not exist." % (server_id, )
             )
 
     if not server.group_id:
         raise _errors.GroupError(
-            "Server (%s) does not belong to a group." % (uuid, )
+            "Server (%s) does not belong to a group." % (server_id, )
             )
 
     if group_id is not None and group_id != server.group_id:
         raise _errors.GroupError(
-            "Group (%s) does not contain server (%s)." % (group_id, uuid)
+            "Group (%s) does not contain server (%s)." % (group_id, server_id)
         )
+
     return server
 
 def _check_server_exists(server_id):
@@ -968,11 +963,23 @@ def _check_server_exists(server_id):
 
     :param server_id: The UUID or the host:port for the server.
     """
-    server_id = _retrieve_uuid_object(server_id)
-
     server = _server.MySQLServer.fetch(server_id)
+
     if server:
         raise _errors.ServerError("Server (%s) already exists." % (server_id, ))
+
+def _check_server_not_in_any_group(server_id):
+    """Check for both the presence of the server object and its associated
+       group. If the server belongs to a group an error is raised.
+
+    :param server_id: The UUID or the host:port for the server.
+    """
+    server = _server.MySQLServer.fetch(server_id)
+    if server and server.group_id:
+        raise _errors.ServerError(
+            "Destination server (%s) is already part of group (%s)" %
+            (server.address, server.group_id)
+        )
 
 def _retrieve_group(group_id):
     """Return a Group object from an identifier.
@@ -1004,23 +1011,6 @@ def _check_shard_exists(group_id):
         raise _errors.GroupError(
             "Cannot erase a group (%s) which is used as a global group in a "
             "shard definition (%s)." % (group_id, shard_mapping_id)
-        )
-
-def _retrieve_uuid_object(server_id):
-    """Transform an input string into a UUID object.
-    """
-    assert(isinstance(server_id, basestring))
-
-    try:
-        return _uuid.UUID(server_id)
-    except ValueError:
-        pass
-
-    try:
-        return _server.MySQLServer.discover_uuid(address=server_id)
-    except ValueError:
-        raise _errors.ServerError(
-            "Error trying to access server identified by (%s)." % (server_id, )
         )
 
 def _check_requirements(server):
@@ -1065,3 +1055,25 @@ def _configure_as_slave(group, server):
             "Error trying to configure Server (%s) as slave."
             % (server.uuid, )
         )
+
+def configure(config):
+    """Set configuration values.
+    """
+    try:
+        timeout = int(config.get("servers", "unreachable_timeout"))
+        if timeout < MIN_UNREACHABLE_TIMEOUT:
+            _LOGGER.warning(
+                "Unreachable timeout cannot be lower than %s.",
+                MIN_UNREACHABLE_TIMEOUT
+            )
+            timeout = MIN_UNREACHABLE_TIMEOUT
+        if timeout > MAX_UNREACHABLE_TIMEOUT:
+            _LOGGER.warning(
+                "Unreachable timeout cannot be greater than %s.",
+                MAX_UNREACHABLE_TIMEOUT
+            )
+            timeout = MAX_UNREACHABLE_TIMEOUT
+        global DEFAULT_UNREACHABLE_TIMEOUT
+        DEFAULT_UNREACHABLE_TIMEOUT = timeout
+    except (_config.NoOptionError, _config.NoSectionError, ValueError):
+        pass

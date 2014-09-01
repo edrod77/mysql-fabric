@@ -87,11 +87,31 @@ class Provider(_persistence.Persistable):
     :param default_image: Default image's name.
     :param default_flaovr: Default flavor's name.
     """
-    def __init__(self, provider_id, provider_type, username, password, url,
-                 tenant, default_image=None, default_flavor=None):
+    def __init__(self, provider_id=None, provider_type=None, username=None,
+                 password=None, url=None, tenant=None, default_image=None,
+                 default_flavor=None, row=None):
         """Constructor for the Provider.
         """
         super(Provider, self).__init__()
+
+        if row is not None:
+            assert provider_id is None
+            assert provider_type is None
+            assert username is None
+            assert password is None
+            assert url is None
+            assert tenant is None
+            provider_id, provider_idx, username, password, url, tenant, \
+                default_image, default_flavor = row
+            provider_type = get_provider_type(provider_idx)
+
+        assert provider_id is not None
+        assert provider_type is not None
+        assert username is not None
+        assert password is not None
+        assert url is not None
+        assert tenant is not None
+
         self.__provider_id = provider_id
         self.__provider_idx = get_provider_idx(provider_type)
         self.__username = username
@@ -184,7 +204,7 @@ class Provider(_persistence.Persistable):
         )
         row = cur.fetchone()
         if row:
-            return Provider.construct(row)
+            return Provider(row=row)
 
     @staticmethod
     def providers(persister=None):
@@ -199,7 +219,7 @@ class Provider(_persistence.Persistable):
 
         rows = cur.fetchall()
         for row in rows:
-            yield Provider.construct(row)
+            yield Provider(row=row)
 
     @staticmethod
     def add(provider, persister=None):
@@ -255,15 +275,3 @@ class Provider(_persistence.Persistable):
                 if self.__default_flavor else ""
         }
         return dictionary
-
-    @staticmethod
-    def construct(row):
-        """Construct a provider object from a row.
-        """
-        provider_id, provider_idx, username, password, url, tenant, \
-            default_image, default_flavor = row
-        provider_type = get_provider_type(provider_idx)
-        return Provider(provider_id=provider_id, provider_type=provider_type,
-            username=username, password=password, url=url, tenant=tenant,
-            default_image=default_image, default_flavor=default_flavor
-        )

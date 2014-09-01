@@ -74,11 +74,19 @@ class Machine(_persistence.Persistable):
     :rtype av_zone: string
     :param addresses: List of addresses associated to the machine.
     :rtype addresses: string
+    :param row: Row with information on the Machine.
     """
-    def __init__(self, uuid, provider_id, av_zone=None, addresses=None):
+    def __init__(self, uuid=None, provider_id=None, av_zone=None,
+                 addresses=None, row=None):
         """Constructor for the Machine.
         """
+        if row is not None:
+            assert uuid is None and provider_id is None
+            uuid, provider_id, av_zone, addresses = row
+            uuid = _uuid.UUID(uuid)
+
         assert isinstance(uuid, _uuid.UUID)
+        assert provider_id is not None
 
         super(Machine, self).__init__()
         self.__uuid = uuid
@@ -152,7 +160,7 @@ class Machine(_persistence.Persistable):
         )
         row = cur.fetchone()
         if row:
-            return Machine.construct(row)
+            return Machine(row=row)
 
     @staticmethod
     def add(machine, persister=None):
@@ -196,17 +204,7 @@ class Machine(_persistence.Persistable):
 
         rows = cur.fetchall()
         for row in rows:
-            yield Machine.construct(row)
-
-    @staticmethod
-    def construct(row):
-        """Construct a Machine object from a row.
-        """
-        uuid, provider_id, av_zone, addresses = row
-        return Machine(
-            _uuid.UUID(uuid), provider_id=provider_id, av_zone=av_zone,
-            addresses=addresses
-        )
+            yield Machine(row=row)
 
     def as_dict(self):
         """Return the object as a dictionary.
