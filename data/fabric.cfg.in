@@ -11,6 +11,7 @@ connection_delay = 1
 [servers]
 user = fabric
 password =
+unreachable_timeout = 5
 
 [protocol.xmlrpc]
 address = localhost:32274

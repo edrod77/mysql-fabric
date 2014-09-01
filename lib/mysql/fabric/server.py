@@ -631,6 +631,7 @@ class MySQLServer(_persistence.Persistable):
                    receiving requests.
     :type weight: Float
     :param group_id: Group's id which the server belongs to.
+    :param row: Row with information on the server.
     """
     #SQL Statement for creating the table used to store details about the
     #server.
@@ -643,7 +644,8 @@ class MySQLServer(_persistence.Persistable):
         "weight FLOAT NOT NULL, "
         "group_id VARCHAR(64), "
         "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid), "
-        "INDEX idx_group_id (group_id))"
+        "INDEX idx_group_id (group_id), "
+        "UNIQUE INDEX idx_server_address (server_address))"
     )
 
     #Create the referential integrity constraint with the groups table
@@ -679,16 +681,22 @@ class MySQLServer(_persistence.Persistable):
     #SQL statement used for deleting the server identified by the server id.
     REMOVE_SERVER = ("DELETE FROM servers WHERE server_uuid = %s")
 
-    #SQL Statement to retrieve the server from the state_store.
-    QUERY_SERVER = (
+    #SQL Statement to retrieve the server from the state store.
+    QUERY_SERVER_BY_UUID = (
         "SELECT server_uuid, server_address, mode, status, weight, group_id "
         "FROM servers WHERE server_uuid = %s"
         )
 
-    #SQL Statement to retrieve a set of servers in a group from the state_store.
-    QUERY_SERVER_GROUP_ID = (
-        "SELECT server_uuid, server_address, mode, status, weight "
+    #SQL Statement to retrieve a set of servers in a group from the state store.
+    QUERY_SERVER_BY_GROUP_ID = (
+        "SELECT server_uuid, server_address, mode, status, weight, group_id "
         "FROM servers WHERE group_id = %s"
+        )
+
+    #SQL Statement to retrieve a server from the state store.
+    QUERY_SERVER_BY_ADDRESS = (
+        "SELECT server_uuid, server_address, mode, status, weight, group_id "
+        "FROM servers WHERE server_address = %s"
         )
 
     #SQL Statement to retrieve the servers belonging to a group.
@@ -754,14 +762,24 @@ class MySQLServer(_persistence.Persistable):
 
     NO_USER_DATABASES = ["performance_schema", "information_schema", "mysql"]
 
-    def __init__(self, uuid, address, user=None, passwd=None, mode=DEFAULT_MODE,
-                 status=DEFAULT_STATUS, weight=DEFAULT_WEIGHT, group_id=None):
+    def __init__(self, uuid=None, address=None, user=None, passwd=None,
+                 mode=DEFAULT_MODE, status=DEFAULT_STATUS,
+                 weight=DEFAULT_WEIGHT, group_id=None, row=None):
         """Constructor for MySQLServer.
         """
         super(MySQLServer, self).__init__()
+
+        if row is not None:
+            assert(uuid is None and address is None)
+            uuid, address, idx_mode, idx_status, weight, group_id = row
+            mode = MySQLServer.get_mode(idx_mode)
+            status = MySQLServer.get_status(idx_status)
+            uuid = _uuid.UUID(uuid)
+
         assert(isinstance(uuid, _uuid.UUID))
         assert(mode in MySQLServer.SERVER_MODE)
         assert(status in MySQLServer.SERVER_STATUS)
+
         self.__cnx = None
         self.__uuid = uuid
         self.__address = address
@@ -1167,17 +1185,11 @@ class MySQLServer(_persistence.Persistable):
                           state store.
         """
         ret = []
-        rows = persister.exec_stmt(MySQLServer.QUERY_SERVER_GROUP_ID,
+        rows = persister.exec_stmt(MySQLServer.QUERY_SERVER_BY_GROUP_ID,
             {"raw" : False, "params" : (group_id, )}
         )
         for row in rows:
-            uuid, address, idx_mode, idx_status, weight = row
-            mode = MySQLServer.get_mode(idx_mode)
-            status = MySQLServer.get_status(idx_status)
-            server = MySQLServer(
-                _uuid.UUID(uuid), address=address, mode=mode, status=status,
-                weight=weight, group_id=group_id
-            )
+            server = MySQLServer(row=row)
             ret.append(server)
         return ret
 
@@ -1343,27 +1355,37 @@ class MySQLServer(_persistence.Persistable):
             )
 
     @staticmethod
-    def fetch(uuid, persister=None):
+    def fetch(server_id, persister=None):
         """Return a server object corresponding to the uuid.
 
-        :param uuid: The server id of the server object that needs to be
-                     returned.
+        :param server_id: Id or address of the server object that needs to be
+                          returned.
         :param persister: Persister to persist the object to.
         :return: The server object that corresponds to the server id
                  None if the server id does not exist.
         """
-        cur = persister.exec_stmt(MySQLServer.QUERY_SERVER,
-            {"fetch" : False, "raw" : False, "params":(str(uuid),)}
-        )
+        if server_id is None:
+            return
+
+        query = None
+        try:
+            if isinstance(server_id, _uuid.UUID):
+                server_id = str(server_id)
+            else:
+                _uuid.UUID(server_id)
+            query = MySQLServer.QUERY_SERVER_BY_UUID
+        except (ValueError, TypeError, AttributeError):
+            query = MySQLServer.QUERY_SERVER_BY_ADDRESS
+
+        cur = persister.exec_stmt(query, {
+            "fetch" : False,
+            "raw" : False,
+            "params" : (server_id, )
+        })
+
         row = cur.fetchone()
         if row:
-            uuid, address, idx_mode, idx_status, weight, group_id = row
-            mode = MySQLServer.get_mode(idx_mode)
-            status = MySQLServer.get_status(idx_status)
-            return MySQLServer(
-                _uuid.UUID(uuid), address=address, mode=mode, status=status,
-                weight=weight, group_id=group_id
-            )
+            return MySQLServer(row=row)
 
     @staticmethod
     def dump_servers(version=None, patterns="", persister=None):

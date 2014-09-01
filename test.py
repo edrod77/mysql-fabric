@@ -115,6 +115,7 @@ def get_config(options, env_options):
             },
         'servers': {
             'user': options.db_user,
+            'unreachable_timeout' : '5',
             },
         'sharding': {
             'mysqldump_program': env_options["mysqldump_path"],
