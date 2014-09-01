@@ -39,6 +39,7 @@ from mysql.fabric import (
     __version__,
     credentials,
     errors,
+    check_connector,
 )
 
 from mysql.fabric.options import (
@@ -47,10 +48,6 @@ from mysql.fabric.options import (
 
 from mysql.fabric.config import (
     Config
-)
-
-from mysql.fabric.errors import (
-    ConfigurationError,
 )
 
 _ERR_COMMAND_MISSING = "command '%s' in group '%s' was not found."
@@ -112,22 +109,6 @@ def help_group(group_name):
         PARSER.print_error(_ERR_GROUP_MISSING % (group_name,))
 
     PARSER.exit(2)
-
-
-def check_connector():
-    """Check if the connector is properly configured.
-    """
-    try:
-        import mysql.connector
-    except Exception as error:
-        import mysql
-
-        path = os.path.dirname(mysql.__file__)
-        raise ConfigurationError(
-            "Tried to look for mysql.connector at ({path}). Connector not "
-            "installed. Error ({error}).".format(path=path, error=error)
-        )
-
 
 def show_groups():
     """List groups that have been registered.
