@@ -254,6 +254,17 @@ class TestShardingPrune(tests.utils.TestCase):
         )
         self.check_xmlrpc_command_result(status)
 
+    def test_prune_table_not_exists(self):
+        """Delete the data in the database and verify that the prune does
+        not fail once the database has been removed.
+        """
+        self.__server_2.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_3.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_4.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_5.exec_stmt("DROP DATABASE IF EXISTS db1")
+        self.__server_6.exec_stmt("DROP DATABASE IF EXISTS db1")
+        status = self.proxy.sharding.prune_shard("db1.t1")
+
     def test_prune_shard(self):
         status = self.proxy.sharding.prune_shard("db1.t1")
         self.check_xmlrpc_command_result(status)
