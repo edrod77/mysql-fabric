@@ -195,7 +195,7 @@ class TestReplicationServices(tests.utils.TestCase):
         _repl.switch_master(slave_3, slave_2, user, passwd)
 
         # Look up servers.
-        expected = tests.utils.make_servers_lookup_result([
+        expected = [
             [str(master.uuid), master.address, _server.MySQLServer.PRIMARY,
              _server.MySQLServer.READ_WRITE, _server.MySQLServer.DEFAULT_WEIGHT],
             [str(slave_1.uuid), slave_1.address, _server.MySQLServer.SECONDARY,
@@ -206,7 +206,9 @@ class TestReplicationServices(tests.utils.TestCase):
              _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
             [str(invalid_server.uuid), invalid_server.address, _server.MySQLServer.SECONDARY,
              _server.MySQLServer.READ_ONLY, _server.MySQLServer.DEFAULT_WEIGHT],
-        ])
+        ]
+        expected.sort()
+        expected = tests.utils.make_servers_lookup_result(expected)
         servers = self.proxy.group.lookup_servers("group_id")
         self.check_xmlrpc_result(servers, expected)
 
