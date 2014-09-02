@@ -137,25 +137,21 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
 
     _LOGGER.debug("Statement ({statement}, Params({parameters}).".format(
         statement=stmt_str.replace('\n', '').replace('\r', ''),
-        parameters=params))
+        parameters=params)
+    )
 
     cur = None
     try:
         cur = cnx.cursor(cursor_class=cursor_class)
         cur.execute(stmt_str, params)
-    except mysql.connector.Error as error:
-        if cur:
-            cur.close()
-        raise _errors.DatabaseError(
-            "Command (%s, %s) failed: %s" % (stmt_str, params, error),
-            error.errno)
     except Exception as error:
         if cur:
             cur.close()
         raise _errors.DatabaseError(
-            "Unknown error. Command: (%s, %s) failed: %s" % (stmt_str,
-            params, error)
+            "Command (%s, %s) failed accessing (%s). %s." %
+            (stmt_str, params, address_from_cnx(cnx), error)
         )
+
 
     assert(cur is not None)
     if fetch:
@@ -165,8 +161,9 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
                 results = cur.fetchall()
         except mysql.connector.errors.InterfaceError as error:
             raise _errors.DatabaseError(
-                "Error (%s) fetching data for statement: (%s)." %
-                (error, stmt_str))
+                "Command (%s, %s) failed fetching data from (%s). %s." %
+                (stmt_str, params, address_from_cnx(cnx), error)
+            )
         finally:
             cur.close()
         return results
@@ -179,8 +176,7 @@ def create_mysql_connection(**kwargs):
     try:
         return mysql.connector.Connect(**kwargs)
     except mysql.connector.Error as error:
-        raise _errors.DatabaseError("Cannot connect to the server. "
-            "Error %s" % (error, ), error.errno)
+        raise _errors.DatabaseError(error)
 
 def destroy_mysql_connection(cnx):
     """Close the connection.
@@ -190,7 +186,8 @@ def destroy_mysql_connection(cnx):
             cnx.disconnect()
     except Exception as error:
         raise _errors.DatabaseError(
-            "Error trying to disconnect. Error %s" % (error, )
+            "Error trying to disconnect from (%s). %s." %
+            (address_from_cnx(cnx), error)
         )
 
 def is_valid_mysql_connection(cnx):
@@ -207,3 +204,13 @@ def reestablish_mysql_connection(cnx, attempt, delay):
         cnx.reconnect(attempt, delay)
     except (AttributeError, mysql.connector.errors.InterfaceError):
         raise _errors.DatabaseError("Invalid database connection.")
+
+def address_from_cnx(cnx):
+    """Return address associated to a connection.
+
+    :param cnx: Connection.
+    """
+    if cnx is None:
+        return "<Connection is None>"
+
+    return ":".join([cnx.server_host, str(cnx.server_port)])
