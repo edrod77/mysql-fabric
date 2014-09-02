@@ -620,8 +620,10 @@ def _lookup_uuid(address, timeout):
         return _server.MySQLServer.discover_uuid(
             address=address, connection_timeout=timeout
         )
-    except _errors.DatabaseError:
-        raise _errors.ServerError("Error accessing server (%s)." % (address, ))
+    except _errors.DatabaseError as error:
+        raise _errors.ServerError(
+            "Error accessing server (%s): %s." % (address, error)
+        )
 
 @_events.on_event(ADD_SERVER)
 def _add_server(group_id, address, timeout, update_only):
@@ -1023,7 +1025,7 @@ def _check_requirements(server):
         raise _errors.ServerError(
             "Server (%s) has an outdated version (%s). 5.6.8 or greater "
             "is required." % (server.uuid, server.version)
-            )
+        )
 
     if not server.has_required_privileges():
         raise _errors.ServerError(
@@ -1037,7 +1039,7 @@ def _check_requirements(server):
         raise _errors.ServerError(
             "Server (%s) does not have the binary log or gtid enabled."
             % (server.uuid, )
-            )
+        )
 
 def _configure_as_slave(group, server):
     """Configure the server as a slave.
@@ -1048,13 +1050,10 @@ def _configure_as_slave(group, server):
             master.connect()
             _utils.switch_master(server, master)
     except _errors.DatabaseError as error:
-        _LOGGER.debug(
-            "Error configuring slave (%s)...", server.uuid, exc_info=error
-        )
-        raise _errors.ServerError(
-            "Error trying to configure Server (%s) as slave."
-            % (server.uuid, )
-        )
+        msg = "Error trying to configure server ({0}) as slave: {1}.".format(
+            server.uuid, error)
+        _LOGGER.debug(msg)
+        raise _errors.ServerError(msg)
 
 def configure(config):
     """Set configuration values.

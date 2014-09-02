@@ -528,8 +528,10 @@ class MySQLPersister(object):
                     )
                 return
             except _errors.DatabaseError as error:
-                _LOGGER.debug("Error accessing backing store (%s). "
-                    "Attempt (%s).", error, attempt)
+                _LOGGER.debug(
+                    "Error accessing backing store (%s). Attempt (%s).",
+                    error, attempt
+                )
             time.sleep(self.connection_delay)
 
 def current_persister():

@@ -45,6 +45,8 @@ _LOGGER = logging.getLogger(__name__)
 GROUP_REPLICATION_GROUP_NOT_FOUND_ERROR = "Group not found %s"
 GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR = "Group master not found %s"
 GROUP_MASTER_NOT_RUNNING = "Group master not running %s"
+GROUP_REPLICATION_SERVER_ERROR = \
+    "Error accessing server (%s) while configuring group replication. %s."
 
 def start_group_slaves(master_group_id):
     """Start the slave groups for the given master group. The
@@ -229,11 +231,11 @@ def setup_group_replication(group_master_id,  group_slave_id):
 
     try:
         master.connect()
-    except _errors.DatabaseError:
+    except _errors.DatabaseError as error: 
         #Server is not accessible, unable to connect to the server.
-        raise _errors.GroupError \
-            (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
-            (group_slave.master, ))
+        raise _errors.GroupError(
+            GROUP_REPLICATION_SERVER_ERROR %  (group_slave.master, error)
+        )
 
     if not server_running(slave):
         #The server is already down. We cannot connect to it to setup
@@ -243,11 +245,10 @@ def setup_group_replication(group_master_id,  group_slave_id):
 
     try:
         slave.connect()
-    except _errors.DatabaseError:
-        #Server is not accessible, unable to connect to the server.
-        raise _errors.GroupError \
-            (GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
-            (group_master.master, ))
+    except _errors.DatabaseError as error:
+        raise _errors.GroupError(
+            GROUP_REPLICATION_SERVER_ERROR %  (group_master.master, error)
+        )
 
     _replication.stop_slave(slave, wait=True)
 

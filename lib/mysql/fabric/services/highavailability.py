@@ -369,8 +369,8 @@ def _do_find_candidate(group_id, event):
                         )
             except _errors.DatabaseError as error:
                 _LOGGER.warning(
-                    "Error accessing candidate (%s).", candidate.uuid,
-                    exc_info=error
+                    "Error accessing candidate (%s): %s.", candidate.uuid,
+                    error
                 )
 
     if not chosen_uuid:
@@ -378,7 +378,7 @@ def _do_find_candidate(group_id, event):
             "There is no valid candidate that can be automatically "
             "chosen in group (%s). Please, choose one manually." %
             (group_id, )
-            )
+        )
     return chosen_uuid
 
 @_events.on_event(CHECK_CANDIDATE_SWITCH)
@@ -502,8 +502,8 @@ def _do_wait_slaves_catch(group_id, master, skip_servers=None):
                         "from group (%s).", server.uuid, group_id)
             except _errors.DatabaseError as error:
                 _LOGGER.debug(
-                    "Error synchronizing slave (%s).", server.uuid,
-                    exc_info=error
+                    "Error synchronizing slave (%s): %s.", server.uuid,
+                    error
                 )
 
 @_events.on_event(CHANGE_TO_CANDIDATE)
@@ -534,8 +534,7 @@ def _change_to_candidate(group_id, master_uuid, update_only=False):
                     _utils.switch_master(server, master)
                 except _errors.DatabaseError as error:
                     _LOGGER.debug(
-                        "Error configuring slave (%s).", server.uuid,
-                        exc_info=error
+                        "Error configuring slave (%s): %s.", server.uuid, error
                     )
 
     # At the end, we notify that a server was promoted.
@@ -591,8 +590,8 @@ def _wait_slave_fail(group_id, slave_uuid):
         _utils.process_slave_backlog(slave)
     except _errors.DatabaseError as error:
         _LOGGER.warning(
-            "Error (%s) trying to process transactions in the relay log "
-            "for candidate (%s).", slave, error
+            "Error trying to process transactions in the relay log "
+            "for candidate (%s): %s.", slave, error
         )
 
     _events.trigger_within_procedure(CHANGE_TO_CANDIDATE, group_id, slave_uuid)
@@ -645,8 +644,8 @@ def _wait_slaves_demote(group_id, master_uuid):
             _utils.stop_slave(server)
         except _errors.DatabaseError as error:
             _LOGGER.debug(
-                "Error waiting for slave (%s) to stop.", server.uuid,
-                exc_info=error
+                "Error waiting for slave (%s) to stop: %s.", server.uuid,
+                error
             )
 
 def _set_group_master_replication(group, server_id, update_only=False):
@@ -685,8 +684,10 @@ def _set_group_master_replication(group, server_id, update_only=False):
         # Stop the Groups replicating from the current group.
         _group_replication.stop_group_slaves(group.group_id)
     except (_errors.GroupError, _errors.DatabaseError) as error:
-        _LOGGER.error("Error accessing groups related to (%s).",
-                      group.group_id)
+        _LOGGER.error(
+            "Error accessing groups related to (%s): %s.", group.group_id,
+            error
+        )
 
     # Set the new master
     group.master = server_id
@@ -702,5 +703,7 @@ def _set_group_master_replication(group, server_id, update_only=False):
                     group.master_group_id, group.group_id
                 )
     except (_errors.GroupError, _errors.DatabaseError) as error:
-        _LOGGER.error("Error accessing groups related to (%s).",
-                      group.group_id)
+        _LOGGER.error(
+            "Error accessing groups related to (%s): %s.", group.group_id,
+            error
+        )

@@ -368,12 +368,12 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
         raise _errors.DatabaseError(
             "Error waiting for slave to catch up. Binary log (%s, %s)." %
             (binlog_file, binlog_pos)
-            )
+        )
     elif res[0][0] == -1:
         raise _errors.TimeoutError(
             "Error waiting for slave to catch up. Binary log (%s, %s)." %
             (binlog_file, binlog_pos)
-            )
+        )
 
     assert(res[0][0] > -1)
 
@@ -456,12 +456,12 @@ def wait_for_slave_gtid(server, gtids, timeout=0):
         raise _errors.DatabaseError(
             "Error waiting for slave to catch up. "
             "GTID (%s)." % (gtids, )
-            )
+        )
     elif res[0][0] == -1:
         raise _errors.TimeoutError(
             "Error waiting for slave to catch up. "
             "GTID (%s)." % (gtids, )
-            )
+        )
 
     assert(res[0][0] > -1)
 
