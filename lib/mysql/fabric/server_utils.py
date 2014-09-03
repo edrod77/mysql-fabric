@@ -28,10 +28,6 @@ from mysql.connector.cursor import (
     MySQLCursorRaw,
     MySQLCursorNamedTuple
 )
-from mysql.connector.errorcode import (
-    ER_ROW_IS_REFERENCED,
-    ER_ROW_IS_REFERENCED_2
-)
 
 _LOGGER = logging.getLogger(__name__)
 
