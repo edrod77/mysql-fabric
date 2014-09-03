@@ -78,7 +78,11 @@ class DatabaseError(Error):
     """Exception raised when something bad happens while accessing a
     database.
     """
-    pass
+    def __init__(self, msg, errno=None):
+        """Constructor for DatabaseError object.
+        """
+        super(DatabaseError, self).__init__(msg)
+        self.errno = errno
 
 class ProgrammingError(Error):
     """Exception raised when a developer tries to use the interfaces and

@@ -36,7 +36,8 @@ class TestServerServices(tests.utils.TestCase):
     """
     uuid_cre = re.compile('\w{8}(-\w{4}){3}-\w{12}')
 
-    def check_xmlrpc_command_result(self, packet, has_error, is_syncronous=False):
+    def check_xmlrpc_command_result(self, packet, has_error,
+                                    error_message=None, is_syncronous=True):
         "Check that a packet from a procedure execution is sane."
 
         result = _xmlrpc._decode(packet)
@@ -46,6 +47,11 @@ class TestServerServices(tests.utils.TestCase):
         else:
             message = "Error: %s" % result.error
         self.assertEqual(bool(result.error), has_error, message)
+
+        # If the procedure had an error, check the error message provided
+        # it was requested to do so, i.e error_message is not None.
+        if has_error and error_message:
+            self.assertEqual(result.error, error_message)
 
         # If the procedure did not have an error, first result set,
         # first row, first column contain UUID of procedure. Just
@@ -200,27 +206,30 @@ class TestServerServices(tests.utils.TestCase):
         """Test destroying a group by calling group.destroy().
         """
         # Prepare group and servers
-        address = address_1 = tests.utils.MySQLInstances().get_address(0)
-        address = address_2 = tests.utils.MySQLInstances().get_address(1)
-        self.proxy.group.create("group", "Testing group...")
-        self.proxy.group.create("group_1", "Testing group...")
-        self.proxy.group.add("group_1", address)
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(1)
 
         # Remove a group.
+        self.proxy.group.create("group", "Testing group...")
         status = self.proxy.group.destroy("group")
         self.check_xmlrpc_command_result(status, False)
 
         # Try to remove a group twice.
         status = self.proxy.group.destroy("group")
-        self.check_xmlrpc_command_result(status, True)
+        self.check_xmlrpc_command_result(status, True,
+            error_message="GroupError: Group (group) does not exist."
+        )
 
         # Try to remove a group where there are servers.
+        self.proxy.group.create("group_1", "Testing group...")
+        self.proxy.group.add("group_1", address_1)
         status = self.proxy.group.destroy("group_1")
-        self.check_xmlrpc_command_result(status, True)
-
-        # Remove a group where there are servers.
-        status = self.proxy.group.destroy("group_1", True)
-        self.check_xmlrpc_command_result(status, False)
+        self.check_xmlrpc_command_result(status, True,
+            error_message=("GroupError: Cannot destroy a group (group_1) "
+                "which has associated servers."
+            )
+        )
+        self.proxy.group.remove("group_1", address_1)
 
         # Try to remove a group that is used by shards.
         self.proxy.group.create("group_global")
@@ -228,16 +237,24 @@ class TestServerServices(tests.utils.TestCase):
         self.proxy.group.promote("group_global")
         status = self.proxy.sharding.create_definition("RANGE", "group_global")
         shard_mapping_id = status[2]
-        status = self.proxy.group.destroy("group_global", True)
-        self.check_xmlrpc_command_result(status, True)
+        status = self.proxy.group.destroy("group_global")
+        self.check_xmlrpc_command_result(status, True,
+            error_message=("GroupError: Cannot destroy a group (group_global) "
+                "which is used as a global group in a shard definition (1)."
+            )
+        )
 
         self.proxy.group.create("group")
         self.proxy.group.add("group", address_2)
         self.proxy.group.promote("group")
         self.proxy.sharding.add_table(shard_mapping_id, "db1.t1", "user")
         self.proxy.sharding.add_shard(shard_mapping_id, "group/0", "ENABLED", 0)
-        status = self.proxy.group.destroy("group", True)
-        self.check_xmlrpc_command_result(status, True)
+        status = self.proxy.group.destroy("group")
+        self.check_xmlrpc_command_result(status, True,
+            error_message=("GroupError: Cannot destroy a group (group) which "
+                "is associated to a shard (1)."
+            )
+        )
 
     def test_remove_server_events(self):
         """Test removing a server by calling group.remove().
