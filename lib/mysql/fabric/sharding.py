@@ -1516,7 +1516,7 @@ class HashShardingSpecification(RangeShardingSpecification):
             raise _errors.ShardingError("Shard Mapping not found.")
 
         for shard_mapping in shard_mappings:
-            max_query = "SELECT HEX(MD5(MAX(%s))) FROM %s" % \
+            max_query = "SELECT MD5(MAX(%s)) FROM %s" % \
                         (
                         shard_mapping.column_name,
                         shard_mapping.table_name
