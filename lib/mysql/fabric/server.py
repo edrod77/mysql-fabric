@@ -31,8 +31,10 @@ Servers are organized into groups which have unique names. This aims
 at defining administrative domains and easing management activities.
 """
 import threading
+import time
 import uuid as _uuid
 import logging
+import math
 import functools
 import re
 
@@ -395,6 +397,25 @@ class Group(_persistence.Persistable):
         """Return the group's status.
         """
         return self.__status
+
+    def kill_connections_on_servers(self):
+        """Kill all the threads on the groups servers.
+        """
+        server = None
+        server_kill_threads = []
+        while server in self.servers():
+            try:
+                server.connect()
+            except _errors.UuidError,  _errors.DatabaseError:
+                continue
+            if server.is_connected():
+                server_kill_threads.append(
+                    threading.Thread(
+                        target=server.kill_processes(server.processes())
+                    )
+                )
+        for thread in server_kill_threads:
+            thread.join()
 
     @status.setter
     def status(self, status, persister=None):
@@ -1326,6 +1347,68 @@ class MySQLServer(_persistence.Persistable):
         assert(context in MySQLServer.CONTEXTS)
         return self.exec_stmt("SET @@%s.%s = %s" %
                               (context, variable, value))
+
+    def processes(self, system_user=False, current_connection=False):
+        """Return a list of processes running on the MySQL Server.
+        Skip the system processes that might be running on the server.
+        Skip also the ID of the current connection used to retrieve the list
+        of IDs.
+
+        :param system_user: Set to True if the system users needs to be
+                            included in the result.
+        :param current_connection: Set to True if the current connection needs
+                                    to be included in the result.
+        :return: The list of process IDs of processes running on the server.
+        """
+        SELECT_IDs = "SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST"
+        if not system_user or not current_connection:
+            SELECT_IDs += " WHERE"
+        if not system_user:
+            SELECT_IDs += " User != 'system user' AND User != 'event_scheduler'"
+        if not current_connection:
+            if not system_user:
+                SELECT_IDs += " AND"
+            SELECT_IDs += " ID != CONNECTION_ID()"
+
+        #User != 'system user' skips over any replication threads that might be
+        #running in the system.
+        proc_ids = []
+        proc_ids_rows = self.exec_stmt(SELECT_IDs)
+        for row in proc_ids_rows:
+            proc_ids.append(row[0])
+        return proc_ids
+
+    def kill_processes(self,  proc_ids):
+        """Kill the list of processes supplied as an argument.
+
+        :param proc_ids: A list containing the process IDs that need to be killed.
+        """
+        #The below is repeatedly tried since KILL is unreliable and we
+        #need to loop until all the processes are eventually terminated.
+        #An intersection with the set of processes currently running in
+        #the system, gives the processes on which the KILL has still not
+        #worked. Hence we need to keep calling KILL repeatedly on these.
+        #for e.g.
+        #P = {1, 2, 3, 4, 5, 6}
+        #p = {1, 2, 3}
+        #p &= P => {1,2,3}
+        #After the first KILL
+        #P = {3, 4, 5, 6}
+        #p = {1, 2, 3}
+        #p &= P => {3}
+        #Now we run KILL on {3}
+        #Thus each time we work with the set of proecesses in the original
+        #list that are still running.
+        proc_ids_set = set(proc_ids)
+        proc_ids_set.intersection_update(set(self.processes(True, True)))
+        while proc_ids_set:
+            for id in proc_ids_set:
+                self.exec_stmt("KILL %s", {"params": (id,)})
+            #sleep to ensure that the kill command reflects its results
+            time.sleep(math.log10(len(proc_ids_set)))
+            proc_ids_set.intersection_update(
+                set(self.processes(True, True))
+            )
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.

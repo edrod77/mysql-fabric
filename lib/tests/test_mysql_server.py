@@ -156,6 +156,19 @@ class TestMySQLServer(unittest.TestCase):
             self.assertEqual(record.GTID_OWNED, "")
         # Note this is only being tested with GTIDs.
 
+    def test_kill_connections(self):
+        """Check that the kill method successfully kills existing connections
+            on the server.
+        """
+        #check that the current connection is not terminated.
+        server = self.server
+        server.connect()
+        server.kill_processes(server.processes())
+        self.assertTrue(server.has_storage_engine("Innodb"))
+        #check that the only connection remaining is the current
+        #connection
+        server.kill_processes(server.processes(True,  False))
+        self.assertEqual(len(server.processes(True,  True)), 1)
 
     def test_storage(self):
         """Check MySQLServer's storage.

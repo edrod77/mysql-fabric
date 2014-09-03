@@ -297,6 +297,7 @@ class TestHashSplitGlobal(tests.utils.TestCase):
 
         self.__server_6.connect()
 
+        self.__server_2.connect()
         row_cnt_shard_after_split_1_db1_t1 = self.__server_2.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -427,6 +428,7 @@ class TestHashSplitGlobal(tests.utils.TestCase):
 
         self.__server_6.connect()
 
+        self.__server_3.connect()
         row_cnt_shard_after_split_1_db1_t1 = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -557,6 +559,7 @@ class TestHashSplitGlobal(tests.utils.TestCase):
 
         self.__server_6.connect()
 
+        self.__server_4.connect()
         row_cnt_shard_after_split_1_db1_t1 = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -687,6 +690,7 @@ class TestHashSplitGlobal(tests.utils.TestCase):
 
         self.__server_6.connect()
 
+        self.__server_5.connect()
         row_cnt_shard_after_split_1_db1_t1 = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
