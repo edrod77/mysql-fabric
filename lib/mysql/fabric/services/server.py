@@ -69,6 +69,11 @@ import uuid as _uuid
 
 import mysql.fabric.services.utils as _utils
 
+from mysql.connector.errorcode import (
+    ER_ROW_IS_REFERENCED,
+    ER_ROW_IS_REFERENCED_2,
+)
+
 from mysql.fabric import (
     backup as _backup,
     events as _events,
@@ -602,10 +607,7 @@ def _destroy_group(group_id):
     try:
         _server.Group.remove(group)
     except _errors.DatabaseError as error:
-        foreign_key_errors = (
-            _server_utils.ER_ROW_IS_REFERENCED,
-            _server_utils.ER_ROW_IS_REFERENCED_2
-        )
+        foreign_key_errors = (ER_ROW_IS_REFERENCED, ER_ROW_IS_REFERENCED_2)
         if error.errno in foreign_key_errors:
             raise _errors.GroupError(
                 "Cannot destroy group (%s): %s." % (group_id, error, )

@@ -22,6 +22,10 @@ prune operations.
 
 import logging
 
+from mysql.connector.errorcode import (
+    ER_NO_SUCH_TABLE,
+)
+
 from mysql.fabric import (
     errors as _errors,
     events as _events,
@@ -202,7 +206,7 @@ def _prune_shard_tables(table_name, prune_limit):
         SHARDING_SPECIFICATION_HANDLER[shard_mapping.type_name].\
             delete_from_shard_db(table_name, shard_mapping.type_name, prune_limit)
     except _errors.DatabaseError as error:
-        if len(error.args) >= 2 and error.args[1] == 1146:
+        if error.errno == ER_NO_SUCH_TABLE:
             #Error happens because the actual tables are not present in the
             #server. We will ignore this.
             pass
@@ -626,7 +630,7 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2, prune_limit):
         SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
         prune_shard_id(shard_id_1, shard_mappings[0].type_name, prune_limit)
     except _errors.DatabaseError as error:
-        if len(error.args) >= 2 and error.args[1] == 1146:
+        if error.errno == ER_NO_SUCH_TABLE:
             #Error happens because the actual tables are not present in the
             #server. We will ignore this.
             pass
@@ -637,7 +641,7 @@ def _prune_shard_tables_after_split(shard_id_1, shard_id_2, prune_limit):
         SHARDING_SPECIFICATION_HANDLER[shard_mappings[0].type_name].\
         prune_shard_id(shard_id_2, shard_mappings[0].type_name, prune_limit)
     except _errors.DatabaseError as error:
-        if len(error.args) >= 2 and error.args[1] == 1146:
+        if error.errno == ER_NO_SUCH_TABLE:
             #Error happens because the actual tables are not present in the
             #server. We will ignore this.
             pass
