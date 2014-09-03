@@ -359,6 +359,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.split_shard("1", "GROUPID6", "36")
         self.check_xmlrpc_command_result(status)
 
+        self.__server_2.connect()
         row_cnt_shard_after_split_db1_t1_a = self.__server_2.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -464,6 +465,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.split_shard("2", "GROUPID6", "201")
         self.check_xmlrpc_command_result(status)
 
+        self.__server_3.connect()
         row_cnt_shard_after_split_db1_t1_a = self.__server_3.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -568,6 +570,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.split_shard("3", "GROUPID6", "1101")
         self.check_xmlrpc_command_result(status)
 
+        self.__server_4.connect()
         row_cnt_shard_after_split_db1_t1_a = self.__server_4.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
@@ -672,6 +675,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.split_shard("4", "GROUPID6", "100001")
         self.check_xmlrpc_command_result(status)
 
+        self.__server_5.connect()
         row_cnt_shard_after_split_db1_t1_a = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}

@@ -359,6 +359,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.split_shard("4", "GROUPID6", "e")
         self.check_xmlrpc_command_result(status)
 
+        self.__server_5.connect()
         row_cnt_shard_after_split_db1_t1_a = self.__server_5.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
                     {"fetch" : True}
