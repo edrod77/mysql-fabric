@@ -42,13 +42,14 @@ def check_connector():
 
     try:
         import mysql.connector as cpy
-        if cpy.version.VERSION < __cpy_version_info__:
+        if cpy.version.VERSION < __cpy_version_info__ or \
+           cpy.version.VERSION >= (2, 0, 0, ""):
             path = os.path.dirname(cpy.__file__)
             raise ConfigurationError(
                 "Looked for mysql.connector at ({path}). Connector has "
-                "({cpy_ver}) version but ({required_ver}) or later version "
-                "is required.".format(path=path, cpy_ver=cpy.version.VERSION,
-                required_ver=__cpy_version_info__)
+                "'{cpy_ver}' version but any '1.x' version equal to or "
+                "greater than '{required_ver}' is required.".format(path=path,
+                cpy_ver=cpy.version.VERSION, required_ver=__cpy_version_info__)
             )
     except ImportError as error:
         import mysql
