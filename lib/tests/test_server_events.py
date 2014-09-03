@@ -203,13 +203,11 @@ class TestServerServices(unittest.TestCase):
         """Test destroying a group by calling group.destroy().
         """
         # Prepare group and servers
-        address = address_1 = tests.utils.MySQLInstances().get_address(0)
-        address = address_2 = tests.utils.MySQLInstances().get_address(1)
-        self.proxy.group.create("group", "Testing group...")
-        self.proxy.group.create("group_1", "Testing group...")
-        self.proxy.group.add("group_1", address)
+        address_1 = tests.utils.MySQLInstances().get_address(0)
+        address_2 = tests.utils.MySQLInstances().get_address(1)
 
         # Remove a group.
+        self.proxy.group.create("group", "Testing group...")
         status = self.proxy.group.destroy("group")
         self.assertStatus(status, _executor.Job.SUCCESS)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
@@ -224,36 +222,34 @@ class TestServerServices(unittest.TestCase):
                          "Tried to execute action (_destroy_group).")
 
         # Try to remove a group where there are servers.
+        self.proxy.group.create("group_1", "Testing group...")
+        self.proxy.group.add("group_1", address_1)
         status = self.proxy.group.destroy("group_1")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_destroy_group).")
+        status = self.proxy.group.remove("group_1", address_1)
 
-        # Remove a group where there are servers.
-        status = self.proxy.group.destroy("group_1", True)
-        self.assertStatus(status, _executor.Job.SUCCESS)
-        self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
-        self.assertEqual(status[1][-1]["description"],
-                         "Executed action (_destroy_group).")
-
-        # Try to remove a group that is used by shards.
+        # Try to remove a group that is used as a global group.
         self.proxy.group.create("group_global")
         self.proxy.group.add("group_global", address_1)
         self.proxy.group.promote("group_global")
         status = self.proxy.sharding.create_definition("RANGE", "group_global")
         shard_mapping_id = status[2]
-        status = self.proxy.group.destroy("group_global", True)
+        status = self.proxy.group.destroy("group_global")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],
                          "Tried to execute action (_destroy_group).")
+
+        # Try to remove a group that is used by shards.
         self.proxy.group.create("group")
         self.proxy.group.add("group", address_2)
         self.proxy.group.promote("group")
         self.proxy.sharding.add_table(shard_mapping_id, "db1.t1", "user")
         self.proxy.sharding.add_shard(shard_mapping_id, "group/0", "ENABLED", 0)
-        status = self.proxy.group.destroy("group", True)
+        status = self.proxy.group.destroy("group")
         self.assertStatus(status, _executor.Job.ERROR)
         self.assertEqual(status[1][-1]["state"], _executor.Job.COMPLETE)
         self.assertEqual(status[1][-1]["description"],

@@ -21,9 +21,17 @@ import logging
 import collections
 import mysql.connector
 
-from mysql.connector.cursor import MySQLCursor, MySQLCursorRaw
-
 import mysql.fabric.errors as _errors
+
+from mysql.connector.cursor import (
+    MySQLCursor,
+    MySQLCursorRaw
+)
+
+from mysql.connector.errorcode import (
+    ER_ROW_IS_REFERENCED,
+    ER_ROW_IS_REFERENCED_2
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,11 +155,13 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     except Exception as error:
         if cur:
             cur.close()
+
+        errno = getattr(error, 'errno', None)
         raise _errors.DatabaseError(
             "Command (%s, %s) failed accessing (%s). %s." %
-            (stmt_str, params, address_from_cnx(cnx), error)
+            (stmt_str, params, address_from_cnx(cnx), error),
+            errno
         )
-
 
     assert(cur is not None)
     if fetch:

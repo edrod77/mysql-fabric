@@ -166,17 +166,16 @@ class DestroyGroup(ProcedureGroup):
     group_name = "group"
     command_name = "destroy"
 
-    def execute(self, group_id, force=False, synchronous=True):
+    def execute(self, group_id, synchronous=True):
         """Remove a group.
 
         :param group_id: Group's id.
-        :param force: If the group is not empty, remove it serves.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         :return: Tuple with job's uuid and status.
         """
         procedures = _events.trigger(
-            DESTROY_GROUP, self.get_lockable_objects(), group_id, force
+            DESTROY_GROUP, self.get_lockable_objects(), group_id
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -547,23 +546,31 @@ def _update_group_description(group_id, description):
     _LOGGER.debug("Updated group (%s).", group)
 
 @_events.on_event(DESTROY_GROUP)
-def _destroy_group(group_id, force):
+def _destroy_group(group_id):
     """Destroy a group.
     """
     group = _retrieve_group(group_id)
-
-    _check_shard_exists(group_id)
-
-    servers = group.servers()
-    if servers and force:
-        for server in servers:
-            _server.MySQLServer.remove(server)
-    elif servers:
-        raise _errors.GroupError("Group (%s) is not empty." % (group_id, ))
-
+    _check_group_dependencies(group)
     _detector.FailureDetector.unregister_group(group_id)
-    _server.Group.remove(group)
-    _LOGGER.debug("Removed group (%s).", group)
+    try:
+        _server.Group.remove(group)
+    except _errors.DatabaseError as error:
+        foreign_key_errors = (
+            _server_utils.ER_ROW_IS_REFERENCED,
+            _server_utils.ER_ROW_IS_REFERENCED_2
+        )
+        if error.errno in foreign_key_errors:
+            raise _errors.GroupError(
+                "Cannot destroy group (%s): %s." % (group_id, error, )
+            )
+        raise
+    _LOGGER.debug("Destroyed group (%s).", group)
+
+@_destroy_group.undo
+def _undo_destroy_group(group_id):
+    """Register a group if the destroy operation has failed.
+    """
+    _detector.FailureDetector.register_group(group_id)
 
 def _lookup_servers(group_id, server_id=None, status=None, mode=None):
     """Return existing servers in a group or information on a server.
@@ -990,21 +997,29 @@ def _check_group_exists(group_id):
     if group:
         raise _errors.GroupError("Group (%s) already exists." % (group_id, ))
 
-def _check_shard_exists(group_id):
+def _check_group_dependencies(group):
     """Check whether there is a shard associated with the group.
     """
+    group_id = group.group_id
+
     shard_id = _sharding.Shards.lookup_shard_id(group_id)
     if shard_id:
         raise _errors.GroupError(
-            "Cannot erase a group (%s) which is associated to a shard (%s)." % 
+            "Cannot destroy a group (%s) which is associated to a shard (%s)." %
             (group_id, shard_id)
         )
 
     shard_mapping_id = _sharding.ShardMapping.lookup_shard_mapping_id(group_id)
     if shard_mapping_id:
         raise _errors.GroupError(
-            "Cannot erase a group (%s) which is used as a global group in a "
+            "Cannot destroy a group (%s) which is used as a global group in a "
             "shard definition (%s)." % (group_id, shard_mapping_id)
+        )
+
+    if group.servers():
+        raise _errors.GroupError(
+            "Cannot destroy a group (%s) which has associated servers." %
+            (group_id, )
         )
 
 def _check_requirements(server):
