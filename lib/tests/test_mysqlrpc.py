@@ -347,7 +347,7 @@ class TestProtocolMySQLRPC(tests.utils.TestCase):
         self._execute_cmd_check_error('already exists', stmt, (new_group,))
 
         # Destroy group
-        stmt = "CALL group.destroy(%s, force)"
+        stmt = "CALL group.destroy(%s)"
         results = self._execute_cmd(3, stmt, (new_group,))
 
         cases = [
