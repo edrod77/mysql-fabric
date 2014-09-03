@@ -23,6 +23,7 @@ from tests.utils import (
     ShardingUtils,
 )
 from mysql.fabric import executor as _executor
+from mysql.fabric import errors as _errors
 from mysql.fabric.server import MySQLServer
 from mysql.fabric.sharding import HashShardingSpecification
 
@@ -98,6 +99,34 @@ class TestShardSplit(tests.utils.TestCase):
         for i in range(1,  100):
             shard_server.exec_stmt("INSERT INTO db1.t1 "
                                       "VALUES(%s, 'TEST %s')" % (i, i))
+
+    def test_MD5_HEX(self):
+        """Ensure the STRICT_ALL_TABLES mode catches large inserts into columns.
+        """
+        status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
+        for info in self.check_xmlrpc_iter(status):
+            shard_uuid = info['server_uuid']
+            shard_server = MySQLServer.fetch(shard_uuid)
+            shard_server.connect()
+        shard_server.exec_stmt("CREATE DATABASE SAMPDB")
+        shard_server.exec_stmt("USE SAMPDB")
+        shard_server.exec_stmt("SET SESSION sql_mode = STRICT_ALL_TABLES")
+        shard_server.exec_stmt("CREATE TABLE sample(empno int)")
+        shard_server.exec_stmt("CREATE TABLE sample1(s VARBINARY(16))")
+        shard_server.exec_stmt("INSERT INTO sample VALUES(1)")
+        shard_server.exec_stmt("INSERT INTO sample VALUES(2)")
+        shard_server.exec_stmt("SELECT HEX(MD5(MAX(empno))) "
+                                "INTO @a FROM sample")
+        shard_server.exec_stmt("SELECT MD5(MAX(empno)) "
+                                "INTO @b FROM sample")
+
+        self.assertRaises(_errors.DatabaseError, shard_server.exec_stmt,
+            "INSERT INTO sample1 VALUES (UNHEX(@a))"
+        )
+
+        shard_server.exec_stmt("INSERT INTO sample1 VALUES (UNHEX(@b))")
+
+        shard_server.exec_stmt("DROP DATABASE SAMPDB")
 
     def test_shard_split(self):
         split_cnt_1 = 0
