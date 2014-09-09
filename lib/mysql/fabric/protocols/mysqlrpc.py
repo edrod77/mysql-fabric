@@ -1131,7 +1131,6 @@ class MySQLRPCServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     def shutdown_request(self, request):
         """Called to shutdown and close an individual request."""
         _LOGGER.debug("Close request.")
-        print self.__active_requests
         try:
             request.shutdown(socket.SHUT_WR)
         except socket.error:
