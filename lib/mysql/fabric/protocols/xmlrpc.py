@@ -160,12 +160,6 @@ def _CommandExecuteAndEncode(command):
 
 
 def create_rfc2617_nonce(hashfunc, private_key, secs=AUTH_EXPIRES):
-    try:
-        if hashfunc.__name__ not in ('openssl_md5', 'openssl_sha1'):
-            raise
-    except:
-        raise ValueError("hashfunc should be either hashlib md5 or sha1")
-
     validity = (datetime.utcnow() + timedelta(0, secs)).strftime(AUTH_TIME_FMT)
     data = "{ts}:{random}:{key}".format(
         ts=validity, random=os.urandom(8), key=private_key)
@@ -173,18 +167,7 @@ def create_rfc2617_nonce(hashfunc, private_key, secs=AUTH_EXPIRES):
         ts=validity, data=hashfunc(data).hexdigest()))
 
 
-def decode_rfc2617_nonce(nonce):
-    validity, _ = b64decode(nonce).split(';;')
-    return validity
-
-
 def _digest_nonce(hashfunc, client_address):
-    try:
-        if hashfunc.__name__ not in ('openssl_md5', 'openssl_sha1'):
-            raise
-    except:
-        raise ValueError("hashfunc should be either hashlib md5 or sha1")
-
     data = hashfunc("{key};{addr};{expires}".format(
             key=uuid4(),
             addr=client_address[0],
@@ -707,22 +690,21 @@ class SessionThread(threading.Thread):
         """
         self.__is_shutdown = True
 
+if hasattr(httplib, 'HTTPS'):
+    class FabricHTTPSHandler(urllib2.HTTPSHandler):
+        def __init__(self, ssl_config):
+            urllib2.HTTPSHandler.__init__(self)
+            self._ssl_config = ssl_config
 
-class FabricHTTPSHandler(urllib2.HTTPSHandler):
-    def __init__(self, ssl_config):
-        urllib2.HTTPSHandler.__init__(self)
-        self._ssl_config = ssl_config
+        def https_open(self, req):
+            return self.do_open(self.get_https_connection, req)
 
-    def https_open(self, req):
-        return self.do_open(self.get_https_connection, req)
-
-    def get_https_connection(self, host, timeout=300):
-        return httplib.HTTPSConnection(
-            host,
-            key_file=self._ssl_config['ssl_key'],
-            cert_file=self._ssl_config['ssl_cert']
-        )
-
+        def get_https_connection(self, host, timeout=300):
+            return httplib.HTTPSConnection(
+                host,
+                key_file=self._ssl_config['ssl_key'],
+                cert_file=self._ssl_config['ssl_cert']
+            )
 
 class FabricTransport(xmlrpclib.Transport):
 
@@ -810,11 +792,15 @@ class MyClient(xmlrpclib.ServerProxy):
             for option in ('ssl_ca', 'ssl_key', 'ssl_cert'):
                 ssl_config[option] = command.config.get('protocol.xmlrpc',
                                                         option)
-            scheme = 'https'
-            https_handler = FabricHTTPSHandler(ssl_config)
+            if hasattr(httplib, 'HTTPS'):
+                https_handler = FabricHTTPSHandler(ssl_config)
+                scheme = 'https'
+            else:
+                _LOGGER.warning("Sorry but support to SSL is not available.")
+                raise ConfigParser.NoOptionError
         except ConfigParser.NoOptionError:
-            https_handler = None
             ssl_config = {}
+            https_handler = None
             scheme = 'http'
 
         host, port = address.split(":")

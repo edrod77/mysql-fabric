@@ -406,7 +406,10 @@ class User(_persistence.Persistable):
 
 
 def _hash_password(username, password, protocol, config, realm=None):
-    """Hash password base on protocol
+    """Hash password base on protocol.
+
+    If the OpenSSL is not installed, the function uses built-in functions
+    from hashlib.
 
     :raises errors.CredentialError: if protocol is not implemented
     """
