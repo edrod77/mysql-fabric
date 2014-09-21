@@ -47,7 +47,6 @@ from mysql.connector import utils, errorcode
 from mysql.connector.constants import (
     ClientFlag, ServerCmd, FieldType, ServerFlag, FieldFlag
 )
-from mysql.connector import authentication
 
 NEXT_CNX_ID = 0
 NEXT_CNX_ID_LOCK = threading.Lock()
@@ -522,6 +521,9 @@ class MySQLRPCRequestHandler(SocketServer.BaseRequestHandler,
 
     def authenticate(self, handshake, original_scramble):
         """Authenticate the user using the handshake and original sent scramble.
+
+        If the OpenSSL is not installed, the function will use built-in
+        functions from hashlib.
 
         :returns: MySQL OK or Error packet
         :rtype: str
