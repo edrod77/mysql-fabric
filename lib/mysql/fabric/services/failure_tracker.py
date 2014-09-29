@@ -140,10 +140,6 @@ def _set_status_faulty(server, update_only):
     """
     server.status = _server.MySQLServer.FAULTY
 
-    _events.trigger_within_procedure(
-        "SERVER_LOST", server.group_id, str(server.uuid)
-    )
-
     if not update_only:
         _server.ConnectionPool().purge_connections(server.uuid)
         group = _server.Group.fetch(server.group_id)
@@ -151,6 +147,10 @@ def _set_status_faulty(server, update_only):
             _LOGGER.info("Master (%s) in group (%s) has "
                          "been lost.", server.uuid, group.group_id)
             _events.trigger_within_procedure("FAIL_OVER", group.group_id)
+
+    _events.trigger_within_procedure(
+        "SERVER_LOST", server.group_id, str(server.uuid)
+    )
 
 def _append_error_log(server_id, reporter, error):
     """Check whether the server exist and is not faulty and register
