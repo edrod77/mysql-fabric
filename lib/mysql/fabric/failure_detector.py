@@ -184,8 +184,8 @@ class FailureDetector(object):
                             server, get_time()
                         )
                         if unstable and can_set_faulty:
-                            procedures = trigger("REPORT_FAILURE",
-                                set([self.__group_id]), str(server.uuid),
+                            procedures = trigger("REPORT_FAILURE", None,
+                                str(server.uuid),
                                 threading.current_thread().name,
                                 MySQLServer.FAULTY, False
                             )

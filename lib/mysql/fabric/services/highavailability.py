@@ -462,6 +462,13 @@ def _do_block_write_master(group_id, master_uuid, update_only=False):
     _set_group_master_replication(group, None)
 
     # At the end, we notify that a server was demoted.
+    # Any function that implements this event should not
+    # run any action that updates Fabric. The event was
+    # designed to trigger external actions such as:
+    #
+    # . Updating an external entity.
+    #
+    # . Fencing off a server.
     _events.trigger("SERVER_DEMOTED", set([group_id]),
         group_id, str(master.uuid)
     )
@@ -538,6 +545,11 @@ def _change_to_candidate(group_id, master_uuid, update_only=False):
                     )
 
     # At the end, we notify that a server was promoted.
+    # Any function that implements this event should not
+    # run any action that updates Fabric. The event was
+    # designed to trigger external actions such as:
+    #
+    # . Updating an external entity.
     _events.trigger("SERVER_PROMOTED", set([group_id]),
         group_id, master_uuid
     )

@@ -333,6 +333,11 @@ class LockManager(object):
         """
         assert(isinstance(objects, set))
 
+        if objects != set(['lock']) :
+            _LOGGER.warning(
+                "Lock object is not the usual set(['lock']) in %s.", procedure
+            )
+
         try:
             # Verifying if a procedure is not already enqueued.
             objects, _, _ = self.__procedures[procedure]
