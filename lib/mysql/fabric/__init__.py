@@ -16,6 +16,8 @@
 #
 """MySQL Fabric library
 """
+
+import distutils.version
 import os
 
 # Version info as a tuple (major, minor, patch, extra)
@@ -42,13 +44,15 @@ def check_connector():
 
     try:
         import mysql.connector as cpy
-        if cpy.version.VERSION < __cpy_version_info__:
+        cpy_ver = distutils.version.LooseVersion(cpy.__version__)
+        cpy_req = distutils.version.LooseVersion(__cpy_version__)
+        if  cpy_ver < cpy_req:
             path = os.path.dirname(cpy.__file__)
             raise ConfigurationError(
-                "Looked for mysql.connector at ({path}). Connector has "
-                "({cpy_ver}) version but ({required_ver}) or later version "
-                "is required.".format(path=path, cpy_ver=cpy.version.VERSION,
-                required_ver=__cpy_version_info__)
+                "Connector has version {cpy_ver} but {cpy_req} "
+                "(or later) required (looked in {path}).".format(
+                    path=path, cpy_ver=cpy_ver, cpy_req=cpy_req
+                )
             )
     except ImportError as error:
         import mysql
@@ -57,3 +61,7 @@ def check_connector():
             "Tried to look for mysql.connector at ({path}). Connector not "
             "installed. Error ({error}).".format(path=path, error=error)
         )
+
+def check_dependencies():
+    check_connector()
+
