@@ -24,6 +24,25 @@ from getpass import getpass
 from ConfigParser import NoOptionError
 from urllib2 import HTTPError, URLError
 
+# Check that the correct version of dependent packages are
+# installed. This has to be done before importing any other packages
+# than standard packages and mysql.fabric since the other mysql.fabric
+# packages contain dependencies that might try to import things not
+# available (e.g., from mysql.connector).
+from mysql.fabric import (
+    check_dependencies,
+    errors,
+)
+
+try:
+    check_dependencies()
+except errors.ConfigurationError as err:
+    print >>sys.stderr, "\n".join(textwrap.wrap(str(err)))
+    exit(1)
+
+# We are now ready to start importing stuff that might require
+# features in third-party tools.
+
 from mysql.fabric.services import (
     find_commands,
     find_client,
@@ -38,8 +57,6 @@ from mysql.fabric.command import (
 from mysql.fabric import (
     __version__,
     credentials,
-    errors,
-    check_connector,
 )
 
 from mysql.fabric.options import (
@@ -350,9 +367,6 @@ def main():
     """Start mysqlfabric.py script
     """
     try:
-        # Check if the python connector is installed.
-        check_connector()
-
         # Load information on available commands.
         find_commands()
 
