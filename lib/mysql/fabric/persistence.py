@@ -394,7 +394,7 @@ class MySQLPersister(object):
         """
         assert (cls.connection_info is not None)
         conn = _server_utils.create_mysql_connection(
-            autocommit=True, use_unicode=True, **cls.connection_info
+            autocommit=True, **cls.connection_info
         )
         _server_utils.exec_mysql_stmt(
             conn, "CREATE DATABASE %s DEFAULT CHARSET=utf8" % (cls.database, )
@@ -410,7 +410,7 @@ class MySQLPersister(object):
         """
         assert (cls.connection_info is not None)
         conn = _server_utils.create_mysql_connection(
-            autocommit=True, use_unicode=True, **cls.connection_info
+            autocommit=True, **cls.connection_info
         )
         _server_utils.exec_mysql_stmt(
             conn, "DROP DATABASE IF EXISTS %s" % (cls.database, )
@@ -425,7 +425,7 @@ class MySQLPersister(object):
         assert (self.connection_info is not None)
         try:
             self.__cnx = _server_utils.create_mysql_connection(
-                autocommit=True, use_unicode=True, database=self.database,
+                autocommit=True, database=self.database,
                 **self.connection_info
             )
         except _errors.DatabaseError:
@@ -523,8 +523,8 @@ class MySQLPersister(object):
                     )
                 else:
                     self.__cnx = _server_utils.create_mysql_connection(
-                        autocommit=True, use_unicode=True,
-                        database=self.database, **self.connection_info
+                        autocommit=True, database=self.database,
+                        **self.connection_info
                     )
                 return
             except _errors.DatabaseError as error:

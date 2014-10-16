@@ -257,7 +257,7 @@ class RangeShardingStringHandler(ShardingDatatypeHandler):
         "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) "
         "COLLATE {SHARDING_COLLATION} > "
         "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) "
-        "COLLATE {SHARDING_COLLATION} "        
+        "COLLATE {SHARDING_COLLATION} "
         "FROM "
         "shard_ranges".format(SHARDING_CHARACTER_SET=CHARACTER_SET,
                          SHARDING_COLLATION=COLLATION)
@@ -270,7 +270,7 @@ class RangeShardingStringHandler(ShardingDatatypeHandler):
         "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) "
         "COLLATE {SHARDING_COLLATION} < "
         "CAST(%s AS CHAR CHARACTER SET {SHARDING_CHARACTER_SET}) "
-        "COLLATE {SHARDING_COLLATION} "     
+        "COLLATE {SHARDING_COLLATION} "
         "FROM "
         "shard_ranges".format(SHARDING_CHARACTER_SET=CHARACTER_SET,
                          SHARDING_COLLATION=COLLATION)
@@ -312,14 +312,14 @@ class RangeShardingStringHandler(ShardingDatatypeHandler):
             row = persister.exec_stmt(
                 RangeShardingStringHandler.
                 VERIFY_SPLIT_VALUE_VALID_WITH_UPPER_BOUND,
-                {"params":(lower_bound, split_value, upper_bound, split_value,),
-                "fetch" : True})
+                {"params":(lower_bound, split_value, upper_bound, split_value,)}
+            )
         else:
             row = persister.exec_stmt(
                 RangeShardingStringHandler.
                 VERIFY_SPLIT_VALUE_VALID_WITHOUT_UPPER_BOUND,
-                {"params":(lower_bound, split_value,),
-                "fetch" : True})
+                {"params":(lower_bound, split_value, )}
+            )
         return row[0][0] == 1
 
 class HashShardingHandler(ShardingDatatypeHandler):
@@ -529,7 +529,8 @@ class RangeShardingDateTimeHandler(ShardingDatatypeHandler):
         """
         row = persister.exec_stmt(
             RangeShardingDateTimeHandler.VERIFY_DATE_TIME_VALID,
-            {"params":(lower_bound,), "fetch" : True})
+            {"params":(lower_bound,) }
+        )
         return row[0][0] is not None
 
     @staticmethod
@@ -551,12 +552,10 @@ class RangeShardingDateTimeHandler(ShardingDatatypeHandler):
             row = persister.exec_stmt(
                 RangeShardingDateTimeHandler.\
                     VERIFY_SPLIT_VALUE_VALID_WITH_UPPER_BOUND,
-                {"params":(lower_bound, split_value, upper_bound, split_value,),
-                "fetch" : True})
+                {"params":(lower_bound, split_value, upper_bound, split_value,)})
         else:
             row = persister.exec_stmt(
                 RangeShardingDateTimeHandler.\
                     VERIFY_SPLIT_VALUE_VALID_WITHOUT_UPPER_BOUND,
-                {"params":(lower_bound, split_value,),
-                "fetch" : True})
+                {"params":(lower_bound, split_value,)})
         return row[0][0] == 1

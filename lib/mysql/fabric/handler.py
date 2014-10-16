@@ -236,7 +236,7 @@ class MySQLHandler(logging.Handler, _persistence.Persistable):
             like_pattern = '%' + group_id + '%'
 
         res = persister.exec_stmt(_SELECT_GROUP_VIEW,
-            {"raw" : False, "params": (like_pattern, )}
+            {"params": (like_pattern, )}
         )
         return res
 
@@ -268,7 +268,7 @@ class MySQLHandler(logging.Handler, _persistence.Persistable):
             like_pattern = '%' + procedure_name + '%'
 
         res = persister.exec_stmt(_SELECT_PROCEDURE_VIEW,
-            {"raw" : False, "params":(like_pattern, )}
+            {"params":(like_pattern, )}
         )
         return res
 
