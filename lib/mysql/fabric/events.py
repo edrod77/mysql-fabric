@@ -81,8 +81,13 @@ def on_event(event):
             except Exception:
                 _LOGGER.debug("%s failed, executing compensation",
                               func.__name__)
-                if wrapped.undo_function is not None:
-                    wrapped.undo_function(*args, **kwargs)
+                try:
+                    if wrapped.undo_function is not None:
+                        wrapped.undo_function(*args, **kwargs)
+                except Exception as undo_error:
+                    _LOGGER.error(
+                        "Error processing undo operation: %s.", undo_error
+                    )
                 raise
 
         def undo_decorate(undo_func):

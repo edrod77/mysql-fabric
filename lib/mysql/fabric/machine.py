@@ -75,18 +75,11 @@ class Machine(_persistence.Persistable):
     :rtype av_zone: string
     :param addresses: List of addresses associated to the machine.
     :rtype addresses: string
-    :param row: Row with information on the Machine.
     """
-    def __init__(self, uuid=None, provider_id=None, av_zone=None,
-                 addresses=None, row=None):
+    def __init__(self, uuid, provider_id, av_zone=None, addresses=None):
         """Constructor for the Machine.
         """
-        if row is not None:
-            assert uuid is None and provider_id is None
-            uuid, provider_id, av_zone, addresses = row
-            uuid = _uuid.UUID(uuid)
-
-        assert isinstance(uuid, _uuid.UUID)
+        assert uuid is not None
         assert provider_id is not None
 
         super(Machine, self).__init__()
@@ -161,7 +154,7 @@ class Machine(_persistence.Persistable):
         )
         row = cur.fetchone()
         if row:
-            return Machine(row=row)
+            return Machine.construct_from_row(row=row)
 
     @staticmethod
     def add(machine, persister=None):
@@ -205,7 +198,7 @@ class Machine(_persistence.Persistable):
 
         rows = cur.fetchall()
         for row in rows:
-            yield Machine(row=row)
+            yield Machine.construct_from_row(row=row)
 
     def as_dict(self):
         """Return the object as a dictionary.
@@ -213,9 +206,24 @@ class Machine(_persistence.Persistable):
         dictionary = {
             "provider_id" : self.__provider_id,
             "uuid" : str(self.__uuid),
-            "av_zone" : self.__av_zone \
-                if self.__av_zone else "",
-            "addresses" : self.__addresses \
-                if self.__addresses else "",
+            "av_zone" : self.__av_zone or "",
+            "addresses" : self.__addresses or ""
         }
         return dictionary
+
+    @staticmethod
+    def construct_from_row(row):
+        """Create a Machine object from a row.
+
+        :row param: Record that contains machine's data.
+        """
+        uuid, provider_id, av_zone, addresses = row
+        try:
+            uuid = _uuid.UUID(uuid)
+        except ValueError:
+            pass
+
+        return Machine(
+            uuid=uuid, provider_id=provider_id, av_zone=av_zone,
+            addresses=addresses
+        )

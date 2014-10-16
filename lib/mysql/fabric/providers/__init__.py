@@ -20,11 +20,14 @@ types of cloud providers. For example, OpenStack, Amazon, etc.
 To add support to a different cloud provider, we need to drop a module
 within the providers package and define a *configure_provider* function
 within the module. This function will be responsible for checking whether
-the necessary packages to access the provider are installed will return
-information on the provider:
+the necessary packages to access the provider are installed and will
+return information on the provider as well:
 
 - Unique Provider's Identification which is a string.
-- Reference to a concrete calls built upon the AbstractMachineManager.
+- Reference to a concrete calls built upon the AbstractMachineManager or
+  AbstractSnapshotManager.
+- Reference to a concrete calls built upon the AbstractDatabaseManager or
+  AbastractBackupManager.
 - Unique Provider's index which is an integer.
 
 For example, the openstack.py module has the following *configure_provider*
@@ -32,17 +35,21 @@ function::
 
   def configure_provider():
     import novaclient.client
-    return ("OPENSTACK", MachineManager, 2)
+    return ("OPENSTACK", MachineManager, SnapshotManager, 2)
 
-Each supported provider must return a reference to a concrete class that
-inherits from the AbstractMachineManager class defined in this module. This
-class is an entry point to a set of methods to access a provider.
+Each supported provider must return a reference to concrete classes that
+inherits from the AbstractMachineManager (or AbstractDatabaseManager) and
+AbstractSnapshotManager (or AbstractBackupManager) classes.
 """
 import pkgutil
 import inspect
 import logging
+import functools
 
-from mysql.fabric.errors import ProviderError
+from mysql.fabric.errors import (
+    ProviderError,
+    MachineError
+)
 
 PROVIDERS_TYPE = {}
 PROVIDERS_IDX = {}
@@ -50,7 +57,7 @@ PROVIDERS_IDX = {}
 _LOGGER = logging.getLogger(__name__)
 
 def find_providers():
-    """Find which are the available commands.
+    """Find which are the available providers.
     """
     for imp, name, ispkg in pkgutil.walk_packages(__path__, __name__ + "."):
         mod = imp.find_module(name).load_module(name)
@@ -58,9 +65,10 @@ def find_providers():
             "Package" if ispkg else "Module", name, mod.__name__
         )
         for (mem_name, mem_value) in inspect.getmembers(mod):
-            if mem_name == "configure_provider" and inspect.isfunction(mem_value):
+            if mem_name == "configure_provider" and \
+               inspect.isfunction(mem_value):
                 try:
-                    provider, manager, idx = mem_value()
+                    provider, machine, snapshot, idx = mem_value()
                     if provider in PROVIDERS_TYPE:
                         raise ProviderError(
                             "Provider type (%s) is already defined (%s)." %
@@ -71,10 +79,14 @@ def find_providers():
                             "Provider index (%s) is already defined (%s)." %
                             (idx, PROVIDERS_IDX[idx])
                         )
-                    PROVIDERS_TYPE[provider] = {'manager' : manager, 'idx' : idx}
+                    PROVIDERS_TYPE[provider] = {
+                        'machine' : machine,
+                        'snapshot' : snapshot,
+                        'idx' : idx
+                    }
                     PROVIDERS_IDX[idx] = {'provider' : provider}
-                except ImportError:
-                    pass
+                except ImportError as error:
+                    _LOGGER.warning("Provider error: %s.", error)
     _LOGGER.debug("Providers %s.", PROVIDERS_TYPE)
 
 def get_provider_idx(provider_type):
@@ -82,7 +94,7 @@ def get_provider_idx(provider_type):
     """
     try:
         return PROVIDERS_TYPE[provider_type]['idx']
-    except KeyError as error:
+    except KeyError:
         raise ProviderError(
             "Provider type (%s) is not supported yet." % (provider_type, )
         )
@@ -92,29 +104,41 @@ def get_provider_type(provider_idx):
     """
     try:
         return PROVIDERS_IDX[provider_idx]['provider']
-    except KeyError as error:
+    except KeyError:
         raise ProviderError(
             "Provider index (%s) does not exist." % (provider_idx, )
         )
 
-def get_provider_manager(provider_type):
+def get_provider_machine(provider_type):
     """Return a reference to a wrapper class that provides the appropriate
     methods to access the cloud provider.
 
     :param provider_type: Provider type.
     """
     try:
-        return PROVIDERS_TYPE[provider_type]['manager']
-    except KeyError as error:
+        return PROVIDERS_TYPE[provider_type]['machine']
+    except KeyError:
         raise ProviderError(
             "Provider type (%s) is not supported yet." % (provider_type, )
         )
 
+def get_provider_snapshot(provider_type):
+    """Return a reference to a wrapper class that provides the appropriate
+    methods to access the cloud provider.
 
-class AbstractMachineManager(object):
-    """Wrapper class that is used to manage machines in the cloud.
+    :param provider_type: Provider type.
+    """
+    try:
+        return PROVIDERS_TYPE[provider_type]['snapshot']
+    except KeyError:
+        raise ProviderError(
+            "Provider type (%s) is not supported yet." % (provider_type, )
+        )
 
-    :param provider: Reference to provider object.
+class AbstractManager(object):
+    """Wrapper class that is used to manage resources in the cloud.
+
+    :param provider: Reference to provider.
     :param version: Version.
     :rtype version: string
     """
@@ -134,7 +158,15 @@ class AbstractMachineManager(object):
         """
         return self.__version
 
-    def create_machines(self, parameters, wait_spawning):
+class AbstractMachineManager(AbstractManager): # pylint: disable=R0921
+    """Wrapper class that is used to manage machines in the cloud.
+    """
+    def __init__(self, provider, version=None):
+        """Constructor for AbstractMachineManager.
+        """
+        super(AbstractMachineManager, self).__init__(provider, version)
+
+    def create(self, parameters, wait_spawning):
         """Create machines.
 
         :param parameters: Parameters to create machines.
@@ -143,7 +175,7 @@ class AbstractMachineManager(object):
         """
         raise NotImplementedError
 
-    def search_machines(self, generic_filters, meta_filters):
+    def search(self, generic_filters, meta_filters):
         """Return machines based on the provided filters.
 
         :param generic_filters: Dictionary with criteria to search for.
@@ -152,7 +184,7 @@ class AbstractMachineManager(object):
         """
         raise NotImplementedError
 
-    def destroy_machine(self, machine_uuid):
+    def destroy(self, machine_uuid):
         """Destroy a machine.
 
         :param machine_uuid: UUID that uniquely identifies the machine.
@@ -174,7 +206,15 @@ class AbstractMachineManager(object):
         """
         raise NotImplementedError
 
-    def create_snapshot(self, machine_uuid, wait_spawning):
+class AbstractSnapshotManager(AbstractManager): # pylint: disable=R0921
+    """Wrapper class that is used to manage snapshots in the cloud.
+    """
+    def __init__(self, provider, version=None):
+        """Constructor for AbstractSnapshotManager.
+        """
+        super(AbstractSnapshotManager, self).__init__(provider, version)
+
+    def create(self, machine_uuid, wait_spawning):
         """Create a snapshot from a machine.
 
         :param machine_uuid: Machine's UUID.
@@ -183,9 +223,65 @@ class AbstractMachineManager(object):
         """
         raise NotImplementedError
 
-    def destroy_snapshot(self, machine_uuid):
+    def destroy(self, machine_uuid):
         """Destroy snapshots associated to a machine.
 
         :param machine_uuid: Machine's UUID.
         """
         raise NotImplementedError
+
+class AbstractDatabaseManager(AbstractManager): # pylint: disable=R0921
+    """Wrapper class that is used to manage databases in the cloud.
+    """
+    def __init__(self, provider, version=None):
+        super(AbstractDatabaseManager, self).__init__(provider, version)
+
+    def create(self, parameters, wait_spawning):
+        """Create databases.
+
+        :param parameters: Parameters to create databases.
+        :param wait_spwaning: Whether one should wait until the provider
+                              finishes its task or not.
+        """
+        raise NotImplementedError
+
+    def search(self, generic_filters, meta_filters):
+        """Return databases based on the provided filters.
+
+        :param generic_filters: Dictionary with criteria to search for.
+        :param meta_filters: Dictionary with criteria to search for.
+        :return: List with databases that match criteria.
+        """
+        raise NotImplementedError
+
+    def destroy(self, database_uuid):
+        """Destroy a database.
+
+        :param database_uuid: UUID that uniquely identifies the database.
+        """
+        raise NotImplementedError
+
+    def enable_root(self, database_uuid, passwd, timeout):
+        """Enable a user with super privileges.
+
+        :param database_uuid: UUID that uniquely identifies the database.
+        :param passwd: Password to be set.
+        :param timeout: Time after which the database is considered ureachable.
+        """
+        raise NotImplementedError
+
+def catch_exception(function):
+    """Catch exception and throw an MachineError.
+    """
+    @functools.wraps(function)
+    def wrapper_catch_exception(*args, **kwargs):
+        """Wrapper to catch OpenStack exceptions.
+        """
+        try:
+            return function(*args, **kwargs)
+        except Exception as error:
+            _LOGGER.error(
+                "Error processing a database operation.", exc_info=error
+            )
+            raise MachineError(error)
+    return wrapper_catch_exception
