@@ -62,18 +62,18 @@ class TestMachineServices(tests.utils.TestCase):
     def test_machine(self):
         """Test creating/destroying a machine
         """
-        # Try to create a machine  with a wrong provider.
-        status = self.proxy.machine.create(
+        # Try to create a machine with a wrong provider.
+        status = self.proxy.server.create(
             "Doesn't exist", IMAGE, FLAVOR
         )
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Create a machine.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, IMAGE, FLAVOR
         )
         self.check_xmlrpc_command_result(status)
-        status = self.proxy.machine.list(PROVIDER_ID)
+        status = self.proxy.server.list(PROVIDER_ID)
         info = self.check_xmlrpc_simple(status, {})
         machine_uuid = info['uuid']
         av_zone = info['av_zone']
@@ -82,48 +82,48 @@ class TestMachineServices(tests.utils.TestCase):
         self.assertEqual(machine.av_zone, av_zone)
 
         # Try to remove a machine  with a wrong provider
-        status = self.proxy.machine.destroy("Don't exist", str(machine.uuid))
+        status = self.proxy.server.destroy("Don't exist", str(machine.uuid))
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Remove a machine.
-        status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
+        status = self.proxy.server.destroy(PROVIDER_ID, machine_uuid)
         self.check_xmlrpc_command_result(status)
 
         # Try to remove a machine that does not exist.
-        status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
+        status = self.proxy.server.destroy(PROVIDER_ID, machine_uuid)
         self.check_xmlrpc_command_result(status, has_error=True)
 
     def test_parameters(self):
         """Check if parameters are pre-processed.
         """
         # Try to create a machine  without an image.
-        status = self.proxy.machine.create(PROVIDER_ID)
+        status = self.proxy.server.create(PROVIDER_ID)
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine without a flavor.
-        status = self.proxy.machine.create(PROVIDER_ID, IMAGE)
+        status = self.proxy.server.create(PROVIDER_ID, IMAGE)
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong image format.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size"], "flavor"
         )
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong flavor format.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], "flavor"
         )
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong machine_numbers.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["flavor=flavor"], -1
         )
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong userdata.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
             "availability_zone", "key_name", "security_group",
             "private_network", "public_network", "userdata"
@@ -131,7 +131,7 @@ class TestMachineServices(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong scheduler_hints.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
             "availability_zone", "key_name", "security_group",
             "private_network", "public_network", "setup.py", "swap",
@@ -140,7 +140,7 @@ class TestMachineServices(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with wrong meta.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
             "availability_zone", "key_name", "security_group",
             "private_network", "public_network", "setup.py", "swap",
@@ -149,7 +149,7 @@ class TestMachineServices(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to create a machine with reserved meta.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
             "availability_zone", "key_name", "security_group",
             "private_network", "public_network", "setup.py", "swap",
@@ -158,7 +158,7 @@ class TestMachineServices(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Create a machine.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
             "availability_zone", "key_name", "security_group",
             "private_network", "public_network", "setup.py", "swap",
@@ -166,30 +166,33 @@ class TestMachineServices(tests.utils.TestCase):
         )
         self.check_xmlrpc_command_result(status)
 
+        # TODO: Test other parameters that were included with database.
+
     def test_skip_store(self):
         """Test the skip_store parameter.
         """
         machine_uuid = "955429e1-2125-478a-869c-3b3ce5549c38"
 
         # Create a machine with the --skip_store=True.
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, ["name=image", "size=20"], ["name=flavor"], 1,
-            None, None, None, None, None, None, None, None, None, True
+            None, None, None, None, None, None, None, None, None, None,
+            None, None, None, None, None, None, True
         )
         self.check_xmlrpc_command_result(status)
         
         # Check if there is any reference to the machine in the state store.
-        status = self.proxy.machine.list(PROVIDER_ID)
+        status = self.proxy.server.list(PROVIDER_ID)
         self.check_xmlrpc_simple(status, {}, rowcount=0)
 
         # Try to destroy the machine. The operation fails because there is
         # no reference to the machine in the state store. Note that we can
         # provide any UUID as the NULLPROVIDER is being used.
-        status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
+        status = self.proxy.server.destroy(PROVIDER_ID, machine_uuid)
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Destroy a machine with the --skip_store=True.
-        status = self.proxy.machine.destroy(
+        status = self.proxy.server.destroy(
             PROVIDER_ID, machine_uuid, False, True
         )
         self.check_xmlrpc_command_result(status)
@@ -205,11 +208,11 @@ class TestSnapshotServices(tests.utils.TestCase):
             PROVIDER_ID, USERNAME, PASSWORD, URL, TENANT, PROVIDER_TYPE,
             DEFAULT_IMAGE, DEFAULT_FLAVOR
         )
-        status = self.proxy.machine.create(
+        status = self.proxy.server.create(
             PROVIDER_ID, IMAGE, FLAVOR
         )
         self.check_xmlrpc_command_result(status)
-        status = self.proxy.machine.list(PROVIDER_ID)
+        status = self.proxy.server.list(PROVIDER_ID)
         info = self.check_xmlrpc_simple(status, {})
         self.machine_uuid = info['uuid']
 

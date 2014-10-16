@@ -39,6 +39,10 @@ from mysql.fabric.machine import (
     Machine,
 )
 
+from mysql.fabric.utils import (
+    kv_to_dict,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 REGISTER_PROVIDER = _events.Event()
@@ -48,9 +52,9 @@ class ProviderRegister(ProcedureCommand):
     group_name = "provider"
     command_name = "register"
 
-    def execute(self, provider_id, username, password, url, tenant,
+    def execute(self, provider_id, username, password, url, tenant=None,
                 provider_type="OPENSTACK", default_image=None,
-                default_flavor=None, synchronous=True):
+                default_flavor=None, extra=None, synchronous=True):
         """Register a provider.
 
         :param provider_id: Provider's Id.
@@ -64,6 +68,8 @@ class ProviderRegister(ProcedureCommand):
                       a machine if one is not provided.
         :param image: Default flavor's name that will be used upon creating
                       a machine if one is not provided.
+
+        :param extra: Define parameters that are specific to a provider.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         :return: Tuple with job's uuid and status.
@@ -71,9 +77,18 @@ class ProviderRegister(ProcedureCommand):
         procedures = _events.trigger(
             REGISTER_PROVIDER, self.get_lockable_objects(), provider_id,
             provider_type, username, password, url, tenant, default_image,
-            default_flavor
+            default_flavor, extra
         )
         return self.wait_for_procedures(procedures, synchronous)
+
+    def generate_options(self):
+        """Make some options accept multiple values.
+        """
+        super(ProviderRegister, self).generate_options()
+        options = ["extra"]
+        for option in self.command_options:
+            if option['dest'] in options:
+                option['action'] = "append"
 
 UNREGISTER_PROVIDER = _events.Event()
 class ProviderUnregister(ProcedureCommand):
@@ -110,34 +125,36 @@ class ProviderList(Command):
         """
         rset = ResultSet(
             names=('provider_id', 'type', 'username', 'url', 'tenant',
-                   'default_image', 'default_flavor'),
-            types=(str, str, str, str, str, str, str)
+                   'default_image', 'default_flavor', 'extra'),
+            types=(str, str, str, str, str, str, str, str)
         )
 
         if provider_id is None:
             for prv in Provider.providers():
-                rset.append_row(
-                    (prv.provider_id, prv.provider_type, prv.username, prv.url,
-                     prv.tenant, prv.default_image, prv.default_flavor)
-                )
+                rset.append_row((
+                    prv.provider_id, prv.provider_type, prv.username, prv.url,
+                    prv.tenant, prv.default_image, prv.default_flavor,
+                    prv.extra
+                ))
         else:
             prv = _retrieve_provider(provider_id)
-            rset.append_row(
-                (prv.provider_id, prv.provider_type, prv.username, prv.url,
-                 prv.tenant, prv.default_image, prv.default_flavor)
-            )
+            rset.append_row((
+                prv.provider_id, prv.provider_type, prv.username, prv.url,
+                prv.tenant, prv.default_image, prv.default_flavor, prv.extra
+            ))
 
         return CommandResult(None, results=rset)
 
 @_events.on_event(REGISTER_PROVIDER)
 def _register_provider(provider_id, provider_type, username, password, url,
-                       tenant, default_image, default_flavor):
+                       tenant, default_image, default_flavor, extra):
     """Register a provider.
     """
     _check_provider_exists(provider_id)
+    _check_extra_parameter(extra)
     provider = Provider(provider_id=provider_id, provider_type=provider_type,
         username=username, password=password, url=url, tenant=tenant,
-        default_image=default_image, default_flavor=default_flavor
+        default_image=default_image, default_flavor=default_flavor, extra=extra
     )
     Provider.add(provider)
 
@@ -180,3 +197,14 @@ def _check_machines_exist(provider):
             "There are machines associated to the provider (%s)." %
             (provider.provider_id, )
         )
+
+def _check_extra_parameter(extra):
+    """Check whether the extra parameters can be parsed.
+    """
+    if extra:
+        if not isinstance(extra, list):
+            _errors.ConfigurationError(
+                "Extra parameters must be provided as a list: %s." %
+                (extra, )
+            )
+        kv_to_dict(extra)

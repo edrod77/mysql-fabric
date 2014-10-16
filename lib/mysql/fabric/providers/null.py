@@ -23,6 +23,7 @@ import uuid as _uuid
 
 from mysql.fabric.providers import (
     AbstractMachineManager,
+    AbstractSnapshotManager
 )
 
 from mysql.fabric.machine import (
@@ -34,7 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 def configure_provider():
     """Configure NullProvider.
     """
-    return ("NULLPROVIDER", MachineManager, 1)
+    return ("NULLPROVIDER", MachineManager, SnapshotManager, 1)
 
 class MachineManager(AbstractMachineManager):
     """Manage machines.
@@ -42,7 +43,7 @@ class MachineManager(AbstractMachineManager):
     def __init__(self, provider, version=None):
         super(MachineManager, self).__init__(provider, version)
 
-    def create_machines(self, parameters, wait_spawning):
+    def create(self, parameters, wait_spawning):
         """Create machines.
         """
         _LOGGER.debug(
@@ -56,7 +57,7 @@ class MachineManager(AbstractMachineManager):
         )
         return [machine]
 
-    def search_machines(self, generic_filters, meta_filters):
+    def search(self, generic_filters, meta_filters):
         """Return machines based on the provided filters.
         """
         machine = Machine(
@@ -65,7 +66,7 @@ class MachineManager(AbstractMachineManager):
         )
         return [machine]
 
-    def destroy_machine(self, machine_uuid):
+    def destroy(self, machine_uuid):
         """Destroy a machine.
         """
         pass
@@ -80,12 +81,18 @@ class MachineManager(AbstractMachineManager):
         """
         pass
 
-    def create_snapshot(self, machine_uuid, wait_spawning):
+class SnapshotManager(AbstractSnapshotManager):
+    """Manage Snapshots (i.e. Images).
+    """
+    def __init__(self, provider, version=None):
+        super(SnapshotManager, self).__init__(provider, version)
+
+    def create(self, machine_uuid, wait_spawning):
         """Create a snapshot from a machine.
         """
         return "-".join(["snapshot", machine_uuid, str(time.time())])
 
-    def destroy_snapshot(self, machine_uuid):
+    def destroy(self, machine_uuid):
         """Destroy snapshots associated to a machine.
         """
         pass

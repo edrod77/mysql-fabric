@@ -39,6 +39,7 @@ class TestProvider(unittest.TestCase):
         self.image = "default_image"
         self.flavor = "default_flavor"
         self.av_zone = "MySQL Fabric's Zone"
+        self.extra = ["extra_id=id", "extra_name=name"]
 
     def tearDown(self):
         """Clean up environment.
@@ -52,7 +53,7 @@ class TestProvider(unittest.TestCase):
             provider_id=self.provider_id, provider_type=self.provider_type,
             username=self.username, password=self.password, url=self.url,
             tenant=self.tenant, default_image=self.image,
-            default_flavor=self.flavor
+            default_flavor=self.flavor, extra=self.extra
         )
 
         # Check property provider_id.
@@ -79,6 +80,9 @@ class TestProvider(unittest.TestCase):
         # Check property default_flavor.
         self.assertEqual(provider.default_flavor, self.flavor)
 
+        # Check property extra.
+        self.assertEqual(provider.extra, self.extra)
+
     def test_storage(self):
         """Test using Provider's storage.
         """
@@ -86,7 +90,7 @@ class TestProvider(unittest.TestCase):
             provider_id=self.provider_id, provider_type=self.provider_type,
             username=self.username, password=self.password, url=self.url,
             tenant=self.tenant, default_image=self.image,
-            default_flavor=self.flavor
+            default_flavor=self.flavor, extra=self.extra
         )
         Provider.add(src_provider)
         dst_provider = Provider.fetch(self.provider_id)
@@ -104,17 +108,17 @@ class TestProvider(unittest.TestCase):
             provider_id=self.provider_id, provider_type=self.provider_type,
             username=self.username, password=self.password, url=self.url,
             tenant=self.tenant, default_image=self.image,
-            default_flavor=self.flavor
+            default_flavor=self.flavor, extra=self.extra
         )
         Provider.add(provider)
-        self.assertNotEqual(None, provider.get_provider_manager())
+        self.assertNotEqual(None, provider.get_provider_machine())
         Provider.remove(provider)
 
         self.assertRaises(_errors.ProviderError, Provider,
             provider_id=self.provider_id, provider_type="UNKNOWN_TYPE",
             username=self.username, password=self.password, url=self.url,
             tenant=self.tenant, default_image=self.image,
-            default_flavor=self.flavor
+            default_flavor=self.flavor, extra=self.extra
         )
 
     def test_providers(self):
@@ -124,7 +128,7 @@ class TestProvider(unittest.TestCase):
             provider_id=self.provider_id, provider_type=self.provider_type,
             username=self.username, password=self.password, url=self.url,
             tenant=self.tenant, default_image=self.image,
-            default_flavor=self.flavor
+            default_flavor=self.flavor, extra=self.extra
         )
         Provider.add(provider_1)
 
@@ -133,7 +137,7 @@ class TestProvider(unittest.TestCase):
             provider_id=provider_id, provider_type=self.provider_type,
             username=self.username, password=self.password, url=self.url,
             tenant=self.tenant, default_image=self.image,
-            default_flavor=self.flavor
+            default_flavor=self.flavor, extra=self.extra
         )
         Provider.add(provider_2)
 

@@ -229,3 +229,14 @@ def check_number_threads(increasing=0):
             "to increase this limit." % (n_sessions, n_executors, n_controls,
             n_failure_detectors, max_allowed_connections - 1)
          )
+
+def kv_to_dict(meta):
+    """Transform a list with key/value strings into a dictionary.
+    """
+    try:
+        return dict(m.split("=", 1) for m in meta)
+    except ValueError:
+        from mysql.fabric.errors import (
+            ConfigurationError
+        )
+        raise ConfigurationError("Invalid parameter (%s)." % (meta, ))

@@ -40,6 +40,7 @@ URL = "http://127.0.0.1:5000/v2.0"
 TENANT = "tenant"
 DEFAULT_IMAGE = "image"
 DEFAULT_FLAVOR = "flavor"
+EXTRA = ["extra_id=id", "extra_name=name"]
 IMAGE = ["name=image"]
 FLAVOR = ["name=flavor"]
 
@@ -66,14 +67,14 @@ class TestProviderServices(tests.utils.TestCase):
         # Register a new provider.
         status = self.proxy.provider.register(
             PROVIDER_ID, USERNAME, PASSWORD, URL, TENANT, PROVIDER_TYPE,
-            DEFAULT_IMAGE, DEFAULT_FLAVOR
+            DEFAULT_IMAGE, DEFAULT_FLAVOR, EXTRA
         )
         self.check_xmlrpc_command_result(status, returns=True)
 
         # Try to register a provider twice.
         status = self.proxy.provider.register(
             PROVIDER_ID, USERNAME, PASSWORD, URL, TENANT, PROVIDER_TYPE,
-            DEFAULT_IMAGE, DEFAULT_FLAVOR
+            DEFAULT_IMAGE, DEFAULT_FLAVOR, EXTRA
         )
         self.check_xmlrpc_command_result(status, has_error=True)
 
@@ -86,7 +87,8 @@ class TestProviderServices(tests.utils.TestCase):
             "url" : URL,
             "tenant" : TENANT,
             "default_image" : DEFAULT_IMAGE,
-            "default_flavor" : DEFAULT_FLAVOR}
+            "default_flavor" : DEFAULT_FLAVOR,
+            "extra" : str(EXTRA)}
         )
 
         # Look up a provider.
@@ -98,7 +100,8 @@ class TestProviderServices(tests.utils.TestCase):
             "url" : URL,
             "tenant" : TENANT,
             "default_image" : DEFAULT_IMAGE,
-            "default_flavor" : DEFAULT_FLAVOR}
+            "default_flavor" : DEFAULT_FLAVOR,
+            "extra" : str(EXTRA)}
         )
 
         # Try to look up a provider that does not exist.
@@ -110,14 +113,14 @@ class TestProviderServices(tests.utils.TestCase):
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Try to unregister a provider where there are associated machines.
-        status = self.proxy.machine.create(PROVIDER_ID, IMAGE, FLAVOR)
+        status = self.proxy.server.create(PROVIDER_ID, IMAGE, FLAVOR)
         self.check_xmlrpc_command_result(status)
-        status = self.proxy.machine.list(PROVIDER_ID)
+        status = self.proxy.server.list(PROVIDER_ID)
         info = self.check_xmlrpc_simple(status, {})
         machine_uuid = info['uuid']
         status = self.proxy.provider.unregister(PROVIDER_ID)
         self.check_xmlrpc_command_result(status, has_error=True)
-        status = self.proxy.machine.destroy(PROVIDER_ID, machine_uuid)
+        status = self.proxy.server.destroy(PROVIDER_ID, machine_uuid)
         self.check_xmlrpc_command_result(status)
 
         # Unregister a provider.

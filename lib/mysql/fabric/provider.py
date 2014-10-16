@@ -18,13 +18,15 @@
 providers.
 """
 import logging
+import json
 
 from mysql.fabric import (
     persistence as _persistence,
 )
 
 from mysql.fabric.providers import (
-    get_provider_manager,
+    get_provider_machine,
+    get_provider_snapshot,
     get_provider_idx,
     get_provider_type,
 )
@@ -38,26 +40,29 @@ _CREATE_PROVIDER = (
     "username VARCHAR(100) NOT NULL, "
     "password VARCHAR(128) NOT NULL, "
     "url VARCHAR(256) NOT NULL, "
-    "tenant VARCHAR(100) NOT NULL, "
+    "tenant VARCHAR(100), "
     "default_image VARCHAR(256), "
     "default_flavor VARCHAR(256), "
+    "extra TEXT, "
     "CONSTRAINT pk_provider_id PRIMARY KEY (provider_id)) "
     "DEFAULT CHARSET=utf8"
 )
 
 _QUERY_PROVIDER = (
     "SELECT provider_id, type, username, password, url, tenant, "
-    "default_image, default_flavor FROM providers WHERE provider_id = %s"
+    "default_image, default_flavor, extra FROM providers WHERE "
+    "provider_id = %s"
 )
 
 _QUERY_PROVIDERS = (
     "SELECT provider_id, type, username, password, url, tenant, "
-    "default_image, default_flavor FROM providers"
+    "default_image, default_flavor, extra FROM providers"
 )
 
 _INSERT_PROVIDER = (
     "INSERT INTO providers(provider_id, type, username, password, url, tenant, "
-    "default_image, default_flavor) VALUES(%s, %s, %s, %s, %s, %s, %s, %s)"
+    "default_image, default_flavor, extra) VALUES(%s, %s, %s, %s, %s, %s, %s, "
+    "%s, %s)"
 )
 
 _REMOVE_PROVIDER = (
@@ -71,11 +76,11 @@ class Provider(_persistence.Persistable):
     A cloud provider, or simply a provider, is uniquely identified by
     a string indentifier and accessed through an access point or URL.
     To authenticate requests to the provider, a user and password are
-    defined and mapped to a tenant account.
+    defined and mapped to a tenant (i.e. project). 
 
     It is also possible to define a default image and default virtual
-    machine template, also known as flavor, to be used if the
-    information is not provided when a machine is created.
+    machine template, also known as flavor, to be used if such options
+    are not provided when a machine is created.
 
     :param provider_id: Provider's Id.
     :rtype provider_id: string
@@ -87,31 +92,20 @@ class Provider(_persistence.Persistable):
     :param tenant: Provider's tenant.
     :param default_image: Default image's name.
     :param default_flaovr: Default flavor's name.
+    :param extra: Extra information to be used by the provider.
     """
-    def __init__(self, provider_id=None, provider_type=None, username=None,
-                 password=None, url=None, tenant=None, default_image=None,
-                 default_flavor=None, row=None):
+    def __init__(self, provider_id, provider_type, username, password, url,
+                 tenant=None, default_image=None, default_flavor=None,
+                 extra=None):
         """Constructor for the Provider.
         """
         super(Provider, self).__init__()
-
-        if row is not None:
-            assert provider_id is None
-            assert provider_type is None
-            assert username is None
-            assert password is None
-            assert url is None
-            assert tenant is None
-            provider_id, provider_idx, username, password, url, tenant, \
-                default_image, default_flavor = row
-            provider_type = get_provider_type(provider_idx)
 
         assert provider_id is not None
         assert provider_type is not None
         assert username is not None
         assert password is not None
         assert url is not None
-        assert tenant is not None
 
         self.__provider_id = provider_id
         self.__provider_idx = get_provider_idx(provider_type)
@@ -121,6 +115,7 @@ class Provider(_persistence.Persistable):
         self.__tenant = tenant
         self.__default_image = default_image
         self.__default_flavor = default_flavor
+        self.__extra = extra
 
     def __eq__(self, other):
         """Two providers are equal if they have the same id.
@@ -181,6 +176,12 @@ class Provider(_persistence.Persistable):
         """
         return self.__default_flavor
 
+    @property
+    def extra(self):
+        """Return the provider's extra information.
+        """
+        return self.__extra
+
     @staticmethod
     def create(persister=None):
         """Create the objects(tables) that will store the provier information
@@ -205,7 +206,7 @@ class Provider(_persistence.Persistable):
         )
         row = cur.fetchone()
         if row:
-            return Provider(row=row)
+            return Provider.construct_from_row(row=row)
 
     @staticmethod
     def providers(persister=None):
@@ -220,7 +221,7 @@ class Provider(_persistence.Persistable):
 
         rows = cur.fetchall()
         for row in rows:
-            yield Provider(row=row)
+            yield Provider.construct_from_row(row=row)
 
     @staticmethod
     def add(provider, persister=None):
@@ -229,6 +230,7 @@ class Provider(_persistence.Persistable):
         :param provider: A reference to a provider.
         :param persister: Object to access the state store.
         """
+        extra = provider.extra
         persister.exec_stmt(_INSERT_PROVIDER,
             {"params": (
                 provider.provider_id,
@@ -238,7 +240,8 @@ class Provider(_persistence.Persistable):
                 provider.url,
                 provider.tenant,
                 provider.default_image,
-                provider.default_flavor
+                provider.default_flavor,
+                json.dumps(extra) if extra else extra
               )
             }
         )
@@ -254,10 +257,15 @@ class Provider(_persistence.Persistable):
             _REMOVE_PROVIDER, {"params": (provider.provider_id, )}
         )
 
-    def get_provider_manager(self):
-        """Return a reference to the provider manager.
+    def get_provider_machine(self):
+        """Return a reference to the provider machine manager.
         """
-        return get_provider_manager(self.provider_type)
+        return get_provider_machine(self.provider_type)
+
+    def get_provider_snapshot(self):
+        """Return a reference to the provider snapshot manager.
+        """
+        return get_provider_snapshot(self.provider_type)
 
     def as_dict(self):
         """Return the object as a dictionary.
@@ -269,10 +277,27 @@ class Provider(_persistence.Persistable):
             "type" : get_provider_type(self.__provider_idx),
             "username" : self.__username,
             "url" : self.__url,
-            "tenant" : self.__tenant,
-            "default_image" : self.__default_image \
-                if self.__default_image else "",
-            "default_flavor" : self.__default_flavor \
-                if self.__default_flavor else ""
+            "tenant" : self.__tenant or "",
+            "default_image" : self.__default_image or "",
+            "default_flavor" : self.__default_flavor or "",
+            "extra" : self.__extra or ""
         }
         return dictionary
+    
+    @staticmethod
+    def construct_from_row(row):
+        """Create a Provider object from a row.
+
+        :row param: Record that contains provider's data.
+        """
+        provider_id, provider_idx, username, password, url, tenant, \
+            default_image, default_flavor, extra = row
+        if extra:
+            extra = [str(opt) for opt in json.loads(extra)]
+        provider_type = get_provider_type(provider_idx)
+
+        return Provider(provider_id=provider_id, provider_type=provider_type,
+            username=username, password=password, url=url, tenant=tenant,
+            default_image=default_image, default_flavor=default_flavor,
+            extra=extra
+        )
