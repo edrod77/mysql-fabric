@@ -339,7 +339,7 @@ def cleanup_environment():
         _replication.stop_slave(server, wait=True)
 
         server.set_foreign_key_checks(False)
-        databases = server.exec_stmt("SHOW DATABASES", {"fetch" : True})
+        databases = server.exec_stmt("SHOW DATABASES")
         for database in databases:
             if database[0] not in _server.MySQLServer.NO_USER_DATABASES:
                 server.exec_stmt(
@@ -489,7 +489,7 @@ class TestCase(unittest.TestCase):
         """
 
         result = _xmlrpc._decode(packet)
-        
+
         self.assertFalse(result.error, "Error: '%s'" % result.error)
         self.assertTrue(len(result.results) > index, str(result))
         self.assertEqual(result.results[index].columns, expected.columns)

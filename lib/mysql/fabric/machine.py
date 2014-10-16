@@ -157,7 +157,7 @@ class Machine(_persistence.Persistable):
                  does not exist.
         """
         cur = persister.exec_stmt(_QUERY_INSTANCE,
-            {"fetch" : False, "raw" : False, "params":(str(uuid), )}
+            {"fetch" : False, "params":(str(uuid), )}
         )
         row = cur.fetchone()
         if row:
@@ -200,7 +200,7 @@ class Machine(_persistence.Persistable):
         :return: Iterator over a set of machines if there is any.
         """
         cur = persister.exec_stmt(_QUERY_INSTANCES,
-            {"fetch" : False, "raw" : False, "params":(provider_id, )}
+            {"fetch" : False, "params":(provider_id, )}
         )
 
         rows = cur.fetchall()

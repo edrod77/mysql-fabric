@@ -293,8 +293,7 @@ class Checkpoint(_persistence.Persistable):
         :rtype: set(Checkpoint, ...)
         """
         checkpoints = set()
-        rows = persister.exec_stmt(Checkpoint.QUERY_UNFINISHED_CHECKPOINTS,
-                                   {"raw": False})
+        rows = persister.exec_stmt(Checkpoint.QUERY_UNFINISHED_CHECKPOINTS)
         for row in rows:
             checkpoints.add(Checkpoint._create_object_from_row(row))
         return checkpoints
@@ -309,8 +308,7 @@ class Checkpoint(_persistence.Persistable):
         :rtype: set(Checkpoint, ...)
         """
         checkpoints = set()
-        rows = persister.exec_stmt(Checkpoint.QUERY_REGISTERED_CHECKPOINTS,
-                                   {"raw": False})
+        rows = persister.exec_stmt(Checkpoint.QUERY_REGISTERED_CHECKPOINTS)
         for row in rows:
             checkpoints.add(Checkpoint._create_object_from_row(row))
         return checkpoints
@@ -329,8 +327,8 @@ class Checkpoint(_persistence.Persistable):
         assert(isinstance(proc_uuid, _uuid.UUID))
 
         rows = persister.exec_stmt(Checkpoint.QUERY_CHECKPOINTS,
-            {"raw": False, "params":(str(proc_uuid), )}
-            )
+            {"params":(str(proc_uuid), )}
+        )
 
         if rows:
             for row in rows:
@@ -360,14 +358,12 @@ class Checkpoint(_persistence.Persistable):
         :param persister: The DB server that can be used to access the
                           state store.
         """
-        rows = persister.exec_stmt(Checkpoint.QUERY_FINISHED_CHECKPOINTS,
-            {"raw": False}
-            )
+        rows = persister.exec_stmt(Checkpoint.QUERY_FINISHED_CHECKPOINTS)
         if rows:
             for row in rows:
                 persister.exec_stmt(Checkpoint.DELETE_CHECKPOINTS,
                     {"params":(row[0], )}
-                    )
+                )
 
     @staticmethod
     def create(persister=None):

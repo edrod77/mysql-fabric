@@ -201,7 +201,7 @@ class Provider(_persistence.Persistable):
                  not exist.
         """
         cur = persister.exec_stmt(_QUERY_PROVIDER,
-            {"fetch" : False, "raw" : False, "params":(provider_id, )}
+            {"fetch" : False, "params":(provider_id, )}
         )
         row = cur.fetchone()
         if row:
@@ -215,7 +215,7 @@ class Provider(_persistence.Persistable):
         :return: Set of providers.
         """
         cur = persister.exec_stmt(_QUERY_PROVIDERS,
-            {"fetch" : False, "raw" : False}
+            {"fetch" : False}
         )
 
         rows = cur.fetchall()

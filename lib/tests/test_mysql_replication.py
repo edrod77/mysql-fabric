@@ -80,7 +80,7 @@ class TestMySQLMaster(tests.utils.TestCase):
         # Reset Master.
         reset_master(master)
         ret = get_master_status(master)
-        self.assertEqual(int(ret[0][1]), 151) # Format descriptor event.
+        self.assertEqual(ret[0][1], 151) # Format descriptor event.
 
     def test_master_health(self):
         """Test the check_master_issues() function.
@@ -268,7 +268,7 @@ class TestMySQLSlave(tests.utils.TestCase):
         master.exec_stmt("CREATE TABLE test(id INTEGER)")
         binlog = get_master_status(master)
         binlog_file = binlog[0][0]
-        binlog_pos = int(binlog[0][1])
+        binlog_pos = binlog[0][1]
 
         # Wait until the slave catches up. It returns False because
         # the threads are stopped.

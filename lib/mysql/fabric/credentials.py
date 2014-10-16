@@ -186,7 +186,6 @@ class User(_persistence.Persistable):
         hashed_password = _hash_password(username, password, protocol, config)
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": {
                 'user_id': user_id,
@@ -209,7 +208,6 @@ class User(_persistence.Persistable):
         )
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": {
                 'permission_id': permission_id,
@@ -229,7 +227,6 @@ class User(_persistence.Persistable):
         )
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": {
                 'role_id': role_id,
@@ -247,7 +244,6 @@ class User(_persistence.Persistable):
         )
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": {
                 'role_id': role_id,
@@ -264,7 +260,6 @@ class User(_persistence.Persistable):
         )
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": {
                 'role_id': role_id,
@@ -284,7 +279,6 @@ class User(_persistence.Persistable):
                 "protocol is required when username is provided")
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": {},
         }
@@ -350,9 +344,8 @@ class User(_persistence.Persistable):
             protocol = FABRIC_DEFAULT_PROTOCOL
 
         options = {
-            "raw": False,
             "fetch": False,
-            "params": [username, protocol],
+            "params": (username, protocol),
             "columns": True,
         }
 
@@ -378,7 +371,6 @@ class User(_persistence.Persistable):
             protocol = FABRIC_DEFAULT_PROTOCOL
 
         options = {
-            "raw": False,
             "fetch": False,
             "params": (username, protocol),
         }
@@ -446,7 +438,6 @@ def get_user(username, protocol, persister=None):
         persister = _persistence.current_persister()
 
     options = {
-        "raw": False,
         "fetch": False,
         "params": (username, protocol),
         "columns": True,
@@ -703,7 +694,6 @@ def _role_listing(selected=None, marker=None, persister=None):
         marker = 'X'
 
     options = {
-        "raw": False,
         "fetch": False,
         "columns": True,
     }
@@ -786,7 +776,6 @@ def _role_selection(message=None, choices=None, persister=None):
         choices = choices.split(',')
 
     options = {
-        "raw": False,
         "fetch": False,
         "columns": True,
     }
@@ -831,7 +820,6 @@ def _change_password(username, password, protocol, config, persister):
     try:
         persister.begin()
         options = {
-            "raw": False,
             "fetch": False,
             "params": (),
             "columns": True,
@@ -1127,9 +1115,8 @@ class UserRoles(UserCommand):
         role_list = []
         if not roles:
             options = {
-                "raw": False,
                 "fetch": False,
-                "params": (user.user_id,),
+                "params": (user.user_id, ),
                 "columns": True,
             }
             cur = self.persister.exec_stmt(
@@ -1174,9 +1161,8 @@ class UserRoles(UserCommand):
             try:
                 self.persister.begin()
                 options = {
-                    "raw": False,
                     "fetch": False,
-                    "params": (user.user_id,),
+                    "params": (user.user_id, ),
                     "columns": True,
                 }
                 self.persister.exec_stmt(
@@ -1209,7 +1195,6 @@ class UserList(UserCommand):
         persister = _persistence.current_persister()
 
         options = {
-            "raw": False,
             "fetch": False,
             "columns": True,
         }

@@ -229,7 +229,8 @@ class Group(_persistence.Persistable):
         """
         ret = []
         rows = persister.exec_stmt(Group.QUERY_GROUP_REPLICATION_SLAVES,
-            {"fetch" : True, "params" : (self.__group_id,)})
+            {"params" : (self.__group_id,)}
+        )
         if not rows:
             return ret
 
@@ -251,7 +252,7 @@ class Group(_persistence.Persistable):
                           state store.
         """
         row = persister.exec_stmt(Group.QUERY_GROUP_REPLICATION_MASTER,
-            {"fetch" : True, "params" : (self.__group_id,)})
+            {"params" : (self.__group_id,)})
         if not row:
             return None
         return row[0][0]
@@ -497,9 +498,8 @@ class Group(_persistence.Persistable):
         """
         group = None
         cur = persister.exec_stmt(
-            Group.QUERY_GROUP, {"fetch" : False, "raw" : False,
-            "params" : (group_id,)}
-            )
+            Group.QUERY_GROUP, {"fetch" : False, "params" : (group_id, )}
+        )
         row = cur.fetchone()
         if row:
             group_id, description, master, master_defined, status = row
@@ -845,7 +845,7 @@ class MySQLServer(_persistence.Persistable):
         passwd = passwd or MySQLServer.PASSWD
         cnx = _server_utils.create_mysql_connection(
             user=user, passwd=passwd, host=host, port=port, autocommit=True,
-            use_unicode=True, connection_timeout=connection_timeout
+            connection_timeout=connection_timeout
         )
 
         try:
@@ -874,7 +874,7 @@ class MySQLServer(_persistence.Persistable):
             _server_utils.MYSQL_DEFAULT_PORT)
 
         return _server_utils.create_mysql_connection(
-            autocommit=True, use_unicode=False, host=host, port=port,
+            autocommit=True, host=host, port=port,
             user=self.user, passwd=self.passwd,
             connection_timeout=connection_timeout
         )
@@ -940,14 +940,6 @@ class MySQLServer(_persistence.Persistable):
             self.__gtid_enabled = None
             self.__binlog_enabled = None
 
-    def user_databases(self):
-        """Return user databases.
-        """
-        exc_dbs = MySQLServer.NO_USER_DATABASES
-        dbs = self.exec_stmt("SHOW DATABASES")
-        dbs = [db[0] for db in dbs if db[0] not in exc_dbs]
-        return dbs
-
     def has_privileges(self, required_privileges, level=None):
         """Check whether the current user has the required privileges.
 
@@ -968,10 +960,10 @@ class MySQLServer(_persistence.Persistable):
         for row in ret:
             res = check.match(row[0])
             if res:
-                privileges = [ str(privilege).strip() \
+                privileges = [ privilege.strip() \
                       for privilege in res.group("privileges").split(",")
                 ]
-                level = str(res.group("level")).replace('`', "")
+                level = res.group("level").replace('`', "")
                 if (all_privileges in privileges and all_level == level) or \
                     (required_privileges.issubset(set(privileges)) and \
                     required_level == level):
@@ -1212,7 +1204,7 @@ class MySQLServer(_persistence.Persistable):
         """
         ret = []
         rows = persister.exec_stmt(MySQLServer.QUERY_SERVER_BY_GROUP_ID,
-            {"raw" : False, "params" : (group_id, )}
+            {"params" : (group_id, )}
         )
         for row in rows:
             server = MySQLServer(row=row)
@@ -1264,7 +1256,6 @@ class MySQLServer(_persistence.Persistable):
             "@@GLOBAL.GTID_PURGED as GTID_PURGED, "
             "@@GLOBAL.GTID_OWNED as GTID_OWNED"
         )
-
         return self.exec_stmt(query_str, {"columns" : True})
 
     def has_storage_engine(self, target):
@@ -1467,7 +1458,6 @@ class MySQLServer(_persistence.Persistable):
 
         cur = persister.exec_stmt(query, {
             "fetch" : False,
-            "raw" : False,
             "params" : (server_id, )
         })
 
@@ -1505,7 +1495,8 @@ class MySQLServer(_persistence.Persistable):
             else:
                 like_pattern = '%' + find + '%'
             rows = persister.exec_stmt(MySQLServer.DUMP_SERVERS,
-                {"raw" : False, "params":(like_pattern, "FAULTY")})
+                {"params":(like_pattern, "FAULTY")}
+            )
 
             for row in rows:
                 host, port = _server_utils.split_host_port(

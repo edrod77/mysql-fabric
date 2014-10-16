@@ -38,20 +38,14 @@ IO_THREAD = "IO_THREAD"
 SQL_THREAD = "SQL_THREAD"
 
 @_server.server_logging
-def get_master_status(server, options=None):
+def get_master_status(server):
     """Return the master status. In order to ease the navigation through
     the result set, a named tuple is always returned. Look up the `SHOW
     MASTER STATUS` command in the MySQL Manual for further details.
 
     :param server: MySQL Server.
-    :param options: Define how the result is formatted and retrieved.
-                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
-    if options is None:
-        options = {}
-    options["columns"] = True
-    options["raw"] = False
-    return server.exec_stmt("SHOW MASTER STATUS", options)
+    return server.exec_stmt("SHOW MASTER STATUS", {"columns" : True})
 
 @_server.server_logging
 def reset_master(server):
@@ -69,23 +63,6 @@ def has_appropriate_privileges(server):
     :param server: MySQL Server.
     """
     return server.has_privileges(["REPLICATION SLAVE"])
-
-@_server.server_logging
-def get_master_slaves(server, options=None):
-    """Return the slaves registered for this master. In order to ease the
-    navigation through the result set, a named tuple is always returned.
-    Please, look up the `SHOW SLAVE HOSTS` in the MySQL Manual for further
-    details.
-
-    :param server: MySQL Server.
-    :param options: Define how the result is formatted and retrieved.
-                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
-    """
-    if options is None:
-        options = {}
-    options["columns"] = True
-    options["raw"] = False
-    return server.exec_stmt("SHOW SLAVE HOSTS", options)
 
 @_server.server_logging
 def check_master_issues(server):
@@ -158,11 +135,7 @@ def get_slave_status(server, options=None):
     :param options: Define how the result is formatted and retrieved.
                     See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
-    if options is None:
-        options = {}
-    options["columns"] = True
-    options["raw"] = False
-    return server.exec_stmt("SHOW SLAVE STATUS", options)
+    return server.exec_stmt("SHOW SLAVE STATUS", {"columns" : True})
 
 @_server.server_logging
 def is_slave_thread_running(server, threads=None):
@@ -183,7 +156,7 @@ def slave_has_master(server):
     ret = get_slave_status(server)
     if ret:
         try:
-            str_uuid = str(ret[0].Master_UUID)
+            str_uuid = ret[0].Master_UUID
             _uuid.UUID(str_uuid)
             return str_uuid
         except ValueError:
@@ -362,7 +335,8 @@ def wait_for_slave(server, binlog_file, binlog_pos, timeout=0):
     """
     # Wait for slave to read the master log file
     res = server.exec_stmt(_MASTER_POS_WAIT,
-        {"params": (binlog_file, binlog_pos, timeout), "raw" : False })
+        {"params": (binlog_file, binlog_pos, timeout)}
+    )
 
     if res is None or res[0] is None or res[0][0] is None:
         raise _errors.DatabaseError(
@@ -449,8 +423,7 @@ def wait_for_slave_gtid(server, gtids, timeout=0):
             "Global Transaction IDs are not supported."
             )
 
-    res = server.exec_stmt(_GTID_WAIT,
-        {"params": (gtids, timeout), "raw" : False })
+    res = server.exec_stmt(_GTID_WAIT, {"params": (gtids, timeout)})
 
     if res is None or res[0] is None or res[0][0] is None:
         raise _errors.DatabaseError(
@@ -559,9 +532,9 @@ def check_slave_issues(server):
         status["io_not_running"] = True
     if ret[0].Slave_SQL_Running.upper() != "YES":
         status["sql_not_running"] = True
-    if ret[0].Last_IO_Errno > 0:
+    if ret[0].Last_IO_Errno and ret[0].Last_IO_Errno > 0:
         status["io_error"] = ret[0].Last_IO_Error
-    if ret[0].Last_SQL_Errno > 0:
+    if ret[0].Last_SQL_Errno and ret[0].Last_SQL_Errno > 0:
         status["sql_error"] = ret[0].Last_SQL_Error
 
     error = not all([v is False for v in status.itervalues()])
@@ -653,11 +626,13 @@ def _check_condition(server, threads, check_if_running):
     if ret:
         io_status = ret[0].Slave_IO_Running.upper() == check_stmt
         io_error = ret[0].Last_IO_Error
-        io_errno = int(ret[0].Last_IO_Errno)
+        io_errno = ret[0].Last_IO_Errno
+        io_errno = io_errno if io_errno else 0
 
         sql_status = ret[0].Slave_SQL_Running.upper() == check_stmt
         sql_error = ret[0].Last_SQL_Error
-        sql_errno = int(ret[0].Last_SQL_Errno)
+        sql_errno = ret[0].Last_SQL_Errno
+        sql_errno = sql_errno if sql_errno else 0
 
     achieved = True
     if SQL_THREAD in threads:
@@ -693,9 +668,9 @@ def _check_status_condition(server, thread, status):
     if SQL_THREAD == thread:
         sql_status = True if status in ret[0].Slave_SQL_Running_State else False
         sql_error = ret[0].Last_SQL_Error
-        sql_errno = int(ret[0].Last_SQL_Errno)
+        sql_errno = ret[0].Last_SQL_Errno
 
-        if sql_errno != 0:
+        if sql_errno and sql_errno != 0:
             raise _errors.DatabaseError(sql_error)
 
         achieved = sql_status
@@ -703,9 +678,9 @@ def _check_status_condition(server, thread, status):
     elif IO_THREAD == thread:
         io_status = True if status in ret[0].Slave_IO_State else False
         io_error = ret[0].Last_IO_Error
-        io_errno = int(ret[0].Last_IO_Errno)
+        io_errno = ret[0].Last_IO_Errno
 
-        if io_errno != 0:
+        if io_errno and io_errno != 0:
             raise _errors.DatabaseError(io_error)
 
         achieved = io_status

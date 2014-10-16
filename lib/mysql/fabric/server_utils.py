@@ -29,6 +29,10 @@ from mysql.connector.cursor import (
     MySQLCursorNamedTuple
 )
 
+from mysql.connector.conversion import (
+    MySQLConverter,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 MYSQL_DEFAULT_PORT = 3306
@@ -97,13 +101,9 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
     raw = options.get('raw', False)
 
     if raw and columns:
-        raise TypeError("No raw cursor available returning named tuple")
-    elif not raw and columns:
-        cursor_class = MySQLCursorNamedTuple
-    elif raw and not columns:
-        cursor_class = MySQLCursorRaw
-    elif not raw and not columns:
-        cursor_class = MySQLCursor
+        raise _errors.ProgrammingError(
+            "No raw cursor available returning named tuple"
+        )
 
     _LOGGER.debug("Statement ({statement}, Params({parameters}).".format(
         statement=stmt_str.replace('\n', '').replace('\r', ''),

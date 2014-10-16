@@ -275,8 +275,7 @@ class ShardMapping(_persistence.Persistable):
 
         sharding_type = sharding_type.upper()
         cur = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPINGS,
-                                  {"raw" : False,
-                                  "fetch" : False,
+                                  {"fetch" : False,
                                   "params" : (sharding_type,)})
         rows = cur.fetchall()
 
@@ -332,8 +331,7 @@ class ShardMapping(_persistence.Persistable):
         """
         cur = persister.exec_stmt(
                                   ShardMapping.SELECT_SHARD_MAPPING,
-                                  {"raw" : False,
-                                  "fetch" : False,
+                                  {"fetch" : False,
                                   "params" : (table_name,)})
         row = cur.fetchone()
         if row:
@@ -358,8 +356,7 @@ class ShardMapping(_persistence.Persistable):
 
         cur = persister.exec_stmt(
                                   ShardMapping.SELECT_SHARD_MAPPING_BY_ID,
-                                  {"raw" : False,
-                                  "fetch" : False,
+                                  {"fetch" : False,
                                   "params" : (shard_mapping_id,)})
         rows = cur.fetchall()
 
@@ -381,9 +378,7 @@ class ShardMapping(_persistence.Persistable):
         :return: A list containing the shard mapping definition parameters.
         """
         row = persister.exec_stmt(ShardMapping.SELECT_SHARD_MAPPING_DEFN,
-                                  {"raw" : False,
-                                  "fetch" : True,
-                                  "params" : (shard_mapping_id,)})
+                                  {"params" : (shard_mapping_id,)})
         if row:
             #There is no abstraction for a shard mapping definition. A
             #shard mapping definition is just a triplet of
@@ -399,9 +394,7 @@ class ShardMapping(_persistence.Persistable):
         :param persister: A valid handle to the state store.
         :return: A list containing the shard mapping definitions.
         """
-        rows = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPING_DEFN,
-                                  {"raw" : False,
-                                  "fetch" : True})
+        rows = persister.exec_stmt(ShardMapping.LIST_SHARD_MAPPING_DEFN)
         if rows is not None:
             return rows
 
@@ -415,8 +408,8 @@ class ShardMapping(_persistence.Persistable):
         :param persister: A valid handle to the state store.
         :return: Shard mapping associated to a group..
         """
-        rows = persister.exec_stmt(ShardMapping.QUERY_SHARD_MAPPING_PER_GROUP, 
-          {"params": (group_id, ), "raw" : False, "fetch" : True}
+        rows = persister.exec_stmt(ShardMapping.QUERY_SHARD_MAPPING_PER_GROUP,
+          {"params": (group_id, )}
         )
         if rows:
             return rows[0][0]
@@ -1025,8 +1018,7 @@ class RangeShardingSpecification(_persistence.Persistable):
 
         cur = persister.exec_stmt(
                     RangeShardingSpecification.LIST_RANGE_SPECIFICATION,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (shard_mapping_id,)})
         rows = cur.fetchall()
         return [ RangeShardingSpecification(*row[0:5]) for row in rows ]
@@ -1061,8 +1053,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         cur = persister.exec_stmt(
                     RangeShardingSpecification.SELECT_RANGE_SPECIFICATION,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (shard_id,)})
         row = cur.fetchone()
         if row is None:
@@ -1096,8 +1087,7 @@ class RangeShardingSpecification(_persistence.Persistable):
                 which the key belongs.
         """
         cur = persister.exec_stmt(SHARDING_DATATYPE_HANDLER[type].LOOKUP_KEY,
-                    {"raw" : False,
-                    "fetch" : False,
+                    {"fetch" : False,
                     "params" : (key, shard_mapping_id)})
 
         row = cur.fetchone()
@@ -1122,8 +1112,7 @@ class RangeShardingSpecification(_persistence.Persistable):
         """
         cur = persister.exec_stmt(
                         SHARDING_DATATYPE_HANDLER[type].SELECT_UPPER_BOUND,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (lower_bound, shard_mapping_id)})
 
         row = cur.fetchone()
@@ -1255,11 +1244,7 @@ class RangeShardingSpecification(_persistence.Persistable):
             deleted = prune_limit
             while deleted == prune_limit:
                 delete_cursor = master.exec_stmt(
-                                              delete_query,
-                                              {
-                                                "raw":False,
-                                                "fetch":False
-                                                }
+                    delete_query, {"fetch":False}
                 )
                 deleted = delete_cursor.rowcount
             #Enable Foreign Key Checking
@@ -1393,12 +1378,7 @@ class HashShardingSpecification(RangeShardingSpecification):
 
             master.connect()
 
-            cur = master.exec_stmt(
-                            max_query,
-                            {"raw" : False,
-                            "fetch" : False,
-                            }
-                        )
+            cur = master.exec_stmt(max_query, {"fetch" : False})
 
             row = cur.fetchone()
 
@@ -1475,7 +1455,6 @@ class HashShardingSpecification(RangeShardingSpecification):
                 which the key belongs.
         """
         cur = persister.exec_stmt(SHARDING_DATATYPE_HANDLER[type].LOOKUP_KEY, {
-                        "raw" : False,
                         "fetch" : False,
                         "params" : (
                             key,
@@ -1503,8 +1482,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         """
         cur = persister.exec_stmt(
                     HashShardingSpecification.SELECT_RANGE_SPECIFICATION,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (shard_id,)})
         row = cur.fetchone()
         if row is None:
@@ -1522,8 +1500,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         """
         cur = persister.exec_stmt(
                     HashShardingSpecification.SELECT_LEAST_LOWER_BOUND,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (shard_mapping_id,)})
         row = cur.fetchone()
         if row is None:
@@ -1544,8 +1521,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         """
         cur = persister.exec_stmt(
                     HashShardingSpecification.LIST_RANGE_SPECIFICATION,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (shard_mapping_id,)})
         rows = cur.fetchall()
         return [ HashShardingSpecification(*row[0:5]) for row in rows ]
@@ -1621,8 +1597,7 @@ class HashShardingSpecification(RangeShardingSpecification):
         """
         cur = persister.exec_stmt(
                         SHARDING_DATATYPE_HANDLER[type].SELECT_UPPER_BOUND,
-                        {"raw" : False,
-                        "fetch" : False,
+                        {"fetch" : False,
                         "params" : (lower_bound, shard_mapping_id)})
 
         row = cur.fetchone()
@@ -1726,11 +1701,7 @@ class HashShardingSpecification(RangeShardingSpecification):
             deleted = prune_limit
             while deleted == prune_limit:
                 delete_cursor = master.exec_stmt(
-                                              delete_query,
-                                              {
-                                                "raw":False,
-                                                "fetch":False
-                                                }
+                    delete_query, {"fetch":False}
                 )
                 deleted = delete_cursor.rowcount
             #Enable the Foreign Key checks after the prune.
@@ -1816,7 +1787,7 @@ class MappingShardsGroups(_persistence.Persistable):
         assert(criterion in ("shard_id", "shard_mapping_id", "table_name"))
         rows = persister.exec_stmt(
             MappingShardsGroups.PARAM_QUERIES[locality][criterion],
-            {"raw" : False, "fetch" : True, "params" : (value, )}
+            {"params" : (value, )}
         )
         return rows
 

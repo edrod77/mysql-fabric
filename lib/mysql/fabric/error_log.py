@@ -172,7 +172,7 @@ class ErrorLog(_persistence.Persistable):
 
         cur = persister.exec_stmt(
             ErrorLog.QUERY_SERVER_ERROR_LOG,
-            {"fetch" : False, "raw" : False,
+            {"fetch" : False,
              "params": (str(uuid), now - interval)
             }
         )
