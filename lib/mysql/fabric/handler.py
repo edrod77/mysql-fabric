@@ -41,7 +41,7 @@ _CREATE_FABRIC_LOG = (
     "INDEX key_reporter (reporter), "
     "INDEX key_reported (reported), "
     "INDEX key_category (category), "
-    "INDEX key_type (type))"
+    "INDEX key_type (type)) DEFAULT CHARSET=utf8"
 )
 
 _CREATE_GROUP_VIEW = (

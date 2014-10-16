@@ -82,7 +82,9 @@ class ShardMapping(_persistence.Persistable):
                             "table_name VARCHAR(64) NOT NULL, "
                             "column_name VARCHAR(64) NOT NULL, "
                             "PRIMARY KEY (table_name, column_name), "
-                            "INDEX(shard_mapping_id))")
+                            "INDEX(shard_mapping_id)) "
+                            "DEFAULT CHARSET=utf8"
+    )
 
     DUMP_SHARD_TABLES = (
                             "SELECT "
@@ -118,7 +120,7 @@ class ShardMapping(_persistence.Persistable):
          "'RANGE','RANGE_INTEGER','RANGE_STRING','RANGE_DATETIME','HASH'"
          ") NOT NULL, "
          "global_group VARCHAR(64)"
-         ")"
+         ") DEFAULT CHARSET=utf8"
     )
 
     DUMP_SHARD_MAPS = (
@@ -627,7 +629,9 @@ class Shards(_persistence.Persistable):
     CREATE_SHARDS = ("CREATE TABLE shards ("
                     "shard_id INT AUTO_INCREMENT NOT NULL PRIMARY KEY, "
                     "group_id VARCHAR(64) NOT NULL, "
-                    "state ENUM('DISABLED', 'ENABLED') NOT NULL)")
+                    "state ENUM('DISABLED', 'ENABLED') NOT NULL) "
+                    "DEFAULT CHARSET=utf8"
+    )
 
     #Create the referential integrity constraint with the groups table.
     ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID = \
@@ -868,7 +872,9 @@ class RangeShardingSpecification(_persistence.Persistable):
                                 "lower_bound VARBINARY(16) NOT NULL, "
                                 "INDEX(lower_bound), "
                                 "UNIQUE(shard_mapping_id, lower_bound), "
-                                "shard_id INT NOT NULL)")
+                                "shard_id INT NOT NULL) "
+                                "DEFAULT CHARSET=utf8"
+    )
 
     #Create the referential integrity constraint with the shard_mapping_defn
     #table

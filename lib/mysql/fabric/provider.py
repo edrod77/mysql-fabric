@@ -33,7 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _CREATE_PROVIDER = (
     "CREATE TABLE providers "
-    "(provider_id VARCHAR(256) NOT NULL, "
+    "(provider_id VARCHAR(128) NOT NULL, "
     "type INT NOT NULL, "
     "username VARCHAR(100) NOT NULL, "
     "password VARCHAR(128) NOT NULL, "
@@ -41,7 +41,8 @@ _CREATE_PROVIDER = (
     "tenant VARCHAR(100) NOT NULL, "
     "default_image VARCHAR(256), "
     "default_flavor VARCHAR(256), "
-    "CONSTRAINT pk_provider_id PRIMARY KEY (provider_id))"
+    "CONSTRAINT pk_provider_id PRIMARY KEY (provider_id)) "
+    "DEFAULT CHARSET=utf8"
 )
 
 _QUERY_PROVIDER = (
