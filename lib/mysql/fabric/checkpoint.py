@@ -82,7 +82,8 @@ class Checkpoint(_persistence.Persistable):
         "sequence INTEGER NOT NULL, action_fqn TEXT NOT NULL, "
         "param_args BLOB NULL, param_kwargs BLOB NULL, "
         "started DOUBLE(16, 6) NULL, finished DOUBLE(16, 6) NULL, "
-        "CONSTRAINT pk_checkpoint PRIMARY KEY (proc_uuid, job_uuid))"
+        "CONSTRAINT pk_checkpoint PRIMARY KEY (proc_uuid, job_uuid)) "
+        "DEFAULT CHARSET=utf8"
         )
 
     #SQL statement for inserting a new checkpoint into the table.

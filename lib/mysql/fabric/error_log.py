@@ -56,7 +56,7 @@ class ErrorLog(_persistence.Persistable):
         "reporter VARCHAR(64) NOT NULL, "
         "error TEXT, "
         "INDEX key_server_uuid_reported (server_uuid, reported), "
-        "INDEX key_reporter (reporter))"
+        "INDEX key_reporter (reporter)) DEFAULT CHARSET=utf8"
     )
 
     #SQL Statement for creating event used to prune error logs that are

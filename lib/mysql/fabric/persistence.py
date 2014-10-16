@@ -397,7 +397,7 @@ class MySQLPersister(object):
             autocommit=True, use_unicode=True, **cls.connection_info
         )
         _server_utils.exec_mysql_stmt(
-            conn, "CREATE DATABASE %s" % (cls.database, )
+            conn, "CREATE DATABASE %s DEFAULT CHARSET=utf8" % (cls.database, )
         )
 
     @classmethod

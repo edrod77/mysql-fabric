@@ -97,7 +97,9 @@ class Group(_persistence.Persistable):
                     "master_uuid VARCHAR(40), "
                     "master_defined TIMESTAMP /*!50604 (6) */ NULL, "
                     "status BIT(1) NOT NULL, "
-                    "CONSTRAINT pk_group_id PRIMARY KEY (group_id))")
+                    "CONSTRAINT pk_group_id PRIMARY KEY (group_id)) "
+                    "DEFAULT CHARSET=utf8"
+    )
 
     #Create the table that stores the group replication relationship.
     CREATE_GROUP_REPLICATION = (
@@ -110,7 +112,9 @@ class Group(_persistence.Persistable):
                             "REFERENCES groups(group_id), "
                             "CONSTRAINT FOREIGN KEY(slave_group_id) "
                             "REFERENCES groups(group_id), "
-                            "INDEX idx_slave_group_id(slave_group_id))")
+                            "INDEX idx_slave_group_id(slave_group_id)) "
+                            "DEFAULT CHARSET=utf8"
+    )
 
     #SQL statement for inserting a new group into the table
     INSERT_GROUP = ("INSERT INTO groups(group_id, description, status) "
@@ -666,7 +670,8 @@ class MySQLServer(_persistence.Persistable):
         "group_id VARCHAR(64), "
         "CONSTRAINT pk_server_uuid PRIMARY KEY (server_uuid), "
         "INDEX idx_group_id (group_id), "
-        "UNIQUE INDEX idx_server_address (server_address))"
+        "UNIQUE INDEX idx_server_address (server_address)) "
+        "DEFAULT CHARSET=utf8"
     )
 
     #Create the referential integrity constraint with the groups table

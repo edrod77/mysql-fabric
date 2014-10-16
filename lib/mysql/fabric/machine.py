@@ -35,10 +35,11 @@ _LOGGER = logging.getLogger(__name__)
 _CREATE_INSTANCE = (
     "CREATE TABLE machines "
     "(machine_uuid VARCHAR(40) NOT NULL, "
-    "provider_id VARCHAR(256) NOT NULL, "
+    "provider_id VARCHAR(128) NOT NULL, "
     "av_zone VARCHAR(256), "
     "addresses TEXT, "
-    "INDEX idx_machine_provider_id (provider_id))"
+    "INDEX idx_machine_provider_id (provider_id)) "
+    "DEFAULT CHARSET=utf8"
 )
 
 _ALTER_FOREING_KEY_PROVIDER = (
