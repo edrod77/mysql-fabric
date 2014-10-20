@@ -3,6 +3,15 @@ ChangeLog for Fabric
 ####################
 
 
+Release 1.5.3 (released October 19, 2014)
+-----------------------------------------
+
+* BUG#74192: BUG#19785686: SETUP OF THE MYSQL FABRIC BACKING STORE FAILS
+  WITH UTF8
+* BUG#74255: BUG#19774543: MYSQLSERVER OBJECT CREATES CONNECTIONS WITH
+  "USE_UNICODE=FALSE"
+* BUG#19589254: FIXING DESIGN ISSUES TO ADD SUPPORT TO AWS AND TROVE
+
 Release 1.5.2 (released September 24, 2014)
 -------------------------------------------
 
