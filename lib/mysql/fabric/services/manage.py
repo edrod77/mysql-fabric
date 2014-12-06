@@ -129,13 +129,10 @@ class Start(Command):
         # Configure connections.
         _configure_connections(self.config)
 
-        try:
-            credentials.check_initial_setup(self.config,
-                                            _persistence.MySQLPersister(),
-                                            check_only=True)
-        except _errors.CredentialError as error:
-            _LOGGER.debug(str(error))
-            return
+        credentials.check_initial_setup(
+            self.config, _persistence.MySQLPersister(),
+            check_only=True
+        )
 
         # Daemonize ourselves.
         if daemonize:

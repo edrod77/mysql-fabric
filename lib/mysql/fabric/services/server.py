@@ -624,6 +624,11 @@ def _undo_destroy_group(group_id):
 def _lookup_uuid(address, timeout):
     """Return server's uuid.
     """
+    try:
+        timeout = float(timeout)
+    except (TypeError, ValueError):
+        pass
+
     timeout = timeout or DEFAULT_UNREACHABLE_TIMEOUT
     try:
         return _server.MySQLServer.discover_uuid(
