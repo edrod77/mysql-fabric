@@ -423,13 +423,9 @@ def main():
 
         fire_command(cmd, *cargs)
     except (URLError, HTTPError, NoOptionError) as error:
-        try:
-            if hasattr(error, 'code') and error.code == 400:
-                print "Permission denied."
-            else:
-                print error.reason
-        except AttributeError:
-            # print error as-is
+        if hasattr(error, 'code') and error.code == 400:
+            print "Permission denied."
+        else:
             print str(error)
     except (KeyboardInterrupt, EOFError):
         print "\nBye."
