@@ -41,6 +41,7 @@ import inspect
 import logging
 import functools
 import collections
+import json
 
 import mysql.fabric.errors as _errors
 import mysql.fabric.executor as _executor
@@ -772,6 +773,12 @@ class CommandResult(object):
     :param ttl: Time-To-Live (TTL) in seconds.
 
     """
+    TABLE_FORMAT = 'TABLE'
+    JSON_FORMAT = 'JSON'
+
+    OUTPUT_FORMAT = [
+        TABLE_FORMAT, JSON_FORMAT
+    ]
 
     def __init__(self, error, results=None, uuid=FABRIC_UUID, ttl=None):
         """Constructor.
@@ -807,16 +814,43 @@ class CommandResult(object):
         for result in results:
             self.append_result(result)
 
-    def emit(self, output):
+    @staticmethod
+    def get_output_format(output_format):
+        """Verify and return output format's type as a string.
+        """
+        try:
+            idx = int(output_format)
+            return CommandResult.OUTPUT_FORMAT[idx]
+        except TypeError:
+            return CommandResult.TABLE_FORMAT
+        except (ValueError, IndexError):
+            pass
+
+        output_format = output_format.upper()
+        if output_format not in CommandResult.OUTPUT_FORMAT:
+            return CommandResult.TABLE_FORMAT
+
+        return output_format
+
+    def emit(self, output, output_format=None):
         """Write a human-readable version of the command result.
 
         This will print a human-readable version of the command
         result, including all result sets, to the output provided.
 
         :param output: File object to write to.
-
         """
+        output_format = CommandResult.get_output_format(output_format)
 
+        if output_format == CommandResult.TABLE_FORMAT:
+            self._table_output(output)
+        elif output_format == CommandResult.JSON_FORMAT:
+            self._json_output(output)
+        output.write("\n")
+
+    def _table_output(self, output):
+        """Produce a table likewise output.
+        """
         rows = [
             "Fabric UUID:  %s" % self.uuid,
             "Time-To-Live: %d" % self.__ttl,
@@ -831,7 +865,31 @@ class CommandResult(object):
                 rows.append("")
 
         output.writelines(row + "\n" for row in rows)
-        output.write("\n")
+
+    def _json_output(self, output, *args, **kwargs):
+        """Produce a json output.
+        """
+        out_dict = {}
+
+        out_dict["Fabric UUID"] =  str(self.uuid)
+        out_dict["Time-To-Live"] = self.__ttl
+        out_dict["results"] = None
+        out_dict["error"] = None
+
+        if self.__error:
+            out_dict["error"] = self.__error
+        else:
+            out_dict["results"] = {}
+            for idx, rset in enumerate(self.__results):
+                result = {}
+                rset = self.__results[idx]
+                result["rows"] = [row for row in rset]
+                result["columns"] = [
+                    (col.name, col.type.__name__) for col in rset.columns
+                ]
+                out_dict["results"]["result %s" % idx] = result
+
+        json.dump(out_dict, output, *args, **kwargs)
 
     def __str__(self):
         """The command result as a string.

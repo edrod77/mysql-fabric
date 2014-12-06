@@ -355,15 +355,7 @@ def fire_command(command, *args):
 
     # Execute command by dispatching it on the client side. Append the
     # optional arguments passed by the user to the argument list.
-    result = command.dispatch(*(command.append_options_to_args(args)))
-
-    if result is not None:
-        result.emit(sys.stdout)
-        error = 1 if result.error else 0
-    else:
-        error = 0
-
-    return error
+    return command.dispatch(*(command.append_options_to_args(args)))
 
 def main():
     """Start mysqlfabric.py script
@@ -423,15 +415,21 @@ def main():
 
         authenticate(group_name, command_name, config, options, args)
 
-        return fire_command(cmd, *cargs)
+        error = 0
+        result = fire_command(cmd, *cargs)
+        if result is not None:
+            result.emit(sys.stdout)
+            error = 1 if result.error else 0
+        return error
+
+    except KeyboardInterrupt:
+        print "\nAborted due to keyboard interrupt."
+        return 130
     except (URLError, HTTPError, NoOptionError) as error:
         if hasattr(error, 'code') and error.code == 400:
             print "Permission denied."
         else:
             print str(error)
-    except KeyboardInterrupt:
-        print "\nAborted due to keyboard interrupt."
-        return 130
     except errors.Error as error:
         print "Error: {0}".format(error)
     except IOError as error:

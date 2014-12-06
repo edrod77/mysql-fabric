@@ -75,6 +75,12 @@ class OptionParser(optparse.OptionParser):
             action="store", dest="config_file", default=None,
             metavar="FILE",
             help="Read configuration from FILE.")
+        self.add_option(
+            "--output_format",
+            action="store", type="choice", dest="output_format",
+            choices=["TABLE", "JSON"], default="TABLE",
+            help="Define output format."
+        )
 
     def print_error(self, msg):
         """Format and print an error message to the standard output.
