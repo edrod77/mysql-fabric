@@ -21,7 +21,6 @@ import unittest
 import uuid as _uuid
 import tests.utils
 import mysql.fabric.errors as _errors
-import mysql.fabric.server_utils as _server_utils
 
 from mysql.fabric.provider import (
     Provider,

@@ -20,22 +20,26 @@ import uuid as _uuid
 import tests.utils
 
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
+import mysql.fabric.command as command
 
 from mysql.fabric.sharding import (
     ShardMapping,
     RangeShardingSpecification,
     Shards,
 )
+
 from mysql.fabric.server import (
     Group,
     MySQLServer,
 )
 
-import mysql.fabric.command as command
+from mysql.fabric.connection import (
+    split_host_port
+)
 
-from mysql.fabric import server_utils
-from tests.utils import MySQLInstances
-
+from tests.utils import (
+    MySQLInstances
+)
 
 class TestSharding(tests.utils.TestCase):
     """Test dump interface associated to sharding.
@@ -49,12 +53,14 @@ class TestSharding(tests.utils.TestCase):
             "address"  : "server_1.mysql.com:3060",
         }
         self.__server_1 = MySQLServer(**self.__options_1)
+        self.__server_1.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_1)
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_2.mysql.com:3060",
         }
         self.__server_2 = MySQLServer(**self.__options_2)
+        self.__server_2.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_2)
         self.__group_1 = Group("GROUPID1", "First description.")
         Group.add(self.__group_1)
@@ -70,6 +76,7 @@ class TestSharding(tests.utils.TestCase):
         uuid_server3 = MySQLServer.discover_uuid(self.__options_3["address"])
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
         self.__server_3 = MySQLServer(**self.__options_3)
+        self.__server_3.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_3)
 
         self.__options_4 = {
@@ -77,6 +84,7 @@ class TestSharding(tests.utils.TestCase):
             "address"  : "server_4.mysql.com:3060",
         }
         self.__server_4 = MySQLServer(**self.__options_4)
+        self.__server_4.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_4)
         self.__group_2 = Group("GROUPID2", "Second description.")
         Group.add(self.__group_2)
@@ -93,6 +101,7 @@ class TestSharding(tests.utils.TestCase):
         uuid_server5 = MySQLServer.discover_uuid(self.__options_5["address"])
         self.__options_5["uuid"] = _uuid.UUID(uuid_server5)
         self.__server_5 = MySQLServer(**self.__options_5)
+        self.__server_5.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_5)
 
         self.__options_6 = {
@@ -100,6 +109,7 @@ class TestSharding(tests.utils.TestCase):
             "address"  : "server_6.mysql.com:3060",
         }
         self.__server_6 = MySQLServer(**self.__options_6)
+        self.__server_6.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_6)
         self.__group_3 = Group("GROUPID3", "Third description.")
         Group.add(self.__group_3)
@@ -108,17 +118,17 @@ class TestSharding(tests.utils.TestCase):
         tests.utils.configure_decoupled_master(self.__group_3, self.__server_5)
 
         self.__options_1_host,  self.__options_1_port = \
-            server_utils.split_host_port(self.__options_1["address"], 13001)
+            split_host_port(self.__options_1["address"], 13001)
         self.__options_2_host,  self.__options_2_port = \
-            server_utils.split_host_port(self.__options_2["address"], 13001)
+            split_host_port(self.__options_2["address"], 13001)
         self.__options_3_host,  self.__options_3_port = \
-            server_utils.split_host_port(self.__options_3["address"], 13001)
+            split_host_port(self.__options_3["address"], 13001)
         self.__options_4_host,  self.__options_4_port = \
-            server_utils.split_host_port(self.__options_4["address"], 13001)
+            split_host_port(self.__options_4["address"], 13001)
         self.__options_5_host,  self.__options_5_port = \
-            server_utils.split_host_port(self.__options_5["address"], 13001)
+            split_host_port(self.__options_5["address"], 13001)
         self.__options_6_host,  self.__options_6_port = \
-            server_utils.split_host_port(self.__options_6["address"], 13001)
+            split_host_port(self.__options_6["address"], 13001)
 
         group_4 = Group("GROUPID4", "4TH description.")
         Group.add(group_4)

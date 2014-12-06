@@ -49,6 +49,7 @@ class TestServerClone(tests.utils.TestCase):
         uuid_server1 = MySQLServer.discover_uuid(self.__options_1["address"])
         self.__options_1["uuid"] = _uuid.UUID(uuid_server1)
         self.__server_1 = MySQLServer(**self.__options_1)
+        self.__server_1.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_1)
         self.__server_1.connect()
 
@@ -63,6 +64,7 @@ class TestServerClone(tests.utils.TestCase):
         self.__options_2["uuid"] = _uuid.UUID(uuid_server2)
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)
+        self.__server_2.status = MySQLServer.SECONDARY
         self.__server_2.connect()
 
         self.__options_3 = {
@@ -75,6 +77,7 @@ class TestServerClone(tests.utils.TestCase):
         uuid_server3 = MySQLServer.discover_uuid(self.__options_3["address"])
         self.__options_3["uuid"] = _uuid.UUID(uuid_server3)
         self.__server_3 = MySQLServer(**self.__options_3)
+        self.__server_3.status = MySQLServer.SECONDARY
         MySQLServer.add(self.__server_3)
         self.__server_3.connect()
 

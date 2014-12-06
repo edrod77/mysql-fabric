@@ -169,6 +169,7 @@ class TestReplicationServices(tests.utils.TestCase):
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
             "unknown_host:32274"
             )
+        invalid_server.status = _server.MySQLServer.SECONDARY
         _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)
@@ -188,6 +189,7 @@ class TestReplicationServices(tests.utils.TestCase):
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
             "unknown_host:32274", user, passwd
             )
+        invalid_server.status = _server.MySQLServer.SECONDARY
         _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")
         group.add_server(invalid_server)

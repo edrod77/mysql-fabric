@@ -41,6 +41,10 @@ from mysql.fabric.services.server import (
     _retrieve_server
 )
 
+from mysql.fabric.connection import (
+    MySQLConnectionManager
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 REPORT_ERROR = _events.Event("REPORT_ERROR")
@@ -103,6 +107,8 @@ class ReportFailure(ProcedureGroup):
         :param error: Error that has been reported.
         :param update_only: Only update the state store and skip provisioning.
         """
+        server = _retrieve_server(server_id)
+        _set_status_faulty(server)
         procedures = _events.trigger(
             REPORT_FAILURE, self.get_lockable_objects(), server_id, reporter,
             error, update_only
@@ -122,26 +128,26 @@ def _report_error(server_id, reporter, error, update_only):
                       ReportError._NOTIFICATION_CLIENTS):
         group = _server.Group.fetch(server.group_id)
         if group.can_set_server_faulty(server, now):
-            _set_status_faulty(server, update_only)
+            _set_status_faulty(server)
+            _trigger_actions(server, update_only)
 
 @_events.on_event(REPORT_FAILURE)
 def _report_failure(server_id, reporter, error, update_only):
     """Report a server failure.
     """
     (_, server) = _append_error_log(server_id, reporter, error)
-    _set_status_faulty(server, update_only)
+    _trigger_actions(server, update_only)
 
-def _set_status_faulty(server, update_only):
-    """Set server's status to fauly and trigger a failover if the server
-    is a master.
-
-    This function assumes that the SERVER_LOST event is executed before
-    the FAIL_OVER event.
+def _set_status_faulty(server):
+    """Set server's status to faulty.
     """
     server.status = _server.MySQLServer.FAULTY
+    MySQLConnectionManager().purge_connections(server)
 
+def _trigger_actions(server, update_only):
+    """Trigger a failover if the server is a master.
+    """
     if not update_only:
-        _server.ConnectionPool().purge_connections(server.uuid)
         group = _server.Group.fetch(server.group_id)
         if group.master == server.uuid:
             _LOGGER.info("Master (%s) in group (%s) has "
@@ -157,15 +163,10 @@ def _append_error_log(server_id, reporter, error):
     error log.
     """
     server = _retrieve_server(server_id)
-    if server.status == _server.MySQLServer.FAULTY:
-        raise _errors.ServerError(
-            "Server (%s) is already marked as faulty." % (server.uuid, )
-        )
-
-    _LOGGER.warning("Reported issue (%s) for server (%s).", error, server.uuid)
-
     now = get_time()
     _error_log.ErrorLog.add(server, now, reporter, error)
+
+    _LOGGER.warning("Reported issue (%s) for server (%s).", error, server.uuid)
 
     return (now, server)
 

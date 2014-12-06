@@ -46,7 +46,6 @@ from SocketServer import (
 )
 
 import mysql.fabric.persistence as _persistence
-import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.errors as _errors
 
 from mysql.fabric import (

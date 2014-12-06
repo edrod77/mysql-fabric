@@ -32,12 +32,16 @@ from subprocess import (
 
 from mysql.fabric import (
     errors as _errors,
-    server_utils as _server_utils,
 )
 
 from urlparse import urlparse
 
-from mysql.fabric.server import MySQLServer
+from mysql.fabric.server import (
+    MySQLServer
+)
+from mysql.fabric.connection import (
+    split_host_port
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -201,10 +205,9 @@ class MySQLDump(BackupMethod):
         host = None
         port = None
         if server.address is not None:
-            host, port = _server_utils.split_host_port(
-                            server.address,
-                            MySQLDump.MYSQL_DEFAULT_PORT
-                         )
+            host, port = split_host_port(
+                server.address, MySQLDump.MYSQL_DEFAULT_PORT
+            )
 
         #Form the name of the destination .sql file from the name of the
         #server host and the port number that is being backed up.
@@ -314,10 +317,9 @@ class MySQLDump(BackupMethod):
         host = None
         port = None
         if server.address is not None:
-            host, port = _server_utils.split_host_port(
-                                                server.address,
-                                                MySQLDump.MYSQL_DEFAULT_PORT
-                                                )
+            host, port = split_host_port(
+                server.address, MySQLDump.MYSQL_DEFAULT_PORT
+            )
         MySQLDump.restore_server(host, port, server.user, server.passwd,
                 image, config_file, mysqlclient_binary)
 

@@ -20,8 +20,12 @@
 import time
 import uuid as _uuid
 import mysql.fabric.errors as _errors
-import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.server as _server
+
+from mysql.fabric.connection import (
+    split_host_port,
+    MYSQL_DEFAULT_PORT
+)
 
 _RPL_USER_QUERY = (
     "SELECT user, host, password != '' as has_password "
@@ -459,8 +463,10 @@ def switch_master(slave, master, master_user, master_passwd=None,
     """
     commands = []
     params = []
-    master_host, master_port = _server_utils.split_host_port(master.address,
-        _server_utils.MYSQL_DEFAULT_PORT)
+    master_host, master_port = split_host_port(
+        master.address,
+        MYSQL_DEFAULT_PORT
+    )
 
     commands.append("MASTER_HOST = %s")
     params.append(master_host)

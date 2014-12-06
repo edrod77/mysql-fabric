@@ -50,6 +50,14 @@ from mysql.fabric.utils import (
     get_time,
 )
 
+from mysql.fabric.server import (
+    Group,
+    MySQLServer
+)
+from mysql.fabric.connection import (
+    MySQLConnectionManager
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 class FailureDetector(object):
@@ -75,7 +83,6 @@ class FailureDetector(object):
     def register_groups():
         """Upon startup initializes a failure detector for each group.
         """
-        from mysql.fabric.server import Group
         _LOGGER.info("Starting failure detector.")
         for row in Group.groups_by_status(Group.ACTIVE):
             FailureDetector.register_group(row[0])
@@ -122,6 +129,8 @@ class FailureDetector(object):
         self.__group_id = group_id
         self.__thread = None
         self.__check = False
+        self.__connection_manager = MySQLConnectionManager()
+        self.__thread_report_failure = False
 
     def start(self):
         """Start the failure detector.
@@ -140,11 +149,6 @@ class FailureDetector(object):
     def _run(self):
         """Function that verifies servers' availabilities.
         """
-        from mysql.fabric.server import (
-            Group,
-            MySQLServer,
-        )
-
         ignored_status = [MySQLServer.FAULTY]
         quarantine = {}
         interval = FailureDetector._DETECTION_INTERVAL
@@ -160,7 +164,11 @@ class FailureDetector(object):
                 if group is not None:
                     for server in group.servers():
                         if server.status in ignored_status or \
-                            server.is_alive(detection_timeout):
+                            MySQLServer.is_alive(server, detection_timeout):
+                            if server.status == MySQLServer.FAULTY:
+                                self.__connection_manager.purge_connections(
+                                    server
+                                )
                             continue
 
                         unreachable.add(server.uuid)
@@ -184,15 +192,8 @@ class FailureDetector(object):
                             server, get_time()
                         )
                         if unstable and can_set_faulty:
-                            procedures = trigger("REPORT_FAILURE", None,
-                                str(server.uuid),
-                                threading.current_thread().name,
-                                MySQLServer.FAULTY, False
-                            )
-                            executor = _executor.Executor()
-                            for procedure in procedures:
-                                executor.wait_for_procedure(procedure)
-
+                            self._spawn_report_failure(server)
+                            
                 for uuid in quarantine.keys():
                     if uuid not in unreachable:
                         del quarantine[uuid]
@@ -206,6 +207,44 @@ class FailureDetector(object):
 
         _persistence.deinit_thread()
 
+    def _spawn_report_failure(self, server):
+        if not self.__thread_report_failure:
+            report_failure = threading.Thread(target=self._report_failure,
+                name="ReportFailure(" + self.__group_id + ")", args=(server, )
+            )
+            report_failure.daemon = True
+            report_failure.start()
+            self.__thread_report_failure = True
+
+    def _report_failure(self, server):
+        """Mark the server as faulty and report a failure.
+
+        The thread is created to allow the built-in failure detector
+        to continue monitoring the servers so that if the report failure
+        hangs, it will kill all connections to faulty servers thus
+        eventually freeing the thread.
+
+        Not though that the report failure is not crash-safe so it might
+        fail without promoting a new server to master. In the future, we
+        will circumvent this limitation.
+        """
+        try:
+            _persistence.init_thread()
+
+            server.status = MySQLServer.FAULTY
+            self.__connection_manager.purge_connections(server)
+
+            procedures = trigger(
+                "REPORT_FAILURE", None, str(server.uuid),
+                threading.current_thread().name, MySQLServer.FAULTY, False
+            )
+            executor = _executor.Executor()
+            for procedure in procedures:
+                executor.wait_for_procedure(procedure)
+
+            _persistence.deinit_thread()
+        finally:
+            self.__thread_report_failure = False
 
 def configure(config):
     """Set configuration values.

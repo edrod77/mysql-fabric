@@ -51,8 +51,12 @@ import threading
 import time
 import uuid as _uuid
 
-import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.errors as _errors
+
+from mysql.fabric.connection import (
+    MYSQL_DEFAULT_PORT,
+    MySQLConnection, 
+)
 
 DEFAULT_DATABASE = 'fabric'
 DEFAULT_CONNECT_ATTEMPTS = 0
@@ -362,7 +366,7 @@ class MySQLPersister(object):
                             authentication with the database server.
         """
         if port is None:
-            port = _server_utils.MYSQL_DEFAULT_PORT
+            port = MYSQL_DEFAULT_PORT
 
         if database is None:
             database = DEFAULT_DATABASE
@@ -393,11 +397,11 @@ class MySQLPersister(object):
         the database if it does not exist.
         """
         assert (cls.connection_info is not None)
-        conn = _server_utils.create_mysql_connection(
+        conn = MySQLConnection(
             autocommit=True, **cls.connection_info
         )
-        _server_utils.exec_mysql_stmt(
-            conn, "CREATE DATABASE %s DEFAULT CHARSET=utf8" % (cls.database, )
+        conn.exec_stmt(
+            "CREATE DATABASE %s DEFAULT CHARSET=utf8" % (cls.database, )
         )
 
     @classmethod
@@ -409,11 +413,11 @@ class MySQLPersister(object):
         all object tables.
         """
         assert (cls.connection_info is not None)
-        conn = _server_utils.create_mysql_connection(
+        conn = MySQLConnection(
             autocommit=True, **cls.connection_info
         )
-        _server_utils.exec_mysql_stmt(
-            conn, "DROP DATABASE IF EXISTS %s" % (cls.database, )
+        conn.exec_stmt(
+            "DROP DATABASE IF EXISTS %s" % (cls.database, )
         )
 
     def __init__(self):
@@ -424,7 +428,7 @@ class MySQLPersister(object):
 
         assert (self.connection_info is not None)
         try:
-            self.__cnx = _server_utils.create_mysql_connection(
+            self.__cnx = MySQLConnection(
                 autocommit=True, database=self.database,
                 **self.connection_info
             )
@@ -442,7 +446,7 @@ class MySQLPersister(object):
         """
         try:
             if self.__cnx:
-                _server_utils.destroy_mysql_connection(self.__cnx)
+                self.__cnx.shutdown()
         except AttributeError:
             pass
 
@@ -478,9 +482,7 @@ class MySQLPersister(object):
         Otherwise, return None.
         """
         try:
-            row = _server_utils.exec_mysql_stmt(
-                self.__cnx, "SELECT @@GLOBAL.SERVER_UUID"
-            )
+            row = self.__cnx.exec_stmt("SELECT @@GLOBAL.SERVER_UUID")
             return _uuid.UUID(str(row[0][0]))
         except _errors.DatabaseError:
             pass
@@ -490,9 +492,7 @@ class MySQLPersister(object):
     def max_allowed_connections(self):
         """Return the maximum number of allowed connections to server.
         """
-        row = _server_utils.exec_mysql_stmt(
-            self.__cnx, "SELECT @@GLOBAL.max_connections"
-        )
+        row = self.__cnx.exec_stmt("SELECT @@GLOBAL.max_connections")
         return int(row[0][0])
 
     def exec_stmt(self, stmt_str, options=None):
@@ -502,15 +502,13 @@ class MySQLPersister(object):
         the connection is valid or not. If the connection is invalid, it tries
         to restablish it as MySQL might disconnect inactive connections.
 
-        See :meth:`~mysql.fabric.server_utils.exec_stmt`.
+        See :meth:`~mysql.fabric.connection.MySQLConnection.exec_stmt`.
         """
         while True:
             if self.__check_connection and \
-                not _server_utils.is_valid_mysql_connection(self.__cnx):
+                not self.__cnx.is_valid_mysql_connection():
                 self._try_to_fix_connection()
-            return _server_utils.exec_mysql_stmt(
-                self.__cnx, stmt_str, options
-            )
+            return self.__cnx.exec_stmt(stmt_str, options)
 
     def _try_to_fix_connection(self):
         """Try to get a new connection if the current one is stale.
@@ -518,11 +516,11 @@ class MySQLPersister(object):
         for attempt in range(0, self.connection_attempts):
             try:
                 if self.__cnx:
-                    _server_utils.reestablish_mysql_connection(
-                        self.__cnx, attempt=1, delay=0
+                    self.__cnx.reestablish_mysql_connection(
+                        attempt=1, delay=0
                     )
                 else:
-                    self.__cnx = _server_utils.create_mysql_connection(
+                    self.__cnx = MySQLConnection(
                         autocommit=True, database=self.database,
                         **self.connection_info
                     )

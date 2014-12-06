@@ -82,7 +82,6 @@ from mysql.fabric import (
     failure_detector as _detector,
     group_replication as _group_replication,
     sharding as _sharding,
-    server_utils as _server_utils,
     config as _config,
 )
 
@@ -95,6 +94,10 @@ from mysql.fabric.command import (
 
 from mysql.fabric.utils import (
     get_time,
+)
+
+from mysql.fabric.connection import (
+    split_host_port,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -285,6 +288,7 @@ class ServerUuid(Command):
         return CommandResult(None, results=rset)
 
 ADD_SERVER = _events.Event()
+CONFIGURE_NEW_SERVER = _events.Event()
 class ServerAdd(ProcedureGroup):
     """Add a server into group.
 
@@ -469,6 +473,7 @@ class SetServerWeight(ProcedureGroup):
         return self.wait_for_procedures(procedures, synchronous)
 
 SET_SERVER_MODE = _events.Event()
+CONFIGURE_FAULTY_SERVER = _events.Event()
 class SetServerMode(ProcedureGroup):
     """Set a server's mode.
 
@@ -515,7 +520,7 @@ class CloneServer(ProcedureGroup):
         # an error
         destn_server_uuid = _lookup_uuid(destn_address, timeout)
         _check_server_not_in_any_group(destn_server_uuid)
-        host, port = _server_utils.split_host_port(
+        host, port = split_host_port(
             destn_address, _backup.MySQLDump.MYSQL_DEFAULT_PORT
         )
 
@@ -641,16 +646,14 @@ def _lookup_uuid(address, timeout):
 
 @_events.on_event(ADD_SERVER)
 def _add_server(group_id, address, timeout, update_only):
-    """Add a server into a group.
+    """Only add a server with a configuring status into a group.
+    The next step is responsible for setting up the server though.
+    For example, replication will be configured in the next step.
     """
     group = _retrieve_group(group_id)
     uuid = _lookup_uuid(address, timeout)
     _check_server_exists(uuid)
     server = _server.MySQLServer(uuid=_uuid.UUID(uuid), address=address)
-
-    # Check if the server fulfils the necessary requirements to become
-    # a member.
-    _check_requirements(server)
 
     # Add server to the state store.
     _server.MySQLServer.add(server)
@@ -658,10 +661,27 @@ def _add_server(group_id, address, timeout, update_only):
     # Add server as a member in the group.
     server.group_id = group_id
 
-    if not update_only:
-        # Configure the server as a slave if there is a master.
-        _configure_as_slave(group, server)
+    _events.trigger_within_procedure(
+        CONFIGURE_NEW_SERVER, group_id, str(server.uuid), update_only
+    )
 
+@_events.on_event(CONFIGURE_NEW_SERVER)
+def _configure_new_server(group_id, server_uuid, update_only):
+    """Configure replication and set the server's status to secondary.
+    """
+    group = _server.Group.fetch(group_id)
+    server = _server.MySQLServer.fetch(server_uuid)
+    server.status = _server.MySQLServer.SECONDARY
+
+    try:
+        _check_requirements(server)
+        if not update_only:
+            _configure_as_slave(group, server)
+    except _errors.ServerError, _errors.DatabaseError:
+        _server.MySQLServer.remove(server)
+        server.disconnect()
+        raise 
+    
     _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
 @_events.on_event(REMOVE_SERVER)
@@ -679,7 +699,6 @@ def _remove_server(group_id, server_id):
 
     _server.MySQLServer.remove(server)
     server.disconnect()
-    _server.ConnectionPool().purge_connections(server.uuid)
 
 @_events.on_event(SET_SERVER_STATUS)
 def _set_server_status(server_id, status, update_only):
@@ -750,24 +769,47 @@ def _set_server_status_secondary(server, update_only):
     _do_set_status(server, allowed_status, status, mode, update_only)
 
 def _set_server_status_spare(server, update_only):
-    """Set server's status to spare.
+    """Set server's status to spare. If the server has faulty or
+    configuring status, it might happen that it is not properly
+    configured. So the server's status is temporarily set to
+    configuring and the proper configuration actions are taken
+    in the next step.
     """
     allowed_status = [
-        _server.MySQLServer.SECONDARY, _server.MySQLServer.FAULTY
+        _server.MySQLServer.SECONDARY, _server.MySQLServer.FAULTY,
+        _server.MySQLServer.CONFIGURING
     ]
     status = _server.MySQLServer.SPARE
     mode = _server.MySQLServer.OFFLINE
     previous_status = server.status
+
+    if previous_status in \
+        (_server.MySQLServer.FAULTY, _server.MySQLServer.CONFIGURING):
+        if server.is_alive():
+            _events.trigger_within_procedure(
+                CONFIGURE_FAULTY_SERVER, str(server.uuid), previous_status,
+                update_only
+            )
+        status = _server.MySQLServer.CONFIGURING
+
     _do_set_status(server, allowed_status, status, mode, update_only)
 
-    if previous_status == _server.MySQLServer.FAULTY:
-        # Check whether the server is really alive or not.
+@_events.on_event(CONFIGURE_FAULTY_SERVER)
+def _configure_faulty_server(server_uuid, previous_status, update_only):
+    """Configure replication and set the server's status to spare.
+    """
+    server = _server.MySQLServer.fetch(server_uuid)
+    server.status = _server.MySQLServer.SPARE
+
+    try:
         _check_requirements(server)
 
-        # Configure replication
         if not update_only:
-             group = _server.Group.fetch(server.group_id)
-             _configure_as_slave(group, server)
+            group = _server.Group.fetch(server.group_id)
+            _configure_as_slave(group, server)
+    except _errors.ServerError, _errors.DatabaseError:
+        server.status = previous_status
+        raise
 
 def _do_set_status(server, allowed_status, status, mode, update_only):
     """Set server's status.
@@ -1040,7 +1082,7 @@ def _check_group_dependencies(group):
 def _check_requirements(server):
     """Check if the server fulfils some requirements.
     """
-    # Being able to connect to the server is the first requirment.
+    # Being able to connect to the server is the first requirement.
     server.connect()
 
     if not server.check_version_compat((5, 6, 8)):

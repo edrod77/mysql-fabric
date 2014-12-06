@@ -30,26 +30,26 @@ from mysql.fabric.command import (
     ResultSet,
 )
 
+from mysql.fabric.services.server import (
+   DEFAULT_UNREACHABLE_TIMEOUT
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 class CheckHealth(Command):
     """Check if any server within a group has failed and report health
     information.
-
-    It returns a dictionary where keys are the servers' uuids and the
-    values are dictionaries which have the following keys:
-
-    * is_alive - whether it is possible to access the server or not.
-    * status - PRIMARY, SECONDARY, SPARE or FAULTY.
-    * threads - Information on the replication threads.
     """
     group_name = "group"
     command_name = "health"
 
-    def execute(self, group_id):
+    def execute(self, group_id, timeout=None):
         """Check if any server within a group has failed.
 
         :param group_id: Group's id.
+        :param group_id: Timeout value after which a server is considered
+                         unreachable. If None is provided, it assumes the
+                         default value in the configuration file.
         """
 
         group = _server.Group.fetch(group_id)
@@ -66,10 +66,16 @@ class CheckHealth(Command):
         )
         issues = ResultSet(names=['issue'], types=[str])
 
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError):
+            pass
+
         for server in group.servers():
             alive = False
             is_master = (group.master == server.uuid)
             status = server.status
+
             why_slave_issues = {}
             # These are used when server is not contactable.
             why_slave_issues = {
@@ -80,10 +86,11 @@ class CheckHealth(Command):
                 'io_error': False,
                 'sql_error': False,
             }
+
             try:
-                server.connect()
-                alive = True
-                if not is_master:
+                alive = server.is_alive(timeout or DEFAULT_UNREACHABLE_TIMEOUT)
+                if alive and not is_master:
+                    server.connect()
                     slave_issues, why_slave_issues = \
                         _replication.check_slave_issues(server)
                     str_master_uuid = _replication.slave_has_master(server)
@@ -95,7 +102,8 @@ class CheckHealth(Command):
                             (group.master, str_master_uuid)
                         ])
             except _errors.DatabaseError:
-                status = _server.MySQLServer.FAULTY
+                alive = False
+
             info.append_row([
                 server.uuid,
                 alive,

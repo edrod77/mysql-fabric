@@ -45,15 +45,23 @@ from datetime import (
 from mysql.fabric import (
     errors as _errors,
     persistence as _persistence,
-    server_utils as _server_utils,
     utils as _utils,
-    failure_detector as _detector,
-    error_log as _error_log,
     config as _config,
 )
 
 from mysql.fabric.handler import (
     MySQLHandler,
+)
+
+from mysql.fabric.connection import (
+    MYSQL_DEFAULT_PORT,
+    MySQLConnection,
+    MySQLConnectionManager,
+    split_host_port
+)
+
+from mysql.fabric.error_log import (
+    ErrorLog
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -431,8 +439,12 @@ class Group(_persistence.Persistable):
                           state store.
         """
         assert(status in Group.GROUP_STATUS)
-        # Check the maximum number of threads.
-        _utils.check_number_threads(1)
+
+        # Check the maximum number of threads before enabling the failure
+        # detector. If the state store cannot accomodate a new connection
+        # the failure detector will not work properly.
+        _utils.check_number_threads(2)
+
         persister.exec_stmt(Group.UPDATE_STATUS,
             {"params":(status, self.__group_id)})
         self.__status = status
@@ -544,75 +556,6 @@ class Group(_persistence.Persistable):
         persister.exec_stmt(
                 Group.ADD_FOREIGN_KEY_CONSTRAINT_MASTER_UUID
         )
-        return True
-
-
-class ConnectionPool(_utils.Singleton):
-    """Manages MySQL Servers' connections.
-
-    The pool is internally implemented as a dictionary that maps a server's
-    uuid to a sequence of connections.
-    """
-    def __init__(self):
-        """Creates a ConnectionPool object.
-        """
-        super(ConnectionPool, self).__init__()
-        self.__pool = {}
-        self.__lock = threading.RLock()
-
-    def get_connection(self, uuid, user):
-        """Get a connection.
-
-        The method gets a connection from a pool if there is any.
-        """
-        assert(isinstance(uuid, _uuid.UUID))
-        with self.__lock:
-            try:
-                while len(self.__pool[uuid]):
-                    cnx = self.__pool[uuid].pop()
-                    assert(user != None and cnx.user == user)
-                    if _server_utils.is_valid_mysql_connection(cnx):
-                        return cnx
-            except (KeyError, IndexError):
-                pass
-        return None
-
-    def release_connection(self, uuid, cnx):
-        """Release a connection to the pool.
-
-        It is up to the developer to check if the connection is still
-        valid and belongs to this server before returning it to the pool.
-        """
-        assert(isinstance(uuid, _uuid.UUID))
-        with self.__lock:
-            if uuid not in self.__pool:
-                self.__pool[uuid] = []
-            self.__pool[uuid].append(cnx)
-
-    def get_number_connections(self, uuid):
-        """Return the number of connections available in the pool.
-        """
-        assert(isinstance(uuid, _uuid.UUID))
-        with self.__lock:
-            try:
-                return len(self.__pool[uuid])
-            except KeyError:
-                pass
-        return 0
-
-    def purge_connections(self, uuid):
-        """Close and remove all connections that belongs to a MySQL Server
-        which is identified by its uuid.
-        """
-        assert(isinstance(uuid, _uuid.UUID))
-        with self.__lock:
-            try:
-                for cnx in self.__pool[uuid]:
-                    _server_utils.destroy_mysql_connection(cnx)
-                del self.__pool[uuid]
-            except KeyError:
-                pass
-
 
 class MySQLServer(_persistence.Persistable):
     """Proxy class that provides an interface to access a MySQL Server
@@ -732,53 +675,44 @@ class MySQLServer(_persistence.Persistable):
         "status != %s ORDER BY group_id, server_address, server_uuid"
         )
 
-    #Default weight for the server
     DEFAULT_WEIGHT = 1.0
 
-    # Define a session context for a variable.
     SESSION_CONTEXT = "SESSION"
 
-    # Define a global context for a variable.
     GLOBAL_CONTEXT = "GLOBAL"
 
     # Set of contexts.
     CONTEXTS = [SESSION_CONTEXT, GLOBAL_CONTEXT]
 
-    # Define the offline mode.
     OFFLINE = "OFFLINE"
 
-    # Define the read-only mode.
     READ_ONLY = "READ_ONLY"
 
-    # Define the write-only mode.
     WRITE_ONLY = "WRITE_ONLY"
 
-    # Define the read-write mode.
     READ_WRITE = "READ_WRITE"
 
-    # Define default mode
     DEFAULT_MODE = READ_ONLY
 
     # Set of possible modes.
     SERVER_MODE = [OFFLINE, READ_ONLY, WRITE_ONLY, READ_WRITE]
 
-    # Define the faulty status.
     FAULTY = "FAULTY"
 
-    # Define the spare status.
     SPARE = "SPARE"
 
-    # Define the secondary status.
     SECONDARY = "SECONDARY"
 
-    # Define the primary status.
     PRIMARY = "PRIMARY"
 
-    # Define default status
-    DEFAULT_STATUS = SECONDARY
+    CONFIGURING = "CONFIGURING"
+
+    DEFAULT_STATUS = CONFIGURING
 
     # Set of possible statuses.
-    SERVER_STATUS = [FAULTY, SPARE, SECONDARY, PRIMARY]
+    SERVER_STATUS = [
+        FAULTY, SPARE, SECONDARY, PRIMARY, CONFIGURING
+    ]
 
     USER = None
 
@@ -810,9 +744,9 @@ class MySQLServer(_persistence.Persistable):
         self.__uuid = uuid
         self.__address = address
         self.__group_id = group_id
-        self.__pool = ConnectionPool()
-        self.__user = user
-        self.__passwd = passwd
+        self.__cnx_manager = MySQLConnectionManager()
+        self.__user = user or MySQLServer.USER
+        self.__passwd = passwd or MySQLServer.PASSWD
         self.__mode = mode
         self.__status = status
         self.__weight = weight
@@ -836,48 +770,22 @@ class MySQLServer(_persistence.Persistable):
         :return: UUID.
         """
 
-        host, port = _server_utils.split_host_port(
-            address,  _server_utils.MYSQL_DEFAULT_PORT
-        )
-        port = int(port)
+        host, port = split_host_port(address, MYSQL_DEFAULT_PORT)
 
         user = user or MySQLServer.USER
         passwd = passwd or MySQLServer.PASSWD
-        cnx = _server_utils.create_mysql_connection(
+        cnx = MySQLConnection(
             user=user, passwd=passwd, host=host, port=port, autocommit=True,
             connection_timeout=connection_timeout
         )
 
         try:
-            row = _server_utils.exec_mysql_stmt(cnx,
-                "SELECT @@GLOBAL.SERVER_UUID")
+            row = cnx.exec_stmt("SELECT @@GLOBAL.SERVER_UUID")
             server_uuid = str(row[0][0])
         finally:
-            _server_utils.destroy_mysql_connection(cnx)
+            cnx.shutdown()
 
         return server_uuid
-
-    def _do_connection(self):
-        """Get a connection from the pool provided there is one or create
-        a fresh connection.
-        """
-        cnx = self.__pool.get_connection(self.__uuid, self.user)
-        if cnx:
-            return cnx
-
-        return self._do_create_connection()
-
-    def _do_create_connection(self, connection_timeout=None):
-        """Create a new connection.
-        """
-        host, port = _server_utils.split_host_port(self.address,
-            _server_utils.MYSQL_DEFAULT_PORT)
-
-        return _server_utils.create_mysql_connection(
-            autocommit=True, host=host, port=port,
-            user=self.user, passwd=self.passwd,
-            connection_timeout=connection_timeout
-        )
 
     def connect(self):
         """Connect to a MySQL Server instance.
@@ -885,7 +793,7 @@ class MySQLServer(_persistence.Persistable):
         self.disconnect()
 
         # Set up an internal connection.
-        self.__cnx = self._do_connection()
+        self.__cnx = self.__cnx_manager.get_connection(self)
         _LOGGER.debug("Using connection (%s).", self.__cnx)
 
         # Get server's uuid
@@ -932,7 +840,7 @@ class MySQLServer(_persistence.Persistable):
                           self.__server_id, self.__version,
                           self.__gtid_enabled, self.__binlog_enabled,
                           self.__read_only)
-            self.__pool.release_connection(self.__uuid, self.__cnx)
+            self.__cnx_manager.release_connection(self, self.__cnx)
             self.__cnx = None
             self.__read_only = None
             self.__server_id = None
@@ -991,10 +899,15 @@ class MySQLServer(_persistence.Persistable):
         """
         res = False
         try:
-            cnx = self._do_create_connection(connection_timeout)
+            host, port = split_host_port(self.__address, MYSQL_DEFAULT_PORT)
+            cnx = MySQLConnection(
+                autocommit=True, host=host, port=port,
+                user=self.__user, passwd=self.__passwd,
+                connection_timeout=connection_timeout
+            )
             res = True
-            _server_utils.destroy_mysql_connection(cnx)
-        except _errors.DatabaseError:
+            cnx.shutdown()
+        except _errors.DatabaseError as error:
             pass
 
         return res
@@ -1408,17 +1321,14 @@ class MySQLServer(_persistence.Persistable):
 
     def exec_stmt(self, stmt_str, options=None):
         """Execute statements against the server.
-        See :meth:`~mysql.fabric.server_utils.exec_stmt`.
+        See :meth:`~mysql.fabric.connection.MySQLConnection.exec_stmt`.
         """
-        return _server_utils.exec_mysql_stmt(self.__cnx, stmt_str, options)
+        return self.__cnx.exec_stmt(stmt_str, options)
 
     def __del__(self):
         """Destructor for MySQLServer.
         """
-        try:
-            self.disconnect()
-        except AttributeError:
-            pass
+        self.disconnect()
 
     @staticmethod
     def remove(server, persister=None):
@@ -1427,11 +1337,11 @@ class MySQLServer(_persistence.Persistable):
         :param server: A reference to a server.
         :param persister: Persister to persist the object to.
         """
-        ConnectionPool().purge_connections(server.uuid)
-        _error_log.ErrorLog.remove(server)
+        MySQLConnectionManager().purge_connections(server)
+        ErrorLog.remove(server)
         persister.exec_stmt(
             MySQLServer.REMOVE_SERVER, {"params": (str(server.uuid), )}
-            )
+        )
 
     @staticmethod
     def fetch(server_id, persister=None):
@@ -1499,10 +1409,7 @@ class MySQLServer(_persistence.Persistable):
             )
 
             for row in rows:
-                host, port = _server_utils.split_host_port(
-                                row[2],
-                                _server_utils.MYSQL_DEFAULT_PORT
-                             )
+                host, port = split_host_port(row[2], MYSQL_DEFAULT_PORT)
                 yield (row[0], row[1], host, port, row[3], row[4], row[5])
 
     @staticmethod
@@ -1524,7 +1431,6 @@ class MySQLServer(_persistence.Persistable):
         """
         persister.exec_stmt(
                 MySQLServer.ADD_FOREIGN_KEY_CONSTRAINT_GROUP_ID)
-        return True
 
     @staticmethod
     def add(server, persister=None):
