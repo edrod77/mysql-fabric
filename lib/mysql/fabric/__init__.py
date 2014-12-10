@@ -28,7 +28,7 @@ __version_info__ = (1, 5, 3, "")
 __version__ = "{0}.{1}.{2}{3}".format(*__version_info__)
 
 # Connector Python version info as a tuple (major, minor, patch, extra)
-__cpy_version_info__ = (2, 0, 0, "")
+__cpy_version_info__ = (2, 0, 1, "")
 
 # Connector Python version:
 # `PEP-386 <http://www.python.org/dev/peps/pep-0386>`__ format
