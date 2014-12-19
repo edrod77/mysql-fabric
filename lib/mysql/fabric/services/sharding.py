@@ -39,6 +39,8 @@ from mysql.fabric.sharding import (
     Shards,
     SHARDING_DATATYPE_HANDLER,
     SHARDING_SPECIFICATION_HANDLER,
+    SHARD_METADATA,
+    SHARD_METADATA_VERIFIER,
 )
 
 from mysql.fabric.command import (
@@ -99,7 +101,8 @@ class DefineShardMapping(ProcedureShard):
     """
     group_name = "sharding"
     command_name = "create_definition"
-    def execute(self, type_name, group_id, synchronous=True):
+    def execute(self, type_name, group_id, update_only=False,
+                synchronous=True):
         """Define a shard mapping.
 
         :param type_name: The type of sharding scheme - RANGE, HASH, LIST etc
@@ -107,6 +110,9 @@ class DefineShardMapping(ProcedureShard):
                          that stores the global updates and the schema changes
                          for this shard mapping and dissipates these to the
                          shards.
+        :param update_only: Only update the state store and skip adding range checks.
+        :param synchronous: Whether one should wait until the execution finishes
+                            or not.
         """
         procedures = _events.trigger(
             DEFINE_SHARD_MAPPING, self.get_lockable_objects(),
@@ -121,7 +127,7 @@ class AddShardMapping(ProcedureShard):
     group_name = "sharding"
     command_name = "add_table"
     def execute(self, shard_mapping_id, table_name, column_name,
-                synchronous=True):
+                range_check=False, update_only=False, synchronous=True):
         """Add a table to a shard mapping.
 
         :param shard_mapping_id: The shard mapping id to which the input
@@ -129,13 +135,16 @@ class AddShardMapping(ProcedureShard):
         :param table_name: The table being sharded.
         :param column_name: The column whose value is used in the sharding
                             scheme being applied
+        :param range_check: Indicates if range check should be turned on for
+                            this table.
+        :param update_only: Only update the state store and skip adding range checks.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
         """
 
         procedures = _events.trigger(
-            ADD_SHARD_MAPPING, self.get_lockable_objects(),
-            shard_mapping_id, table_name, column_name
+            ADD_SHARD_MAPPING, self.get_lockable_objects(), shard_mapping_id,
+            table_name, column_name, range_check, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -244,13 +253,14 @@ class ListShardMappingDefinitions(Command):
         return CommandResult(None, results=rset)
 
 ADD_SHARD = _events.Event("ADD_SHARD")
+ADD_SHARD_RANGE_CHECK = _events.Event("ADD_SHARD_RANGE_CHECK")
 class AddShard(ProcedureShard):
     """Add a shard.
     """
     group_name = "sharding"
     command_name = "add_shard"
     def execute(self, shard_mapping_id, groupid_lb_list, state="DISABLED",
-                synchronous=True):
+                update_only=False, synchronous=True):
         """Add the RANGE shard specification. This represents a single instance
         of a shard specification that maps a key RANGE to a server.
 
@@ -259,18 +269,19 @@ class AddShard(ProcedureShard):
         :param groupid_lb_list: The list of group_id, lower_bounds pairs in
                                 the format, group_id/lower_bound,
                                 group_id/lower_bound...
+        :param update_only: Only update the state store and skip adding range checks.
         :param synchronous: Whether one should wait until the execution finishes
                             or not.
 
         :return: A dictionary representing the current Range specification.
         """
         procedures = _events.trigger(ADD_SHARD, self.get_lockable_objects(),
-            shard_mapping_id, groupid_lb_list, state
+            shard_mapping_id, groupid_lb_list, state, update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
-REMOVE_SHARD = \
-        _events.Event("REMOVE_SHARD")
+REMOVE_SHARD = _events.Event("REMOVE_SHARD")
+REMOVE_SHARD_SCHEMAS = _events.Event("REMOVE_SHARD_SCHEMAS")
 class RemoveShard(ProcedureShard):
     """Remove a Shard.
     """
@@ -365,8 +376,9 @@ class DumpShardTables(Command):
         """
 
         rset = ResultSet(
-            names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
-            types=(str, str, str, int),
+            names=('schema_name', 'table_name', 'column_name', 'mapping_id',
+                'range_check'),
+            types=(str, str, str, int, int),
         )
 
         for row in ShardMapping.dump_shard_tables(connector_version, patterns):
@@ -455,7 +467,7 @@ class DumpShardIndex(Command):
         return CommandResult(None, results=rset)
 
 @_events.on_event(DEFINE_SHARD_MAPPING)
-def _define_shard_mapping(type_name, global_group_id):
+def _define_shard_mapping(type_name, global_group_id, update_only=False):
     """Define a shard mapping.
 
     :param type_name: The type of sharding scheme - RANGE, HASH, LIST etc
@@ -463,6 +475,7 @@ def _define_shard_mapping(type_name, global_group_id):
                         Global Group that stores the global updates
                         and the schema changes for this shard mapping
                         and dissipates these to the shards.
+    :param update_only: Only update the state store and skip adding range checks.
     :return: The shard_mapping_id generated for the shard mapping.
     :raises: ShardingError if the sharding type is invalid.
     """
@@ -470,10 +483,27 @@ def _define_shard_mapping(type_name, global_group_id):
     if type_name not in Shards.VALID_SHARDING_TYPES:
         raise _errors.ShardingError(INVALID_SHARDING_TYPE % (type_name, ))
     shard_mapping_id = ShardMapping.define(type_name, global_group_id)
+    if not update_only:
+        SHARD_METADATA.create_shard_meta_data(global_group_id)
     return shard_mapping_id
 
+@_define_shard_mapping.undo
+def _undo_define_shard_mapping(type_name, global_group_id, update_only=False):
+    """Remove the sharding meta data from the shard groups.
+    :param type_name: The type of sharding scheme - RANGE, HASH, LIST etc
+    :param global_group: Every shard mapping is associated with a
+                        Global Group that stores the global updates
+                        and the schema changes for this shard mapping
+                        and dissipates these to the shards.
+    :param update_only: Only update the state store and skip adding
+                        range checks.
+    """
+    if not update_only:
+        SHARD_METADATA.drop_shard_meta_data(global_group_id)
+
 @_events.on_event(ADD_SHARD_MAPPING)
-def _add_shard_mapping(shard_mapping_id, table_name, column_name):
+def _add_shard_mapping(shard_mapping_id, table_name, column_name,
+                        range_check=False, update_only=False):
     """Add a table to a shard mapping.
 
     :param shard_mapping_id: The shard mapping id to which the input
@@ -481,11 +511,51 @@ def _add_shard_mapping(shard_mapping_id, table_name, column_name):
     :param table_name: The table being sharded.
     :param column_name: The column whose value is used in the sharding
                         scheme being applied
+    :param range_check: Indicates if range check should be turned on for
+                        this table.
+    :param update_only: Only update the state store and skip adding range checks.
 
     :return: True if the the table was successfully added.
                 False otherwise.
     """
-    ShardMapping.add(shard_mapping_id, table_name, column_name)
+    ShardMapping.add(shard_mapping_id, table_name, column_name, range_check)
+    if range_check and not update_only:
+        _, sharding_type, global_group_id = \
+            ShardMapping.fetch_shard_mapping_defn(shard_mapping_id)
+        SHARD_METADATA_VERIFIER.add_shard_range_trigger(
+            global_group_id,
+            sharding_type,
+            table_name,
+            column_name
+        )
+
+@_add_shard_mapping.undo
+def _undo_add_shard_mapping(shard_mapping_id, table_name, column_name,
+                            range_check=False, update_only=False):
+    """Add a table to a shard mapping.
+
+    :param shard_mapping_id: The shard mapping id to which the input
+                                table is attached.
+    :param table_name: The table being sharded.
+    :param column_name: The column whose value is used in the sharding
+                        scheme being applied
+    :param range_check: Indicates if range check should be turned on for
+                        this table.
+    :param update_only: Only update the state store and skip adding range checks.
+
+    :return: True if the the table was successfully added.
+                False otherwise.
+    """
+    if range_check and not update_only:
+        sharding_defn = ShardMapping.fetch_shard_mapping_defn(shard_mapping_id)
+        if sharding_defn:
+            _, sharding_type, global_group_id = sharding_defn
+            SHARD_METADATA_VERIFIER.drop_shard_range_trigger(
+                global_group_id,
+                sharding_type,
+                table_name,
+                column_name
+            )
 
 @_events.on_event(REMOVE_SHARD_MAPPING)
 def _remove_shard_mapping(table_name):
@@ -571,7 +641,7 @@ def _list(sharding_type):
     return ret_shard_mappings
 
 @_events.on_event(ADD_SHARD)
-def _add_shard(shard_mapping_id, groupid_lb_list, state):
+def _add_shard(shard_mapping_id, groupid_lb_list, state, update_only=False):
     """Add the RANGE shard specification. This represents a single instance
     of a shard specification that maps a key RANGE to a server.
 
@@ -579,6 +649,7 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
     :param groupid_lb_list: The list of group_id, lower_bounds pairs in the
                         format, group_id/lower_bound, group_id/lower_bound... .
     :param state: Indicates whether a given shard is ENABLED or DISABLED
+    :param update_only: Only update the state store and skip adding range checks.
 
     :return: True if the add succeeded.
                 False otherwise.
@@ -650,18 +721,70 @@ def _add_shard(shard_mapping_id, groupid_lb_list, state):
                 range_sharding_specification.shard_id
             )
 
-        #If the shard is added in a DISABLED state  do not setup replication
-        #with the primary of the global group. Basically setup replication only
-        #if the shard is ENABLED.
-        if state == "ENABLED":
-            _setup_shard_group_replication(shard_id)
+        if not update_only:
+            #If the shard is added in a DISABLED state  do not setup replication
+            #with the primary of the global group. Basically setup replication only
+            #if the shard is ENABLED.
+            if state == "ENABLED":
+                _setup_shard_group_replication(shard_id)
+
+    if not update_only:
+        #Add the shard limits into the metadata present in each of the shards.
+        _events.trigger_within_procedure(
+            ADD_SHARD_RANGE_CHECK,
+            shard_mapping_id,
+            schema_type
+        )
+
+@_events.on_event(ADD_SHARD_RANGE_CHECK)
+def _add_shard_range_check(shard_mapping_id, shard_type):
+    """Add the shard ranges in the metadata tables of the shards
+
+    :param shard_mapping_id: The shard mapping ID of the shards for which
+                            the metadata needs to be added.
+    :param shard_type: The datatype of the sharding definition.
+    """
+    shard_list = SHARDING_SPECIFICATION_HANDLER[shard_type].list(shard_mapping_id)
+    for shard in shard_list:
+        group_id = Shards.fetch(shard.shard_id).group_id
+        #The metadata has to be created before adding the ranges because
+        #the global group might have still not replicated the schema to the
+        #shard group. If the replication has still not happened, adding
+        #the bounds will throw an error.
+        SHARD_METADATA.create_shard_meta_data(group_id)
+        spec_handler = SHARDING_SPECIFICATION_HANDLER[shard_type]
+        upper_bound = spec_handler.get_upper_bound(
+            shard.lower_bound,
+            shard_mapping_id,
+            shard_type
+        )
+        SHARD_METADATA.insert_shard_meta_data(shard.shard_id,
+                                            shard.lower_bound,
+                                            upper_bound,
+                                            group_id)
+
+@_add_shard_range_check.undo
+def _undo_add_shard_range_check(shard_mapping_id, shard_type):
+    """Remove the shard ranges in the metadata tables of the shards
+
+    :param shard_mapping_id: The shard mapping ID of the shards for which
+                            the metadata needs to be added.
+    :param shard_type: The datatype of the sharding definition.
+    """
+    shard_list = SHARDING_SPECIFICATION_HANDLER[shard_type].list(shard_mapping_id)
+    for shard in shard_list:
+        group_id = Shards.fetch(shard.shard_id).group_id
+        SHARD_METADATA.delete_shard_meta_data(group_id, shard.shard_id)
+        SHARD_METADATA.drop_shard_meta_data(group_id)
 
 @_events.on_event(REMOVE_SHARD)
-def _remove_shard(shard_id):
+def _remove_shard(shard_id, update_only=False):
     """Remove the RANGE specification mapping represented by the current
     RANGE shard specification object.
 
     :param shard_id: The shard ID of the shard that needs to be removed.
+    :param update_only: Only update the state store and skip adding range
+                        checks.
 
     :return: True if the remove succeeded
             False if the query failed
@@ -680,10 +803,43 @@ def _remove_shard(shard_id):
     #the references, since a shard cannot  be removed unless
     #it is disabled and when it is disabled the replication is
     #stopped but the references are not cleared.
+    if not update_only:
+        #The Group ID needs to be fetched before the sharding
+        #information is removed.
+        group_id = Shards.fetch(shard.shard_id).group_id
     _stop_shard_group_replication(shard_id,  True)
     range_sharding_specification.remove()
     shard.remove()
+    if not update_only:
+        SHARD_METADATA.drop_shard_meta_data(group_id)
     _LOGGER.debug("Removed Shard (%s).", shard_id)
+
+@_remove_shard.undo
+def _undo_remove_shard(shard_id, update_only=False):
+    """Recreate the shard metadata.
+
+    :param shard_id: The ID of the shard that was being removed.
+    :param update_only: Only update the state store and skip adding range
+                        checks.
+    """
+    if update_only:
+        return
+    group_id = Shards.fetch(shard_id).group_id
+    try:
+        SHARD_METADATA.create_shard_meta_data(group_id)
+    except _errors.DatabaseError as error:
+        #If the create fails, do not insert the metadata.
+        return
+    spec_handler = SHARDING_SPECIFICATION_HANDLER[shard_type]
+    upper_bound = spec_handler.get_upper_bound(
+        shard.lower_bound,
+        shard_mapping_id,
+        shard_type
+    )
+    SHARD_METADATA.insert_shard_meta_data(shard.shard_id,
+                                        shard.lower_bound,
+                                        upper_bound,
+                                        group_id)
 
 def _lookup(lookup_arg, key,  hint):
     """Given a table name and a key return the servers of the Group where the

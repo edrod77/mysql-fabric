@@ -48,6 +48,8 @@ from mysql.fabric.sharding import (
     Shards,
     SHARDING_DATATYPE_HANDLER,
     SHARDING_SPECIFICATION_HANDLER,
+    SHARD_METADATA,
+    SHARD_METADATA_VERIFIER,
 )
 
 from mysql.fabric.command import (
@@ -588,6 +590,13 @@ def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
     range_sharding_spec, source_shard, shard_mappings, shard_mapping_defn = \
             _services_sharding.verify_and_fetch_shard(shard_id)
 
+    if not update_only:
+        #Fetch the metdata from the source shard
+        shard_meta_data = SHARD_METADATA.fetch_shard_meta_data(
+                                        shard_id, source_group_id)
+        lower_bound = shard_meta_data["lower_bound"]
+        upper_bound = shard_meta_data["upper_bound"]
+
     #Disable the old shard
     source_shard.disable()
 
@@ -613,6 +622,13 @@ def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
     #split and also for the shard that is created as a result of the split.
     new_shard_1 = Shards.add(source_shard.group_id, "DISABLED")
     new_shard_2 = Shards.add(destination_group_id, "DISABLED")
+
+    if not update_only:
+        #The backup has been restored on both the new shards. Hence both
+        #of them will have the old trigger ranges defined, which needs to be
+        #changed.
+        SHARD_METADATA.delete_shard_meta_data(source_shard.group_id, shard_id)
+        SHARD_METADATA.delete_shard_meta_data(destination_group_id, shard_id)
 
     #Both of the shard mappings associated with this shard_id should
     #be of the same sharding type. Hence it is safe to use one of the
@@ -676,6 +692,22 @@ def _setup_shard_switch_split(shard_id, source_group_id, destination_group_id,
     #Setup replication for the new group from the global server
     _group_replication.setup_group_replication \
             (shard_mapping_defn[2], destination_group_id)
+
+    if not update_only:
+        #update the sharding metadata for both the shards.
+        SHARD_METADATA.insert_shard_meta_data(
+            new_shard_1.shard_id,
+            lower_bound,
+            split_value,
+            new_shard_1.group_id
+        )
+        SHARD_METADATA.insert_shard_meta_data(
+            new_shard_2.shard_id,
+            split_value,
+            upper_bound,
+            new_shard_2.group_id
+        )
+
 
     #Enable the split shards
     new_shard_1.enable()

@@ -55,6 +55,15 @@ class TestShardingPrune(tests.utils.TestCase):
         self.__server_1 = MySQLServer(**self.__options_1)
         MySQLServer.add(self.__server_1)
         self.__server_1.connect()
+        self.__server_1.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
+        self.__server_1.exec_stmt("CREATE DATABASE IF NOT EXISTS db1")
+        self.__server_1.exec_stmt("CREATE TABLE IF NOT EXISTS db1.t1"
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
+        self.__server_1.exec_stmt("CREATE DATABASE IF NOT EXISTS db2")
+        self.__server_1.exec_stmt("CREATE TABLE IF NOT EXISTS db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
 
         self.__group_1 = Group("GROUPID1", "First description.")
         Group.add(self.__group_1)
@@ -316,9 +325,9 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
         self.check_xmlrpc_command_result(status, returns=1)
 
-        status = self.proxy.sharding.add_table(1, "db1.t1", "userID")
+        status = self.proxy.sharding.add_table(1, "db1.t1", "userID", True)
         self.check_xmlrpc_command_result(status)
-        status = self.proxy.sharding.add_table(1, "db2.t2", "userID")
+        status = self.proxy.sharding.add_table(1, "db2.t2", "userID", True)
         self.check_xmlrpc_command_result(status)
 
         status = self.proxy.sharding.add_shard(
@@ -375,6 +384,14 @@ class TestShardingPrune(tests.utils.TestCase):
         row_cnt_shard_after_split_db2_t2_a = \
             int(row_cnt_shard_after_split_db2_t2_a[0][0])
         self.assertEqual(row_cnt_shard_after_split_db2_t2_a, 35)
+        for i in range(50, 53):
+            try:
+                self.__server_2.exec_stmt("INSERT INTO db2.t2 "
+                                      "VALUES(%s, %s)" % (i, i))
+                raise Exception("Should throw an error if value "
+                                "is outside defined range")
+            except Exception as e:
+                pass
 
         row_cnt_shard_after_split_db1_t1_b = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1",
@@ -383,6 +400,14 @@ class TestShardingPrune(tests.utils.TestCase):
         row_cnt_shard_after_split_db1_t1_b = \
             int(row_cnt_shard_after_split_db1_t1_b[0][0])
         self.assertEqual(row_cnt_shard_after_split_db1_t1_b, 35)
+        for i in range(20, 23):
+            try:
+                self.__server_6.exec_stmt("INSERT INTO db2.t2 "
+                                      "VALUES(%s, %s)" % (i, i))
+                raise Exception("Should throw an error if value "
+                                "is outside defined range")
+            except Exception as e:
+                pass
 
         row_cnt_shard_after_split_db2_t2_b = self.__server_6.exec_stmt(
                     "SELECT COUNT(*) FROM db2.t2",

@@ -318,23 +318,23 @@ class TestSharding(tests.utils.TestCase):
         )
         
         self.__setoftables = tests.utils.make_tables_result(
-            [['db1', 't1', 'userID1', '1'],
-             ['db2', 't2', 'userID2', '2'],
-             ['db3', 't3', 'userID3', '3'],
-             ['db4', 't4', 'userID4', '4'],
-             ['prune_db', 'prune_table', 'userID', '5']]
+            [['db1', 't1', 'userID1', '1', '0'],
+             ['db2', 't2', 'userID2', '2', '0'],
+             ['db3', 't3', 'userID3', '3', '0'],
+             ['db4', 't4', 'userID4', '4', '0'],
+             ['prune_db', 'prune_table', 'userID', '5', '0']]
         )
         self.__setoftables_1 = tests.utils.make_tables_result(
-            [['db1', 't1', 'userID1', '1']]
+            [['db1', 't1', 'userID1', '1', '0']]
         )
         self.__setoftables_2 = tests.utils.make_tables_result(
-            [['db1', 't1', 'userID1', '1'],
-             ['db2', 't2', 'userID2', '2']]
+            [['db1', 't1', 'userID1', '1', '0'],
+             ['db2', 't2', 'userID2', '2', '0']]
         )
         self.__setoftables_3 = tests.utils.make_tables_result(
-            [['db1', 't1', 'userID1', '1'],
-             ['db2', 't2', 'userID2', '2'],
-             ['db3', 't3', 'userID3', '3']]
+            [['db1', 't1', 'userID1', '1', '0'],
+             ['db2', 't2', 'userID2', '2', '0'],
+             ['db3', 't3', 'userID3', '3', '0']]
         )
         self.__setofshardmaps = tests.utils.make_mapping_result(
             [['1', 'RANGE', 'GROUPID10'],

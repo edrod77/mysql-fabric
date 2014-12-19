@@ -60,8 +60,8 @@ def make_servers_result(rows):
 
 def make_tables_result(rows):
     return _make_result(
-        names=('schema_name', 'table_name', 'column_name', 'mapping_id'),
-        types=(str, str, str, int),
+        names=('schema_name', 'table_name', 'column_name', 'mapping_id', 'range_check'),
+        types=(str, str, str, int, int),
         rows=rows,
     )
 
