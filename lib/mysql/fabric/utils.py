@@ -61,7 +61,7 @@ def _do_fork():
     try:
         if os.fork() > 0:
             sys.exit(0)
-    except OSError, error:
+    except OSError as error:
         sys.stderr.write("fork failed with errno %d: %s\n" %
                          (error.errno, error.strerror))
         sys.exit(1)

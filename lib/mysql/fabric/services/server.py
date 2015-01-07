@@ -677,10 +677,9 @@ def _configure_new_server(group_id, server_uuid, update_only):
         _check_requirements(server)
         if not update_only:
             _configure_as_slave(group, server)
-    except _errors.ServerError, _errors.DatabaseError:
-        _server.MySQLServer.remove(server)
+    except (_errors.ServerError, _errors.DatabaseError):
         server.disconnect()
-        raise 
+        raise
     
     _LOGGER.debug("Added server (%s) to group (%s).", server, group)
 
@@ -803,12 +802,11 @@ def _configure_faulty_server(server_uuid, previous_status, update_only):
 
     try:
         _check_requirements(server)
-
         if not update_only:
             group = _server.Group.fetch(server.group_id)
             _configure_as_slave(group, server)
-    except _errors.ServerError, _errors.DatabaseError:
-        server.status = previous_status
+    except (_errors.ServerError, _errors.DatabaseError):
+        server.disconnect()
         raise
 
 def _do_set_status(server, allowed_status, status, mode, update_only):

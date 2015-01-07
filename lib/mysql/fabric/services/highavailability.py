@@ -316,7 +316,11 @@ def _do_find_candidate(group_id, event):
     :return: Return the uuid of the best candidate to become a master in the
              group.
     """
-    forbidden_status = (_server.MySQLServer.FAULTY, _server.MySQLServer.SPARE)
+    forbidden_status = (
+        _server.MySQLServer.FAULTY,
+        _server.MySQLServer.SPARE,
+        _server.MySQLServer.CONFIGURING
+    )
     group = _server.Group.fetch(group_id)
 
     master_uuid = None
