@@ -143,6 +143,7 @@ class FailureDetector(object):
         from mysql.fabric.server import (
             Group,
             MySQLServer,
+            ConnectionManager,
         )
 
         ignored_status = [MySQLServer.FAULTY]
@@ -150,6 +151,7 @@ class FailureDetector(object):
         interval = FailureDetector._DETECTION_INTERVAL
         detections = FailureDetector._DETECTIONS
         detection_timeout = FailureDetector._DETECTION_TIMEOUT
+        connection_manager = ConnectionManager()
 
         _persistence.init_thread()
 
@@ -160,7 +162,9 @@ class FailureDetector(object):
                 if group is not None:
                     for server in group.servers():
                         if server.status in ignored_status or \
-                            server.is_alive(detection_timeout):
+                            MySQLServer.is_alive(server, detection_timeout):
+                            if server.status == MySQLServer.FAULTY:
+                                connection_manager.kill_connections(server)
                             continue
 
                         unreachable.add(server.uuid)
@@ -184,6 +188,13 @@ class FailureDetector(object):
                             server, get_time()
                         )
                         if unstable and can_set_faulty:
+                            # We have to make this transactional and make the
+                            # failover (i.e. report failure) robust to failures.
+                            # Otherwise, a master might be set to faulty and
+                            # a new one never promoted.
+                            server.status = MySQLServer.FAULTY
+                            connection_manager.kill_connections(server)
+                            
                             procedures = trigger("REPORT_FAILURE", None,
                                 str(server.uuid),
                                 threading.current_thread().name,

@@ -674,7 +674,7 @@ def _remove_server(group_id, server_id):
 
     _server.MySQLServer.remove(server)
     server.disconnect()
-    _server.ConnectionPool().purge_connections(server.uuid)
+    _server.ConnectionManager().purge_connections(server)
 
 @_events.on_event(SET_SERVER_STATUS)
 def _set_server_status(server_id, status, update_only):

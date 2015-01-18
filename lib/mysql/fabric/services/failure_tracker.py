@@ -139,9 +139,9 @@ def _set_status_faulty(server, update_only):
     the FAIL_OVER event.
     """
     server.status = _server.MySQLServer.FAULTY
+    _server.ConnectionManager().kill_connections(server)
 
     if not update_only:
-        _server.ConnectionPool().purge_connections(server.uuid)
         group = _server.Group.fetch(server.group_id)
         if group.master == server.uuid:
             _LOGGER.info("Master (%s) in group (%s) has "
@@ -157,15 +157,10 @@ def _append_error_log(server_id, reporter, error):
     error log.
     """
     server = _retrieve_server(server_id)
-    if server.status == _server.MySQLServer.FAULTY:
-        raise _errors.ServerError(
-            "Server (%s) is already marked as faulty." % (server.uuid, )
-        )
-
-    _LOGGER.warning("Reported issue (%s) for server (%s).", error, server.uuid)
-
     now = get_time()
     _error_log.ErrorLog.add(server, now, reporter, error)
+
+    _LOGGER.warning("Reported issue (%s) for server (%s).", error, server.uuid)
 
     return (now, server)
 

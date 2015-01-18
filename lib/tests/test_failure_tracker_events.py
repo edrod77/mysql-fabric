@@ -111,14 +111,6 @@ class TestFailureEvents(tests.utils.TestCase):
         status = self.proxy.threat.report_error(error_uuid)
         self.check_xmlrpc_command_result(status, has_error=True)
 
-        # Try to report instability of a server that is already faulty.
-        server = _server.MySQLServer.fetch(uuid_1)
-        group = _server.Group.fetch("group")
-        self.proxy.group.promote(group.group_id, str(server.uuid))
-        server.status = _server.MySQLServer.FAULTY
-        status = self.proxy.threat.report_error(uuid_1)
-        self.check_xmlrpc_command_result(status, has_error=True)
-
         # Report instability of a server that is primary.
         server = _server.MySQLServer.fetch(uuid_1)
         server.status = _server.MySQLServer.PRIMARY
@@ -129,7 +121,7 @@ class TestFailureEvents(tests.utils.TestCase):
             'status': _server.MySQLServer.FAULTY,
         }, index=0)
         self.check_xmlrpc_simple(status, {
-            'status': _server.MySQLServer.PRIMARY,
+            'status': _server.MySQLServer.SECONDARY,
         }, index=1)
 
         # Report instability of a server that is spare.
@@ -191,14 +183,6 @@ class TestFailureEvents(tests.utils.TestCase):
 
         # Try to report failure of a server does not exist.
         status = self.proxy.threat.report_failure(error_uuid)
-        self.check_xmlrpc_command_result(status, has_error=True)
-
-        # Try to report failure of a server that is already faulty.
-        server = _server.MySQLServer.fetch(uuid_1)
-        group = _server.Group.fetch("group")
-        self.proxy.group.promote(group.group_id, str(server.uuid))
-        server.status = _server.MySQLServer.FAULTY
-        status = self.proxy.threat.report_failure(uuid_1)
         self.check_xmlrpc_command_result(status, has_error=True)
 
         # Report failure of a server that is primary.
