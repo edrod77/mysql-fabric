@@ -123,7 +123,7 @@ def help_group(group_name):
         for cmdname in commands:
             print indent + get_command(group_name, cmdname).get_signature()
     except KeyError:
-        PARSER.print_error(_ERR_GROUP_MISSING % (group_name,))
+        PARSER.print_error(_ERR_GROUP_MISSING % (group_name, ))
 
     PARSER.exit(2)
 
@@ -307,10 +307,10 @@ def create_command(group_name, command_name, options, args, config):
         client = find_client()
         command.setup_client(client, options, config)
         return command, args
-    except KeyError as error:
+    except KeyError:
         PARSER.error(
-            "Error (%s). Command (%s %s) was not found." %
-            (error, group_name, command_name, )
+            "Command (%s %s) was not found." %
+            (group_name, command_name, )
         )
 
 
@@ -335,33 +335,35 @@ def fire_command(command, *args):
 
     :param arg: Arguments used by the command.
     """
+    # Get the number of mandatory arguments for the command by inspecting
+    # the class definition of the command. It is important to check that the
+    # number of mandatory arguments for a command are provided because
+    # there is the danger that the value of an optional parameter gets wrapped
+    # as the value for a mandatory argument when we don't provide the value
+    # for an mandatory argument
     try:
-        #Get the number of mandatory arguments for the command by inspecting
-        #the class definition of the command. It is important to check that the
-        #number of mandatory arguments for a command are provided because
-        #there is the danger that the value of an optional parameter gets wrapped
-        #as the value for a mandatory argument when we don't provide the value
-        #for an mandatory argument
-        try:
-            spec = inspect.getargspec(command.__class__.execute.original_function)
-        except AttributeError:
-            spec = inspect.getargspec(command.__class__.dispatch)
-        defaults_len = 0
-        if spec.defaults:
-            defaults_len = len(spec.defaults)
-        if len(args) != len(spec.args) - defaults_len - 1:
-            error_usage_text(command.group_name, command.command_name)
-        # Execute command by dispatching it on the client side. Append the
-        #optional arguments passed by the user to the argument list.
-        result = command.dispatch(*(command.append_options_to_args(args)))
-        if result is not None:
-            result.emit(sys.stdout)
-        else:
-            print "No result returned"
-    except TypeError:
-        import traceback
-        traceback.print_exc()
+        spec = inspect.getargspec(command.__class__.execute.original_function)
+    except AttributeError:
+        spec = inspect.getargspec(command.__class__.dispatch)
+
+    defaults_len = 0
+    if spec.defaults:
+        defaults_len = len(spec.defaults)
+
+    if len(args) != len(spec.args) - defaults_len - 1:
         error_usage_text(command.group_name, command.command_name)
+
+    # Execute command by dispatching it on the client side. Append the
+    # optional arguments passed by the user to the argument list.
+    result = command.dispatch(*(command.append_options_to_args(args)))
+
+    if result is not None:
+        result.emit(sys.stdout)
+        error = 1 if result.error else 0
+    else:
+        error = 0
+
+    return error
 
 def main():
     """Start mysqlfabric.py script
@@ -421,23 +423,21 @@ def main():
 
         authenticate(group_name, command_name, config, options, args)
 
-        fire_command(cmd, *cargs)
+        return fire_command(cmd, *cargs)
     except (URLError, HTTPError, NoOptionError) as error:
-        try:
-            if hasattr(error, 'code') and error.code == 400:
-                print "Permission denied."
-            else:
-                print error.reason
-        except AttributeError:
-            # print error as-is
+        if hasattr(error, 'code') and error.code == 400:
+            print "Permission denied."
+        else:
             print str(error)
-    except (KeyboardInterrupt, EOFError):
-        print "\nBye."
+    except KeyboardInterrupt:
+        print "\nAborted due to keyboard interrupt."
+        return 130
     except errors.Error as error:
         print "Error: {0}".format(error)
     except IOError as error:
         print "Error reading configuration file: {0}".format(error)
 
+    return 1
 
 if __name__ == '__main__':
-    main()
+    exit(main())

@@ -67,13 +67,13 @@ _LOGGING_LEVELS = {
 }
 
 # Number of concurrent threads that are created to handle requests.
-DEFAULT_N_THREADS = 1
+DEFAULT_N_THREADS = 5
 
 # Number of concurrent executors that are created to handle jobs.
-DEFAULT_N_EXECUTORS = 1
+DEFAULT_N_EXECUTORS = 5
 
 #Default TTL value
-DEFAULT_TTL = 0
+DEFAULT_TTL = 1
 
 # MySQL's port
 _MYSQL_PORT = 3306
@@ -129,13 +129,10 @@ class Start(Command):
         # Configure connections.
         _configure_connections(self.config)
 
-        try:
-            credentials.check_initial_setup(self.config,
-                                            _persistence.MySQLPersister(),
-                                            check_only=True)
-        except _errors.CredentialError as error:
-            _LOGGER.debug(str(error))
-            return
+        credentials.check_initial_setup(
+            self.config, _persistence.MySQLPersister(),
+            check_only=True
+        )
 
         # Daemonize ourselves.
         if daemonize:
@@ -317,13 +314,6 @@ def _configure_connections(config):
     # MySQL-RPC service
     try:
         services['protocol.mysql'] = config.get('protocol.mysql', "address")
-
-        try:
-            number_threads = config.get('protocol.mysql', "threads")
-            number_threads = int(number_threads)
-        except (_config.NoOptionError, ValueError):
-            number_threads = DEFAULT_N_THREADS
-
     except _config.NoSectionError:
         # No MySQL-RPC configured
         pass
