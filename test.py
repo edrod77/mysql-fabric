@@ -176,7 +176,7 @@ def configure_servers(options):
     import tests.utils as _test_utils
     from mysql.fabric.server import (
         MySQLServer,
-        ConnectionPool,
+        ConnectionManager,
     )
     try:
         servers = _test_utils.MySQLInstances()
@@ -208,7 +208,7 @@ def configure_servers(options):
                 server.exec_stmt("FLUSH PRIVILEGES")
                 server.set_session_binlog(True)
                 server.disconnect()
-                ConnectionPool().purge_connections(server.uuid)
+                ConnectionManager().purge_connections(server)
         if servers.get_number_addresses() < NUMBER_OF_SERVERS:
             print >> sys.stderr, "<<<<<<<<<< Some unit tests need {0} MySQL " \
                 "Instances. >>>>>>>>>> ".format(NUMBER_OF_SERVERS)

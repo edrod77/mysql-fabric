@@ -27,7 +27,7 @@ import mysql.fabric.server_utils as _server_utils
 from mysql.fabric.server import (
     MySQLServer,
     Group,
-    ConnectionPool,
+    ConnectionManager,
 )
 
 OPTIONS = {
@@ -63,7 +63,7 @@ class TestMySQLServer(unittest.TestCase):
         server = MySQLServer(**OPTIONS)
         self.assertRaises(_errors.UuidError, server.connect)
         server.disconnect()
-        ConnectionPool().purge_connections(OPTIONS["uuid"])
+        ConnectionManager().purge_connections(server)
 
     def test_properties(self):
         """Test setting MySQLServer's properties.
@@ -264,7 +264,7 @@ class TestMySQLServer(unittest.TestCase):
         """
         # Check if server is alive.
         server = self.server
-        self.assertTrue(server.is_alive())
+        self.assertTrue(MySQLServer.is_alive(server))
         self.assertFalse(server.is_connected())
         server.connect()
         self.assertTrue(server.is_connected())
@@ -359,7 +359,7 @@ class TestMySQLServer(unittest.TestCase):
             tests.utils.MySQLInstances().root_user,
             tests.utils.MySQLInstances().root_passwd
         )
-        ConnectionPool().purge_connections(_uuid.UUID(uuid))
+        ConnectionManager().purge_connections(server)
         server.connect()
         server.set_session_binlog(False)
         server.exec_stmt(
@@ -425,7 +425,7 @@ class TestMySQLServer(unittest.TestCase):
         server.set_session_binlog(True)
         server.disconnect()
         new_server.disconnect()
-        ConnectionPool().purge_connections(_uuid.UUID(uuid))
+        ConnectionManager().purge_connections(server)
 
     def test_max_connections(self):
         uuid = MySQLServer.discover_uuid(OPTIONS["address"])
@@ -436,7 +436,7 @@ class TestMySQLServer(unittest.TestCase):
         res = server.get_variable("max_connections")
         self.assertNotEqual(int(res), 0)
 
-class TestConnectionPool(unittest.TestCase):
+class TestConnectionManager(unittest.TestCase):
     """Unit test for testing Connection Pool.
     """
     def setUp(self):
@@ -457,34 +457,36 @@ class TestConnectionPool(unittest.TestCase):
         OPTIONS["uuid"] = uuid = _uuid.UUID(uuid)
         server_1 = MySQLServer(**OPTIONS)
         server_2 = MySQLServer(**OPTIONS)
-        cnx_pool = ConnectionPool()
+        cnx_pool = ConnectionManager()
 
         # Purge connections and check the number of connections in
         # the pool.
-        cnx_pool.purge_connections(uuid)
-        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+        cnx_pool.purge_connections(server_1)
+        self.assertEqual(cnx_pool.get_number_connections(server_1), 0)
 
         # Connect and check the number of connections in the pool.
         server_1.connect()
         server_2.connect()
-        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+        self.assertEqual(cnx_pool.get_number_connections(server_1), 0)
 
         # Delete one of the servers and check the number of
         # connections in the pool.
         del server_1
-        self.assertEqual(cnx_pool.get_number_connections(uuid), 1)
+        server_1 = MySQLServer(**OPTIONS)
+        self.assertEqual(cnx_pool.get_number_connections(server_1), 1)
 
         # Delete one of the servers and check the number of
         # connections in the pool.
         del server_2
-        self.assertEqual(cnx_pool.get_number_connections(uuid), 2)
+        server_2 = MySQLServer(**OPTIONS)
+        self.assertEqual(cnx_pool.get_number_connections(server_2), 2)
 
         # Purge connections and check the number of connections in
         # the pool. However, call purge_connections twice.
-        cnx_pool.purge_connections(uuid)
-        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
-        cnx_pool.purge_connections(uuid)
-        self.assertEqual(cnx_pool.get_number_connections(uuid), 0)
+        cnx_pool.purge_connections(server_1)
+        self.assertEqual(cnx_pool.get_number_connections(server_1), 0)
+        cnx_pool.purge_connections(server_2)
+        self.assertEqual(cnx_pool.get_number_connections(server_2), 0)
 
 
 class TestGroup(unittest.TestCase):

@@ -121,7 +121,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
         errno = getattr(error, 'errno', None)
         raise _errors.DatabaseError(
             "Command (%s, %s) failed accessing (%s). %s." %
-            (stmt_str, params, address_from_cnx(cnx), error),
+            (stmt_str, params, mysql_address_from_cnx(cnx), error),
             errno
         )
 
@@ -134,7 +134,7 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
         except mysql.connector.errors.InterfaceError as error:
             raise _errors.DatabaseError(
                 "Command (%s, %s) failed fetching data from (%s). %s." %
-                (stmt_str, params, address_from_cnx(cnx), error)
+                (stmt_str, params, mysql_address_from_cnx(cnx), error)
             )
         finally:
             cur.close()
@@ -142,11 +142,19 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
 
     return cur
 
-def create_mysql_connection(**kwargs):
+def create_mysql_connection():
+    """Create a MySQLConnection object.
+    """
+    return mysql.connector.MySQLConnection()
+
+def connect_to_mysql(cnx=None, **kwargs):
     """Create a connection.
     """
     try:
-        return mysql.connector.Connect(**kwargs)
+        if cnx is None:
+            return mysql.connector.Connect(**kwargs)
+        else:
+            return cnx.connect(**kwargs)
     except mysql.connector.Error as error:
         raise _errors.DatabaseError(error)
 
@@ -155,11 +163,11 @@ def destroy_mysql_connection(cnx):
     """
     try:
         if cnx:
-            cnx.disconnect()
+            cnx.shutdown()
     except Exception as error:
         raise _errors.DatabaseError(
             "Error trying to disconnect from (%s). %s." %
-            (address_from_cnx(cnx), error)
+            (mysql_address_from_cnx(cnx), error)
         )
 
 def is_valid_mysql_connection(cnx):
@@ -177,7 +185,7 @@ def reestablish_mysql_connection(cnx, attempt, delay):
     except (AttributeError, mysql.connector.errors.InterfaceError):
         raise _errors.DatabaseError("Invalid database connection.")
 
-def address_from_cnx(cnx):
+def mysql_address_from_cnx(cnx):
     """Return address associated to a connection.
 
     :param cnx: Connection.

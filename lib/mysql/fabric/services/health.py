@@ -81,6 +81,7 @@ class CheckHealth(Command):
                 'sql_error': False,
             }
             try:
+                # TODO: CHECK WHETHER WE SHOULD USE IS_ALIVE OR NOT.
                 server.connect()
                 alive = True
                 if not is_master:

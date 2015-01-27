@@ -825,9 +825,7 @@ class CommandResult(object):
 
         if self.__error:
             rows.append(self.__error)
-        elif not self.__results:
-            rows.append('Success (empty result set)')
-        else:
+        elif self.__results:
             for rset in self.__results:
                 rows.extend(rset.table_rows())
                 rows.append("")
