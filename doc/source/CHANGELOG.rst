@@ -3,8 +3,19 @@ ChangeLog for Fabric
 ####################
 
 
-Release 1.5.3 (released October 19, 2014)
------------------------------------------
+Release 1.5.4
+-------------
+
+* BUG#71444: BUG#18110165: MYSQL FABRIC EXIT-CODE ALWAYS 0
+* BUG#73968: BUG#19644057: MYSQLFABRIC EVENT TRIGGER DOES NOT HANDLE
+  PARAMETERS CORRECTLY
+* BUG#74509: BUG#19875584: MYSQL FABRIC IS ACCEPTING JUST ONE REQUEST
+  PER TIME
+* BUG#74555: BUG#19949241: MYSQL FABRIC HANGS ON NETWORK OUT ON A MASTER
+  OR SLAVE MySQL
+
+Release 1.5.3
+-------------
 
 * BUG#74192: BUG#19785686: SETUP OF THE MYSQL FABRIC BACKING STORE FAILS
   WITH UTF8
@@ -12,8 +23,8 @@ Release 1.5.3 (released October 19, 2014)
   "USE_UNICODE=FALSE"
 * BUG#19589254: FIXING DESIGN ISSUES TO ADD SUPPORT TO AWS AND TROVE
 
-Release 1.5.2 (released September 24, 2014)
--------------------------------------------
+Release 1.5.2
+-------------
 
 * BUG#19675930: LICENSE ISSUES WITH README_FABRIC FILES OF UTILITIES 1.5.2
   COMMERCIAL PACKAGES
@@ -39,8 +50,8 @@ Release 1.5.2 (released September 24, 2014)
 * BUG#19675930: LICENSE ISSUES WITH README_FABRIC FILES OF
   UTILITIES1.5.2 COMMERCIAL PACKAGES
 
-Release 1.5.1 (released July 25, 2014)
---------------------------------------
+Release 1.5.1
+-------------
 
 * WL#6432: MySQL Fabric: Provisioning
 * WL#7523: WL#7539: Supporting DATETIME and STRING as sharding keys in
@@ -57,8 +68,8 @@ Release 1.5.1 (released July 25, 2014)
 * BUG#18669231: SHARDING PRUNE ISSUE WITH 20MN RECORDS
 * BUG#18904014: mysqlfabric manage setup can't find configuration file
 
-Release 1.4.3 (released May 23, 2014)
--------------------------------------
+Release 1.4.3
+-------------
 
 * WL#7426: Providing performance statistics
 * WL#7749: Create a clone command for cloning servers
@@ -89,8 +100,8 @@ Release 1.4.3 (released May 23, 2014)
 * Bug#18824565: SHARD MOVE AND SPLIT FAILS IF PASSWORD IS PROVIDED FOR
   CLIENT IN FABRIC.CFG
 
-Release 1.4.2 (released March 25, 2014)
----------------------------------------
+Release 1.4.2
+-------------
 
 * WL#7388: Failover/Switchover based on unreliable failure detectors
 * WL#7455: Credentials for Fabric
@@ -110,8 +121,8 @@ Release 1.4.2 (released March 25, 2014)
 * BUG#18124108: BUG#71428: FABRIC.SERVER.SET_STATUS() IS INCONSISTENT
   WITH FABRIC.STORE.DUMP_SERVERS()
 
-Release 1.4.1 (released December 16, 2013)
-------------------------------------------
+Release 1.4.1
+-------------
 
 * HAM-364: test_promote (test_replication_events.py) is failing
 * WL#7401: Read only remote commands in Fabric should *NOT* pass through
@@ -130,8 +141,8 @@ Release 1.4.1 (released December 16, 2013)
 * Bug#17832848: BINARY DATA IN OUTPUT FROM STORE.DUMP_SHARD_INDEX ON
   HASH SHARD MAPPING
 
-Release 1.4.0 (released September 04, 2013)
--------------------------------------------
+Release 1.4.0
+-------------
 
 * HAM-8: Improved the test.py and made it support logging and external
   libraries such as mysql.connector.
@@ -233,8 +244,8 @@ Release 1.4.0 (released September 04, 2013)
 * WL#6424: Configuration File Handling
 * WL#6439: Sharding utility for offline sharding
 
-Release 0.4.0 (released December 16, 2013)
-------------------------------------------
+Release 0.4.0
+-------------
 
 * HAM-364: test_promote (test_replication_events.py) is failing
 * WL#7401: Read only remote commands in Fabric should *NOT* pass through
@@ -253,8 +264,8 @@ Release 0.4.0 (released December 16, 2013)
 * Bug#17832848: BINARY DATA IN OUTPUT FROM STORE.DUMP_SHARD_INDEX ON
   HASH SHARD MAPPING
 
-Release 0.3.0 (released September 04, 2013)
--------------------------------------------
+Release 0.3.0
+-------------
 
 * HAM-62: Define the appropriate concurrency control mechanism among
   procedures - Part II
@@ -308,8 +319,8 @@ Release 0.3.0 (released September 04, 2013)
 * HAM-340: Error executing mysqlfabric: Configuration file is not found
 * HAM-350: Add support to dump interfaces for HASH based sharding
 
-Release 0.2.0 (released May 07, 2013)
--------------------------------------
+Release 0.2.0
+-------------
 
 * HAM-59: Clean up replication and high availability functions.
 * HAM-63: Implement compensating operations (Part-III).
@@ -325,8 +336,8 @@ Release 0.2.0 (released May 07, 2013)
   sporadically
 * HAM-180: Remove non-existent paths in main.cfg
 
-Release 0.1.2 (released April 27, 2013)
----------------------------------------
+Release 0.1.2
+-------------
 
 * HAM-52: Mismatch between service and logging.
 * HAM-74: Add version checking
@@ -342,8 +353,8 @@ Release 0.1.2 (released April 27, 2013)
   from the group. HAM-113: Promote fails after a demote.
 * HAM-136: logger.setLevel("INFO") does not work with python 2.6
 
-Release 0.1.1 (released February 28, 2013)
-------------------------------------------
+Release 0.1.1
+-------------
 
 * HAM-42: Command-Line Interface Module.
 * HAM-70: Created commands for master group management
@@ -358,8 +369,8 @@ Release 0.1.1 (released February 28, 2013)
 * HAM-94: Mismatch between fabric and connector python
 * HAM-95: setup.py is only installing docs from the build/ direcotry
 
-Release 0.1.0 (released January 23, 2013)
------------------------------------------
+Release 0.1.0
+-------------
 
 * HAM-8: Improved the test.py and made it support logging and external
   libraries such as mysql.connector.
