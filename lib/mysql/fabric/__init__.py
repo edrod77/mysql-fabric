@@ -21,7 +21,7 @@ import distutils.version
 import os
 
 # Version info as a tuple (major, minor, patch, extra)
-__version_info__ = (1, 5, 4, "")
+__version_info__ = (1, 6, 1, "")
 
 # MySQL Fabric version:
 # `PEP-386 <http://www.python.org/dev/peps/pep-0386>`__ format

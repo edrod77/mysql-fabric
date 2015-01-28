@@ -3,6 +3,14 @@ ChangeLog for Fabric
 ####################
 
 
+Release 1.6.1
+-------------
+
+* WL#7860: Prevent wrong inserts/updates into shards
+* BUG#71445: BUG#18110179 MYSQLFABRIC PRINTS UNPARSABLE OUTPUT TO STDOUT
+* BUG#74339: BUG#19807933: FABRIC SHOULD CHECK FOR SUPPORTED CONNPY
+  VERSION
+
 Release 1.5.4
 -------------
 
