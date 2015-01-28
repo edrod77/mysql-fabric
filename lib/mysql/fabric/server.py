@@ -419,7 +419,7 @@ class Group(_persistence.Persistable):
         while server in self.servers():
             try:
                 server.connect()
-            except _errors.UuidError,  _errors.DatabaseError:
+            except (_errors.UuidError, _errors.DatabaseError):
                 continue
             if server.is_connected():
                 server_kill_threads.append(

@@ -25,6 +25,8 @@ import mysql.fabric.persistence as _persistence
 import mysql.fabric.utils as _utils
 
 from mysql.fabric.server import MySQLServer, Group
+from mysql.fabric.shard_meta_data import ShardMetaData
+from mysql.fabric.shard_range_check_trigger import ShardMetaDataCheck
 from mysql.fabric.sharding_datatype import (
     HashShardingHandler,
     RangeShardingIntegerHandler,
@@ -81,6 +83,7 @@ class ShardMapping(_persistence.Persistable):
                             "(shard_mapping_id INT NOT NULL, "
                             "table_name VARCHAR(64) NOT NULL, "
                             "column_name VARCHAR(64) NOT NULL, "
+                            "range_check TINYINT(1) NOT NULL DEFAULT 0, "
                             "PRIMARY KEY (table_name, column_name), "
                             "INDEX(shard_mapping_id)) "
                             "DEFAULT CHARSET=utf8"
@@ -88,7 +91,8 @@ class ShardMapping(_persistence.Persistable):
 
     DUMP_SHARD_TABLES = (
                             "SELECT "
-                            "table_name, column_name, shard_mapping_id "
+                            "table_name, column_name, "
+                            "shard_mapping_id, range_check "
                             "FROM "
                             "shard_tables "
                             "WHERE "
@@ -154,13 +158,14 @@ class ShardMapping(_persistence.Persistable):
                             "shard_maps(type_name, global_group) "
                             "VALUES(%s, %s)")
     ADD_SHARD_MAPPING = ("INSERT INTO shard_tables"
-                         "(shard_mapping_id, table_name, column_name) "
-                         "VALUES(%s, %s, %s)")
+                         "(shard_mapping_id, table_name, "
+                         "column_name, range_check) "
+                         "VALUES(%s, %s, %s, %s)")
 
     #select the shard specification mapping information for a table
     SELECT_SHARD_MAPPING = ("SELECT sm.shard_mapping_id, table_name, "
                             "column_name, type_name, "
-                            "global_group "
+                            "global_group, range_check "
                             "FROM shard_tables as sm, "
                             "shard_maps as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
@@ -169,7 +174,7 @@ class ShardMapping(_persistence.Persistable):
     #Select the shard mapping for a given shard mapping ID.
     SELECT_SHARD_MAPPING_BY_ID = ("SELECT sm.shard_mapping_id, table_name, "
                             "column_name, type_name, "
-                            "global_group "
+                            "global_group, range_check "
                             "FROM shard_tables as sm, "
                             "shard_maps as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
@@ -178,7 +183,7 @@ class ShardMapping(_persistence.Persistable):
     #Select all the shard specifications of a particular sharding type name.
     LIST_SHARD_MAPPINGS = ("SELECT sm.shard_mapping_id, table_name, "
                             "column_name, type_name, "
-                            "global_group "
+                            "global_group, range_check "
                             "FROM shard_tables as sm, "
                             "shard_maps as smd "
                             "WHERE sm.shard_mapping_id = smd.shard_mapping_id "
@@ -206,7 +211,7 @@ class ShardMapping(_persistence.Persistable):
     )
 
     def __init__(self, shard_mapping_id, table_name, column_name, type_name,
-                 global_group):
+                 global_group, range_check=False):
         """Initialize the Shard Specification Mapping for a given table.
 
         :param shard_mapping_id: The unique identifier for this shard mapping.
@@ -227,6 +232,7 @@ class ShardMapping(_persistence.Persistable):
         self.__column_name = column_name
         self.__type_name = type_name
         self.__global_group = global_group
+        self.__range_check = range_check
 
     @property
     def shard_mapping_id(self):
@@ -258,6 +264,11 @@ class ShardMapping(_persistence.Persistable):
         """
         return self.__global_group
 
+    @property
+    def range_check(self):
+        """Return whether range checking is enabled for this table.
+        """
+        return self.__range_check
     @staticmethod
     def list(sharding_type, persister=None):
         """The method returns all the shard mappings (names) of a
@@ -279,7 +290,7 @@ class ShardMapping(_persistence.Persistable):
                                   "params" : (sharding_type,)})
         rows = cur.fetchall()
 
-        return [ ShardMapping(*row[0:5]) for row in rows ]
+        return [ ShardMapping(*row) for row in rows ]
 
     def remove(self, persister=None):
         """Remove the shard mapping represented by the Shard Mapping object.
@@ -335,7 +346,7 @@ class ShardMapping(_persistence.Persistable):
                                   "params" : (table_name,)})
         row = cur.fetchone()
         if row:
-            return ShardMapping(row[0], row[1], row[2], row[3], row[4])
+            return ShardMapping(*row)
 
         return None
 
@@ -361,9 +372,7 @@ class ShardMapping(_persistence.Persistable):
         rows = cur.fetchall()
 
         for row in rows:
-            shard_mapping_list.append(
-                ShardMapping(row[0], row[1], row[2], row[3], row[4])
-            )
+            shard_mapping_list.append(ShardMapping(*row))
 
         return shard_mapping_list
 
@@ -377,13 +386,13 @@ class ShardMapping(_persistence.Persistable):
         :param persister: A valid handle to the state store.
         :return: A list containing the shard mapping definition parameters.
         """
-        row = persister.exec_stmt(ShardMapping.SELECT_SHARD_MAPPING_DEFN,
+        rows = persister.exec_stmt(ShardMapping.SELECT_SHARD_MAPPING_DEFN,
                                   {"params" : (shard_mapping_id,)})
-        if row:
+        if rows:
             #There is no abstraction for a shard mapping definition. A
             #shard mapping definition is just a triplet of
-            #(shard_id, sharding_type, global_group)
-            return row[0]
+            #(shard_mapping_id, sharding_type, global_group)
+            return rows[0]
 
         return None
 
@@ -406,7 +415,7 @@ class ShardMapping(_persistence.Persistable):
 
         :group_id: Group identification.
         :param persister: A valid handle to the state store.
-        :return: Shard mapping associated to a group..
+        :return: Shard mapping associated to a group.
         """
         rows = persister.exec_stmt(ShardMapping.QUERY_SHARD_MAPPING_PER_GROUP,
           {"params": (group_id, )}
@@ -426,14 +435,23 @@ class ShardMapping(_persistence.Persistable):
         :param persister: A valid handle to the state store.
         :return: The shard_mapping_id generated for the shard mapping.
         """
-        persister.exec_stmt(
-            ShardMapping.DEFINE_SHARD_MAPPING,
-            {"params":(type_name, global_group_id)})
-        row = persister.exec_stmt("SELECT LAST_INSERT_ID()")
+        try:
+            persister.exec_stmt(
+                ShardMapping.DEFINE_SHARD_MAPPING,
+                {"params":(type_name, global_group_id)})
+        except _errors.DatabaseError as error:
+            raise _errors.ShardingError("Failed to define the Shard Mapping "
+                                        "with error:%s" % (error, ))
+        try:
+            row = persister.exec_stmt("SELECT LAST_INSERT_ID()")
+        except _errors.DatabaseError as error:
+            raise _errors.ShardingError("Error generating shard mapping ID "
+                                        "with error: %s" % (error, ))
         return int(row[0][0])
 
     @staticmethod
-    def add(shard_mapping_id, table_name, column_name, persister=None):
+    def add(shard_mapping_id, table_name, column_name, range_check=False,
+            persister=None):
         """Add a table to a shard mapping.
 
         :param shard_mapping_id: The shard mapping id to which the input
@@ -441,6 +459,8 @@ class ShardMapping(_persistence.Persistable):
         :param table_name: The table being sharded.
         :param column_name: The column whose value is used in the sharding
                             scheme being applied
+        :param range_check: Indicates if range check should be turned on for
+                            this table.
         :param persister: A valid handle to the state store.
 
         :return: The ShardMapping object for the mapping created.
@@ -448,7 +468,7 @@ class ShardMapping(_persistence.Persistable):
         """
         persister.exec_stmt(
             ShardMapping.ADD_SHARD_MAPPING,
-            {"params":(shard_mapping_id, table_name, column_name)})
+            {"params":(shard_mapping_id, table_name, column_name, range_check)})
         return ShardMapping.fetch(table_name)
 
     @staticmethod
@@ -502,7 +522,7 @@ class ShardMapping(_persistence.Persistable):
             #a database and table name.
             for row in rows:
                 database, table = _utils.split_database_table(row[0])
-                yield (database, table, row[1], row[2] )
+                yield (database, table, row[1], row[2], row[3])
 
     @staticmethod
     def dump_sharding_info(version=None, patterns="", persister=None):
@@ -1806,3 +1826,8 @@ SHARDING_SPECIFICATION_HANDLER = {
     "RANGE_DATETIME": RangeShardingSpecification,
     "HASH": HashShardingSpecification
 }
+
+SHARD_METADATA = ShardMetaData
+
+SHARD_METADATA_VERIFIER = ShardMetaDataCheck
+

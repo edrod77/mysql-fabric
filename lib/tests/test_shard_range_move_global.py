@@ -82,6 +82,14 @@ class TestShardingPrune(tests.utils.TestCase):
         MySQLServer.add(self.__server_1)
         self.__server_1.connect()
         self.__server_1.exec_stmt("SET FOREIGN_KEY_CHECKS = OFF")
+        self.__server_1.exec_stmt("CREATE DATABASE IF NOT EXISTS db1")
+        self.__server_1.exec_stmt("CREATE TABLE IF NOT EXISTS db1.t1"
+                                  "(userID INT PRIMARY KEY, name VARCHAR(30))")
+        self.__server_1.exec_stmt("CREATE DATABASE IF NOT EXISTS db2")
+        self.__server_1.exec_stmt("CREATE TABLE IF NOT EXISTS db2.t2"
+                                  "(userID INT, salary INT, "
+                                  "CONSTRAINT FOREIGN KEY(userID) "
+                                  "REFERENCES db1.t1(userID))")
 
         self.__group_1 = Group("GROUPID1", "First description.")
         Group.add(self.__group_1)
@@ -346,10 +354,10 @@ class TestShardingPrune(tests.utils.TestCase):
         packet = self.proxy.sharding.create_definition("RANGE", "GROUPID1")
         self.check_xmlrpc_command_success(packet, 1, False)
 
-        packet = self.proxy.sharding.add_table(1, "db1.t1", "userID")
+        packet = self.proxy.sharding.add_table(1, "db1.t1", "userID", True)
         self.check_xmlrpc_command_success(packet, None, False)
 
-        packet = self.proxy.sharding.add_table(1, "db2.t2", "userID")
+        packet = self.proxy.sharding.add_table(1, "db2.t2", "userID", True)
         self.check_xmlrpc_command_success(packet, None, False)
 
         packet = self.proxy.sharding.add_shard(
@@ -453,6 +461,14 @@ class TestShardingPrune(tests.utils.TestCase):
                 )
         global_table_count = int(global_table_count[0][0])
         self.assertTrue(global_table_count == 10)
+        for i in range(10001, 10003):
+            try:
+                self.__server_6.exec_stmt("INSERT INTO db2.t2 "
+                                      "VALUES(%s, %s)" % (i, i))
+                raise Exception("Should throw an error if value "
+                                "is outside defined range")
+            except Exception as e:
+                pass
 
     def test_move_shard_2(self):
         '''Test the move of shard 2 and the global server configuration
@@ -545,6 +561,14 @@ class TestShardingPrune(tests.utils.TestCase):
                 )
         global_table_count = int(global_table_count[0][0])
         self.assertTrue(global_table_count == 10)
+        for i in range(10001, 10003):
+            try:
+                self.__server_6.exec_stmt("INSERT INTO db2.t2 "
+                                      "VALUES(%s, %s)" % (i, i))
+                raise Exception("Should throw an error if value "
+                                "is outside defined range")
+            except Exception as e:
+                pass
 
     def test_move_shard_3(self):
         '''Test the move of shard 3 and the global server configuration
@@ -637,6 +661,14 @@ class TestShardingPrune(tests.utils.TestCase):
                 )
         global_table_count = int(global_table_count[0][0])
         self.assertTrue(global_table_count == 10)
+        for i in range(10001, 10003):
+            try:
+                self.__server_6.exec_stmt("INSERT INTO db2.t2 "
+                                      "VALUES(%s, %s)" % (i, i))
+                raise Exception("Should throw an error if value "
+                                "is outside defined range")
+            except Exception as e:
+                pass
 
     def test_move_shard_4(self):
         '''Test the move of shard 4 and the global server configuration
@@ -729,6 +761,14 @@ class TestShardingPrune(tests.utils.TestCase):
                 )
         global_table_count = int(global_table_count[0][0])
         self.assertTrue(global_table_count == 10)
+        for i in range(100, 103):
+            try:
+                self.__server_6.exec_stmt("INSERT INTO db2.t2 "
+                                      "VALUES(%s, %s)" % (i, i))
+                raise Exception("Should throw an error if value "
+                                "is outside defined range")
+            except Exception as e:
+                pass
 
 
     def tearDown(self):

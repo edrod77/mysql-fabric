@@ -448,7 +448,7 @@ class RangeShardingDateTimeHandler(ShardingDatatypeHandler):
         "CAST(sr.lower_bound AS DATETIME) "
         "AND sr.shard_mapping_id = %s "
         "AND s.shard_id = sr.shard_id "
-        "ORDER BY CAST(sr.lower_bound AS DATETIME) "
+        "ORDER BY CAST(sr.lower_bound AS DATETIME) DESC "
         "LIMIT 1"
     )
 
