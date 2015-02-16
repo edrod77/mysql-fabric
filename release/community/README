@@ -1,11 +1,11 @@
-MySQL Fabric 1.5
+MySQL Fabric 1.6
 
 This is a release of MySQL Fabric , the dual-license, system for managing a
 farm of MySQL servers. For the avoidance of doubt, this particular copy of
 the software is released under the version 2 of the GNU General
 Public License. MySQL Fabric is brought to you by the MySQL team at Oracle.
 
-Copyright (c) 2010, 2014, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
 For more information on MySQL Fabric, visit
   http://www.mysql.com/products/enterprise/fabric.html
