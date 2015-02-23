@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -137,11 +137,24 @@ class MySQLInstances(_utils.Singleton):
         super(MySQLInstances, self).__init__()
         self.__addresses = []
         self.__instances = {}
+        # The administrative user as given in --user and --password options.
+        # In simple use cases "root" is used.
         self.user = None
         self.passwd = None
-        self.root_user = None
-        self.root_passwd = None
+        # Backing store - "fabric_store/storepw".
         self.state_store_address = None
+        self.store_user = None
+        self.store_passwd = None
+        self.store_db = None
+        # Server user - "fabric_server/serverpw".
+        self.server_user = None
+        self.server_passwd = None
+        # Backup user - "fabric_backup/backuppw".
+        self.backup_user = None
+        self.backup_passwd = None
+        # Restore user - "fabric_restore/restorepw".
+        self.restore_user = None
+        self.restore_passwd = None
 
     def add_address(self, address):
         """Add the address of a MySQL Instance that can be used in the test
@@ -221,6 +234,76 @@ class MySQLInstances(_utils.Singleton):
                 _replication.switch_master(slave, master, user, passwd)
                 _replication.start_slave(slave, wait=True)
             return master
+
+def print_server(server, comment):
+    """Print address and currently used user/passwd for a server.
+
+    :param server; A MySQLServer object
+    """
+    print comment, "address:", server.address, \
+        "user:", server.user, "passwd:", server.passwd
+
+def create_test_user(server, user, passwd, privileges_tuples_list):
+    """Create a user for the test system.
+    Drop a possibly existing user with the same name.
+    Create the user. Grant the user a list of privileges.
+
+    :param server; A connected MySQLServer object.
+    :param user:   The name of the user to create on the server.
+    :param passwd: The password for the new user.
+    :param privileges_tuples_list: A list of tuples of a list of privileges
+                                   and a database object. Example:
+                                   [(["SUPER", "RELOAD"], "*:*"),
+                                    (["CREATE", "DROP"], "mydb.*")].
+    """
+
+    # Create the user only, if it is not identical to the admin user.
+    if user != MySQLInstances().user:
+
+        # Drop a possibly existing user with the same name. There is no
+        # DROP USER IF EXISTS statement, so ignore a failure on drop.
+        try:
+            server.exec_stmt("DROP USER '%s'@'%%'" % (user,))
+        except:
+            pass
+
+        # Prepare a CREATE USER statement. Add a password clause only if the
+        # password is not empty.
+        query = "CREATE USER '%s'@'%%'" % (user,)
+        if passwd != "":
+            query += " IDENTIFIED BY '%s'" % (passwd,)
+
+        # Run the CREATE USER statement.
+        server.exec_stmt(query)
+
+        # Grant the privileges.
+        for privileges_tuple in privileges_tuples_list:
+            privileges, dbobject = privileges_tuple
+            query = "GRANT {privlist} ON {dbobj} TO '{user}'@'%'".format(
+                privlist=", ".join(privileges), dbobj=dbobject, user=user)
+            server.exec_stmt(query)
+
+def fetch_test_server(uuid, user=None, passwd=None):
+    """Get a MySQLServer object, set up for use with the server uuid.
+    The object is modified to connect with the specified user/password.
+    If no user/password is specified, the admin user is used.
+
+    :param uuid:   The UUID of the server.
+    :param user:   The name of the user for the connection to the server.
+    :param passwd: The password for the connection to the server.
+    """
+    server = _server.MySQLServer.fetch(uuid)
+    if server is not None:
+        # Most tests need the admin user by default.
+        if user is None:
+            user = MySQLInstances().user
+        if passwd is None:
+            passwd = MySQLInstances().passwd
+        # After fetch(), the object has no connection.
+        # So it's safe to change user without disconnect/connect.
+        server.user = user
+        server.passwd = passwd
+    return server
 
 class ShardingUtils(object):
     """Utility class for sharding.
@@ -306,22 +389,26 @@ def cleanup_environment():
 
     #Clean up information in the state store.
     uuid_server = _server.MySQLServer.discover_uuid(
-        MySQLInstances().state_store_address, MySQLInstances().root_user,
-        MySQLInstances().root_passwd
+        MySQLInstances().state_store_address,
+        MySQLInstances().user,
+        MySQLInstances().passwd
     )
     server = _server.MySQLServer(uuid.UUID(uuid_server),
-        MySQLInstances().state_store_address, MySQLInstances().root_user,
-        MySQLInstances().root_passwd
+        MySQLInstances().state_store_address,
+        MySQLInstances().user,
+        MySQLInstances().passwd
     )
     server.connect()
 
     server.set_foreign_key_checks(False)
     tables = server.exec_stmt(
         "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE "
-        "TABLE_SCHEMA = 'fabric' and TABLE_TYPE = 'BASE TABLE'"
+        "TABLE_SCHEMA = '%s' and TABLE_TYPE = 'BASE TABLE'" %
+        (MySQLInstances().store_db,)
     )
     for table in tables:
-        server.exec_stmt("TRUNCATE fabric.%s" % (table[0], ))
+        server.exec_stmt("TRUNCATE %s.%s" %
+                         (MySQLInstances().store_db, table[0],))
     server.set_foreign_key_checks(True)
 
     #Remove all the databases from the running MySQL instances
@@ -330,12 +417,18 @@ def cleanup_environment():
 
     for i in range(0, server_count):
         uuid_server = _server.MySQLServer.discover_uuid(
-            MySQLInstances().get_address(i)
+            MySQLInstances().get_address(i),
+            MySQLInstances().user,
+            MySQLInstances().passwd
         )
         server = _server.MySQLServer(
-            uuid.UUID(uuid_server), MySQLInstances().get_address(i)
+            uuid.UUID(uuid_server),
+            MySQLInstances().get_address(i),
+            MySQLInstances().user,
+            MySQLInstances().passwd
         )
         server.connect()
+        server.read_only = False
         _replication.stop_slave(server, wait=True)
 
         server.set_foreign_key_checks(False)
@@ -349,6 +442,8 @@ def cleanup_environment():
 
         _replication.reset_master(server)
         _replication.reset_slave(server, clean=True)
+
+        server.disconnect()
 
     for __file in glob.glob(os.path.join(os.getcwd(), "*.sql")):
         os.remove(__file)

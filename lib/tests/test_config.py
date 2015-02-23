@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -99,7 +99,9 @@ class TestConfig(unittest.TestCase):
         for url, expect in urls:
             handler = \
                 _create_file_handler(config, urlparse.urlparse(url), delay=1)
-            self.assertEqual(handler.baseFilename, expect)
+            # Convert to absolute paths to catch Windows representation.
+            self.assertEqual(os.path.abspath(handler.baseFilename),
+                             os.path.abspath(expect))
 
         for url in ['file://mats@example.com/some/foo.log']:
             self.assertRaises(
@@ -110,7 +112,22 @@ class TestConfig(unittest.TestCase):
     def test_syslog_handler(self):
         "Test that syslog handlers are parsed correctly"
 
+        import sys
         import mysql.fabric.errors as _errors
+
+        #
+        # The syslog test does not work reliably on Windows. Some Python
+        # implementations try to use AF_UNIX instead of AF_INET to
+        # connect to the syslog server. Also it is not likely, that a
+        # syslog server runs on all Windows installations.
+        # Unfortunately, this will look like a successful test. But as
+        # long as we have to deal with ancient Python installations, we
+        # can't do better.
+        #
+        if sys.platform.startswith('win'):
+            # The trailing comma prevents a newline.
+            print "Skipping test_syslog_handler on Windows --- ",
+            return
 
         config = _config.Config(_resolve_config('main-1.cfg'), {
                 'logging': { 'logdir': '/some/path' },

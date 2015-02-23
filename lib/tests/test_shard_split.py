@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ from mysql.fabric.server import MySQLServer
 from tests.utils import (
     MySQLInstances,
     ShardingUtils,
+    fetch_test_server,
 )
 from mysql.fabric.sharding import RangeShardingSpecification
 from mysql.fabric.errors import DatabaseError
@@ -89,7 +90,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
+            shard_server = fetch_test_server(shard_uuid)
             shard_server.connect()
         shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
         shard_server.exec_stmt("CREATE DATABASE db1")
@@ -119,7 +120,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
+            shard_server = fetch_test_server(shard_uuid)
             shard_server.connect()
         shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")        
         status = self.proxy.sharding.split_shard("1", "GROUPID3", "600")
@@ -132,7 +133,7 @@ class TestShardSplit(tests.utils.TestCase):
             'status': "PRIMARY",
         }, index=1)
         shard_uuid = info["server_uuid"]
-        shard_server = MySQLServer.fetch(shard_uuid)
+        shard_server = fetch_test_server(shard_uuid)
         shard_server.connect()
         shard_server.exec_stmt("DROP DATABASE IF EXISTS Extra")
         shard_server.exec_stmt("CREATE DATABASE Extra")
@@ -155,7 +156,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             server_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(server_uuid)
+            shard_server = fetch_test_server(server_uuid)
             shard_server.connect()
             rows = shard_server.exec_stmt(
                                     "SELECT NAME FROM db1.t1",
@@ -168,7 +169,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 800,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             server_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(server_uuid)
+            shard_server = fetch_test_server(server_uuid)
             shard_server.connect()
             rows = shard_server.exec_stmt(
                                     "SELECT NAME FROM db1.t1",
@@ -182,7 +183,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(info['server_uuid'])
+                global_master = fetch_test_server(info['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -202,7 +203,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(info['server_uuid'])
+                global_master = fetch_test_server(info['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("INSERT INTO global_db.global_table "
@@ -219,7 +220,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server = fetch_test_server(info['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT NAME FROM global_db.global_table", {"fetch" : True}
@@ -261,7 +262,7 @@ class TestShardSplit(tests.utils.TestCase):
         self.assertEqual(global_list_before, global_list_after)
 
         # The group has changed but no data was transfered.
-        shard_server = MySQLServer.fetch(local_list_after['server_uuid'])
+        shard_server = fetch_test_server(local_list_after['server_uuid'])
         shard_server.connect()
         self.assertRaises(
             DatabaseError, shard_server.exec_stmt,

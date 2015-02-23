@@ -158,15 +158,27 @@ def connect_to_mysql(cnx=None, **kwargs):
     except mysql.connector.Error as error:
         raise _errors.DatabaseError(error)
 
+def disconnect_mysql_connection(cnx):
+    """Close the connection in a friendly way. Send a QUIT command.
+    """
+    try:
+        if cnx:
+            cnx.disconnect()
+    except Exception as error:
+        raise _errors.DatabaseError(
+            "Error trying to disconnect friendly from (%s). %s." %
+            (mysql_address_from_cnx(cnx), error)
+        )
+
 def destroy_mysql_connection(cnx):
-    """Close the connection.
+    """Close the connection abruptly. Do not interact with the server.
     """
     try:
         if cnx:
             cnx.shutdown()
     except Exception as error:
         raise _errors.DatabaseError(
-            "Error trying to disconnect from (%s). %s." %
+            "Error trying to disconnect abruptly from (%s). %s." %
             (mysql_address_from_cnx(cnx), error)
         )
 

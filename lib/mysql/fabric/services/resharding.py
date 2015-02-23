@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2014,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -34,6 +34,7 @@ from mysql.fabric import (
     replication as _replication,
     backup as _backup,
     utils as _utils,
+    config as _config,
 )
 
 from mysql.fabric.server import (
@@ -121,22 +122,10 @@ class MoveShardServer(ProcedureShard):
         :param synchronous: Whether one should wait until the execution finishes
                         or not.
         """
-        mysqldump_binary = _services_utils.read_config_value(
-                                self.config,
-                                'sharding',
-                                'mysqldump_program'
-                            )
-        mysqlclient_binary = _services_utils.read_config_value(
-                                self.config,
-                                'sharding',
-                                'mysqlclient_program'
-                            )
-        config_file = self.config.config_file if self.config.config_file else ""
 
         procedures = _events.trigger(
             CHECK_SHARD_INFORMATION, self.get_lockable_objects(), shard_id,
-            group_id, mysqldump_binary, mysqlclient_binary, None, config_file,
-            "", "MOVE", update_only
+            group_id, None, "", "MOVE", update_only
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -165,27 +154,15 @@ class SplitShardServer(ProcedureShard):
         :param synchronous: Whether one should wait until the execution
                             finishes
         """
-        mysqldump_binary = _services_utils.read_config_value(
-                                self.config,
-                                'sharding',
-                                'mysqldump_program'
-                            )
-        mysqlclient_binary = _services_utils.read_config_value(
-                                self.config,
-                                'sharding',
-                                'mysqlclient_program'
-                            )
         prune_limit =   _services_utils.read_config_value(
                                 self.config,
                                 'sharding',
                                 'prune_limit'
                             )
-        config_file = self.config.config_file if self.config.config_file else ""
-
         procedures = _events.trigger(
-            CHECK_SHARD_INFORMATION, self.get_lockable_objects(),
-            shard_id, group_id, mysqldump_binary, mysqlclient_binary,
-            split_value, config_file, prune_limit, "SPLIT", update_only)
+            CHECK_SHARD_INFORMATION, self.get_lockable_objects(), shard_id,
+            group_id, split_value, prune_limit, "SPLIT", update_only
+        )
         return self.wait_for_procedures(procedures, synchronous)
 
 
@@ -217,24 +194,50 @@ def _prune_shard_tables(table_name, prune_limit):
             raise error
 
 @_events.on_event(CHECK_SHARD_INFORMATION)
-def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
-                             mysqlclient_binary, split_value, config_file, prune_limit, cmd,
-                             update_only):
+def _check_shard_information(shard_id, destn_group_id,
+                             split_value, prune_limit, cmd, update_only):
     """Verify the sharding information before starting a re-sharding operation.
 
     :param shard_id: The destination shard ID.
     :param destn_group_id: The Destination group ID.
-    :param mysqldump_binary: The path to the mysqldump binary.
-    :param mysqlclient_binary: The path to the mysqlclient binary.
     :param split_value: The point at which the sharding definition
                         should be split.
-    :param config_file: The complete path to the fabric configuration
-                        file.
     :param prune_limit: The number of DELETEs that should be
                         done in one batch.
     :param cmd: Indicates if it is a split or a move being executed.
     :param update_only: If the operation is a update only operation.
     """
+    backup_user = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'backup_user'
+                        )
+    backup_passwd = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'backup_password'
+                        )
+    restore_user = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'restore_user'
+                        )
+    restore_passwd = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'restore_password'
+                        )
+    mysqldump_binary = _services_utils.read_config_value(
+                            _config.global_config,
+                            'sharding',
+                            'mysqldump_program'
+                        )
+    mysqlclient_binary = _services_utils.read_config_value(
+                            _config.global_config,
+                            'sharding',
+                            'mysqlclient_program'
+                        )
+
     if not _services_utils.is_valid_binary(mysqldump_binary):
         raise _errors.ShardingError(
                 _services_sharding.MYSQLDUMP_NOT_FOUND % mysqldump_binary)
@@ -317,10 +320,23 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
             (destn_group_id, ))
 
     if not update_only:
+        # Check if the source server has backup privileges.
+        source_group = Group.fetch(source_group_id)
+        server = _services_utils.fetch_backup_server(source_group)
+        server.user = backup_user
+        server.passwd = backup_passwd
+        _backup.MySQLDump.check_backup_privileges(server)
+
+        # Check if the destination server has restore privileges.
+        destination_group = Group.fetch(destn_group_id)
+        server = MySQLServer.fetch(destination_group.master)
+        server.user = restore_user
+        server.passwd = restore_passwd
+        _backup.MySQLDump.check_restore_privileges(server)
+
         _events.trigger_within_procedure(
             BACKUP_SOURCE_SHARD, shard_id, source_group_id, destn_group_id,
-            mysqldump_binary, mysqlclient_binary, split_value, config_file,
-            prune_limit, cmd, update_only
+            split_value, prune_limit, cmd, update_only
         )
     else:
         _events.trigger_within_procedure(
@@ -330,32 +346,44 @@ def _check_shard_information(shard_id, destn_group_id, mysqldump_binary,
 
 @_events.on_event(BACKUP_SOURCE_SHARD)
 def _backup_source_shard(shard_id, source_group_id, destn_group_id,
-                         mysqldump_binary, mysqlclient_binary, split_value,
-                         config_file, prune_limit, cmd, update_only):
+                         split_value, prune_limit, cmd, update_only):
     """Backup the source shard.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
     :param source_group_id: The group_id of the source shard.
     :param destn_group_id: The ID of the group to which the shard needs to
                            be moved.
-    :param mysqldump_binary: The fully qualified mysqldump binary.
-    :param mysqlclient_binary: The fully qualified mysql client binary.
     :param split_value: Indicates the value at which the range for the
                         particular shard will be split. Will be set only
                         for shard split operations.
-    :param config_file: The complete path to the fabric configuration file.
     :param prune_limit: The number of DELETEs that should be
                         done in one batch.
     :param cmd: Indicates the type of re-sharding operation (move, split)
     :update_only: Only update the state store and skip provisioning.
     """
+    backup_user = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'backup_user'
+                        )
+    backup_passwd = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'backup_password'
+                        )
+    mysqldump_binary = _services_utils.read_config_value(
+                            _config.global_config,
+                            'sharding',
+                            'mysqldump_program'
+                        )
+
     source_group = Group.fetch(source_group_id)
     move_source_server = _services_utils.fetch_backup_server(source_group)
 
     #Do the backup of the group hosting the source shard.
     backup_image = _backup.MySQLDump.backup(
                         move_source_server,
-                        config_file,
+                        backup_user, backup_passwd,
                         mysqldump_binary
                     )
 
@@ -366,35 +394,46 @@ def _backup_source_shard(shard_id, source_group_id, destn_group_id,
                                      shard_id,
                                      source_group_id,
                                      destn_group_id,
-                                     mysqlclient_binary,
                                      backup_image.path,
                                      split_value,
-                                     config_file,
                                      prune_limit,
                                      cmd
                                      )
 
 @_events.on_event(RESTORE_SHARD_BACKUP)
 def _restore_shard_backup(shard_id, source_group_id, destn_group_id,
-                            mysqlclient_binary, backup_image,
-                            split_value, config_file, prune_limit, cmd):
+                          backup_image, split_value, prune_limit, cmd):
     """Restore the backup on the destination Group.
 
     :param shard_id: The shard ID of the shard that needs to be moved.
     :param source_group_id: The group_id of the source shard.
     :param destn_group_id: The ID of the group to which the shard needs to
                            be moved.
-    :param mysqlclient_binary: The fully qualified mysqlclient binary.
     :param backup_image: The destination file that contains the backup
                          of the source shard.
     :param split_value: Indicates the value at which the range for the
                         particular shard will be split. Will be set only
                         for shard split operations.
-    :param config_file: The complete path to the fabric configuration file.
     :param prune_limit: The number of DELETEs that should be
                         done in one batch.
     :param cmd: Indicates the type of re-sharding operation
     """
+    restore_user = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'restore_user'
+                        )
+    restore_passwd = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'restore_password'
+                        )
+    mysqlclient_binary = _services_utils.read_config_value(
+                            _config.global_config,
+                            'sharding',
+                            'mysqlclient_program'
+                        )
+
     destn_group = Group.fetch(destn_group_id)
     if destn_group is None:
         raise _errors.ShardingError(_services_sharding.SHARD_GROUP_NOT_FOUND %
@@ -407,8 +446,8 @@ def _restore_shard_backup(shard_id, source_group_id, destn_group_id,
         destn_group_server.connect()
         _backup.MySQLDump.restore_fabric_server(
             destn_group_server,
+            restore_user, restore_passwd,
             bk_img,
-            config_file,
             mysqlclient_binary
         )
 

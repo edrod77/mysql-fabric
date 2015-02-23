@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,10 @@ import unittest
 import tests.utils
 
 from time import sleep
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
@@ -98,7 +101,7 @@ class TestShardingGlobalServerPart1(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server_1 = MySQLServer.fetch(row['server_uuid'])
+                shard_server_1 = fetch_test_server(row['server_uuid'])
                 shard_server_1.connect()
 
         self.proxy.sharding.disable_shard("1")
@@ -109,7 +112,7 @@ class TestShardingGlobalServerPart1(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -157,7 +160,7 @@ class TestShardingGlobalServerPart1(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -190,7 +193,7 @@ class TestShardingGlobalServerPart1(tests.utils.TestCase):
 
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 try:
                     rows = shard_server.exec_stmt(

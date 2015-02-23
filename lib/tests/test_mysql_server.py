@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -333,8 +333,8 @@ class TestMySQLServer(unittest.TestCase):
         # Get persister'a address.
         instances = tests.utils.MySQLInstances()
         address = instances.state_store_address
-        user = instances.root_user
-        passwd = instances.root_passwd
+        user = instances.store_user
+        passwd = instances.store_passwd
 
         # Try to manage the MySQLPersister.
         uuid = MySQLServer.discover_uuid(
@@ -352,12 +352,12 @@ class TestMySQLServer(unittest.TestCase):
             "SHOW DATABASES", "RELOAD"
         ]
 
-        # Connect to server as root and create temporary user.
+        # Connect to server as admin and create temporary user.
         uuid = MySQLServer.discover_uuid(OPTIONS["address"])
         server = MySQLServer(
             _uuid.UUID(uuid), OPTIONS["address"],
-            tests.utils.MySQLInstances().root_user,
-            tests.utils.MySQLInstances().root_passwd
+            tests.utils.MySQLInstances().user,
+            tests.utils.MySQLInstances().passwd
         )
         ConnectionManager().purge_connections(server)
         server.connect()
@@ -365,7 +365,6 @@ class TestMySQLServer(unittest.TestCase):
         server.exec_stmt(
             "CREATE USER 'jeffrey'@'%%' IDENTIFIED BY 'mypass'"
         )
-        server.exec_stmt("FLUSH PRIVILEGES")
 
         # Check if jeffrey (temporary user) has the appropriate privileges.
         # There is not privilege associate to jeffrey.
@@ -387,7 +386,6 @@ class TestMySQLServer(unittest.TestCase):
             "GRANT {privileges} ON *.* TO 'jeffrey'@'%%'".format(
             privileges=privileges)
         )
-        server.exec_stmt("FLUSH PRIVILEGES")
         self.assertFalse(
             new_server.has_privileges(MINIMUM_PRIVILEGES)
         )
@@ -395,7 +393,6 @@ class TestMySQLServer(unittest.TestCase):
         # Check if jeffrey (temporary user) has the appropriate privileges.
         # The RELOAD on a global level was granted.
         server.exec_stmt("GRANT RELOAD ON *.* TO 'jeffrey'@'%%'")
-        server.exec_stmt("FLUSH PRIVILEGES")
         self.assertTrue(
             new_server.has_privileges(MINIMUM_PRIVILEGES)
         )
@@ -407,15 +404,21 @@ class TestMySQLServer(unittest.TestCase):
                          "'jeffrey'@'%%'"
         )
         server.exec_stmt("GRANT ALL ON fabric.* TO 'jeffrey'@'%%'")
-        server.exec_stmt("FLUSH PRIVILEGES")
         self.assertFalse(
             new_server.has_privileges(MINIMUM_PRIVILEGES)
         )
 
         # Check if jeffrey (temporary user) has the appropriate privileges.
-        # The ALL on a global level was granted.
-        server.exec_stmt("GRANT ALL ON *.* TO 'jeffrey'@'%%'")
-        server.exec_stmt("FLUSH PRIVILEGES")
+        # Grant all privileges, which the administrative user has to have.
+        server.exec_stmt("GRANT"
+                         " ALTER, ALTER ROUTINE, CREATE, CREATE ROUTINE,"
+                         " CREATE TEMPORARY TABLES, CREATE USER,"
+                         " CREATE VIEW, DELETE, DROP, EVENT, EXECUTE,"
+                         " GRANT OPTION, INDEX, INSERT, LOCK TABLES, PROCESS, "
+                         " RELOAD, REPLICATION CLIENT, REPLICATION SLAVE,"
+                         " SELECT, SHOW DATABASES, SHOW VIEW, SHUTDOWN,"
+                         " SUPER, TRIGGER, UPDATE"
+                         " ON *.* TO 'jeffrey'@'%%'")
         self.assertTrue(
             new_server.has_privileges(MINIMUM_PRIVILEGES)
         )
@@ -455,8 +458,15 @@ class TestConnectionManager(unittest.TestCase):
         # Configuration
         uuid = MySQLServer.discover_uuid(OPTIONS["address"])
         OPTIONS["uuid"] = uuid = _uuid.UUID(uuid)
-        server_1 = MySQLServer(**OPTIONS)
-        server_2 = MySQLServer(**OPTIONS)
+
+        # We need to use the server_user here, because only those
+        # connections are pooled.
+        options = OPTIONS.copy()
+        options["user"] = tests.utils.MySQLInstances().server_user
+        options["passwd"] = tests.utils.MySQLInstances().server_passwd
+
+        server_1 = MySQLServer(**options)
+        server_2 = MySQLServer(**options)
         cnx_pool = ConnectionManager()
 
         # Purge connections and check the number of connections in
@@ -472,13 +482,13 @@ class TestConnectionManager(unittest.TestCase):
         # Delete one of the servers and check the number of
         # connections in the pool.
         del server_1
-        server_1 = MySQLServer(**OPTIONS)
+        server_1 = MySQLServer(**options)
         self.assertEqual(cnx_pool.get_number_connections(server_1), 1)
 
         # Delete one of the servers and check the number of
         # connections in the pool.
         del server_2
-        server_2 = MySQLServer(**OPTIONS)
+        server_2 = MySQLServer(**options)
         self.assertEqual(cnx_pool.get_number_connections(server_2), 2)
 
         # Purge connections and check the number of connections in

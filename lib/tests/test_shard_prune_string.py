@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2014,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,10 @@ from mysql.fabric.server import (
     Group,
     MySQLServer,
 )
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 
 class TestShardingPrune(tests.utils.TestCase):
     """Contains unit tests for testing the shard split operation and for
@@ -375,7 +378,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", "a3",  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server = fetch_test_server(info['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
@@ -388,7 +391,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", "b12",  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server = fetch_test_server(info['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
@@ -405,7 +408,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", "c35",  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server = fetch_test_server(info['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
@@ -422,7 +425,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", "d21",  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server = fetch_test_server(info['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}
@@ -439,7 +442,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", "e31",  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(info['server_uuid'])
+                shard_server = fetch_test_server(info['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT COUNT(*) FROM db1.t1", {"fetch" : True}

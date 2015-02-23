@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,10 @@
 import unittest
 import tests.utils
 
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
@@ -92,7 +95,7 @@ class TestShardingPrune(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             shard_uuid = info['server_uuid']
-            self.shard_server = MySQLServer.fetch(shard_uuid)
+            self.shard_server = fetch_test_server(shard_uuid)
             self.shard_server.connect()
         self.shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
         self.shard_server.exec_stmt("CREATE DATABASE db1")
@@ -134,7 +137,7 @@ class TestShardingPrune(tests.utils.TestCase):
         for info in self.check_xmlrpc_iter(status):
             if info['status'] == MySQLServer.SECONDARY:
                 slave_uuid = info['server_uuid']
-                slave_server = MySQLServer.fetch(slave_uuid)
+                slave_server = fetch_test_server(slave_uuid)
                 slave_server.connect()
         _group_replication.setup_group_replication("GROUPID2", "GROUPID3")
         _replication.synchronize_with_read_only(

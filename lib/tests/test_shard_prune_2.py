@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -24,7 +24,10 @@ from mysql.fabric.server import (
     Group,
     MySQLServer,
 )
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 
 class TestShardingPrune(tests.utils.TestCase):
 
@@ -271,7 +274,7 @@ class TestShardingPrune(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {}, rowcount=1)
-        shard_server = MySQLServer.fetch(info['server_uuid'])
+        shard_server = fetch_test_server(info['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db1.t1",
@@ -288,7 +291,7 @@ class TestShardingPrune(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 101,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {}, rowcount=1)
-        shard_server = MySQLServer.fetch(info['server_uuid'])
+        shard_server = fetch_test_server(info['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db1.t1",
@@ -305,7 +308,7 @@ class TestShardingPrune(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1202,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {}, rowcount=1)
-        shard_server = MySQLServer.fetch(info['server_uuid'])
+        shard_server = fetch_test_server(info['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db1.t1",
@@ -322,7 +325,7 @@ class TestShardingPrune(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 11000,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {}, rowcount=1)
-        shard_server = MySQLServer.fetch(info['server_uuid'])
+        shard_server = fetch_test_server(info['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db1.t1",
@@ -339,7 +342,7 @@ class TestShardingPrune(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 100100,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {}, rowcount=1)
-        shard_server = MySQLServer.fetch(info['server_uuid'])
+        shard_server = fetch_test_server(info['server_uuid'])
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db1.t1",

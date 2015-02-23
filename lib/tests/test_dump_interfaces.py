@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -47,12 +47,16 @@ class TestSharding(tests.utils.TestCase):
         self.__options_1 = {
             "uuid" :  _uuid.UUID("{bb75b12b-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_1.mysql.com:3060",
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
         self.__server_1 = MySQLServer(**self.__options_1)
         MySQLServer.add(self.__server_1)
         self.__options_2 = {
             "uuid" :  _uuid.UUID("{aa75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_2.mysql.com:3060",
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
         self.__server_2 = MySQLServer(**self.__options_2)
         MySQLServer.add(self.__server_2)
@@ -75,6 +79,8 @@ class TestSharding(tests.utils.TestCase):
         self.__options_4 = {
             "uuid" :  _uuid.UUID("{dd75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_4.mysql.com:3060",
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
         self.__server_4 = MySQLServer(**self.__options_4)
         MySQLServer.add(self.__server_4)
@@ -98,6 +104,8 @@ class TestSharding(tests.utils.TestCase):
         self.__options_6 = {
             "uuid" :  _uuid.UUID("{ff75a12a-98d1-414c-96af-9e9d4b179678}"),
             "address"  : "server_6.mysql.com:3060",
+            "user" : MySQLInstances().user,
+            "passwd" : MySQLInstances().passwd,
         }
         self.__server_6 = MySQLServer(**self.__options_6)
         MySQLServer.add(self.__server_6)

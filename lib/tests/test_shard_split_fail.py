@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,7 +20,10 @@ import tests.utils
 
 from mysql.fabric import executor as _executor
 from mysql.fabric.server import MySQLServer
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 
 class TestShardSplit(tests.utils.TestCase):
 
@@ -93,7 +96,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
         shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
         shard_server.exec_stmt("CREATE DATABASE db1")

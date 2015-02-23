@@ -11,6 +11,10 @@ connection_delay = 1
 [servers]
 user = fabric
 password =
+backup_user = fabric
+backup_password =
+restore_user = fabric
+restore_password =
 unreachable_timeout = 5
 
 [protocol.xmlrpc]
@@ -60,6 +64,3 @@ prune_time = 3600
 
 [connector]
 TTL = 1
-
-[client]
-password=

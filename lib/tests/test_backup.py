@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -65,20 +65,37 @@ class TestBackupMySQLDump(unittest.TestCase):
         self.__server_1.exec_stmt("CREATE DATABASE backup_db")
         self.__server_1.exec_stmt("CREATE TABLE backup_db.backup_table"
                                   "(userID INT, name VARCHAR(30))")
+        self.__server_1.exec_stmt("CREATE TABLE backup_db.trigger_table"
+                                  "(count INT)")
+        self.__server_1.exec_stmt("INSERT INTO backup_db.trigger_table "
+                                  "VALUES(0)")
+        self.__server_1.exec_stmt("CREATE TRIGGER backup_db.backup_table_ai"
+                                  " AFTER INSERT ON backup_db.backup_table"
+                                  " FOR EACH ROW UPDATE backup_db.trigger_table"
+                                  " SET count = count + 1")
         self.__server_1.exec_stmt("INSERT INTO backup_db.backup_table "
                                   "VALUES(101, 'TEST 1')")
         self.__server_1.exec_stmt("INSERT INTO backup_db.backup_table "
                                   "VALUES(202, 'TEST 2')")
+        self.__server_1.exec_stmt("CREATE INDEX i1 ON"
+                                  " backup_db.backup_table (userID)")
+        self.__server_1.exec_stmt("CREATE EVENT backup_db.ev1"
+                                  " ON SCHEDULE EVERY 1 DAY DO SELECT 1")
 
         self.mysqldump_path = mysqldump_path
         self.mysqlclient_path = mysqlclient_path
 
     def test_backup(self):
-        restore_server = MySQLServer.fetch(self.__server_2.uuid)
-        image = MySQLDump.backup(self.__server_1, "", self.mysqldump_path)
-        restore_server.connect()
-        MySQLDump.restore_fabric_server(restore_server, image, "", self.mysqlclient_path)
-        rows = restore_server.exec_stmt(
+        image = MySQLDump.backup(self.__server_1,
+                                 MySQLInstances().backup_user,
+                                 MySQLInstances().backup_passwd,
+                                 self.mysqldump_path)
+        MySQLDump.restore_fabric_server(self.__server_2,
+                                        MySQLInstances().restore_user,
+                                        MySQLInstances().restore_passwd,
+                                        image,
+                                        self.mysqlclient_path)
+        rows = self.__server_2.exec_stmt(
                                     "SELECT NAME FROM backup_db.backup_table",
                                     {"fetch" : True})
         self.assertEqual(len(rows), 2)
