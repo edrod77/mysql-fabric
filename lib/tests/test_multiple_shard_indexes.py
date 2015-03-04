@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,10 @@ import unittest
 import uuid as _uuid
 import tests.utils
 
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 from mysql.fabric import executor as _executor
 from mysql.fabric.server import (
     Group,
@@ -213,7 +216,7 @@ class TestShardingServices(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db2.t2", 1,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {})
         shard_uuid = info['server_uuid']
-        shard_server = MySQLServer.fetch(shard_uuid)
+        shard_server = fetch_test_server(shard_uuid)
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db2.t2",
@@ -231,7 +234,7 @@ class TestShardingServices(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db2.t2", 101,  "LOCAL")
         info = self.check_xmlrpc_simple(status, {})
         shard_uuid = info['server_uuid']
-        shard_server = MySQLServer.fetch(shard_uuid)
+        shard_server = fetch_test_server(shard_uuid)
         shard_server.connect()
         rows = shard_server.exec_stmt(
                                     "SELECT COUNT(*) FROM db2.t2",

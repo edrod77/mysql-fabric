@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ import tests.utils
 from tests.utils import (
     MySQLInstances,
     ShardingUtils,
+    fetch_test_server,
 )
 from mysql.fabric import executor as _executor
 from mysql.fabric import errors as _errors
@@ -89,7 +90,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
+            shard_server = fetch_test_server(shard_uuid)
             shard_server.connect()
         shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
         shard_server.exec_stmt("CREATE DATABASE db1")
@@ -106,7 +107,7 @@ class TestShardSplit(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for info in self.check_xmlrpc_iter(status):
             shard_uuid = info['server_uuid']
-            shard_server = MySQLServer.fetch(shard_uuid)
+            shard_server = fetch_test_server(shard_uuid)
             shard_server.connect()
         shard_server.exec_stmt("CREATE DATABASE SAMPDB")
         shard_server.exec_stmt("USE SAMPDB")
@@ -156,14 +157,14 @@ class TestShardSplit(tests.utils.TestCase):
                 )
                 split_cnt_1 = split_cnt_1 + 1
                 if shard_server_1 is None:
-                    shard_server_1 = MySQLServer.fetch(obtained_uuid_list[0])
+                    shard_server_1 = fetch_test_server(obtained_uuid_list[0])
             except AssertionError:
                 self.assertEqual(
                     set(expected_address_list_2), set(obtained_address_list)
                 )
                 split_cnt_2 = split_cnt_2 + 1
                 if shard_server_2 is None:
-                    shard_server_2 = MySQLServer.fetch(obtained_uuid_list[0])
+                    shard_server_2 = fetch_test_server(obtained_uuid_list[0])
 
         #Ensure that both the splits have been utilized.
         self.assertTrue(split_cnt_1 > 0)

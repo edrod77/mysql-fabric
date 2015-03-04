@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ provided elsewhere.
 import logging
 import uuid as _uuid
 
-import mysql.fabric.services.utils as _utils
+import mysql.fabric.services.utils as _services_utils
 
 from mysql.connector.errorcode import (
     ER_ROW_IS_REFERENCED,
@@ -100,7 +100,7 @@ from mysql.fabric.utils import (
 _LOGGER = logging.getLogger(__name__)
 
 SERVER_NOT_FOUND = "Server with UUID %s not found."
-MYSQLDUMP_NOT_FOUND = "Unable to find MySQLDump in location %s"
+MYSQLDUMP_NOT_FOUND = "Unable to find mysqldump in location %s"
 MYSQLCLIENT_NOT_FOUND = "Unable to find MySQL Client in location %s"
 
 MIN_UNREACHABLE_TIMEOUT = 1
@@ -311,6 +311,7 @@ class ServerAdd(ProcedureGroup):
                             finishes or not.
         :return: Tuple with job's uuid and status.
         """
+        _LOGGER.debug("executing group add.")
         procedures = _events.trigger(ADD_SERVER, self.get_lockable_objects(),
             group_id, address, timeout, update_only
         )
@@ -499,7 +500,7 @@ class CloneServer(ProcedureGroup):
     group_name = "server"
     command_name = "clone"
 
-    def execute(self, group_id, destn_address, server_id=None, timeout=None,
+    def execute(self, group_id, destn_address, source_id=None, timeout=None,
                 synchronous=True):
         """Clone the objects of a given server into a destination server.
 
@@ -519,32 +520,63 @@ class CloneServer(ProcedureGroup):
             destn_address, _backup.MySQLDump.MYSQL_DEFAULT_PORT
         )
 
-        # Fetch information on backup and restore programs.
-        config_file = self.config.config_file if self.config.config_file else ""
+        # Fetch config information
 
-        mysqldump_binary = _utils.read_config_value(
+        backup_user = _services_utils.read_config_value(
+                                self.config,
+                                'servers',
+                                'backup_user'
+                            )
+        backup_passwd = _services_utils.read_config_value(
+                                self.config,
+                                'servers',
+                                'backup_password'
+                            )
+        restore_user = _services_utils.read_config_value(
+                                self.config,
+                                'servers',
+                                'restore_user'
+                            )
+        restore_passwd = _services_utils.read_config_value(
+                                self.config,
+                                'servers',
+                                'restore_password'
+                            )
+
+        mysqldump_binary = _services_utils.read_config_value(
                                 self.config,
                                 'sharding',
                                 'mysqldump_program'
                             )
-        mysqlclient_binary = _utils.read_config_value(
+        mysqlclient_binary = _services_utils.read_config_value(
                                 self.config,
                                 'sharding',
                                 'mysqlclient_program'
                             )
 
-        if not _utils.is_valid_binary(mysqldump_binary):
+        if not _services_utils.is_valid_binary(mysqldump_binary):
             raise _errors.ServerError(MYSQLDUMP_NOT_FOUND % mysqldump_binary)
 
-        if not _utils.is_valid_binary(mysqlclient_binary):
+        if not _services_utils.is_valid_binary(mysqlclient_binary):
             raise _errors.ServerError(MYSQLCLIENT_NOT_FOUND % mysqlclient_binary)
 
+        # Check if the destination server has restore privileges.
+        server = _server.MySQLServer.fetch(destn_server_uuid)
+        server.user = restore_user
+        server.passwd = restore_passwd
+        _backup.MySQLDump.check_restore_privileges(server)
+
         # Fetch a reference to source server.
-        if server_id:
-            server = _retrieve_server(server_id, group_id)
+        if source_id:
+            server = _retrieve_server(source_id, group_id)
         else:
             group = _retrieve_group(group_id)
-            server = _utils.fetch_backup_server(group)
+            server = _services_utils.fetch_backup_server(group)
+
+        # Check if the source server has backup privileges.
+        server.user = backup_user
+        server.passwd = backup_passwd
+        _backup.MySQLDump.check_backup_privileges(server)
 
         # Schedule the clone operation through the executor.
         procedures = _events.trigger(
@@ -552,10 +584,7 @@ class CloneServer(ProcedureGroup):
             self.get_lockable_objects(),
             str(server.uuid),
             host,
-            port,
-            mysqldump_binary,
-            mysqlclient_binary,
-            config_file
+            port
         )
         return self.wait_for_procedures(procedures, synchronous)
 
@@ -824,23 +853,34 @@ def _set_server_mode(server_id, mode):
         _set_server_mode_faulty(server, mode)
 
 @_events.on_event(BACKUP_SERVER)
-def _backup_server(source_uuid, host, port, mysqldump_binary,
-                   mysqlclient_binary, config_file):
+def _backup_server(source_uuid, host, port):
     """Backup the source server, given by the source_uuid.
 
     :param source_uuid: The UUID of the source server.
     :param host: The hostname of the destination server.
     :param port: The port number of the destination server.
-    :param mysqldump_binary: The MySQL Dump Binary path.
-    :param mysqlclient_binary: The MySQL Client Binary path.
-    :param config_file: The complete path to the fabric configuration
-        file.
     """
+    backup_user = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'backup_user'
+                        )
+    backup_passwd = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'backup_password'
+                        )
+    mysqldump_binary = _services_utils.read_config_value(
+                            _config.global_config,
+                            'sharding',
+                            'mysqldump_program'
+                        )
+
     source_server = _server.MySQLServer.fetch(source_uuid)
     #Do the backup of the group hosting the source shard.
     backup_image = _backup.MySQLDump.backup(
                         source_server,
-                        config_file,
+                        backup_user, backup_passwd,
                         mysqldump_binary
                     )
     _LOGGER.debug("Done with backup of server with uuid = %s.", source_uuid)
@@ -849,26 +889,35 @@ def _backup_server(source_uuid, host, port, mysqldump_binary,
         source_uuid,
         host,
         port,
-        backup_image.path,
-        mysqlclient_binary,
-        config_file
+        backup_image.path
     )
 
 @_events.on_event(RESTORE_SERVER)
-def _restore_server(source_uuid, host, port, backup_image, mysqlclient_binary,
-                    config_file):
+def _restore_server(source_uuid, host, port, backup_image):
     """Restore the backup on the destination Server.
 
     :param source_uuid: The UUID of the source server.
     :param host: The hostname of the destination server.
     :param port: The port number of the destination server.
-    :param userid: The User Name to be used to connect to the destn server.
-    :param passwd: The password to be used to connect to the destn server.
-    :param mysqldump_binary: The MySQL Dump Binary path.
-    :param mysqlclient_binary: The MySQL Client Binary path.
-    :param config_file: The complete path to the fabric configuration
-        file.
+    :param backup_image: The backup image path.
     """
+    restore_user = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'restore_user'
+                        )
+    restore_passwd = _services_utils.read_config_value(
+                            _config.global_config,
+                            'servers',
+                            'restore_password'
+                        )
+
+    mysqlclient_binary = _services_utils.read_config_value(
+                            _config.global_config,
+                            'sharding',
+                            'mysqlclient_program'
+                        )
+
     source_server = _server.MySQLServer.fetch(source_uuid)
     if not source_server:
         raise _errors.ServerError(SERVER_NOT_FOUND % source_uuid)
@@ -877,10 +926,8 @@ def _restore_server(source_uuid, host, port, backup_image, mysqlclient_binary,
     _backup.MySQLDump.restore_server(
         host,
         port,
-        source_server.USER,
-        source_server.PASSWD,
+        restore_user, restore_passwd,
         bk_img,
-        config_file,
         mysqlclient_binary
     )
     _LOGGER.debug("Done with restore of server with host = %s, port = %s" %\
@@ -1049,13 +1096,7 @@ def _check_requirements(server):
             "is required." % (server.uuid, server.version)
         )
 
-    if not server.has_required_privileges():
-        raise _errors.ServerError(
-            "User (%s) does not have appropriate privileges (%s) on server "
-            "(%s, %s)." % (server.user,
-            ", ".join(_server.MySQLServer.ALL_PRIVILEGES),
-            server.address, server.uuid)
-        )
+    server.check_server_privileges()
 
     if not server.gtid_enabled or not server.binlog_enabled:
         raise _errors.ServerError(
@@ -1070,7 +1111,7 @@ def _configure_as_slave(group, server):
         if group.master:
             master = _server.MySQLServer.fetch(group.master)
             master.connect()
-            _utils.switch_master(server, master)
+            _services_utils.switch_master(server, master)
     except _errors.DatabaseError as error:
         msg = "Error trying to configure server ({0}) as slave: {1}.".format(
             server.uuid, error)

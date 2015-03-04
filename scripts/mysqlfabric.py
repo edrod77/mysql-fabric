@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ import textwrap
 from getpass import getpass
 from ConfigParser import NoOptionError
 from urllib2 import HTTPError, URLError
+import copy
 
 # Check that the correct version of dependent packages are
 # installed. This has to be done before importing any other packages
@@ -32,6 +33,7 @@ from urllib2 import HTTPError, URLError
 from mysql.fabric import (
     check_dependencies,
     errors,
+    config as _config,
 )
 
 try:
@@ -417,6 +419,7 @@ def main():
 
         # Read configuration file
         config = Config(options.config_file, options.config_params)
+        _config.global_config = copy.copy(config)
 
         cmd, cargs = create_command(group_name, command_name,
                                     options, args, config)

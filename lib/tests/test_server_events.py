@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,15 @@ from mysql.fabric import (
     replication as _replication,
 )
 
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
+
 import mysql.fabric.protocols.xmlrpc as _xmlrpc
+
+import logging
+_LOGGER = logging.getLogger(__name__)
 
 class TestServerServices(tests.utils.TestCase):
     """Test server service interface.
@@ -85,12 +93,20 @@ class TestServerServices(tests.utils.TestCase):
     def setUp(self):
         """Configure the existing environment
         """
+        _LOGGER.critical("\n\nStart of test-fixture-SetUp(): %s\n" %
+                         (self._testMethodName))
         self.manager, self.proxy = tests.utils.setup_xmlrpc()
+        _LOGGER.debug("End of test-fixture-SetUp(): %s\n" %
+                      (self._testMethodName))
 
     def tearDown(self):
         """Clean up the existing environment
         """
+        _LOGGER.debug("Start of test-fixture-tearDown(): %s" %
+                      (self._testMethodName))
         tests.utils.cleanup_environment()
+        _LOGGER.debug("End of test-fixture-tearDown(): %s" %
+                      (self._testMethodName))
 
     def test_create_group_events(self):
         """Test creating a group by calling group.create().
@@ -651,6 +667,82 @@ class TestServerServices(tests.utils.TestCase):
                 self.assertEqual(info['status'], _server.MySQLServer.SECONDARY)
                 self.assertEqual(info['mode'], _server.MySQLServer.READ_ONLY)
 
+    def test_server_permissions(self):
+        """Verify the server user permissions.
+        """
+
+        #
+        # Skip test in trial-mode. Users are the same a s admin user.
+        # Admin won't be able to grant a privilege back to itself.
+        #
+        if (MySQLInstances().server_user == MySQLInstances().user):
+            # The trailing comma prevents a newline.
+            print "Skipping test_server_permissions in trial-mode --- ",
+            return
+
+        #
+        # Prepare group and servers
+        #
+        self.proxy.group.create("group", "Testing group...")
+        address_0 = tests.utils.MySQLInstances().get_address(0)
+        address_1 = tests.utils.MySQLInstances().get_address(1)
+        address_2 = tests.utils.MySQLInstances().get_address(2)
+        status_uuid = self.proxy.server.lookup_uuid(address_0)
+        uuid_0 = status_uuid[2]
+        status_uuid = self.proxy.server.lookup_uuid(address_1)
+        uuid_1 = status_uuid[2]
+        status_uuid = self.proxy.server.lookup_uuid(address_2)
+        uuid_2 = status_uuid[2]
+        status = self.proxy.group.add("group", address_0)
+        self.check_xmlrpc_command_result(status, False)
+
+        server_0 = fetch_test_server(address_0)
+        server_0.connect()
+
+        #
+        # Change password of the the server user, remove server from
+        # group, try to add server to group, which fails, because the
+        # Fabric instance does still use the old password, change
+        # password back, add server to group. The remove operation is
+        # required, so that fabric purges all connections to this
+        # server. Otherwise it would use existing connections, which do
+        # not care about a changed password. Only the add server to
+        # group command after a remove server from group cpmmand forces
+        # Fabric to establish a new connection, which fails on the wrong
+        # password.
+        #
+        server_0.exec_stmt("SET PASSWORD FOR '{user}'@'%' ="
+                           " PASSWORD('foobar')".
+                           format(user=MySQLInstances().server_user))
+        status = self.proxy.group.remove("group", address_0)
+        self.check_xmlrpc_command_result(status, False)
+        status = self.proxy.group.add("group", address_0)
+        self.check_xmlrpc_command_result(status, has_error=True)
+        server_0.connect()
+        server_0.exec_stmt("SET PASSWORD FOR '{user}'@'%' ="
+                          " PASSWORD('{passwd}')".
+                          format(user=MySQLInstances().server_user,
+                                 passwd=MySQLInstances().server_passwd))
+        status = self.proxy.group.add("group", address_0)
+        self.check_xmlrpc_command_result(status, False)
+
+        #
+        # Revoke the REPLICATION SLAVE privilege from the server user,
+        # try a promote, which fails, grant REPLICATION SLAVE back.
+        #
+        server_0.exec_stmt("REVOKE REPLICATION SLAVE ON *.* FROM '{user}'@'%'".
+                           format(user=MySQLInstances().server_user))
+        status = self.proxy.group.promote("group")
+        self.check_xmlrpc_command_result(status, has_error=True)
+        server_0.exec_stmt("GRANT REPLICATION SLAVE ON *.* TO '{user}'@'%'".
+                           format(user=MySQLInstances().server_user))
+
+        #
+        # Do a successful promote.
+        #
+        status = self.proxy.group.promote("group")
+        self.check_xmlrpc_command_result(status, False)
+
     def test_update_only(self):
         """Test the update_only parameter while adding a slave.
         """
@@ -659,20 +751,25 @@ class TestServerServices(tests.utils.TestCase):
         address_1 = tests.utils.MySQLInstances().get_address(0)
         address_2 = tests.utils.MySQLInstances().get_address(1)
         address_3 = tests.utils.MySQLInstances().get_address(2)
+        user      = tests.utils.MySQLInstances().user
+        passwd    = tests.utils.MySQLInstances().passwd
 
         status = self.proxy.server.lookup_uuid(address_1)
         uuid_1 = self.check_xmlrpc_get_uuid(status, False)
-        server_1 = _server.MySQLServer(_uuid.UUID(uuid_1), address_1)
+        server_1 = _server.MySQLServer(_uuid.UUID(uuid_1), address_1,
+                                       user, passwd)
         server_1.connect()
 
         status = self.proxy.server.lookup_uuid(address_2)
         uuid_2 = self.check_xmlrpc_get_uuid(status, False)
-        server_2 = _server.MySQLServer(_uuid.UUID(uuid_2), address_2)
+        server_2 = _server.MySQLServer(_uuid.UUID(uuid_2), address_2,
+                                       user, passwd)
         server_2.connect()
 
         status = self.proxy.server.lookup_uuid(address_3)
         uuid_3 = self.check_xmlrpc_get_uuid(status, False)
-        server_3 = _server.MySQLServer(_uuid.UUID(uuid_3), address_3)
+        server_3 = _server.MySQLServer(_uuid.UUID(uuid_3), address_3,
+                                       user, passwd)
         server_3.connect()
 
         # Add a server and check that replication is not configured. Since

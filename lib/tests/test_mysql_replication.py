@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -180,10 +180,8 @@ class TestMySQLSlave(tests.utils.TestCase):
         stop_slave(slave, wait=True)
         master.set_session_binlog(False)
         master.exec_stmt(
-            "SET PASSWORD FOR '{user}'@'%%' = PASSWORD('foobar')".format(
-            user=MySQLInstances().user)
+            "SET PASSWORD = PASSWORD('foobar')"
         )
-        master.exec_stmt("FLUSH PRIVILEGES")
         master.set_session_binlog(True)
         switch_master(slave, master, MySQLInstances().user, "foobar")
         start_slave(slave, wait=True)
@@ -195,11 +193,9 @@ class TestMySQLSlave(tests.utils.TestCase):
         stop_slave(slave, wait=True)
         master.set_session_binlog(False)
         master.exec_stmt(
-            "SET PASSWORD FOR '{user}'@'%%' = "
-            "PASSWORD('{passwd}')".format(user=MySQLInstances().user,
+            "SET PASSWORD = PASSWORD('{passwd}')".format(
            passwd=MySQLInstances().passwd or "")
         )
-        master.exec_stmt("FLUSH PRIVILEGES")
         master.set_session_binlog(True)
         switch_master(slave, master, MySQLInstances().user,
             MySQLInstances().passwd

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -340,6 +340,20 @@ class MySQLPersister(object):
     the object database, and give each subclass of :class:`Persistable` a chance
     to set itself up by calling the class `init` method.
     """
+
+    STORE_PRIVILEGES  = [     # GRANT ... ON <fabric_db>.*
+        "ALTER",              # alter some database objects
+        "CREATE",             # create most database objects
+        "CREATE VIEW",        # create view
+        "DELETE",             # delete rows
+        "DROP",               # drop most database objects
+        "EVENT",              # manage events
+        "INDEX",              # create index
+        "INSERT",             # insert rows
+        "SELECT",             # select rows
+        "UPDATE",             # update rows
+    ]
+
     @classmethod
     def init(cls, host, user, password=None, port=None, database=None,
              connection_timeout=None, connection_attempts=None,
@@ -636,3 +650,9 @@ def teardown():
     """
     _LOGGER.info("Teardown persister.")
     MySQLPersister.teardown()
+
+def required_privileges():
+    """Return the list of MySQL server privileges needed for the
+    backing store.
+    """
+    return MySQLPersister.STORE_PRIVILEGES

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,10 @@ import unittest
 import tests.utils
 
 from time import sleep
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 from mysql.fabric import (
     executor as _executor,
     errors as _errors,
@@ -130,7 +133,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -149,7 +152,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT NAME FROM global_db.global_table", {"fetch" : True}
@@ -161,7 +164,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT NAME FROM global_db.global_table", {"fetch" : True}
@@ -178,7 +181,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -198,7 +201,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("INSERT INTO global_db.global_table "
@@ -231,7 +234,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT NAME FROM global_db.global_table", {"fetch" : True}
@@ -249,7 +252,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT NAME FROM global_db.global_table", {"fetch" : True}
@@ -272,7 +275,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
             else:
                 global_slave_uuid = row['server_uuid']
                 
-        global_master = MySQLServer.fetch(global_master_uuid)
+        global_master = fetch_test_server(global_master_uuid)
         global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -296,7 +299,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
             if row['status'] == MySQLServer.PRIMARY:
                 global_master_uuid = row['server_uuid']
 
-        global_master = MySQLServer.fetch(global_master_uuid)
+        global_master = fetch_test_server(global_master_uuid)
         global_master.connect()
 
         global_master.exec_stmt("INSERT INTO global_db.global_table "
@@ -336,7 +339,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
-            shard_server = MySQLServer.fetch(row['server_uuid'])
+            shard_server = fetch_test_server(row['server_uuid'])
             shard_server.connect()
             rows = shard_server.exec_stmt(
                                     "SELECT NAME FROM global_db.global_table",
@@ -353,7 +356,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
-            shard_server = MySQLServer.fetch(row['server_uuid'])
+            shard_server = fetch_test_server(row['server_uuid'])
             shard_server.connect()
             rows = shard_server.exec_stmt(
                                     "SELECT NAME FROM global_db.global_table",
@@ -372,13 +375,13 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server_1 = MySQLServer.fetch(row['server_uuid'])
+                shard_server_1 = fetch_test_server(row['server_uuid'])
                 shard_server_1.connect()
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server_2 = MySQLServer.fetch(row['server_uuid'])
+                shard_server_2 = fetch_test_server(row['server_uuid'])
                 shard_server_2.connect()
 
         self.proxy.sharding.disable_shard("1")
@@ -389,7 +392,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -435,7 +438,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("1", 500,  "GLOBAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                global_master = MySQLServer.fetch(row['server_uuid'])
+                global_master = fetch_test_server(row['server_uuid'])
                 global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -452,7 +455,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 try:
                     rows = shard_server.exec_stmt(
@@ -468,7 +471,7 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 1500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 try:
                     rows = shard_server.exec_stmt(
@@ -490,11 +493,11 @@ class TestShardingGlobalServer(tests.utils.TestCase):
         global_group = Group.fetch("GROUPID1")
         shard_group = Group.fetch("GROUPID2")
         other_shard_group = Group.fetch("GROUPID3")
-        global_master = MySQLServer.fetch(global_group.master)
+        global_master = fetch_test_server(global_group.master)
         global_master.connect()
-        shard_master = MySQLServer.fetch(shard_group.master)
+        shard_master = fetch_test_server(shard_group.master)
         shard_master.connect()
-        other_shard_master = MySQLServer.fetch(other_shard_group.master)
+        other_shard_master = fetch_test_server(other_shard_group.master)
         other_shard_master.connect()
         self.assertEqual(
             _replication.slave_has_master(shard_master),

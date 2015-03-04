@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,10 @@ import tests.utils
 from time import sleep
 from mysql.fabric import executor as _executor
 from mysql.fabric.server import MySQLServer
-from tests.utils import MySQLInstances
+from tests.utils import (
+    MySQLInstances,
+    fetch_test_server,
+)
 from mysql.fabric.errors import DatabaseError
 
 class TestShardMove(tests.utils.TestCase):
@@ -94,7 +97,7 @@ class TestShardMove(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
 
         shard_server.exec_stmt("DROP DATABASE IF EXISTS db1")
@@ -126,7 +129,7 @@ class TestShardMove(tests.utils.TestCase):
 
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
-            shard_server = MySQLServer.fetch(row['server_uuid'])
+            shard_server = fetch_test_server(row['server_uuid'])
             shard_server.connect()
             rows = shard_server.exec_stmt(
                                     "SELECT NAME FROM db1.t1",
@@ -146,7 +149,7 @@ class TestShardMove(tests.utils.TestCase):
                 global_master_uuid = row['server_uuid']
                 break
 
-        global_master = MySQLServer.fetch(global_master_uuid)
+        global_master = fetch_test_server(global_master_uuid)
         global_master.connect()
 
         global_master.exec_stmt("DROP DATABASE IF EXISTS global_db")
@@ -169,7 +172,7 @@ class TestShardMove(tests.utils.TestCase):
                 global_master_uuid = row['server_uuid']
                 break
 
-        global_master = MySQLServer.fetch(global_master_uuid)
+        global_master = fetch_test_server(global_master_uuid)
         global_master.connect()
 
         global_master.exec_stmt("INSERT INTO global_db.global_table "
@@ -186,7 +189,7 @@ class TestShardMove(tests.utils.TestCase):
         status = self.proxy.sharding.lookup_servers("db1.t1", 500,  "LOCAL")
         for row in self.check_xmlrpc_iter(status):
             if row['status'] == MySQLServer.PRIMARY:
-                shard_server = MySQLServer.fetch(row['server_uuid'])
+                shard_server = fetch_test_server(row['server_uuid'])
                 shard_server.connect()
                 rows = shard_server.exec_stmt(
                     "SELECT NAME FROM global_db.global_table", {"fetch" : True}
@@ -221,7 +224,7 @@ class TestShardMove(tests.utils.TestCase):
         self.assertEqual(global_list_before, global_list_after)
 
         # The group has changed but no data was transfered.
-        shard_server = MySQLServer.fetch(local_list_after[0]['server_uuid'])
+        shard_server = fetch_test_server(local_list_after[0]['server_uuid'])
         shard_server.connect()
         self.assertRaises(
             DatabaseError, shard_server.exec_stmt,

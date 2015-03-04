@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -60,6 +60,7 @@ from mysql.fabric.server_utils import (
     create_mysql_connection,
     connect_to_mysql,
     exec_mysql_stmt,
+    disconnect_mysql_connection,
     destroy_mysql_connection,
     split_host_port,
     is_valid_mysql_connection
@@ -595,6 +596,13 @@ class ConnectionManager(_utils.Singleton):
         """Return a connection from the pool.
         """
         cnx = None
+        # The pool of inactive connections holds only those connections,
+        # that use the server_user credentials. Other connections are
+        # established and disconnected directly, bypassing the pool.
+        if server.user != server.server_user:
+            return
+        # Since we need a server_user connection, we can now immediately
+        # pop one from the pool.
         with self.__lock:
             try:
                 cnx = self.__pool[server.uuid].pop()
@@ -615,11 +623,28 @@ class ConnectionManager(_utils.Singleton):
     def _untrack_connection(self, server, cnx):
         """Unregister a connection after its use.
         """
-        tracker = self.__tracker[server.uuid]
-        tracker.remove(cnx)
-        if not tracker:
-            del self.__tracker[server.uuid]
-        _LOGGER.debug("Untrack %s %s", str(server.uuid), str(cnx))
+        # In some cases it can happen, that a server object is copied.
+        # And so it can happen, that the same connection is tried to
+        # untrack twice. Be cautious, not to raise an exception in this
+        # case.
+        try:
+            tracker = self.__tracker[server.uuid]
+        except KeyError:
+            _LOGGER.debug("Nothing tracked for %s %s",
+                          str(server.uuid), str(cnx))
+        else:
+            # tracker is a list of cnx objects.
+            try:
+                tracker.remove(cnx)
+            except ValueError:
+                _LOGGER.debug("Not tracked %s %s",
+                              str(server.uuid), str(cnx))
+            finally:
+                # If we removed the last connection for this server,
+                # remove the whole mapping entry.
+                if len(tracker) == 0:
+                    del self.__tracker[server.uuid]
+            _LOGGER.debug("Untracking %s %s", str(server.uuid), str(cnx))
 
     def get_connection(self, server):
         """Get a connection.
@@ -643,6 +668,14 @@ class ConnectionManager(_utils.Singleton):
         pool.
         """
         assert cnx is not None
+        # The pool of inactive connections holds only those connections,
+        # that use the server_user credentials. Other connections are
+        # established and disconnected directly, bypassing the pool.
+        if server.user != server.server_user:
+            self._untrack_connection(server, cnx)
+            disconnect_mysql_connection(cnx)
+            return
+        # Since we have a server_user connection, we can put it in the pool.
         with self.__lock:
             try:
                 self._untrack_connection(server, cnx)
@@ -666,15 +699,18 @@ class ConnectionManager(_utils.Singleton):
         """Close and remove all connections that belongs to a MySQL Server
         which is associated to a server.
         """
+        _LOGGER.debug("Purging connections for %s", str(server.uuid))
         with self.__lock:
             try:
                 for cnx in self.__pool[server.uuid]:
+                    _LOGGER.debug("Releasing connection (%s).", cnx)
                     destroy_mysql_connection(cnx)
                 del self.__pool[server.uuid]
             except KeyError:
                 pass
             try:
                 for cnx in self.__tracker[server.uuid]:
+                    _LOGGER.debug("Releasing connection (%s).", cnx)
                     destroy_mysql_connection(cnx)
                 del self.__tracker[server.uuid]
             except KeyError:
@@ -860,7 +896,40 @@ class MySQLServer(_persistence.Persistable):
 
     PASSWD = None
 
-    ALL_PRIVILEGES = [ "ALL PRIVILEGES" ]
+    #
+    # The server user could have all privileges.
+    #
+    ALL_PRIVILEGES    = [     # GRANT ... ON *.*
+        "ALL PRIVILEGES"
+    ]
+
+    #
+    # Minimum set of global privileges.
+    #
+    SERVER_PRIVILEGES = [     # GRANT ... ON *.*
+        "DELETE",             # prune_shard
+        "PROCESS",            # list sessions to kill
+        "RELOAD",             # RESET SLAVE
+        "REPLICATION CLIENT", # SHOW SLAVE STATUS
+        "REPLICATION SLAVE",  # SHOW SLAVE HOSTS
+        "SELECT",             # prune_shard
+        "SUPER",              # CHANGE MASTER TO
+        "TRIGGER"             # CREATE TRIGGER
+    ]
+
+    #
+    # Minimum set of database privileges for the mysql_fabric database,
+    # which is used to provide shard boundaries.
+    #
+    SERVER_PRIVILEGES_DB = [  # GRANT ... ON mysql_fabric.*
+        "ALTER",              # alter some database objects
+        "CREATE",             # create most database objects
+        "DELETE",             # delete rows
+        "DROP",               # drop most database objects
+        "INSERT",             # insert rows
+        "SELECT",             # select rows
+        "UPDATE",             # update rows
+    ]
 
     NO_USER_DATABASES = ["performance_schema", "information_schema", "mysql"]
 
@@ -887,8 +956,8 @@ class MySQLServer(_persistence.Persistable):
         self.__address = address
         self.__group_id = group_id
         self.__cnx_manager = ConnectionManager()
-        self.__user = user
-        self.__passwd = passwd
+        self.__user = user if user != None else MySQLServer.USER
+        self.__passwd = passwd if passwd != None else MySQLServer.PASSWD
         self.__mode = mode
         self.__status = status
         self.__weight = weight
@@ -915,8 +984,8 @@ class MySQLServer(_persistence.Persistable):
         host, port = split_host_port(address,  MYSQL_DEFAULT_PORT)
         port = int(port)
 
-        user = user or MySQLServer.USER
-        passwd = passwd or MySQLServer.PASSWD
+        user = user if user != None else MySQLServer.USER
+        passwd = passwd if passwd != None else MySQLServer.PASSWD
         cnx = connect_to_mysql(
             user=user, passwd=passwd, host=host, port=port, autocommit=True,
             connection_timeout=connection_timeout
@@ -936,8 +1005,10 @@ class MySQLServer(_persistence.Persistable):
         self.disconnect()
 
         # Set up an internal connection.
+        _LOGGER.debug("Server (%s) Connecting (%s).", id(self), self.__user)
         self.__cnx = self.__cnx_manager.get_connection(self)
-        _LOGGER.debug("Using connection (%s).", self.__cnx)
+        _LOGGER.debug("Server (%s) Using connection (%s).",
+                      id(self), self.__cnx)
 
         # Get server's uuid
         ret_uuid = self.get_variable("SERVER_UUID")
@@ -983,6 +1054,8 @@ class MySQLServer(_persistence.Persistable):
                           self.__server_id, self.__version,
                           self.__gtid_enabled, self.__binlog_enabled,
                           self.__read_only)
+            _LOGGER.debug("Server (%s) Releasing connection (%s).",
+                          id(self), self.__cnx)
             self.__cnx_manager.release_connection(self, self.__cnx)
             self.__cnx = None
             self.__read_only = None
@@ -1006,9 +1079,18 @@ class MySQLServer(_persistence.Persistable):
         required_level = level or "*.*"
         all_privileges = "ALL PRIVILEGES"
         all_level = "*.*"
+
+        # Log user name with host name, as it is seen by the server.
+        ret = self.exec_stmt("SELECT CURRENT_USER()")
+        current_user = ret[0][0]
+        _LOGGER.debug("Check privileges (%s ON %s) for current user (%s)" %
+                      (", ".join(required_privileges), required_level,
+                       current_user,))
+
         ret = self.exec_stmt("SHOW GRANTS")
         check = re.compile("GRANT (?P<privileges>.*?) ON (?P<level>.*?) TO")
         for row in ret:
+            _LOGGER.debug("Row: %s" % (row[0],))
             res = check.match(row[0])
             if res:
                 privileges = [ privilege.strip() \
@@ -1018,14 +1100,43 @@ class MySQLServer(_persistence.Persistable):
                 if (all_privileges in privileges and all_level == level) or \
                     (required_privileges.issubset(set(privileges)) and \
                     required_level == level):
+                    _LOGGER.debug("match")
                     return True
+        _LOGGER.debug("no match")
         return False
 
-    def has_required_privileges(self):
-        """Check whether the current user has a minimum set of privileges:
-        MySQLServer.ALL_PRIVILEGES on *.*.
+    def check_privileges(self, privileges, level=None):
+        """Check whether the current user has a minimum set of privileges.
+        :param privileges: String of comma separated MySQL server privileges.
+        :return: None.
+        :raises: ServerError on missing privileges.
         """
-        return self.has_privileges(MySQLServer.ALL_PRIVILEGES)
+        if not self.is_connected():
+            self.connect()
+
+        if not self.has_privileges(privileges, level):
+            # Include the user with host, as the server sees it, into the report
+            ret = self.exec_stmt("SELECT CURRENT_USER()")
+            current_user = ret[0][0]
+            required_level = level or "*.*"
+            raise _errors.ServerError("User (%s) does not have appropriate"
+                                      " privileges (%s ON %s)"
+                                      " on server (%s, %s)." %
+                                      (current_user, ", ".join(privileges),
+                                       required_level,
+                                       self.address, self.uuid,))
+
+    def check_server_privileges(self):
+        """Check whether the current user has the privileges to manage
+        a server in the farm.
+        The required privileges are some global privileges (on *.*),
+        and some database privileges on mysql_fabric.*.
+        :return: None.
+        :raises: ServerError on missing privileges.
+        """
+        self.check_privileges(MySQLServer.SERVER_PRIVILEGES, "*.*")
+        self.check_privileges(MySQLServer.SERVER_PRIVILEGES_DB,
+                              "mysql_fabric.*")
 
     def is_connected(self):
         """Determine whether the proxy object (i.e. the server) is connected
@@ -1121,7 +1232,9 @@ class MySQLServer(_persistence.Persistable):
     def user(self):
         """Return user's name who is used to connect to a server.
         """
-        return self.__user or MySQLServer.USER
+        # Return the default user, if __user == None,
+        # but not if it is the empty string
+        return self.__user if self.__user != None else MySQLServer.USER
 
     @user.setter
     def user(self, user):
@@ -1138,7 +1251,9 @@ class MySQLServer(_persistence.Persistable):
         """Return user's password who is used to connect to a server. Load
         the server information from the state store and return the password.
         """
-        return self.__passwd or MySQLServer.PASSWD
+        # Return the default password, if __passwd == None,
+        # but not if it is the empty string
+        return self.__passwd if self.__passwd != None else MySQLServer.PASSWD
 
     @passwd.setter
     def passwd(self, passwd):
@@ -1149,6 +1264,12 @@ class MySQLServer(_persistence.Persistable):
         if self.__passwd != passwd:
             self.disconnect()
             self.__passwd = passwd
+
+    @property
+    def server_user(self):
+        """Return the name of the configured server user.
+        """
+        return MySQLServer.USER
 
     @property
     def mode(self):

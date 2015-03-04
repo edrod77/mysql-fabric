@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,6 +39,9 @@ import re
 
 # These are propagated to the importer
 from ConfigParser import NoSectionError, NoOptionError
+
+# global storage for the configuration
+global_config = None
 
 _VALUE_CRE = re.compile(
     r'(?P<section>\w+(?:\.\w+)*)\.(?P<name>\w+)=(?P<value>.*)')

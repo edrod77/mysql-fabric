@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ if sys.version_info[0:2] < (2,7):
 else:
     from logging import NullHandler
 
+import unittest
 from unittest import (
     TestLoader,
     TextTestRunner,
@@ -51,50 +52,78 @@ def get_options():
     parser.add_option("-v",
                       action="count", dest="verbosity",
                       help="Verbose mode. Multiple options increase verbosity")
+
+    parser.add_option("--failfast",
+                      action="store_true", dest="failfast",
+                      help="Stop test suite on first failure")
+
     parser.add_option("--log-level", action="store", dest="log_level",
                       help="Set loglevel for debug output.")
+
     parser.add_option("--log-file",
                       action="store", dest="log_file",
                       metavar="FILE",
                       help="Set log file for debug output. "
                       "If not given, logging will be disabled.")
+
     parser.add_option("--build-dir", action="store", dest="build_dir",
-                      help="Set the directory where mysql modules will be found.")
-    parser.add_option("--host",
-                      action="store", dest="host",
-                      default="localhost",
-                      help="Host to use for the state store.")
+                      help="Directory where mysql modules can be found.")
+
+    # In simple use cases "root" is used as the admin user.
     parser.add_option("--user",
-                      action="store", dest="user",
-                      default=getpass.getuser(),
-                      help=("User to use to manage MySQL Server instances and "
-                            "access the state store. Default to current "
-                            "user."))
+                      action="store", dest="user", default=None,
+                      help=("Administrative user. Creates users required"
+                            " for Fabric and application simulators."
+                            " Needs at least these privileges on global level:"
+                            " ALTER, ALTER ROUTINE, CREATE, CREATE ROUTINE,"
+                            " CREATE TEMPORARY TABLES, CREATE USER,"
+                            " CREATE VIEW, DELETE, DROP, EVENT, EXECUTE,"
+                            " GRANT OPTION, INDEX, INSERT, LOCK TABLES,"
+                            " PROCESS, RELOAD, REPLICATION CLIENT,"
+                            " REPLICATION SLAVE, SELECT, SHOW DATABASES,"
+                            " SHOW VIEW, SHUTDOWN, SUPER, TRIGGER, UPDATE."
+                            ""
+                            ))
+
     parser.add_option("--password",
                       action="store", dest="password", default=None,
-                      help=("Password to use to manage MySQL Server instances "
-                            "and access the state store. Default to the "
-                            "empty string."))
-    parser.add_option("--db-user",
-                      action="store", dest="db_user", default="mats",
-                      help=("User created to accesss the MySQL Server instances"
-                            "while running the test cases "))
+                      help=("Password for the administrative user."))
+
+    parser.add_option("--trial-mode",
+                      action="store_true", dest="trial_mode",
+                      help=("Use the administrative user for all accounts"
+                            " (store_user, server_user,"
+                            " backup_user, restore_user)"))
+
+    parser.add_option("--host",
+                      action="store", dest="host", default="localhost",
+                      help=("Host to use for the backing store. "
+                            "Defaults to 'localhost'."))
+
     parser.add_option("--port",
                       action="store", dest="port", default=32274, type=int,
-                      help=("Port to use when connecting to the state store. "
-                            "Default to 32274."))
-    parser.add_option("--database",
-                      action="store", dest="database", default='fabric',
-                      help=("Database name to use for the state store."
-                            " Default to 'fabric'."))
+                      help=("Port to use for the backing store. "
+                            "Defaults to 32274."))
+
     parser.add_option("--servers", action="store", dest="servers",
-                      help="Set of servers' addresses that can be used.")
+                      help=("Space-separated list of eight server addresses,"
+                            " that can be used for the test. Example:"
+                            " localhost:13001 localhost:13002"
+                            " localhost:13003 localhost:13004"
+                            " localhost:13005 localhost:13006"
+                            " localhost:13007 localhost:13008"))
+
     return parser.parse_args()
 
 def get_config(options, env_options):
     from mysql.fabric import (
         config as _config,
     )
+    import copy
+
+    trial_mode = options.trial_mode
+    user = options.user
+    passwd = options.password
 
     # Configure parameters.
     params = {
@@ -113,13 +142,18 @@ def get_config(options, env_options):
             },
         'storage': {
             'address': options.host + ":" + str(options.port),
-            'user': options.user,
-            'password': options.password or '',
-            'database': 'fabric',
+            'user': user if trial_mode else 'fabric_store',
+            'password': passwd if trial_mode else 'storepw',
+            'database': 'mysql_fabric',
             'connection_timeout': 'None',
             },
         'servers': {
-            'user': options.db_user,
+            'user': user if trial_mode else 'fabric_server',
+            'password': passwd if trial_mode else 'serverpw',
+            'backup_user': user if trial_mode else 'fabric_backup',
+            'backup_password': passwd if trial_mode else 'backuppw',
+            'restore_user': user if trial_mode else 'fabric_restore',
+            'restore_password': passwd if trial_mode else 'restorepw',
             'unreachable_timeout' : '5',
             },
         'sharding': {
@@ -142,10 +176,13 @@ def get_config(options, env_options):
         }
     }
     config = _config.Config(None, params)
+    _config.global_config = copy.copy(config)
     config.config_file = ""
 
     if options.password is None:
-        options.password = getpass.getpass()
+        options.password = getpass.getpass("Enter password for the"
+                                           " adminitrative user '%s': " %
+                                           options.user)
 
     return config
 
@@ -166,10 +203,13 @@ def configure_path(options):
             script_dir, options.build_dir,
             "lib.%s-%s" % (get_platform(), sys.version[0:3]),
             ),
+        # Windows installs without platform information in the directory name.
+        os.path.join(script_dir, options.build_dir, 'lib'),
+        # Find the tests.
         os.path.join(script_dir, 'lib'),
         ]
 
-def configure_servers(options):
+def configure_servers(options, config):
     """Check if some MySQL's addresses were specified and the number is
     greater than NUMBER_OF_SERVERS.
     """
@@ -178,34 +218,111 @@ def configure_servers(options):
         MySQLServer,
         ConnectionManager,
     )
+    from mysql.fabric.backup import (
+        MySQLDump,
+    )
     try:
         servers = _test_utils.MySQLInstances()
-        servers.state_store_address = "{host}:{port}".format(
-            host=options.host, port=options.port
+
+        # The administrative user as given in --user and --password options.
+        # In simple use cases "root" is used.
+        servers.user = options.user
+        servers.passwd = options.password
+
+        # Backing store - "fabric_store/storepw".
+        servers.state_store_address = config.get("storage", "address")
+        servers.store_user = config.get("storage", "user")
+        servers.store_passwd = config.get("storage", "password")
+        servers.store_db = config.get("storage", "database")
+
+        # Server user - "fabric_server/serverpw".
+        servers.server_user = config.get("servers", "user")
+        servers.server_passwd = config.get("servers", "password")
+
+        # Backup user - "fabric_backup/backuppw".
+        servers.backup_user = config.get("servers", "backup_user")
+        servers.backup_passwd = config.get("servers", "backup_password")
+
+        # Restore user - "fabric_restore/restorepw".
+        servers.restore_user = config.get("servers", "restore_user")
+        servers.restore_passwd = config.get("servers", "restore_password")
+
+        # Set up the backing store.
+        from mysql.fabric import persistence
+        uuid = MySQLServer.discover_uuid(
+            address=servers.state_store_address,
+            user=servers.user,
+            passwd=servers.passwd
         )
-        servers.user = options.db_user
-        servers.passwd = None
-        servers.root_user = options.user
-        servers.root_passwd = options.password
+        server = MySQLServer(
+            _uuid.UUID(uuid), address=servers.state_store_address,
+            user=servers.user, passwd=servers.passwd
+        )
+        server.connect()
+        # Precautionary cleanup.
+        server.exec_stmt("DROP DATABASE IF EXISTS %s" % (servers.store_db,))
+        # Create store user.
+        _test_utils.create_test_user(
+            server,
+            servers.store_user,
+            servers.store_passwd,
+            [(persistence.required_privileges(),
+              "{db}.*".format(db=servers.store_db))]
+        )
+
+        # Set up managed servers.
         if options.servers:
             for address in options.servers.split():
                 servers.add_address(address)
                 uuid = MySQLServer.discover_uuid(
-                    address=address, user=servers.root_user,
-                    passwd=servers.root_passwd
+                    address=address,
+                    user=servers.user,
+                    passwd=servers.passwd
                 )
                 server = MySQLServer(
-                    _uuid.UUID(uuid), address=address, user=servers.root_user,
-                    passwd=servers.root_passwd
+                    _uuid.UUID(uuid),
+                    address=address,
+                    user=servers.user,
+                    passwd=servers.passwd
                 )
                 server.connect()
                 server.set_session_binlog(False)
-                server.exec_stmt(
-                    "GRANT {privileges} ON *.* TO '{user}'@'%%'".format(
-                    privileges=", ".join(MySQLServer.ALL_PRIVILEGES),
-                    user=servers.user)
+                server.read_only = False
+
+                # Drop user databases
+                server.set_foreign_key_checks(False)
+                databases = server.exec_stmt("SHOW DATABASES")
+                for database in databases:
+                    if database[0] not in MySQLServer.NO_USER_DATABASES:
+                        server.exec_stmt("DROP DATABASE IF EXISTS %s" %
+                                         (database[0],))
+                server.set_foreign_key_checks(True)
+
+                # Create server user.
+                _test_utils.create_test_user(
+                    server,
+                    servers.server_user,
+                    servers.server_passwd,
+                    [(MySQLServer.SERVER_PRIVILEGES, "*.*"),
+                     (MySQLServer.SERVER_PRIVILEGES_DB, "mysql_fabric.*")]
                 )
-                server.exec_stmt("FLUSH PRIVILEGES")
+
+                # Create backup user.
+                _test_utils.create_test_user(
+                    server,
+                    servers.backup_user,
+                    servers.backup_passwd,
+                    [(MySQLDump.BACKUP_PRIVILEGES, "*.*")]
+                )
+
+                # Create restore user.
+                _test_utils.create_test_user(
+                    server,
+                    servers.restore_user,
+                    servers.restore_passwd,
+                    [(MySQLDump.RESTORE_PRIVILEGES, "*.*")]
+                )
+
                 server.set_session_binlog(True)
                 server.disconnect()
                 ConnectionManager().purge_connections(server)
@@ -215,6 +332,8 @@ def configure_servers(options):
             return False
     except Exception as error:
         print >> sys.stderr, "Error configuring servers:", error
+        import traceback
+        traceback.print_exc()
         return False
 
     return True
@@ -245,7 +364,7 @@ def run_tests(pkg, options, args, config):
     configure_logging(options)
 
     # Configure MySQL Instances that might be used in the tests.
-    if not configure_servers(options):
+    if not configure_servers(options, config):
         return None
 
     # Fetch the tests that will be executed.
@@ -256,7 +375,14 @@ def run_tests(pkg, options, args, config):
     # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
     proxy = setup_xmlrpc(options, config)
-    ret = TextTestRunner(verbosity=options.verbosity).run(suite)
+    # Allow Ctrl-C to end the test suite gracefully.
+    unittest.installHandler()
+    # Redirect test output to stdout for a better merge with
+    # "print" style temporary debug statements.
+    # Follow verbosity and failfast options.
+    ret = TextTestRunner(stream=sys.stdout,
+                         verbosity=options.verbosity,
+                         failfast=options.failfast).run(suite)
     teardown_xmlrpc(proxy)
     return ret
 
@@ -368,6 +494,11 @@ if __name__ == '__main__':
     mysqlrpc_next_port = xmlrpc_next_port + 1
     mysqldump_path = os.getenv("MYSQLDUMP", "")
     mysqlclient_path = os.getenv("MYSQLCLIENT", "")
+
+    # Detect missing environment
+    assert(mysqldump_path != "")
+    assert(mysqlclient_path != "")
+
     env_options = {
         "xmlrpc_next_port" : xmlrpc_next_port,
         "mysqldump_path" : mysqldump_path,

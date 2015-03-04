@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -167,7 +167,7 @@ class TestReplicationServices(tests.utils.TestCase):
         # server went down).
         invalid_server = _server.MySQLServer(
             _uuid.UUID("FD0AC9BB-1431-11E2-8137-11DEF124DCC5"),
-            "unknown_host:32274"
+            "unknown_host:32274", user, passwd
             )
         _server.MySQLServer.add(invalid_server)
         group = _server.Group.fetch("group_id")

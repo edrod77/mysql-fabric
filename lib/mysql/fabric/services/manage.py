@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@ import os.path
 import urlparse
 
 from mysql.fabric import (
+    backup as _backup,
     config as _config,
     errors as _errors,
     events as _events,
@@ -385,6 +386,11 @@ def _setup_ttl(config):
 def _start(options, config):
     """Start Fabric server.
     """
+
+    # Remove temporary defaults file, which migh have left behind
+    # by former runs of Fabric.
+    _backup.cleanup_temporary_defaults_files()
+
     #Configure TTL
     _setup_ttl(config)
 
