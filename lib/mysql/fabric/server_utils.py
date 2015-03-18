@@ -115,6 +115,8 @@ def exec_mysql_stmt(cnx, stmt_str, options=None):
         cur = cnx.cursor(raw=raw, named_tuple=columns)
         cur.execute(stmt_str, params)
     except Exception as error:
+        if self.__cnx.unread_result:
+            self.__cnx.get_rows()
         if cur:
             cur.close()
 
