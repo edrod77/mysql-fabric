@@ -29,7 +29,6 @@ import os
 import sys
 import uuid
 import glob
-import subprocess
 from subprocess import (
     Popen,
     PIPE,
@@ -92,16 +91,16 @@ def create_defaults_file_name(var_part):
     # wrong files.
     return "mysql_fabric_" + str(var_part) + "_my.cnf"
 
-def cleanup_temporary_defaults_files():
+def cleanup_temp_defaults_files():
     """Clean up temporary defaults files.
     This is meant to be used at Fabric start to get rid of defaults files,
     which might have been left over from a crash.
     """
     for file_name in glob.glob(create_defaults_file_name("*")):
         _LOGGER.debug("Removing temporary defaults file: " + file_name)
-        erase_temporary_defaults_file(file_name)
+        erase_temp_defaults_file(file_name)
 
-def erase_temporary_defaults_file(filename):
+def erase_temp_defaults_file(filename):
     """Erase temporary defaults file securely.
     Open the file in read+write mode, do not create it, do not
     truncate it. The file descriptor will point at file begin.
@@ -109,20 +108,20 @@ def erase_temporary_defaults_file(filename):
     This assumes, that the temporary defaults files are small.
     The overwrite is done to protect a potential undelete of the file.
     """
-    fd = -1
+    fdesc = -1
     try:
-        fd = os.open(filename, os.O_RDWR)
-        os.write(fd, " " * 4096)
-        os.close(fd)
-    except:
+        fdesc = os.open(filename, os.O_RDWR)
+        os.write(fdesc, " " * 4096)
+        os.close(fdesc)
+    except: # pylint: disable=W0702
         try:
-            if fd != -1:
-                os.close(fd)
-        except:
+            if fdesc != -1:
+                os.close(fdesc)
+        except: # pylint: disable=W0702
             pass
     try:
         os.remove(filename)
-    except:
+    except: # pylint: disable=W0702
         pass
 
 def run_mysql_client_windows(command, passwd, outstream=None):
@@ -153,33 +152,33 @@ def run_mysql_client_windows(command, passwd, outstream=None):
         #
         # Allow to decide, if the file is open.
         #
-        fd = -1
+        fdesc = -1
 
         #
         # Open the file only if it does not exist (O_CREAT | O_EXCL).
         # Reduce accessibility to the file as much as possible (0600).
         #
-        fd = os.open(filename, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0600)
+        fdesc = os.open(filename, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0600)
 
         #
         # Write a client section with the password into the file.
         #
-        os.write(fd, "[client]\npassword=" + passwd + "\n")
+        os.write(fdesc, "[client]\npassword=" + passwd + "\n")
 
         #
         # Fill the file up to 4096 characters to avoid conclusions on the
         # password length in case someone can stat the file.
         #
-        length = os.lseek(fd, 0, os.SEEK_CUR)
+        length = os.lseek(fdesc, 0, os.SEEK_CUR)
         if length < 4096:
             length = 4096 - length
-            os.write(fd, " " * length)
+            os.write(fdesc, " " * length)
 
         #
         # Close the file
         #
-        os.close(fd)
-        fd = -1
+        os.close(fdesc)
+        fdesc = -1
 
         #
         # Start the client
@@ -190,12 +189,12 @@ def run_mysql_client_windows(command, passwd, outstream=None):
         # Read stderr until EOF. stdout is either outstream or tty/console.
         # No output lines will be received here.
         #
-        output_lines_dummy, error_lines = process.communicate()
+        dummy_output_lines, error_lines = process.communicate()
         returncode = process.returncode
 
     except OSError as err:
-        _LOGGER.error("Cannot create defaults file '%s': %d, %s" %
-                      (filename, err.errno, err.strerror,))
+        _LOGGER.error("Cannot create defaults file '%s': %d, %s",
+                      filename, err.errno, err.strerror)
         returncode = err.errno
         error_lines = err.strerror
 
@@ -205,18 +204,18 @@ def run_mysql_client_windows(command, passwd, outstream=None):
         # Try to close the file, if it could still be open.
         #
         try:
-            if fd != -1:
-                os.close(fd)
-        except:
+            if fdesc != -1:
+                os.close(fdesc)
+        except: # pylint: disable=W0702
             pass
 
-        erase_temporary_defaults_file(filename)
+        erase_temp_defaults_file(filename)
 
     #
     # Return the returncode and the output from the program's stderr.
     #
-    _LOGGER.debug("MySQL client program returned: %d\n%s" %
-                  (returncode, error_lines,))
+    _LOGGER.debug("MySQL client program returned: %d\n%s",
+                  returncode, error_lines)
     return (returncode, error_lines)
 
 def run_mysql_client_unix(command, passwd, outstream=None):
@@ -269,7 +268,7 @@ def run_mysql_client_unix(command, passwd, outstream=None):
     #
     if -1 == prompt.lower().find("passw"):
         _LOGGER.debug("MySQL client program did not prompt for password."
-                      " Got '%s'" % (prompt,))
+                      " Got '%s'", prompt)
         raise _errors.BackupError("Error while running MySQL client program"
                                   " %s: Missing password prompt. Got '%s'" %
                                   (command[0], prompt,))
@@ -296,10 +295,10 @@ def run_mysql_client_unix(command, passwd, outstream=None):
     # either outstream or tty/console. No output lines will be
     # received here.
     #
-    output_lines_dummy, error_lines = process.communicate(str(passwd) + '\n')
+    dummy_output_lines, error_lines = process.communicate(str(passwd) + '\n')
     returncode = process.returncode
-    _LOGGER.debug("MySQL client program returned: %d, %s" %
-                  (returncode, error_lines,))
+    _LOGGER.debug("MySQL client program returned: %d\n%s",
+                  returncode, error_lines)
 
     #
     # Return the returncode and the output from the program's stderr.
@@ -480,26 +479,28 @@ class MySQLDump(BackupMethod):
     """
 
     MYSQL_DEFAULT_PORT = 3306
-    BACKUP_PRIVILEGES  = [
-        "EVENT",           # show event information
-        "EXECUTE",         # show routine information inside view
-        "SELECT",          # read data
-        "SHOW VIEW",       # SHOW CREATE VIEW
-        "TRIGGER",         # show trigger information
+    BACKUP_PRIVILEGES = [
+        "EVENT",              # show event information
+        "EXECUTE",            # show routine information inside view
+        "SELECT",             # read data
+        "SHOW VIEW",          # SHOW CREATE VIEW
+        "TRIGGER",            # show trigger information
     ]
     RESTORE_PRIVILEGES = [
-        "ALTER",           # ALTER DATABASE
-        "ALTER ROUTINE",   # ALTER {PROCEDURE|FUNCTION}
-        "CREATE",          # CREATE TABLE
-        "CREATE ROUTINE",  # CREATE {PROCEDURE|FUNCTION}
-        "CREATE VIEW",     # CREATE VIEW
-        "DROP",            # DROP TABLE (used before CREATE TABLE)
-        "EVENT",           # DROP/CREATE EVENT
-        "INSERT",          # write data
-        "LOCK TABLES",     # LOCK TABLES (--single-transaction)
-        "SELECT",          # LOCK TABLES (--single-transaction)
-        "SUPER",           # SET @@SESSION.SQL_LOG_BIN= 0
-        "TRIGGER",         # CREATE TRIGGER
+        "ALTER",              # ALTER DATABASE
+        "ALTER ROUTINE",      # ALTER {PROCEDURE|FUNCTION}
+        "CREATE",             # CREATE TABLE
+        "CREATE ROUTINE",     # CREATE {PROCEDURE|FUNCTION}
+        "CREATE TABLESPACE",  # CREATE TABLESPACE
+        "CREATE VIEW",        # CREATE VIEW
+        "DROP",               # DROP TABLE (used before CREATE TABLE)
+        "EVENT",              # DROP/CREATE EVENT
+        "INSERT",             # write data
+        "LOCK TABLES",        # LOCK TABLES (--single-transaction)
+        "REFERENCES",         # Create tables with foreign keys
+        "SELECT",             # LOCK TABLES (--single-transaction)
+        "SUPER",              # SET @@SESSION.SQL_LOG_BIN= 0
+        "TRIGGER",            # CREATE TRIGGER
     ]
 
     @staticmethod
@@ -672,7 +673,7 @@ class MySQLDump(BackupMethod):
                                                 MySQLDump.MYSQL_DEFAULT_PORT
                                                 )
         MySQLDump.restore_server(host, port, restore_user, restore_passwd,
-                image, mysqlclient_binary)
+                                 image, mysqlclient_binary)
 
     @staticmethod
     def copy_backup(image):

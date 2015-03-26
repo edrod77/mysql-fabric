@@ -101,10 +101,8 @@ def stop_group_slaves(master_group_id):
         # Fetch the Slave Group and the master of the Slave Group
         slave_group_master = MySQLServer.fetch(slave_group.master)
         if slave_group_master is None:
-            _LOGGER.warning(
-                GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR % \
-                (slave_group.master, )
-            )
+            _LOGGER.warning(GROUP_REPLICATION_GROUP_MASTER_NOT_FOUND_ERROR,
+                            slave_group.master)
             continue
 
         if not server_running(slave_group_master):

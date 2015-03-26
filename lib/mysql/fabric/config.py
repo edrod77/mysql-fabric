@@ -41,7 +41,7 @@ import re
 from ConfigParser import NoSectionError, NoOptionError
 
 # global storage for the configuration
-global_config = None
+global_config = None # pylint: disable=C0103
 
 _VALUE_CRE = re.compile(
     r'(?P<section>\w+(?:\.\w+)*)\.(?P<name>\w+)=(?P<value>.*)')

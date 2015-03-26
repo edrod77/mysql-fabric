@@ -930,8 +930,8 @@ def _restore_server(source_uuid, host, port, backup_image):
         bk_img,
         mysqlclient_binary
     )
-    _LOGGER.debug("Done with restore of server with host = %s, port = %s" %\
-                  (host, port,))
+    _LOGGER.debug("Done with restore of server with host = %s, port = %s",
+                  host, port)
 
 def _retrieve_server_mode(mode):
     """Check whether the server's mode is valid or not and if an integer was

@@ -341,7 +341,7 @@ class MySQLPersister(object):
     to set itself up by calling the class `init` method.
     """
 
-    STORE_PRIVILEGES  = [     # GRANT ... ON <fabric_db>.*
+    STORE_PRIVILEGES = [      # GRANT ... ON <fabric_db>.*
         "ALTER",              # alter some database objects
         "CREATE",             # create most database objects
         "CREATE VIEW",        # create view
@@ -350,6 +350,7 @@ class MySQLPersister(object):
         "EVENT",              # manage events
         "INDEX",              # create index
         "INSERT",             # insert rows
+        "REFERENCES",         # foreign keys
         "SELECT",             # select rows
         "UPDATE",             # update rows
     ]

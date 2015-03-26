@@ -389,7 +389,7 @@ def _start(options, config):
 
     # Remove temporary defaults file, which migh have left behind
     # by former runs of Fabric.
-    _backup.cleanup_temporary_defaults_files()
+    _backup.cleanup_temp_defaults_files()
 
     #Configure TTL
     _setup_ttl(config)

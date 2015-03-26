@@ -375,8 +375,11 @@ def run_tests(pkg, options, args, config):
     # Load the test cases and run them.
     suite = TestLoader().loadTestsFromNames(pkg + '.' + mod for mod in args)
     proxy = setup_xmlrpc(options, config)
-    # Allow Ctrl-C to end the test suite gracefully.
-    unittest.installHandler()
+
+    if sys.version_info[0:2] >= (2,7):
+        # Allow Ctrl-C to end the test suite gracefully.
+        unittest.installHandler()
+
     # Redirect test output to stdout for a better merge with
     # "print" style temporary debug statements.
     # Follow verbosity and failfast options.

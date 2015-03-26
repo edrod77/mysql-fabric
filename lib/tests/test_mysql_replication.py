@@ -80,7 +80,7 @@ class TestMySQLMaster(tests.utils.TestCase):
         # Reset Master.
         reset_master(master)
         ret = get_master_status(master)
-        self.assertEqual(ret[0][1], 151) # Format descriptor event.
+        self.assertTrue(ret[0][1] in (151, 154)) # Format descriptor event.
 
     def test_master_health(self):
         """Test the check_master_issues() function.

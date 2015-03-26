@@ -899,7 +899,7 @@ class MySQLServer(_persistence.Persistable):
     #
     # The server user could have all privileges.
     #
-    ALL_PRIVILEGES    = [     # GRANT ... ON *.*
+    ALL_PRIVILEGES = [        # GRANT ... ON *.*
         "ALL PRIVILEGES"
     ]
 
@@ -1083,14 +1083,14 @@ class MySQLServer(_persistence.Persistable):
         # Log user name with host name, as it is seen by the server.
         ret = self.exec_stmt("SELECT CURRENT_USER()")
         current_user = ret[0][0]
-        _LOGGER.debug("Check privileges (%s ON %s) for current user (%s)" %
-                      (", ".join(required_privileges), required_level,
-                       current_user,))
+        _LOGGER.debug("Check privileges (%s ON %s) for current user (%s)",
+                      ", ".join(required_privileges), required_level,
+                       current_user)
 
         ret = self.exec_stmt("SHOW GRANTS")
         check = re.compile("GRANT (?P<privileges>.*?) ON (?P<level>.*?) TO")
         for row in ret:
-            _LOGGER.debug("Row: %s" % (row[0],))
+            _LOGGER.debug("Row: %s", row[0])
             res = check.match(row[0])
             if res:
                 privileges = [ privilege.strip() \
