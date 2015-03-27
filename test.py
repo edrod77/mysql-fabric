@@ -379,13 +379,19 @@ def run_tests(pkg, options, args, config):
     if sys.version_info[0:2] >= (2,7):
         # Allow Ctrl-C to end the test suite gracefully.
         unittest.installHandler()
+        # Redirect test output to stdout for a better merge with
+        # "print" style temporary debug statements.
+        # Follow verbosity and failfast options.
+        ret = TextTestRunner(stream=sys.stdout,
+                             verbosity=options.verbosity,
+                             failfast=options.failfast).run(suite)
+    else:
+        # Redirect test output to stdout for a better merge with
+        # "print" style temporary debug statements.
+        # Follow verbosity option.
+        ret = TextTestRunner(stream=sys.stdout,
+                             verbosity=options.verbosity).run(suite)
 
-    # Redirect test output to stdout for a better merge with
-    # "print" style temporary debug statements.
-    # Follow verbosity and failfast options.
-    ret = TextTestRunner(stream=sys.stdout,
-                         verbosity=options.verbosity,
-                         failfast=options.failfast).run(suite)
     teardown_xmlrpc(proxy)
     return ret
 
