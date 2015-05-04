@@ -157,18 +157,12 @@ def check_prerequisite_for_docs(directory):
         )
         exit(1)
 
-    import mysql.connector as cpy
-    import mysql.fabric as fabric
+    import mysql.fabric
     try:
-        if cpy.version.VERSION < fabric.__cpy_version_info__:
-            sys.stderr.write(
-                "Connector python has ({0}) version but Fabric requires ({1}) "
-                "or a later version.\n".format(cpy.version.VERSION,
-                fabric.__cpy_version_info__)
-            )
-            exit(1)
-    except AttributeError:
-        pass
+        mysql.fabric.check_dependencies()
+    except mysql.fabric.errors.ConfigurationError as error:
+        sys.stderr.write(str(error) + "\n")
+        exit(1)
 
 def fix_path(directory):
     """Fix path by pointing to the appropriate directory.

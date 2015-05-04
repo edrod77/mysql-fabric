@@ -327,11 +327,15 @@ def configure_servers(options, config):
                 server.disconnect()
                 ConnectionManager().purge_connections(server)
         if servers.get_number_addresses() < NUMBER_OF_SERVERS:
-            print >> sys.stderr, "<<<<<<<<<< Some unit tests need {0} MySQL " \
-                "Instances. >>>>>>>>>> ".format(NUMBER_OF_SERVERS)
+            sys.stderr.write(
+                "<<<<<<<<<< Some unit tests need {0} MySQL " \
+                "Instances. >>>>>>>>>>\n".format(NUMBER_OF_SERVERS)
+            )
             return False
     except Exception as error:
-        print >> sys.stderr, "Error configuring servers:", error
+        sys.stderr.write(
+            "Error configuring servers: {0}\n".format(str(error))
+        )
         import traceback
         traceback.print_exc()
         return False
@@ -351,7 +355,7 @@ def check_connector():
         check_connector()
         return True
     except ConfigurationError as error:
-        print >> sys.stderr, error
+        sys.stderr.write("{0}\n".format(str(error)))
 
     return False
 

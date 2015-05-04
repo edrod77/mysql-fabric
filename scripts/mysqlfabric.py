@@ -39,7 +39,7 @@ from mysql.fabric import (
 try:
     check_dependencies()
 except errors.ConfigurationError as err:
-    print >>sys.stderr, "\n".join(textwrap.wrap(str(err)))
+    sys.stderr.write(str(err) + "\n")
     exit(1)
 
 # We are now ready to start importing stuff that might require
