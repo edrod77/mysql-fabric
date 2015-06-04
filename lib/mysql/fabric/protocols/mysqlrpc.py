@@ -47,6 +47,7 @@ from mysql.connector import utils, errorcode
 from mysql.connector.constants import (
     ClientFlag, ServerCmd, FieldType, ServerFlag, FieldFlag
 )
+from mysql.connector.errors import InterfaceError
 
 NEXT_CNX_ID = 0
 NEXT_CNX_ID_LOCK = threading.Lock()
@@ -462,7 +463,7 @@ class MySQLRPCRequestHandler(SocketServer.BaseRequestHandler,
         while header_len < 4:
             chunk = self.request.recv(4 - header_len)
             if not chunk:
-                raise errors.InterfaceError(errno=2013)
+                raise InterfaceError(errno=2013)
             header += chunk
             header_len = len(header)
 
