@@ -458,10 +458,13 @@ class MySQLRPCRequestHandler(SocketServer.BaseRequestHandler,
         :rtype: tuple
         """
         header = bytearray(b'')
-
-        while len(header) < 4:
-            chunk = self.request.recv(4)
+        header_len = 0
+        while header_len < 4:
+            chunk = self.request.recv(4 - header_len)
+            if not chunk:
+                raise errors.InterfaceError(errno=2013)
             header += chunk
+            header_len = len(header)
 
         length = struct.unpack_from('<I', buffer(header[0:3] + b'\x00'))[0]
         self._curr_pktnr = header[-1]
