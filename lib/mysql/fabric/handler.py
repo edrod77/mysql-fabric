@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2014 Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2014,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,11 +45,13 @@ _CREATE_FABRIC_LOG = (
 )
 
 _CREATE_GROUP_VIEW = (
-    "CREATE VIEW group_view AS SELECT subject as group_id, "
-    "(SELECT COUNT(*) FROM log as in_log WHERE in_log.subject = group_id AND "
-    "in_log.category = %s AND in_log.type = %s) as promote_count, "
-    "(SELECT COUNT(*) FROM log as in_log WHERE in_log.subject = group_id AND "
-    "in_log.category = %s AND in_log.type = %s) as demote_count "
+    "CREATE VIEW group_view AS SELECT out_log.subject as group_id, "
+    "(SELECT COUNT(*) FROM log as in_log "
+    "  WHERE in_log.subject = out_log.subject "
+    "    AND in_log.category = %s AND in_log.type = %s) as promote_count, "
+    "(SELECT COUNT(*) FROM log as in_log "
+    "  WHERE in_log.subject = out_log.subject "
+    "    AND in_log.category = %s AND in_log.type = %s) as demote_count "
     "FROM log as out_log WHERE out_log.category = %s GROUP BY out_log.subject"
 )
 
@@ -66,10 +68,12 @@ _CREATE_EVENT_FABRIC_LOG = (
 
 _CREATE_PROCEDURE_VIEW = (
     "CREATE VIEW proc_view AS SELECT out_log.subject as proc_name, "
-    "(SELECT COUNT(*) FROM log as in_log WHERE in_log.subject = proc_name AND "
-    "in_log.category = %s AND in_log.type = %s) as call_count, "
-    "(SELECT COUNT(*) FROM log as in_log WHERE in_log.subject = proc_name AND "
-    "in_log.category = %s AND in_log.type = %s) as abort_count "
+    "(SELECT COUNT(*) FROM log as in_log "
+    "  WHERE in_log.subject = out_log.subject "
+    "    AND in_log.category = %s AND in_log.type = %s) as call_count, "
+    "(SELECT COUNT(*) FROM log as in_log "
+    "  WHERE in_log.subject = out_log.subject "
+    "    AND in_log.category = %s AND in_log.type = %s) as abort_count "
     "FROM log as out_log WHERE out_log.category = %s GROUP BY out_log.subject"
 )
 
