@@ -46,7 +46,6 @@ from mysql.fabric import (
     errors as _errors,
     persistence as _persistence,
     utils as _utils,
-    failure_detector as _detector,
     error_log as _error_log,
     config as _config,
 )
@@ -56,7 +55,6 @@ from mysql.fabric.handler import (
 )
 
 from mysql.fabric.server_utils import (
-    MYSQL_DEFAULT_PORT,
     create_mysql_connection,
     connect_to_mysql,
     exec_mysql_stmt,
@@ -421,7 +419,7 @@ class Group(_persistence.Persistable):
         while server in self.servers():
             try:
                 server.connect()
-            except _errors.UuidError,  _errors.DatabaseError:
+            except (_errors.UuidError, _errors.DatabaseError):
                 continue
             if server.is_connected():
                 server_kill_threads.append(
@@ -585,7 +583,7 @@ class ConnectionManager(_utils.Singleton):
             cnx = create_mysql_connection()
             self._track_connection(server, cnx)
 
-        host, port = split_host_port(server.address, MYSQL_DEFAULT_PORT)
+        host, port = split_host_port(server.address)
         connect_to_mysql(
             cnx, autocommit=True, host=host, port=port,
             user=server.user, passwd=server.passwd
@@ -682,7 +680,7 @@ class ConnectionManager(_utils.Singleton):
                 if server.uuid not in self.__pool:
                     self.__pool[server.uuid] = []
                 self.__pool[server.uuid].append(cnx)
-            except (KeyError, ValueError) as error:
+            except (KeyError, ValueError):
                 pass
 
     def get_number_connections(self, server):
@@ -953,7 +951,7 @@ class MySQLServer(_persistence.Persistable):
 
         self.__cnx = None
         self.__uuid = uuid
-        self.__address = address
+        self.__address = "{0}:{1}".format(*split_host_port(address))
         self.__group_id = group_id
         self.__cnx_manager = ConnectionManager()
         self.__user = user if user != None else MySQLServer.USER
@@ -981,7 +979,7 @@ class MySQLServer(_persistence.Persistable):
         :return: UUID.
         """
 
-        host, port = split_host_port(address,  MYSQL_DEFAULT_PORT)
+        host, port = split_host_port(address)
         port = int(port)
 
         user = user if user != None else MySQLServer.USER
@@ -1154,7 +1152,7 @@ class MySQLServer(_persistence.Persistable):
         """
         res = False
         try:
-            host, port = split_host_port(server.address, MYSQL_DEFAULT_PORT)
+            host, port = split_host_port(server.address)
             cnx = connect_to_mysql(
                 autocommit=True, host=host, port=port,
                 user=server.user, passwd=server.passwd,
@@ -1555,7 +1553,8 @@ class MySQLServer(_persistence.Persistable):
     def kill_processes(self,  proc_ids):
         """Kill the list of processes supplied as an argument.
 
-        :param proc_ids: A list containing the process IDs that need to be killed.
+        :param proc_ids: A list containing the process IDs that need to be
+                         killed.
         """
         #The below is repeatedly tried since KILL is unreliable and we
         #need to loop until all the processes are eventually terminated.
@@ -1576,8 +1575,8 @@ class MySQLServer(_persistence.Persistable):
         proc_ids_set = set(proc_ids)
         proc_ids_set.intersection_update(set(self.processes(True, True)))
         while proc_ids_set:
-            for id in proc_ids_set:
-                self.exec_stmt("KILL %s", {"params": (id,)})
+            for proc_id in proc_ids_set:
+                self.exec_stmt("KILL %s", {"params": (proc_id, )})
             #sleep to ensure that the kill command reflects its results
             time.sleep(math.log10(len(proc_ids_set)))
             proc_ids_set.intersection_update(
@@ -1674,7 +1673,7 @@ class MySQLServer(_persistence.Persistable):
             )
 
             for row in rows:
-                host, port = split_host_port(row[2], MYSQL_DEFAULT_PORT)
+                host, port = split_host_port(row[2])
                 yield (row[0], row[1], host, port, row[3], row[4], row[5])
 
     @staticmethod
@@ -1708,7 +1707,10 @@ class MySQLServer(_persistence.Persistable):
 
         persister_uuid = persister.uuid
         if persister_uuid is not None and persister_uuid == server.uuid:
-            raise _errors.ServerError("The MySQL Server instance used as Fabric's state store cannot be managed.")
+            raise _errors.ServerError(
+                "The MySQL Server instance used as Fabric's state store "
+                "cannot be managed."
+            )
 
         idx_mode = MySQLServer.get_mode_idx(server.mode)
         idx_status = MySQLServer.get_status_idx(server.status)

@@ -80,9 +80,7 @@ from mysql.fabric import (
     server as _server,
     errors as _errors,
     failure_detector as _detector,
-    group_replication as _group_replication,
     sharding as _sharding,
-    server_utils as _server_utils,
     config as _config,
 )
 
@@ -93,8 +91,8 @@ from mysql.fabric.command import (
     CommandResult,
 )
 
-from mysql.fabric.utils import (
-    get_time,
+from mysql.fabric.server_utils import (
+    split_host_port
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -148,7 +146,7 @@ class GroupLookups(Command):
             ])
 
         return CommandResult(None, results=rset)
-            
+
 CREATE_GROUP = _events.Event()
 class GroupCreate(ProcedureGroup):
     """Create a group.
@@ -401,7 +399,7 @@ class DumpServers(Command):
             names=('server_uuid', 'group_id', 'host', 'port', 'mode', 'status', 'weight'),
             types=(str, str, str, int, int, int, float)
         )
-        
+
         for row in _server.MySQLServer.dump_servers(connector_version, patterns):
             rset.append_row(row)
 
@@ -516,9 +514,7 @@ class CloneServer(ProcedureGroup):
         # an error
         destn_server_uuid = _lookup_uuid(destn_address, timeout)
         _check_server_not_in_any_group(destn_server_uuid)
-        host, port = _server_utils.split_host_port(
-            destn_address, _backup.MySQLDump.MYSQL_DEFAULT_PORT
-        )
+        host, port = split_host_port(destn_address)
 
         # Fetch config information
 
@@ -795,8 +791,8 @@ def _set_server_status_spare(server, update_only):
 
         # Configure replication
         if not update_only:
-             group = _server.Group.fetch(server.group_id)
-             _configure_as_slave(group, server)
+            group = _server.Group.fetch(server.group_id)
+            _configure_as_slave(group, server)
 
 def _do_set_status(server, allowed_status, status, mode, update_only):
     """Set server's status.
@@ -884,7 +880,7 @@ def _backup_server(source_uuid, host, port):
                         mysqldump_binary
                     )
     _LOGGER.debug("Done with backup of server with uuid = %s.", source_uuid)
-    procedures = _events.trigger_within_procedure(
+    _events.trigger_within_procedure(
         RESTORE_SERVER,
         source_uuid,
         host,

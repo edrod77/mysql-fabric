@@ -20,8 +20,6 @@ restoring a server from a backup. The module also contains the concrete
 class for implementing the concrete class for doing backup using
 mysqldump.
 """
-
-from abc import ABCMeta
 import logging
 import shlex
 
@@ -29,18 +27,20 @@ import os
 import sys
 import uuid
 import glob
+
+from abc import ABCMeta
 from subprocess import (
     Popen,
     PIPE,
 )
+from urlparse import urlparse
 
 from mysql.fabric import (
     errors as _errors,
-    server_utils as _server_utils,
 )
-
-from urlparse import urlparse
-
+from mysql.fabric.server_utils import (
+    split_host_port
+)
 from mysql.fabric.server import MySQLServer
 
 _LOGGER = logging.getLogger(__name__)
@@ -477,8 +477,6 @@ class MySQLDump(BackupMethod):
     """Class that implements the BackupMethod abstract interface
     using mysqldump.
     """
-
-    MYSQL_DEFAULT_PORT = 3306
     BACKUP_PRIVILEGES = [
         "EVENT",              # show event information
         "EXECUTE",            # show routine information inside view
@@ -548,10 +546,7 @@ class MySQLDump(BackupMethod):
         host = None
         port = None
         if server.address is not None:
-            host, port = _server_utils.split_host_port(
-                            server.address,
-                            MySQLDump.MYSQL_DEFAULT_PORT
-                         )
+            host, port = split_host_port(server.address)
 
         #Form the name of the destination .sql file from the name of the
         #server host and the port number that is being backed up.
@@ -668,10 +663,7 @@ class MySQLDump(BackupMethod):
         host = None
         port = None
         if server.address is not None:
-            host, port = _server_utils.split_host_port(
-                                                server.address,
-                                                MySQLDump.MYSQL_DEFAULT_PORT
-                                                )
+            host, port = split_host_port(server.address)
         MySQLDump.restore_server(host, port, restore_user, restore_passwd,
                                  image, mysqlclient_binary)
 

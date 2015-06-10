@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,26 +18,15 @@
 """Define functions that can be used throughout the code.
 """
 import logging
-import collections
 import mysql.connector
 
 import mysql.fabric.errors as _errors
-
-from mysql.connector.cursor import (
-    MySQLCursor,
-    MySQLCursorRaw,
-    MySQLCursorNamedTuple
-)
-
-from mysql.connector.conversion import (
-    MySQLConverter,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
 MYSQL_DEFAULT_PORT = 3306
 
-def split_host_port(address, default_port):
+def split_host_port(address, default_port=MYSQL_DEFAULT_PORT):
     """Return a tuple with host and port.
 
     If a port is not found in the address, the default port is returned.
@@ -46,6 +35,11 @@ def split_host_port(address, default_port):
         host, port = address.split(":")
     else:
         host, port = (address, default_port)
+        _LOGGER.warning(
+            "Address '%s' does not have a port using '%s'.",
+            address,
+            default_port
+        )
     return host, port
 
 def combine_host_port(host, port, default_port):

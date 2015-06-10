@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,8 +20,11 @@
 import time
 import uuid as _uuid
 import mysql.fabric.errors as _errors
-import mysql.fabric.server_utils as _server_utils
 import mysql.fabric.server as _server
+
+from mysql.fabric.server_utils import (
+    split_host_port
+)
 
 _RPL_USER_QUERY = (
     "SELECT user, host, password != '' as has_password "
@@ -126,14 +129,12 @@ def check_master_issues(server):
     return error, status
 
 @_server.server_logging
-def get_slave_status(server, options=None):
+def get_slave_status(server):
     """Return the slave status. In order to ease the navigation through
     the result set, a named tuple is always returned. Look up the `SHOW
     SLAVE STATUS` command in the MySQL Manual for further details.
 
     :param server: MySQL Server.
-    :param options: Define how the result is formatted and retrieved.
-                    See :meth:`~mysql.fabric.server.MySQLServer.exec_stmt`.
     """
     return server.exec_stmt("SHOW SLAVE STATUS", {"columns" : True})
 
@@ -459,8 +460,7 @@ def switch_master(slave, master, master_user, master_passwd=None,
     """
     commands = []
     params = []
-    master_host, master_port = _server_utils.split_host_port(master.address,
-        _server_utils.MYSQL_DEFAULT_PORT)
+    master_host, master_port = split_host_port(master.address)
 
     commands.append("MASTER_HOST = %s")
     params.append(master_host)

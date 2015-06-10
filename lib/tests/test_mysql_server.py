@@ -132,6 +132,22 @@ class TestMySQLServer(unittest.TestCase):
         server.read_only = False
         self.assertEqual(server.read_only, False)
 
+    def test_address(self):
+        """Check whether the address is automatically converted to
+        the format host:port where port is the MySQL default port
+        if a port is not provided.
+        """
+        server = MySQLServer(_uuid.uuid4(), "address")
+        default_port = _server_utils.MYSQL_DEFAULT_PORT
+        self.assertEqual(
+            server.address, "{0}:{1}".format("address", default_port)
+        )
+
+        server = MySQLServer(_uuid.uuid4(), "address:port")
+        self.assertEqual(
+            server.address, "{0}:{1}".format("address", "port")
+        )
+
     def test_version(self):
         """Check MySQLServer's version.
         """
