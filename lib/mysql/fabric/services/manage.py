@@ -127,6 +127,9 @@ class Start(Command):
         # Configure logging.
         _configure_logging(self.config, daemonize)
 
+        # Configure signal handlers.
+        _utils.catch_signals(True)
+
         # Configure connections.
         _configure_connections(self.config)
 
@@ -158,6 +161,9 @@ class Setup(Command):
         # Configure logging.
         _configure_logging(self.config, False)
 
+        # Configure signal handlers.
+        _utils.catch_signals(True)
+
         # Configure connections.
         _configure_connections(self.config)
 
@@ -181,6 +187,9 @@ class Teardown(Command):
         """
         # Configure logging.
         _configure_logging(self.config, False)
+
+        # Configure signal handlers.
+        _utils.catch_signals(True)
 
         # Configure connections.
         _configure_connections(self.config)
@@ -246,7 +255,7 @@ _LOGGING_HANDLER = {
     'syslog': _create_syslog_handler,
 }
 
-def _configure_logging(config, daemon):
+def _configure_logging(config, daemonize):
     """Configure the logging system.
     """
     # Set up the logging information.
@@ -254,7 +263,7 @@ def _configure_logging(config, daemon):
     handler = None
 
     # Set up logging handler
-    if daemon:
+    if daemonize:
         urlinfo = urlparse.urlparse(config.get('logging', 'url'))
         handler = _LOGGING_HANDLER[urlinfo.scheme](config, urlinfo)
     else:
@@ -415,7 +424,8 @@ def _start(options, config):
     fabric = FabricNode()
     reported = _utils.get_time()
     _LOGGER.info(
-        "Fabric node starting.",
+        "Fabric node version (%s) started. ",
+        fabric.version,
         extra={
             'subject' : str(fabric.uuid),
             'category' : MySQLHandler.NODE,

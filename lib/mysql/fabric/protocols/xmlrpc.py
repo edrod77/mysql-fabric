@@ -387,7 +387,9 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             value = config.get('protocol.xmlrpc', 'disable_authentication')
             if value.lower() == 'yes':
                 self.__auth_disabled = True
-                _LOGGER.warning("Authentication disabled")
+                _LOGGER.warning(
+                    "Authentication disabled for XML RPC protocol."
+                )
         except:
             self.__auth_disabled = False
 
@@ -485,7 +487,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         """
         with self.__lock:
             while self.__is_running:
-                self.__lock.wait()
+                self.__lock.wait(10)
 
     def run(self):
         """Main routine which handles one request at a time.
@@ -497,6 +499,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         if not self.__auth_clients_purge_timer:
             self.__auth_clients_purge_timer = threading.Timer(
                 PURGE_CLIENTS_TIMER, self.__purge_expired_clients)
+            self.__auth_clients_purge_timer.name = "Authentication-Timer"
             self.__auth_clients_purge_timer.start()
 
         self._create_sessions()

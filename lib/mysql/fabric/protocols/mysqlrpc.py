@@ -1112,7 +1112,9 @@ class MySQLRPCServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             value = config.get('protocol.mysql', 'disable_authentication')
             if value.lower() == 'yes':
                 self.__auth_disabled = True
-                _LOGGER.warning("Authentication disabled")
+                _LOGGER.warning(
+                    "Authentication disabled for MySQL RPC protocol."
+                )
         except:
             self.__auth_disabled = False
         else:

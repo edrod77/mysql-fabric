@@ -359,6 +359,15 @@ def check_connector():
 
     return False
 
+def configure_signal_handlers():
+    """Configure signal handlers that among other things allow to
+    dump a stack trace.
+    """
+    from mysql.fabric.utils import (
+        catch_signals
+    )
+    catch_signals(True)
+
 def run_tests(pkg, options, args, config):
     # Check whether the connector python is installed or not.
     if not check_connector():
@@ -366,6 +375,10 @@ def run_tests(pkg, options, args, config):
 
     # Configure logging.
     configure_logging(options)
+
+    # Configure signal handlers that among other things allow to
+    # dump a stack trace.
+    configure_signal_handlers()
 
     # Configure MySQL Instances that might be used in the tests.
     if not configure_servers(options, config):

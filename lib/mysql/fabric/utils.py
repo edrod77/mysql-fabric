@@ -25,10 +25,15 @@ import ctypes
 import re
 import datetime
 import uuid
+import traceback
+import signal
+import logging
+import threading
 
 TTL = 0
 VERSION_TOKEN = 0
 FABRIC_UUID = uuid.UUID('5ca1ab1e-a007-feed-f00d-cab3fe13249e')
+_LOGGER = logging.getLogger(__name__)
 
 class SingletonMeta(type):
     """Define a Singleton.
@@ -66,7 +71,7 @@ def _do_fork():
                          (error.errno, error.strerror))
         sys.exit(1)
 
-def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+def daemonize(stdin=os.devnull, stdout=os.devnull, stderr=os.devnull):
     """Standard procedure for daemonizing a process.
 
     This process daemonizes the current process and put it in the
@@ -86,8 +91,7 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     serr = file(stderr, 'a+', 0)
     os.dup2(sin.fileno(), sys.stdin.fileno())
     os.dup2(sout.fileno(), sys.stdout.fileno())
-    os.dup2(serr.fileno(), sys.stdin.fileno())
-
+    os.dup2(serr.fileno(), sys.stderr.fileno())
 
 def async_raise(tid, exctype):
     """Raise an exception within the context of a thread.
@@ -215,7 +219,8 @@ def check_number_threads(increasing=0):
 
     n_sessions = _services.ServiceManager().get_number_sessions()
     n_executors = _executor.Executor().get_number_executors()
-    n_failure_detectors = len(_server.Group.groups_by_status(_server.Group.ACTIVE))
+    n_failure_detectors = \
+        len(_server.Group.groups_by_status(_server.Group.ACTIVE))
     n_controls = 1
     persister = _persistence.current_persister()
     max_allowed_connections = persister.max_allowed_connections()
@@ -240,3 +245,65 @@ def kv_to_dict(meta):
             ConfigurationError
         )
         raise ConfigurationError("Invalid parameter (%s)." % (meta, ))
+
+def stacktraces(logger):
+    """Wrapper that uses closure to decide whether the stack trace
+    should be sent to stderr or a logger.
+
+    :param logger: Whether logger was properly defined.
+    :return: Return a reference to a function that will handle the
+             SIGUSR1 signal.
+    """
+    def _stacktraces(signum, stack):
+        """Print the stack traces associated to all threads after
+        getting the signal SIGUSR1.
+
+        :param signum: Signal number.
+        :param stack: Object representing the stack.
+        """
+        threads = {}
+        for thread in threading.enumerate():
+            threads[thread.ident] = thread.name
+
+        code = []
+        for thread_id, thread_stack in sys._current_frames().items():
+            code.append(
+                "\n# Thread: Name(%s) Id(%s)" %
+                (threads.get(thread_id, None), thread_id, )
+            )
+            for (filename, lineno, name, line) in \
+              traceback.extract_stack(thread_stack):
+                code.append("File: '%s', line %d, in %s" %
+                    (filename, lineno, name)
+                )
+                if line:
+                    code.append("  %s" % (line.strip(), ))
+
+        if not logger:
+            print >> sys.stderr, "\n".join(code)
+        else:
+            _LOGGER.warning("\n".join(code))
+
+    return _stacktraces
+
+def interrupt(signum, stack):
+    """Avoid that someone kill the MySQL Fabric by mistake after pressing
+    ctrl + c. For now, we simply ignore the signal thus forcing users to
+    call "mysqlfabric manage stop" or "kill".
+
+    In the future, we might revisit this decision and improve the current
+    behavior.
+
+    :param signum: Signal number.
+    :param stack: Object representing the stack.
+    """
+    pass
+
+def catch_signals(logger=False):
+    """Define functions to be called when some specific signals
+    are sent to the current process.
+
+    :param logger: Whether logger was properly defined.
+    """
+    signal.signal(signal.SIGUSR1, stacktraces(logger))
+    signal.signal(signal.SIGINT, interrupt)

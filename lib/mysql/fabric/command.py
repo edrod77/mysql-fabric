@@ -267,23 +267,23 @@ class Command(object):
 
         self.generate_options()
 
+    def execute(self, *args):
+        raise NotImplementedError("Unimplemented execute method")
+
     def generate_options(self):
         """Use the execute / dispatch method signature to build the
         optional argument list passed to the command line parser.
         """
         # Extract the default values from the method signature and build
         # the optional argument list.
-        try:
-            spec = inspect.getargspec(self.execute.original_function)
-        except AttributeError:
-            spec = inspect.getargspec(self.dispatch)
+        cargs = get_arguments(self)
 
-        if spec.defaults is not None:
+        if cargs.defaults is not None:
             action = ""
-            #Easier to build the default args and values pairs in reverse
-            for opt, value in zip(reversed(spec.args), reversed(spec.defaults)):
-                #set the action while parsing optional arguments by
-                #inspecting the defaults.
+            # Easier to build the default args and values pairs in reverse
+            for opt, value in zip(reversed(cargs.args), reversed(cargs.defaults)):
+                # Set the action while parsing optional arguments by
+                # inspecting the defaults.
                 if type(value) is bool:
                     if value:
                         action = "store_false"
@@ -300,7 +300,7 @@ class Command(object):
                 }
                 self.command_options.append(command_option)
 
-            #Reverse the extracted list
+            # Reverse the extracted list
             self.command_options.reverse()
 
         # Options for all commands
@@ -422,15 +422,10 @@ class Command(object):
         dispatch method.
 
         :return string: The signature of the command as a string
-
         """
-
-        #The signatures of the execute/dispatch methods are used to
-        #build the help string to be used in the commands.
-        try:
-            cargs = inspect.getargspec(cls.execute.original_function)
-        except AttributeError:
-            cargs = inspect.getargspec(cls.dispatch)
+        # The signatures of the execute/dispatch methods are used to
+        # build the help string to be used in the commands.
+        cargs = get_arguments(cls)
 
         #Build the help text for the compulsory arguments of the command
         help_positional_arguments = ""
@@ -495,6 +490,27 @@ class Command(object):
             rset = None
         return CommandResult(None, results=rset)
 
+
+def get_arguments(reference):
+    """This function returns a reference to an object that reprents arguments
+    in either the execute or dispatch method and are used by caller to build
+    optional arguments and help strings.
+
+    If the sub-class implements an execute method, arguments are extract from
+    there. Otherwise, they are extracted from the dispatch command.
+
+    :param reference: Reference to an object that inherits from Command.
+    """
+    method = reference.execute.original_function
+    this_method = getattr(reference, method.__name__).__func__
+    base_method = getattr(Command, method.__name__).__func__
+    if this_method == base_method:
+        cargs = inspect.getargspec(reference.dispatch)
+    else:
+        cargs = inspect.getargspec(method)
+    assert cargs is not None
+
+    return cargs
 
 class ProcedureCommand(Command):
     """Class used to implement commands that are built as procedures and

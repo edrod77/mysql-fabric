@@ -69,6 +69,10 @@ from mysql.fabric.config import (
     Config
 )
 
+from mysql.fabric.utils import (
+    catch_signals
+)
+
 _ERR_COMMAND_MISSING = "command '%s' in group '%s' was not found."
 _ERR_GROUP_MISSING = "group '%s' does not exist"
 _ERR_EXTRA_ARGS = "Too many arguments to '%s'"
@@ -371,6 +375,9 @@ def main():
     """Start mysqlfabric.py script
     """
     try:
+        # Catch some signals such as SIGUSR1 and SIGINT.
+        catch_signals()
+
         # Load information on available commands.
         find_commands()
 
