@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -93,6 +93,7 @@ def check_connector():
     except ImportError as error:
         return False, path_mysql, path_connector
 
+
 def check_sphinx():
     """Check if sphinx is properly installed.
 
@@ -106,8 +107,9 @@ def check_sphinx():
         import sphinx
         path_sphinx = os.path.dirname(sphinx.__file__)
         return True, path_sphinx
-    except ImportError as error:
+    except ImportError:
         return False, path_sphinx
+
 
 def check_fabric():
     """Check if Fabric is properly built/installed.
@@ -207,20 +209,21 @@ else:
         """Create documentation. Please, install sphinx.
         """
         user_options = [
-            ('unknown', None, "Sphinx is not installed. Please, install it."),
-            ]
+            ('code-dir=', None,
+             "Sphinx is not installed. Please, install it."),
+        ]
         description = "create documentation. Please, install sphinx"
 
-        def initialize_options (self):
-            pass
+        def initialize_options(self):
+            self.code_dir = None
 
-        def finalize_options (self):
+        def finalize_options(self):
             pass
 
         def run(self):
             sys.stderr.write(
                 "Sphinx is not installed. Please, install it.\n"
-                )
+            )
             exit(1)
 
 # We need to edit the configuration file before installing it
