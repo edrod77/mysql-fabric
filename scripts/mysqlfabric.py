@@ -54,6 +54,7 @@ from mysql.fabric.command import (
     get_groups,
     get_command,
     get_commands,
+    get_arguments,
 )
 
 from mysql.fabric import (
@@ -347,10 +348,7 @@ def fire_command(command, *args):
     # there is the danger that the value of an optional parameter gets wrapped
     # as the value for a mandatory argument when we don't provide the value
     # for an mandatory argument
-    try:
-        spec = inspect.getargspec(command.__class__.execute.original_function)
-    except AttributeError:
-        spec = inspect.getargspec(command.__class__.dispatch)
+    spec = get_arguments(command)
 
     defaults_len = 0
     if spec.defaults:
