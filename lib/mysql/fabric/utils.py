@@ -256,7 +256,8 @@ def stacktraces(logger):
     """
     def _stacktraces(signum, stack):
         """Print the stack traces associated to all threads after
-        getting the signal SIGUSR1.
+        getting the signal SIGUSR1. This feature is only available in
+        those operating systems that follow the POSIX standard.
 
         :param signum: Signal number.
         :param stack: Object representing the stack.
@@ -305,5 +306,12 @@ def catch_signals(logger=False):
 
     :param logger: Whether logger was properly defined.
     """
-    signal.signal(signal.SIGUSR1, stacktraces(logger))
+    if os.name == 'posix':
+        signal.signal(signal.SIGUSR1, stacktraces(logger))
+    elif _LOGGER.handlers or _LOGGER.parent.handlers:
+        _LOGGER.warning(
+            "SIGUSR1 is not available in '{0}', so it will not be possible "
+            "to call 'kill -s SIGUSR1 <proc-id>' and print a stack trace"
+            ".".format(os.name)
+        )
     signal.signal(signal.SIGINT, interrupt)
