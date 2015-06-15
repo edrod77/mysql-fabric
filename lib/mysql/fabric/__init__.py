@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013,2014, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2013,2015, Oracle and/or its affiliates. All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ import distutils.version
 import os
 
 # Version info as a tuple (major, minor, patch, extra)
-__version_info__ = (1, 5, 4, "")
+__version_info__ = (1, 5, 5, "")
 
 # MySQL Fabric version:
 # `PEP-386 <http://www.python.org/dev/peps/pep-0386>`__ format
