@@ -557,9 +557,8 @@ class CloneServer(ProcedureGroup):
             raise _errors.ServerError(MYSQLCLIENT_NOT_FOUND % mysqlclient_binary)
 
         # Check if the destination server has restore privileges.
-        server = _server.MySQLServer.fetch(destn_server_uuid)
-        server.user = restore_user
-        server.passwd = restore_passwd
+        server = _server.MySQLServer(_uuid.UUID(destn_server_uuid), destn_address,
+                                     restore_user, restore_passwd)
         _backup.MySQLDump.check_restore_privileges(server)
 
         # Fetch a reference to source server.
