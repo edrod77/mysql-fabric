@@ -342,7 +342,6 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         threading.Thread.__init__(self, name="XML-RPC-Server")
         self.register_introspection_functions()
         self.__number_threads = number_threads
-        self.__threads = Queue.Queue(number_threads)
         self.__is_running = True
         self.daemon = True
         self.__opaque = uuid4().hex
@@ -356,6 +355,7 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         self.__auth_clients_purge_timer = None
         self.__lock = threading.Condition()
         self.__configured = False
+        self.__requests = Queue.Queue()
 
         if ssl_config:
             try:
@@ -452,12 +452,6 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
             return True
         return False
 
-    def register_thread(self, thread):
-        """Register a reference to an idle thread that can used to
-        process incoming requests.
-        """
-        self.__threads.put(thread)
-
     def shutdown(self):
         """Shutdown the server.
         """
@@ -505,21 +499,31 @@ class MyServer(threading.Thread, ThreadingMixIn, SimpleXMLRPCServer):
         self._create_sessions()
         while self.__is_running:
             try:
+                client_address = None
                 request, client_address = self.get_request()
-                self._process_request(request, client_address)
+                self.enqueue_request(request, client_address)
             except Exception as error:
-                _LOGGER.warning("Error accessing request: (%s).", error)
+                _LOGGER.debug(
+                    "Error accessing request from %s.", client_address
+                )
 
-    def _process_request(self, request, client_address):
-        """Process a request by delegating it to an idle session thread.
+    def dequeue_request(self):
+        """Retrieve a request from the request queue.
+
+        :return: Tuple with request to be processed and client's address.
+        """
+        (request, address) = self.__requests.get()
+        return (request, address)
+
+    def enqueue_request(self, request, client_address):
+        """Put the request in the request queue that eventually will be
+        accessed by session threads.
+
+        :param request: Request to be processed.
+        :param client_address: Client's address.
         """
         if self.verify_request(request, client_address):
-            thread = self.__threads.get()
-            _LOGGER.debug(
-                "Enqueuing request (%s) from (%s) through thread (%s).",
-                request, client_address, thread
-            )
-            thread.process_request(request, client_address)
+            self.__requests.put((request, client_address))
 
     def _create_sessions(self):
         """Create session threads.
@@ -625,7 +629,6 @@ class SessionThread(threading.Thread):
         """Create a SessionThread object.
         """
         threading.Thread.__init__(self, name=name)
-        self.__requests = Queue.Queue()
         self.__server = server
         self.__is_shutdown = False
         self.daemon = True
@@ -644,12 +647,6 @@ class SessionThread(threading.Thread):
             pass
         return None
 
-    def process_request(self, request, client_address):
-        """Register a request to be processed by this SessionThread
-        object.
-        """
-        self.__requests.put((request, client_address))
-
     def run(self):
         """Process registered requests.
         """
@@ -660,10 +657,9 @@ class SessionThread(threading.Thread):
             _LOGGER.warning("Error connecting to backing store: (%s).", error)
 
         SessionThread.local_thread.thread = self
-        self.__server.register_thread(self)
 
         while True:
-            request, client_address = self.__requests.get()
+            request, client_address = self.__server.dequeue_request()
             _LOGGER.debug(
                "Processing request (%s) from (%s) through thread (%s).",
                request, client_address, self
@@ -679,7 +675,6 @@ class SessionThread(threading.Thread):
             )
             if self.__is_shutdown:
                 self.__server.shutdown_now()
-            self.__server.register_thread(self)
 
         try:
             _persistence.deinit_thread()
