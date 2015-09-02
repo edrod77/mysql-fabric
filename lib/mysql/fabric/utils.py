@@ -281,24 +281,46 @@ def stacktraces(logger):
                     code.append("  %s" % (line.strip(), ))
 
         if not logger:
-            print >> sys.stderr, "\n".join(code)
+            sys.stderr.write("\n".join(code))
         else:
             _LOGGER.warning("\n".join(code))
 
     return _stacktraces
 
-def interrupt(signum, stack):
-    """Avoid that someone kill the MySQL Fabric by mistake after pressing
-    ctrl + c. For now, we simply ignore the signal thus forcing users to
-    call "mysqlfabric manage stop" or "kill".
+attempts = 0
+def interrupt(logger):
+    """Wrapper that uses closure to decide whether messages should
+    be sent to stderr or a logger.
 
-    In the future, we might revisit this decision and improve the current
-    behavior.
-
-    :param signum: Signal number.
-    :param stack: Object representing the stack.
+    :param logger: Whether logger was properly defined.
+    :return: Return a reference to a function that will handle the
+             SIGINT signal.
     """
-    pass
+    def _interrupt(signum, stack):
+        """Avoid that someone kill the MySQL Fabric by mistake after pressing
+        ctrl + c. We require that users press ctr + c or send SIGINT three
+        times before aborting the process.
+
+        :param signum: Signal number.
+        :param stack: Object representing the stack.
+        """
+        global attempts
+        attempts += 1
+
+        if attempts == 3:
+            sys.exit(130)
+
+        msg = (
+            "Request {0} to abort process. Please, send {1} additional "
+            "request(s).".format(attempts, 3 - attempts)
+        )
+
+        if not logger:
+            sys.stderr.write('{0}\n'.format(msg))
+        else:
+            _LOGGER.warning(msg)
+
+    return _interrupt
 
 def catch_signals(logger=False):
     """Define functions to be called when some specific signals
@@ -314,4 +336,4 @@ def catch_signals(logger=False):
             "to call 'kill -s SIGUSR1 <proc-id>' and print a stack trace"
             ".".format(os.name)
         )
-    signal.signal(signal.SIGINT, interrupt)
+    signal.signal(signal.SIGINT, interrupt(logger))

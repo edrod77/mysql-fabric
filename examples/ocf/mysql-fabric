@@ -209,7 +209,7 @@ fabric_stop() {
 
 # Check whether the MySQL Fabric process exists by using 'kill -0'
 fabric_monitor_process() {
-    local pid proc
+    local pid proc count attempts
 
     # Check whether the file with the process PID exists.
     if [ ! -e ${OCF_RESKEY_pid} ]; then
@@ -224,14 +224,25 @@ fabric_monitor_process() {
     fi
 
     # Check if the process is really a MySQL Fabric process.
-    proc=`ps axf | grep $pid | grep ${OCF_RESKEY_binary}`
-    if [ -z "$proc" ]; then
-        ocf_log err "MySQL Fabric with PID($pid) does not exist."
-        rm ${OCF_RESKEY_pid} > /dev/null 2>&1
-        return $OCF_NOT_RUNNING
-    fi
+    # The test is done a few times to catch the case that a
+    # new process has been created after a fork but MySQL
+    # Fabric has not been executed yet. In the future, MySQL
+    # Fabric itself should be responsible for generating its
+    # own pid-file.
+    count=0
+    attempts=5
+    while [ $count -lt $attempts ]; do
+        proc=`ps axf | grep $pid | grep ${OCF_RESKEY_binary}`
+        if [ ! -z "$proc" ]; then
+            return $OCF_SUCCESS
+        fi
+        count=`expr $count + 1`
+        sleep 1
+    done
 
-    return $OCF_SUCCESS
+    ocf_log err "MySQL Fabric with PID($pid) does not exist."
+    rm ${OCF_RESKEY_pid} > /dev/null 2>&1
+    return $OCF_NOT_RUNNING
 }
 
 fabric_monitor() {
